@@ -1,0 +1,82 @@
+import { usePostgres, getPgPool, getSQLiteDb } from './index';
+
+export function translatePgToSQLite(sql: string): string {
+	return sql
+		// Postgres parameter placeholders $1, $2 → ?
+		.replace(/\$\d+/g, '?')
+		// TO_CHAR(date, 'YYYY-MM') → strftime('%Y-%m', date)
+		// Supports table-qualified columns like t.date (the [^,]+ captures dots)
+		.replace(/TO_CHAR\(([^,]+),\s*'YYYY-MM'\)/gi, "strftime('%Y-%m', $1)")
+		// TO_CHAR(date, 'YYYY') → strftime('%Y', date)
+		.replace(/TO_CHAR\(([^,]+),\s*'YYYY'\)/gi, "strftime('%Y', $1)")
+		// EXTRACT(YEAR FROM <expr>) → CAST(strftime('%Y', <expr>) AS INTEGER)
+		// Handles nested parens up to one level deep
+		.replace(/EXTRACT\(YEAR\s+FROM\s+((?:[^()]|\([^()]*\))+)\)/gi,
+			(_, expr) => `CAST(strftime('%Y', ${expr}) AS INTEGER)`)
+		// NOW() → datetime('now')
+		.replace(/\bNOW\(\)/gi, "datetime('now')")
+		// CURRENT_DATE → date('now')
+		.replace(/\bCURRENT_DATE\b/gi, "date('now')")
+		// CURRENT_TIMESTAMP → datetime('now')
+		.replace(/\bCURRENT_TIMESTAMP\b/gi, "datetime('now')")
+		// Postgres cast syntax ::int, ::numeric → remove
+		.replace(/::\w+(?:\(\d+(?:,\d+)?\))?/g, '')
+		// Remove empty parentheses from line-wrapping
+		.replace(/\(\s*\)/g, '()');
+}
+
+export async function queryOne<T>(text: string, params: unknown[] = []): Promise<T | undefined> {
+	if (usePostgres) {
+		const client = await getPgPool().connect();
+		try {
+			const { rows } = await client.query(text, params);
+			return rows[0] as T | undefined;
+		} finally {
+			client.release();
+		}
+	} else {
+		const sql = translatePgToSQLite(text);
+		const db = await getSQLiteDb();
+		const stmt = db.prepare(sql);
+		const result = params.length > 0 ? stmt.get(...params) : stmt.get();
+		return result as T | undefined;
+	}
+}
+
+export async function queryMany<T>(text: string, params: unknown[] = []): Promise<T[]> {
+	if (usePostgres) {
+		const client = await getPgPool().connect();
+		try {
+			const { rows } = await client.query(text, params);
+			return rows as T[];
+		} finally {
+			client.release();
+		}
+	} else {
+		const sql = translatePgToSQLite(text);
+		const db = await getSQLiteDb();
+		const stmt = db.prepare(sql);
+		const result = params.length > 0 ? stmt.all(...params) : stmt.all();
+		return result as T[];
+	}
+}
+
+export async function execute(text: string, params: unknown[] = []): Promise<void> {
+	if (usePostgres) {
+		const client = await getPgPool().connect();
+		try {
+			await client.query(text, params);
+		} finally {
+			client.release();
+		}
+	} else {
+		const sql = translatePgToSQLite(text);
+		const db = await getSQLiteDb();
+		const stmt = db.prepare(sql);
+		if (params.length > 0) {
+			stmt.run(...params);
+		} else {
+			stmt.run();
+		}
+	}
+}
