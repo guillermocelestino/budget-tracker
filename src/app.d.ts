@@ -17,6 +17,7 @@ declare global {
 			spending?: Record<number, number>;
 			income?: Record<number, number>;
 			transaction?: Transaction;
+			lendingSummary?: { totalLent: number; totalRecovered: number; outstanding: number };
 			monthlyData?: MonthlyReportItem[];
 			expenseData?: CategoryReportItem[];
 			incomeData?: CategoryReportItem[];

@@ -38,6 +38,22 @@ CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date DESC);
 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
+CREATE INDEX IF NOT EXISTS idx_lendings_user_id ON lendings(user_id);
+CREATE INDEX IF NOT EXISTS idx_lendings_status ON lendings(status);
+
+CREATE TABLE IF NOT EXISTS lendings (
+	id SERIAL PRIMARY KEY,
+	user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	borrower_name TEXT NOT NULL,
+	amount NUMERIC(12,2) NOT NULL,
+	interest_rate NUMERIC(5,2) DEFAULT 0,
+	date_lent DATE NOT NULL,
+	due_date DATE,
+	status TEXT NOT NULL DEFAULT 'active',
+	notes TEXT,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `;
 
 const SQLITE_SCHEMA_SQL = `
@@ -77,6 +93,22 @@ CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date DESC);
 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
+CREATE INDEX IF NOT EXISTS idx_lendings_user_id ON lendings(user_id);
+CREATE INDEX IF NOT EXISTS idx_lendings_status ON lendings(status);
+
+CREATE TABLE IF NOT EXISTS lendings (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	borrower_name TEXT NOT NULL,
+	amount REAL NOT NULL,
+	interest_rate REAL DEFAULT 0,
+	date_lent TEXT NOT NULL,
+	due_date TEXT,
+	status TEXT NOT NULL DEFAULT 'active',
+	notes TEXT,
+	created_at TEXT NOT NULL DEFAULT (datetime('now')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 const DEFAULT_USERS = [

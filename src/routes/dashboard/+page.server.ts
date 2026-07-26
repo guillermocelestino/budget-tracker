@@ -28,6 +28,18 @@ export async function load({ locals }: { locals: App.Locals }) {
 		[userId]
 	);
 
+	const lendingSummary = await queryOne<{ totalLent: string; totalRecovered: string }>(
+			`SELECT
+				COALESCE(SUM(amount), 0) as "totalLent",
+				COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as "totalRecovered"
+			 FROM lendings
+			 WHERE user_id = $1`,
+			[userId]
+		);
+
+	const totalLent = parseFloat(lendingSummary?.totalLent ?? '0');
+	const totalRecovered = parseFloat(lendingSummary?.totalRecovered ?? '0');
+
 	return {
 		summary: {
 			totalIncome: parseFloat(summary?.totalincome ?? '0'),
@@ -35,6 +47,11 @@ export async function load({ locals }: { locals: App.Locals }) {
 			balance: parseFloat(summary?.totalincome ?? '0') - parseFloat(summary?.totalexpenses ?? '0'),
 		},
 		recentTransactions,
+		lendingSummary: {
+			totalLent,
+			totalRecovered,
+			outstanding: totalLent - totalRecovered,
+		},
 	};
 }
 

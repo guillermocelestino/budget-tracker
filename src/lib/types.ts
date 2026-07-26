@@ -70,3 +70,17 @@ export interface User {
 	username: string;
 	created_at: string;
 }
+
+export interface Lending {
+	id: number;
+	user_id: number;
+	borrower_name: string;
+	amount: number;
+	interest_rate: number;
+	date_lent: string;
+	due_date: string | null;
+	status: 'active' | 'paid';
+	notes: string | null;
+	created_at: string;
+	updated_at: string;
+}

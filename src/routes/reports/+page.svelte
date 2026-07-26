@@ -4,10 +4,11 @@
 	import { formatCurrency, getMonthLabel } from '$lib/utils/format';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import SummaryCards from '$lib/components/SummaryCards.svelte';
+	import LendingSummaryCards from '$lib/components/LendingSummaryCards.svelte';
 	import MonthlyChart from '$lib/components/MonthlyChart.svelte';
 	import CategoryChart from '$lib/components/CategoryChart.svelte';
 	import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
-import PageBackground from '$lib/components/PageBackground.svelte';
+	import PageBackground from '$lib/components/PageBackground.svelte';
 
 	let data = $derived($page.data as App.PageData);
 
@@ -98,6 +99,13 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 			return { value: monthStr, label: new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date(parseInt(selectedYear), i)) };
 		})
 	);
+
+	// Lending recovery rate
+	const lendingRecoveryRate = $derived(
+		(data.lendingSummary?.totalLent ?? 0) > 0
+			? Math.round(((data.lendingSummary?.totalRecovered ?? 0) / (data.lendingSummary?.totalLent ?? 0)) * 100)
+			: 0
+	);
 </script>
 
 <svelte:head>
@@ -115,17 +123,15 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 	savingsRate={data.monthSummary?.income > 0 ? ((data.monthSummary.income - data.monthSummary.expense) / data.monthSummary.income) * 100 : 0}
 />
 
-<YearOverYearCard yoyData={data.yoyData} selectedMonth={selectedMonth} />
+{#if data.lendingSummary}
+	<LendingSummaryCards
+		totalLent={data.lendingSummary.totalLent}
+		totalRecovered={data.lendingSummary.totalRecovered}
+		outstanding={data.lendingSummary.outstanding}
+	/>
+{/if}
 
-<div class="report-actions">
-	<button class="btn-refresh" onclick={() => goto(`/reports?year=${selectedYear}&month=${selectedMonth}&t=${Date.now()}`, { replaceState: true, invalidateAll: true })}>
-		<svg class="refresh-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-			<polyline points="23 4 23 10 17 10"/>
-			<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-		</svg>
-		Refresh
-	</button>
-</div>
+<YearOverYearCard yoyData={data.yoyData} selectedMonth={selectedMonth} />
 
 <div class="report-controls">
 	<div class="control-group">
@@ -375,6 +381,51 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 					<span class="top-cat-amount">{formatCurrency(cat.total)}</span>
 				</div>
 			{/each}
+		</div>
+	</section>
+{/if}
+
+<!-- Lending Overview -->
+{#if data.lendingSummary && data.lendingSummary.totalLent > 0}
+	<section class="report-section">
+		<div class="section-header">
+			<div class="section-title-group">
+				<div class="section-icon">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
+						<path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
+					</svg>
+				</div>
+				<h2 class="section-title">Lending Overview</h2>
+			</div>
+		</div>
+		<div class="lending-overview">
+			<div class="recovery-section">
+				<div class="recovery-header">
+					<span>Recovery Rate</span>
+					<span class="recovery-value">{Math.round((data.lendingSummary.totalRecovered / data.lendingSummary.totalLent) * 100)}%</span>
+				</div>
+				<div class="rate-bar">
+					<div class="rate-bar-fill" style="width: {(data.lendingSummary.totalRecovered / data.lendingSummary.totalLent) * 100}%"></div>
+				</div>
+			</div>
+			<div class="lending-grid">
+				<div class="lending-mini-card">
+					<span class="mini-label">Total Lent</span>
+					<span class="mini-value">{formatCurrency(data.lendingSummary.totalLent)}</span>
+					<div class="mini-bar"><div class="mini-bar-fill full"></div></div>
+				</div>
+				<div class="lending-mini-card">
+					<span class="mini-label">Recovered</span>
+					<span class="mini-value income">{formatCurrency(data.lendingSummary.totalRecovered)}</span>
+					<div class="mini-bar"><div class="mini-bar-fill income" style="width: {(data.lendingSummary.totalRecovered / data.lendingSummary.totalLent) * 100}%"></div></div>
+				</div>
+				<div class="lending-mini-card">
+					<span class="mini-label">Outstanding</span>
+					<span class="mini-value expense">{formatCurrency(data.lendingSummary.outstanding)}</span>
+					<div class="mini-bar"><div class="mini-bar-fill expense" style="width: {(data.lendingSummary.outstanding / data.lendingSummary.totalLent) * 100}%"></div></div>
+				</div>
+			</div>
 		</div>
 	</section>
 {/if}
@@ -647,6 +698,108 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 		transition: width 500ms cubic-bezier(0.4, 0, 0.2, 1);
 	}
 
+	.lending-overview {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-lg);
+	}
+
+	.recovery-section {
+		text-align: center;
+	}
+
+	.recovery-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: var(--space-sm);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--color-text-secondary);
+	}
+
+	.recovery-value {
+		font-size: var(--font-size-xl);
+		font-weight: 700;
+		color: var(--color-income);
+	}
+
+	.rate-bar {
+		height: 12px;
+		background: var(--color-bg);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+
+	.rate-bar-fill {
+		height: 100%;
+		border-radius: 999px;
+		background: linear-gradient(90deg, #34d399, var(--color-income));
+		transition: width 500ms ease;
+	}
+
+	.lending-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: var(--space-md);
+	}
+
+	.lending-mini-card {
+		padding: var(--space-md);
+		background: var(--color-bg);
+		border-radius: var(--radius-md);
+		border: 1px solid var(--color-border);
+	}
+
+	.mini-label {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+		display: block;
+		margin-bottom: 4px;
+	}
+
+	.mini-value {
+		font-size: var(--font-size-lg);
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		display: block;
+		margin-bottom: var(--space-sm);
+	}
+
+	.mini-value.income {
+		color: var(--color-income);
+	}
+
+	.mini-value.expense {
+		color: var(--color-expense);
+	}
+
+	.mini-bar {
+		height: 6px;
+		background: var(--color-border);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+
+	.mini-bar-fill {
+		height: 100%;
+		border-radius: 999px;
+		transition: width 500ms ease;
+	}
+
+	.mini-bar-fill.full {
+		background: var(--color-primary);
+		width: 100%;
+	}
+
+	.mini-bar-fill.income {
+		background: var(--color-income);
+	}
+
+	.mini-bar-fill.expense {
+		background: var(--color-expense);
+	}
+
 	.top-cat-amount {
 		font-weight: 700;
 		font-size: var(--font-size-sm);
@@ -803,5 +956,123 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 		.forecast-grid {
 			grid-template-columns: 1fr;
 		}
+	}
+
+	/* Lending Section */
+	.section-icon.lending {
+		background: linear-gradient(135deg, var(--color-primary-light) 0%, rgba(99, 102, 241, 0.15) 100%);
+		color: var(--color-primary);
+	}
+
+	.lending-section {
+		margin-bottom: var(--space-lg);
+	}
+
+	.lending-chart-container {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-lg);
+	}
+
+	.recovery-rate-card {
+		background: rgba(255, 255, 255, 0.85);
+		backdrop-filter: blur(20px);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+		padding: var(--space-lg);
+	}
+
+	.recovery-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: var(--space-sm);
+	}
+
+	.recovery-label {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--color-text-secondary);
+	}
+
+	.recovery-value {
+		font-size: var(--font-size-2xl);
+		font-weight: 700;
+		color: var(--color-text);
+	}
+
+	.recovery-value.good {
+		color: var(--color-income);
+	}
+
+	.recovery-bar-bg {
+		height: 8px;
+		background: var(--color-bg);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+
+	.recovery-bar-fill {
+		height: 100%;
+		background: linear-gradient(90deg, var(--color-primary) 0%, #8b5cf6 100%);
+		border-radius: 999px;
+		transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+	}
+
+	.lending-bars {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md);
+	}
+
+	.lending-bar-item {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.lending-bar-info {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+
+	.lending-bar-label {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+	}
+
+	.lending-bar-value {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.lending-bar-value.income { color: var(--color-income); }
+	.lending-bar-value.expense { color: var(--color-expense); }
+
+	.lending-bar-track {
+		height: 8px;
+		background: var(--color-bg);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+
+	.lending-bar-fill {
+		height: 100%;
+		border-radius: 999px;
+		transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+	}
+
+	.lending-bar-fill.primary {
+		background: linear-gradient(90deg, var(--color-primary) 0%, #8b5cf6 100%);
+	}
+
+	.lending-bar-fill.income {
+		background: linear-gradient(90deg, var(--color-income) 0%, #34d399 100%);
+	}
+
+	.lending-bar-fill.expense {
+		background: linear-gradient(90deg, var(--color-expense) 0%, #f87171 100%);
 	}
 </style>

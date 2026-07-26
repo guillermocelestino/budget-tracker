@@ -93,6 +93,15 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const currIncome = parseFloat(monthSummary?.income ?? '0');
 	const currExpense = parseFloat(monthSummary?.expense ?? '0');
 
+	const lendingSummary = await queryOne<{ totalLent: string; totalRecovered: string }>(
+		`SELECT
+			COALESCE(SUM(amount), 0) as "totalLent",
+			COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as "totalRecovered"
+		 FROM lendings
+		 WHERE user_id = $1`,
+		[userId]
+	);
+
 	const currYTDIncome = parseFloat(currentYTD?.income ?? '0');
 	const currYTDExpense = parseFloat(currentYTD?.expense ?? '0');
 	const prevYTDIncome = parseFloat(previousYTD?.income ?? '0');
@@ -138,6 +147,11 @@ return {
 				ytdIncomeChange: pctChange(currYTDIncome, prevYTDIncome),
 				ytdExpenseChange: pctChange(currYTDExpense, prevYTDExpense),
 			},
+		},
+		lendingSummary: {
+			totalLent: parseFloat(lendingSummary?.totalLent ?? '0'),
+			totalRecovered: parseFloat(lendingSummary?.totalRecovered ?? '0'),
+			outstanding: parseFloat(lendingSummary?.totalLent ?? '0') - parseFloat(lendingSummary?.totalRecovered ?? '0'),
 		},
 	};
 }

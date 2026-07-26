@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import SummaryCards from '$lib/components/SummaryCards.svelte';
+	import LendingSummaryCards from '$lib/components/LendingSummaryCards.svelte';
 	import TransactionList from '$lib/components/TransactionList.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
-import PageBackground from '$lib/components/PageBackground.svelte';
+	import PageBackground from '$lib/components/PageBackground.svelte';
 	import { enhance } from '$app/forms';
+	import { formatCurrency } from '$lib/utils/format';
 	import { showSuccess, showError } from '$lib/stores/toast.svelte';
 
 	let deleteId = $state<number | null>(null);
@@ -29,6 +31,14 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 	totalExpenses={data.summary?.totalExpenses ?? 0}
 	balance={data.summary?.balance ?? 0}
 />
+
+{#if data.lendingSummary}
+	<LendingSummaryCards
+		totalLent={data.lendingSummary.totalLent}
+		totalRecovered={data.lendingSummary.totalRecovered}
+		outstanding={data.lendingSummary.outstanding}
+	/>
+{/if}
 
 {#if (data.recentTransactions?.length ?? 0) > 0}
 	<section class="section">
