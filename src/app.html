@@ -10,20 +10,6 @@
 		<meta name="apple-mobile-web-app-title" content="Budget" />
 		<link rel="apple-touch-icon" href="/icon-512.png" />
 		<link rel="manifest" href="/manifest.webmanifest" />
-		<script>
-			// Immediately unregister any old service worker that may be caching old pages
-			if ('serviceWorker' in navigator) {
-				navigator.serviceWorker.getRegistrations().then(function(regs) {
-					regs.forEach(function(r) { r.unregister(); });
-				});
-				// Also clear any Workbox caches
-				if (window.caches) {
-					caches.keys().then(function(names) {
-						names.forEach(function(n) { caches.delete(n); });
-					});
-				}
-			}
-		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

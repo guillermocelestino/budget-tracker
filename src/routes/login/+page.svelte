@@ -122,10 +122,10 @@
 				{/if}
 			</button>
 		</form>
-
+<!-- 
 		<div class="login-footer">
 			<p>Don't have an account? <a href="/register">Create one</a></p>
-		</div>
+		</div> -->
 	</div>
 
 	<!-- Trust indicators -->

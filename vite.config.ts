@@ -6,7 +6,8 @@ export default defineConfig({
 	plugins: [
 		sveltekit(),
 		SvelteKitPWA({
-			// Enable PWA features during dev so manifest is visible in DevTools
+			// PWA only activates in production build — never in dev mode
+			// This avoids the caching issues that plagued our dev workflow
 			devOptions: {
 				enabled: false,
 				type: 'module'
@@ -21,7 +22,7 @@ export default defineConfig({
 				background_color: '#ffffff',
 				display: 'standalone',
 				scope: '/',
-				start_url: '/',
+				start_url: '/dashboard',
 				orientation: 'portrait-primary',
 				icons: [
 					{
@@ -43,27 +44,31 @@ export default defineConfig({
 				]
 			},
 			workbox: {
-				// Include patterns starting with prerendered/ and client/ to prevent the
-				// plugin from adding its own defaults that don't match dev-dist structure
-				globPatterns: [
-					'**/*.{js,css,html,ico,png,svg,woff2}'
-				],
-				globIgnores: [
-					'**/node_modules/**/*',
-					'dev-dist/sw.js',
-					'dev-dist/workbox-*.js'
-				],
+				// Smart caching for production — NetworkFirst ensures fresh data, cache as fallback
 				runtimeCaching: [
 					{
+						// API routes: always try network first, cache as fallback
 						urlPattern: /^\/api\/.*/i,
 						handler: 'NetworkFirst',
 						options: {
 							cacheName: 'api-cache',
 							expiration: {
 								maxEntries: 50,
-								maxAgeSeconds: 60 * 60 * 24
+								maxAgeSeconds: 60 * 60 * 24 // 24 hours
 							},
 							networkTimeoutSeconds: 10
+						}
+					},
+					{
+						// Page navigations: always try network, cache for offline fallback
+						urlPattern: /^\/(dashboard|transactions|categories|reports|login).*/,
+						handler: 'NetworkFirst',
+						options: {
+							cacheName: 'page-cache',
+							expiration: {
+								maxEntries: 20,
+								maxAgeSeconds: 60 * 60 * 24 // 24 hours
+							},
 						}
 					}
 				]
