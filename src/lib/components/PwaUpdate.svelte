@@ -68,31 +68,31 @@
 <style>
 	.pwa-toast {
 		position: fixed;
-		bottom: var(--space-lg, 1rem);
-		right: var(--space-lg, 1rem);
+		bottom: var(--space-lg);
+		right: var(--space-lg);
 		z-index: 9999;
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
-		padding: 1rem 1.25rem;
-		background: var(--color-surface, #1e293b);
-		color: var(--color-text, #f1f5f9);
-		border: 1px solid var(--color-border, #334155);
-		border-radius: 0.75rem;
-		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+		gap: var(--space-sm);
+		padding: var(--space-md) var(--space-lg);
+		background: var(--color-surface);
+		color: var(--color-text);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-lg);
 		max-width: 360px;
 		animation: slideUp 0.3s ease-out;
 	}
 
 	.pwa-message {
 		display: flex;
-		gap: 0.75rem;
+		gap: var(--space-sm);
 		align-items: flex-start;
 	}
 
 	.pwa-message p {
-		margin: 0.25rem 0 0;
-		font-size: 0.875rem;
+		margin: var(--space-xs) 0 0;
+		font-size: var(--font-size-sm);
 		opacity: 0.8;
 	}
 
@@ -103,14 +103,14 @@
 
 	.pwa-buttons {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--space-xs);
 		justify-content: flex-end;
 	}
 
 	.pwa-btn {
-		padding: 0.5rem 1rem;
-		border-radius: 0.5rem;
-		font-size: 0.875rem;
+		padding: var(--space-xs) var(--space-md);
+		border-radius: var(--radius-sm);
+		font-size: var(--font-size-sm);
 		font-weight: 500;
 		cursor: pointer;
 		border: none;
@@ -122,14 +122,14 @@
 	}
 
 	.pwa-btn-primary {
-		background: var(--color-primary, #3b82f6);
+		background: var(--color-primary);
 		color: #fff;
 	}
 
 	.pwa-btn-secondary {
 		background: transparent;
-		color: var(--color-text, #f1f5f9);
-		border: 1px solid var(--color-border, #475569);
+		color: var(--color-text);
+		border: 1px solid var(--color-border);
 	}
 
 	@keyframes slideUp {
@@ -145,9 +145,9 @@
 
 	@media (max-width: 480px) {
 		.pwa-toast {
-			left: var(--space-md, 0.75rem);
-			right: var(--space-md, 0.75rem);
-			bottom: var(--space-md, 0.75rem);
+			left: var(--space-md);
+			right: var(--space-md);
+			bottom: var(--space-md);
 			max-width: none;
 		}
 	}

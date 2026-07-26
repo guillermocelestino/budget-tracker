@@ -2,7 +2,8 @@ import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
 import type { Transaction } from '$lib/types';
 
-export async function load() {
+export async function load({ locals }: { locals: App.Locals }) {
+	const userId = locals.user!.userId;
 	const currentMonth = new Date();
 	const firstDay = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-01`;
 	const lastDayDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
@@ -13,16 +14,18 @@ export async function load() {
 			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as totalincome,
 			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as totalexpenses
 		 FROM transactions
-		 WHERE date >= $1 AND date <= $2`,
-		[firstDay, lastDay]
+		 WHERE user_id = $1 AND date >= $2 AND date <= $3`,
+		[userId, firstDay, lastDay]
 	);
 
 	const recentTransactions = await queryMany<Transaction>(
 		`SELECT t.*, c.name as category_name, c.color as category_color
 		 FROM transactions t
 		 LEFT JOIN categories c ON t.category_id = c.id
+		 WHERE t.user_id = $1
 		 ORDER BY t.date DESC, t.id DESC
-		 LIMIT 5`
+		 LIMIT 5`,
+		[userId]
 	);
 
 	return {
@@ -36,7 +39,8 @@ export async function load() {
 }
 
 export const actions = {
-	delete: async ({ request }) => {
+	delete: async ({ request, locals }) => {
+		const userId = locals.user!.userId;
 		const data = await request.formData();
 		const id = parseInt(data.get('id') as string);
 
@@ -44,12 +48,12 @@ export const actions = {
 			return fail(400, { error: 'Invalid transaction ID' });
 		}
 
-		const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE id = $1', [id]);
+		const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
 		if (!existing) {
 			return fail(404, { error: 'Transaction not found' });
 		}
 
-		await execute('DELETE FROM transactions WHERE id = $1', [id]);
+		await execute('DELETE FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
 
 		return { success: true };
 	},

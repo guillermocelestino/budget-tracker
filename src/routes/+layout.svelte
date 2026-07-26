@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { page } from '$app/stores';
+	import { navigating } from '$app/stores';
 	import favicon from '$lib/assets/favicon.svg';
 	import '../styles/variables.css';
 	import Sidebar from '$lib/components/Sidebar.svelte';
@@ -6,6 +8,8 @@
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
 
 	let { children }: { children?: import('svelte').Snippet } = $props();
+
+	const isLoginPage = $derived($page.url.pathname === '/login');
 </script>
 
 <svelte:head>
@@ -17,9 +21,11 @@
 <ToastContainer />
 
 <div class="app-shell">
-	<Sidebar />
-	<div class="main-area">
-		<main class="main-content">
+	{#if !isLoginPage}
+		<Sidebar />
+	{/if}
+	<div class="main-area" class:no-sidebar={isLoginPage}>
+		<main class="main-content" class:navigating={$navigating} class:no-sidebar={isLoginPage}>
 			{@render children()}
 		</main>
 	</div>
@@ -65,9 +71,23 @@
 		min-height: 100vh;
 	}
 
+	.main-area.no-sidebar {
+		margin-left: 0;
+	}
+
 	.main-content {
 		padding: var(--space-lg) var(--space-xl);
 		max-width: 1200px;
+		transition: opacity 150ms ease;
+	}
+
+	.main-content.no-sidebar {
+		padding: 0;
+		max-width: none;
+	}
+
+	.main-content.navigating {
+		opacity: 0.5;
 	}
 
 	@media (max-width: 768px) {
@@ -76,8 +96,16 @@
 			padding-top: 48px;
 		}
 
+		.main-area.no-sidebar {
+			padding-top: 0;
+		}
+
 		.main-content {
 			padding: var(--space-md);
+		}
+
+		.main-content.no-sidebar {
+			padding: 0;
 		}
 	}
 </style>

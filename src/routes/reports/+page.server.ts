@@ -1,32 +1,52 @@
 import { queryMany, queryOne } from '$lib/database/query';
 import type { MonthlyReportItem, CategoryReportItem } from '$lib/types';
 
-export async function load({ url }: { url: URL }) {
+export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
+	const userId = locals.user!.userId;
 	const currentYear = String(new Date().getFullYear());
 	const currentMonth = `${currentYear}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
 	const year = url.searchParams.get('year') || currentYear;
 	const month = url.searchParams.get('month') || currentMonth;
 
+	// Compute previous year same month
+	const prevYear = String(parseInt(year) - 1);
+	const prevYearMonth = month.replace(/^\d{4}/, prevYear);
+
+	// Compute YTD range: Jan to selected month
+	const selectedMonthNum = parseInt(month.split('-')[1]);
+
 	const monthlyData = await queryMany<MonthlyReportItem>(
 		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
 				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
 				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
 		 FROM transactions
-		 WHERE EXTRACT(YEAR FROM date) = $1::int
+		 WHERE user_id = $1 AND EXTRACT(YEAR FROM date) = $2::int
 		 GROUP BY month
 		 ORDER BY month ASC`,
-		[parseInt(year)]
+		[userId, parseInt(year)]
 	);
 
-	const categoryData = await queryMany<CategoryReportItem>(
+	const expenseData = await queryMany<CategoryReportItem>(
 		`SELECT c.id as category_id, c.name as category_name, c.color as category_color,
 				COALESCE(SUM(t.amount), 0) as total
 		 FROM categories c
 		 LEFT JOIN transactions t ON t.category_id = c.id AND TO_CHAR(t.date, 'YYYY-MM') = $1 AND t.type = 'expense'
+		 WHERE c.user_id = $2 AND c.type = 'expense'
 		 GROUP BY c.id, c.name, c.color
 		 ORDER BY total DESC`,
-		[month]
+		[month, userId]
+	);
+
+	const incomeData = await queryMany<CategoryReportItem>(
+		`SELECT c.id as category_id, c.name as category_name, c.color as category_color,
+				COALESCE(SUM(t.amount), 0) as total
+		 FROM categories c
+		 LEFT JOIN transactions t ON t.category_id = c.id AND TO_CHAR(t.date, 'YYYY-MM') = $1 AND t.type = 'income'
+		 WHERE c.user_id = $2 AND c.type = 'income'
+		 GROUP BY c.id, c.name, c.color
+		 ORDER BY total DESC`,
+		[month, userId]
 	);
 
 	const monthSummary = await queryOne<{ income: string; expense: string }>(
@@ -34,19 +54,77 @@ export async function load({ url }: { url: URL }) {
 			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
 			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
 		 FROM transactions
-		 WHERE TO_CHAR(date, 'YYYY-MM') = $1`,
-		[month]
+		 WHERE user_id = $1 AND TO_CHAR(date, 'YYYY-MM') = $2`,
+		[userId, month]
 	);
+
+	// YoY: Previous year same month
+	const prevYearSummary = await queryOne<{ income: string; expense: string }>(
+		`SELECT
+			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+		 FROM transactions
+		 WHERE user_id = $1 AND TO_CHAR(date, 'YYYY-MM') = $2`,
+		[userId, prevYearMonth]
+	);
+
+	// YoY: Current year YTD
+	const currentYTD = await queryOne<{ income: string; expense: string }>(
+		`SELECT
+			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+		 FROM transactions
+		 WHERE user_id = $1 AND EXTRACT(YEAR FROM date) = $2::int AND EXTRACT(MONTH FROM date) <= $3::int`,
+		[userId, parseInt(year), selectedMonthNum]
+	);
+
+	// YoY: Previous year YTD
+	const previousYTD = await queryOne<{ income: string; expense: string }>(
+		`SELECT
+			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+		 FROM transactions
+		 WHERE user_id = $1 AND EXTRACT(YEAR FROM date) = $2::int AND EXTRACT(MONTH FROM date) <= $3::int`,
+		[userId, parseInt(prevYear), selectedMonthNum]
+	);
+
+	const prevIncome = parseFloat(prevYearSummary?.income ?? '0');
+	const prevExpense = parseFloat(prevYearSummary?.expense ?? '0');
+	const currIncome = parseFloat(monthSummary?.income ?? '0');
+	const currExpense = parseFloat(monthSummary?.expense ?? '0');
+
+	const currYTDIncome = parseFloat(currentYTD?.income ?? '0');
+	const currYTDExpense = parseFloat(currentYTD?.expense ?? '0');
+	const prevYTDIncome = parseFloat(previousYTD?.income ?? '0');
+	const prevYTDExpense = parseFloat(previousYTD?.expense ?? '0');
+
+	function pctChange(curr: number, prev: number): number {
+		if (prev === 0) return curr > 0 ? 100 : 0;
+		return Math.round(((curr - prev) / prev) * 100);
+	}
 
 	return {
 		monthlyData,
-		categoryData,
+		expenseData,
+		incomeData,
 		year,
 		month,
 		monthSummary: {
-			income: parseFloat(monthSummary?.income ?? '0'),
-			expense: parseFloat(monthSummary?.expense ?? '0'),
-			balance: parseFloat(monthSummary?.income ?? '0') - parseFloat(monthSummary?.expense ?? '0'),
+			income: currIncome,
+			expense: currExpense,
+			balance: currIncome - currExpense,
+		},
+		yoyData: {
+			prevYearMonth,
+			previousMonth: { income: prevIncome, expense: prevExpense, balance: prevIncome - prevExpense },
+			currentYTD: { income: currYTDIncome, expense: currYTDExpense },
+			previousYTD: { income: prevYTDIncome, expense: prevYTDExpense },
+			changes: {
+				monthIncomeChange: pctChange(currIncome, prevIncome),
+				monthExpenseChange: pctChange(currExpense, prevExpense),
+				ytdIncomeChange: pctChange(currYTDIncome, prevYTDIncome),
+				ytdExpenseChange: pctChange(currYTDExpense, prevYTDExpense),
+			},
 		},
 	};
 }

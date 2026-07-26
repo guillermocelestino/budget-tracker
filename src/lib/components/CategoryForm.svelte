@@ -18,6 +18,7 @@
 	let name = $state('');
 	let color = $state('#6366f1');
 	let icon = $state('📁');
+	let categoryType = $state<'income' | 'expense'>('expense');
 	let rawBudgetLimit = $state('');
 
 	$effect(() => {
@@ -25,6 +26,7 @@
 			name = category.name;
 			color = category.color;
 			icon = category.icon;
+			categoryType = category.type || 'expense';
 			rawBudgetLimit = category.budget_limit != null ? String(category.budget_limit) : '';
 		}
 	});
@@ -88,6 +90,20 @@
 	{#if category}
 		<input type="hidden" name="id" value={category.id} />
 	{/if}
+
+	<div class="form-group">
+		<label class="form-label">Type</label>
+		<div class="type-toggle">
+			<label class="type-option" class:active={categoryType === 'expense'}>
+				<input type="radio" name="type" value="expense" bind:group={categoryType} />
+				💸 Expense
+			</label>
+			<label class="type-option" class:active={categoryType === 'income'}>
+				<input type="radio" name="type" value="income" bind:group={categoryType} />
+				💰 Income
+			</label>
+		</div>
+	</div>
 
 	<div class="form-group">
 		<label class="form-label" for="cat-name">Name</label>
@@ -159,6 +175,37 @@
 		font-size: var(--font-size-sm);
 		font-weight: 600;
 		color: var(--color-text);
+	}
+
+	.type-toggle {
+		display: flex;
+		gap: var(--space-sm);
+	}
+
+	.type-option {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-xs);
+		padding: var(--space-sm) var(--space-md);
+		border: 2px solid var(--color-border);
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-size: var(--font-size-base);
+		font-weight: 500;
+		transition: all var(--transition-fast);
+		min-height: 48px;
+	}
+
+	.type-option input {
+		display: none;
+	}
+
+	.type-option.active {
+		border-color: var(--color-primary);
+		background: var(--color-primary-light);
+		color: var(--color-primary);
 	}
 
 	input[type="text"],

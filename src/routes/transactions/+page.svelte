@@ -15,6 +15,12 @@
 	let dateFromFilter = $state($page.url.searchParams.get('date_from') || '');
 	let dateToFilter = $state($page.url.searchParams.get('date_to') || '');
 
+	let showFilters = $state(true);
+
+	const activeFilterCount = $derived(
+		[typeFilter, categoryFilter, dateFromFilter, dateToFilter].filter(Boolean).length
+	);
+
 	function applyFilters() {
 		const params = new URLSearchParams();
 		if (typeFilter) params.set('type', typeFilter);
@@ -50,28 +56,47 @@
 	{/snippet}
 </PageHeader>
 
-<div class="filters">
-	<select bind:value={typeFilter}>
-		<option value="">All Types</option>
-		<option value="income">Income</option>
-		<option value="expense">Expense</option>
-	</select>
+<button class="filter-toggle" onclick={() => showFilters = !showFilters}>
+	<span class="filter-toggle-label">
+		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+		</svg>
+		Filters
+	</span>
+	{#if activeFilterCount > 0}
+		<span class="filter-badge">{activeFilterCount}</span>
+	{/if}
+	<span class="filter-arrow" class:open={showFilters}>
+		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<polyline points="6 9 12 15 18 9"/>
+		</svg>
+	</span>
+</button>
 
-	<select bind:value={categoryFilter}>
-		<option value="">All Categories</option>
-		{#each data.categories ?? [] as cat (cat.id)}
-			<option value={cat.id}>{cat.icon} {cat.name}</option>
-		{/each}
-	</select>
+{#if showFilters}
+	<div class="filter-panel">
+		<select bind:value={typeFilter}>
+			<option value="">All Types</option>
+			<option value="income">Income</option>
+			<option value="expense">Expense</option>
+		</select>
 
-	<input type="date" bind:value={dateFromFilter} placeholder="From" />
-	<input type="date" bind:value={dateToFilter} placeholder="To" />
+		<select bind:value={categoryFilter}>
+			<option value="">All Categories</option>
+			{#each data.categories ?? [] as cat (cat.id)}
+				<option value={cat.id}>{cat.icon} {cat.name}</option>
+			{/each}
+		</select>
 
-	<div class="filter-actions">
-		<button class="btn-filter" onclick={applyFilters}>Apply</button>
-		<button class="btn-clear" onclick={clearFilters}>Clear</button>
+		<input type="date" bind:value={dateFromFilter} placeholder="From" />
+		<input type="date" bind:value={dateToFilter} placeholder="To" />
+
+		<div class="filter-actions">
+			<button class="btn-filter" onclick={applyFilters}>Apply</button>
+			<button class="btn-clear" onclick={clearFilters}>Clear</button>
+		</div>
 	</div>
-</div>
+{/if}
 
 <TransactionList
 	transactions={data.transactions ?? []}
@@ -110,28 +135,83 @@
 {/if}
 
 <style>
-	.filters {
+	.filter-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-xs);
+		padding: var(--space-sm) var(--space-md);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-size: var(--font-size-sm);
+		font-family: inherit;
+		font-weight: 600;
+		color: var(--color-text);
+		min-height: 44px;
+		margin-bottom: var(--space-sm);
+		transition: background var(--transition-fast);
+	}
+
+	.filter-toggle:hover {
+		background: var(--color-primary-light);
+	}
+
+	.filter-toggle-label {
+		display: flex;
+		align-items: center;
+		gap: var(--space-xs);
+	}
+
+	.filter-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 22px;
+		height: 22px;
+		padding: 0 6px;
+		background: var(--color-primary);
+		color: white;
+		border-radius: 999px;
+		font-size: 0.75rem;
+		font-weight: 700;
+		line-height: 1;
+	}
+
+	.filter-arrow {
+		font-size: 0.7rem;
+		color: var(--color-text-secondary);
+		transition: transform var(--transition-fast);
+	}
+
+	.filter-panel {
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-sm);
 		margin-bottom: var(--space-md);
+		padding: var(--space-md);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
 		align-items: center;
 	}
 
-	.filters select,
-	.filters input {
+	.filter-panel select,
+	.filter-panel input {
 		padding: var(--space-xs) var(--space-sm);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-sm);
 		font-size: var(--font-size-sm);
 		font-family: inherit;
-		background: var(--color-surface);
+		background: var(--color-bg);
 		color: var(--color-text);
 		min-height: 44px;
+		flex: 1;
+		min-width: 140px;
 	}
 
-	.filters select:focus,
-	.filters input:focus {
+	.filter-panel select:focus,
+	.filter-panel input:focus {
 		outline: none;
 		border-color: var(--color-primary);
 	}
@@ -158,9 +238,17 @@
 		border-color: var(--color-primary);
 	}
 
+	.btn-filter:hover {
+		background: var(--color-primary-hover);
+	}
+
 	.btn-clear {
 		background: var(--color-bg);
 		color: var(--color-text);
+	}
+
+	.btn-clear:hover {
+		background: var(--color-border);
 	}
 
 	.btn-primary-sm {
@@ -193,6 +281,7 @@
 		font-size: var(--font-size-sm);
 		min-height: 44px;
 		min-width: 80px;
+		transition: background var(--transition-fast), border-color var(--transition-fast);
 	}
 
 	.page-btn:disabled {
@@ -200,9 +289,18 @@
 		cursor: not-allowed;
 	}
 
+	.page-btn:hover:not(:disabled) {
+		background: var(--color-primary-light);
+		border-color: var(--color-primary);
+	}
+
 	.page-info {
 		font-size: var(--font-size-sm);
-		color: var(--color-text-secondary);
+		font-weight: 600;
+		padding: var(--space-xs) var(--space-md);
+		background: var(--color-primary-light);
+		color: var(--color-primary);
+		border-radius: var(--radius-sm);
 	}
 
 	.modal-actions {
@@ -222,6 +320,10 @@
 		flex: 1;
 	}
 
+	.btn-danger:hover {
+		background: var(--color-danger-hover);
+	}
+
 	.btn-cancel {
 		padding: 12px var(--space-lg);
 		background: var(--color-bg);
@@ -233,15 +335,20 @@
 		flex: 1;
 	}
 
-	@media (max-width: 640px) {
-		.filters {
+	.btn-cancel:hover {
+		background: var(--color-border);
+	}
+
+	@media (max-width: 768px) {
+		.filter-panel {
 			flex-direction: column;
 			align-items: stretch;
 		}
 
-		.filters select,
-		.filters input {
+		.filter-panel select,
+		.filter-panel input {
 			width: 100%;
+			min-width: 0;
 		}
 
 		.filter-actions {

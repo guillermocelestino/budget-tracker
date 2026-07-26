@@ -26,6 +26,7 @@ export interface Category {
 	name: string;
 	color: string;
 	icon: string;
+	type: 'income' | 'expense';
 	budget_limit: number | null;
 	created_at: string;
 }
@@ -34,6 +35,7 @@ export interface CategoryFormData {
 	name: string;
 	color: string;
 	icon: string;
+	type: 'income' | 'expense';
 	budget_limit: number | null;
 }
 

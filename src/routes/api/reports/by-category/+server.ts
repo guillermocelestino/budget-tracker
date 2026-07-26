@@ -7,7 +7,8 @@ function getCurrentMonthParam(): string {
 	return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export async function GET({ url }: { url: URL }) {
+export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
+	const userId = locals.user!.userId;
 	const month = url.searchParams.get('month') || getCurrentMonthParam();
 	const type = url.searchParams.get('type') || 'expense';
 
@@ -15,10 +16,10 @@ export async function GET({ url }: { url: URL }) {
 		`SELECT c.id as category_id, c.name as category_name, c.color as category_color, SUM(t.amount) as total
 		 FROM transactions t
 		 JOIN categories c ON t.category_id = c.id
-		 WHERE TO_CHAR(t.date, 'YYYY-MM') = $1 AND t.type = $2
+		 WHERE t.user_id = $1 AND TO_CHAR(t.date, 'YYYY-MM') = $2 AND t.type = $3
 		 GROUP BY t.category_id, c.id, c.name, c.color
 		 ORDER BY total DESC`,
-		[month, type]
+		[userId, month, type]
 	);
 
 	return json(rows);

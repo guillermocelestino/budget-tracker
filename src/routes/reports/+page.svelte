@@ -6,6 +6,7 @@
 	import SummaryCards from '$lib/components/SummaryCards.svelte';
 	import MonthlyChart from '$lib/components/MonthlyChart.svelte';
 	import CategoryChart from '$lib/components/CategoryChart.svelte';
+import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
 
 	let data = $derived($page.data as App.PageData);
 
@@ -41,14 +42,27 @@
 		(data.monthlyData ?? []).map(m => m.expense)
 	);
 
-	const catLabels = $derived(
-		(data.categoryData ?? []).map(c => c.category_name)
+
+	// Income chart data
+	const incomeLabels = $derived(
+		(data.incomeData ?? []).map(c => c.category_name)
 	);
-	const catValues = $derived(
-		(data.categoryData ?? []).map(c => c.total)
+	const incomeValues = $derived(
+		(data.incomeData ?? []).map(c => c.total)
 	);
-	const catColors = $derived(
-		(data.categoryData ?? []).map(c => c.category_color)
+	const incomeColors = $derived(
+		(data.incomeData ?? []).map(c => c.category_color)
+	);
+
+	// Expense chart data
+	const expenseLabels = $derived(
+		(data.expenseData ?? []).map(c => c.category_name)
+	);
+	const expenseValues = $derived(
+		(data.expenseData ?? []).map(c => c.total)
+	);
+	const expenseColors = $derived(
+		(data.expenseData ?? []).map(c => c.category_color)
 	);
 
 	const months = $derived(
@@ -66,9 +80,23 @@
 
 <PageHeader title="Reports" />
 
+<SummaryCards
+	totalIncome={data.monthSummary?.income ?? 0}
+	totalExpenses={data.monthSummary?.expense ?? 0}
+	balance={data.monthSummary?.balance ?? 0}
+/>
+
 <div class="report-controls">
 	<div class="control-group">
-		<label for="year-select">Year</label>
+		<label for="year-select">
+			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+				<line x1="16" x2="16" y1="2" y2="6"/>
+				<line x1="8" x2="8" y1="2" y2="6"/>
+				<line x1="3" x2="21" y1="10" y2="10"/>
+			</svg>
+			Year
+		</label>
 		<select id="year-select" value={selectedYear} onchange={(e) => changeYear((e.target as HTMLSelectElement).value)}>
 			{#each Array.from({ length: 5 }, (_, i) => String(2024 + i)) as yr}
 				<option value={yr}>{yr}</option>
@@ -78,7 +106,19 @@
 </div>
 
 <section class="report-section">
-	<h2 class="section-title">Monthly Overview</h2>
+	<div class="section-header">
+		<div class="section-title-group">
+			<div class="section-icon">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M3 3v18h18"/>
+					<path d="M18 17V9"/>
+					<path d="M13 17V5"/>
+					<path d="M8 17v-3"/>
+				</svg>
+			</div>
+			<h2 class="section-title">Monthly Overview</h2>
+		</div>
+	</div>
 	<MonthlyChart
 		labels={monthlyLabels}
 		incomeData={monthlyIncome}
@@ -86,11 +126,21 @@
 	/>
 </section>
 
-<hr class="divider" />
+<div class="divider">
+	<span class="divider-line"></span>
+</div>
 
-<div class="report-controls">
+<div class="report-controls secondary">
 	<div class="control-group">
-		<label for="month-select">Month</label>
+		<label for="month-select">
+			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+				<line x1="16" x2="16" y1="2" y2="6"/>
+				<line x1="8" x2="8" y1="2" y2="6"/>
+				<line x1="3" x2="21" y1="10" y2="10"/>
+			</svg>
+			Month
+		</label>
 		<select id="month-select" value={selectedMonth} onchange={(e) => changeMonth((e.target as HTMLSelectElement).value)}>
 			{#each months as m}
 				<option value={m.value}>{m.label}</option>
@@ -100,48 +150,110 @@
 </div>
 
 <div class="category-report-grid">
-	<div class="report-section chart-col">
-		<h2 class="section-title">Expense by Category</h2>
+	<!-- Income Section -->
+	<div class="report-section">
+		<div class="section-header">
+			<div class="section-title-group">
+				<div class="section-icon income">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<line x1="12" x2="12" y1="2" y2="22"/>
+						<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+					</svg>
+				</div>
+				<h2 class="section-title">Income by Category</h2>
+			</div>
+		</div>
 		<CategoryChart
-			labels={catLabels}
-			data={catValues}
-			colors={catColors}
+			labels={incomeLabels}
+			data={incomeValues}
+			colors={incomeColors}
 		/>
+		<div class="breakdown-section">
+			<table class="breakdown-table">
+				<thead>
+					<tr>
+						<th>Category</th>
+						<th class="amount">Amount</th>
+						<th class="pct">%</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each data.incomeData ?? [] as cat (cat.category_id)}
+						<tr>
+							<td>
+								<span class="cat-dot" style="background: {cat.category_color}"></span>
+								{cat.category_name}
+							</td>
+							<td class="amount income">{formatCurrency(cat.total)}</td>
+							<td class="pct">
+								{(() => {
+									const total = incomeValues.length > 0 ? incomeValues.reduce((a: number, b: number) => a + b, 0) : 0;
+									return total > 0 ? ((cat.total / total) * 100).toFixed(1) : '0.0';
+								})()}%
+							</td>
+						</tr>
+					{/each}
+					{#if (data.incomeData ?? []).length === 0}
+						<tr>
+							<td colspan="3" class="empty">No income this month</td>
+						</tr>
+					{/if}
+				</tbody>
+			</table>
+		</div>
 	</div>
 
-	<div class="report-section table-col">
-		<h2 class="section-title">Category Breakdown</h2>
-		<table class="breakdown-table">
-			<thead>
-				<tr>
-					<th>Category</th>
-					<th>Amount</th>
-					<th>%</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each data.categoryData ?? [] as cat (cat.category_id)}
+	<!-- Expense Section -->
+	<div class="report-section">
+		<div class="section-header">
+			<div class="section-title-group">
+				<div class="section-icon expense">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>
+						<path d="M22 12A10 10 0 0 0 12 2v10z"/>
+					</svg>
+				</div>
+				<h2 class="section-title">Expense by Category</h2>
+			</div>
+		</div>
+		<CategoryChart
+			labels={expenseLabels}
+			data={expenseValues}
+			colors={expenseColors}
+		/>
+		<div class="breakdown-section">
+			<table class="breakdown-table">
+				<thead>
 					<tr>
-						<td>
-							<span class="cat-dot" style="background: {cat.category_color}"></span>
-							{cat.category_name}
-						</td>
-						<td class="amount">{formatCurrency(cat.total)}</td>
-						<td class="pct">
-							{(() => {
-								const total = catValues.reduce((a: number, b: number) => a + b, 0);
-								return total > 0 ? ((cat.total / total) * 100).toFixed(1) : '0.0';
-							})()}%
-						</td>
+						<th>Category</th>
+						<th class="amount">Amount</th>
+						<th class="pct">%</th>
 					</tr>
-				{/each}
-				{#if (data.categoryData ?? []).length === 0}
-					<tr>
-						<td colspan="3" class="empty">No expenses this month</td>
-					</tr>
-				{/if}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					{#each data.expenseData ?? [] as cat (cat.category_id)}
+						<tr>
+							<td>
+								<span class="cat-dot" style="background: {cat.category_color}"></span>
+								{cat.category_name}
+							</td>
+							<td class="amount expense">{formatCurrency(cat.total)}</td>
+							<td class="pct">
+								{(() => {
+									const total = expenseValues.length > 0 ? expenseValues.reduce((a: number, b: number) => a + b, 0) : 0;
+									return total > 0 ? ((cat.total / total) * 100).toFixed(1) : '0.0';
+								})()}%
+							</td>
+						</tr>
+					{/each}
+					{#if (data.expenseData ?? []).length === 0}
+						<tr>
+							<td colspan="3" class="empty">No expenses this month</td>
+						</tr>
+					{/if}
+				</tbody>
+			</table>
+		</div>
 	</div>
 </div>
 
@@ -153,25 +265,51 @@
 		align-items: flex-end;
 	}
 
+	.report-controls.secondary {
+		margin-top: var(--space-lg);
+		margin-bottom: var(--space-md);
+	}
+
 	.control-group {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: 6px;
 	}
 
 	.control-group label {
+		display: flex;
+		align-items: center;
+		gap: 6px;
 		font-size: var(--font-size-sm);
 		font-weight: 600;
 		color: var(--color-text-secondary);
 	}
 
 	.control-group select {
-		padding: var(--space-xs) var(--space-md);
+		padding: 10px 36px 10px 14px;
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-md);
 		font-size: var(--font-size-base);
 		font-family: inherit;
 		background: var(--color-surface);
+		color: var(--color-text);
+		cursor: pointer;
+		appearance: none;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+		background-repeat: no-repeat;
+		background-position: right 10px center;
+		min-height: 44px;
+		transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+	}
+
+	.control-group select:hover {
+		border-color: var(--color-primary);
+	}
+
+	.control-group select:focus {
+		outline: none;
+		border-color: var(--color-primary);
+		box-shadow: 0 0 0 3px var(--color-primary-light);
 	}
 
 	.report-section {
@@ -183,16 +321,55 @@
 		box-shadow: var(--shadow-sm);
 	}
 
+	.section-header {
+		margin-bottom: var(--space-md);
+	}
+
+	.section-title-group {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+	}
+
+	.section-icon {
+		width: 36px;
+		height: 36px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius-md);
+		flex-shrink: 0;
+		background: var(--color-primary-light);
+		color: var(--color-primary);
+	}
+
+	.section-icon.income {
+		background: var(--color-income-light);
+		color: var(--color-income);
+	}
+
+	.section-icon.expense {
+		background: var(--color-expense-light);
+		color: var(--color-expense);
+	}
+
 	.section-title {
 		font-size: var(--font-size-lg);
-		margin-bottom: var(--space-md);
+		font-weight: 600;
 		color: var(--color-text);
+		margin: 0;
 	}
 
 	.divider {
-		border: none;
-		border-top: 1px solid var(--color-border);
-		margin: var(--space-lg) 0;
+		display: flex;
+		align-items: center;
+		margin: var(--space-xl) 0;
+	}
+
+	.divider-line {
+		flex: 1;
+		height: 1px;
+		background: linear-gradient(90deg, transparent, var(--color-border), transparent);
 	}
 
 	.category-report-grid {
@@ -201,12 +378,10 @@
 		gap: var(--space-lg);
 	}
 
-	.chart-col {
-		margin-bottom: 0;
-	}
-
-	.table-col {
-		margin-bottom: 0;
+	.breakdown-section {
+		margin-top: var(--space-md);
+		padding-top: var(--space-md);
+		border-top: 1px solid var(--color-border);
 	}
 
 	.breakdown-table {
@@ -223,18 +398,35 @@
 		border-bottom: 2px solid var(--color-border);
 	}
 
+	.breakdown-table th.amount,
+	.breakdown-table th.pct {
+		text-align: right;
+	}
+
 	.breakdown-table td {
 		padding: var(--space-sm) var(--space-md);
 		border-bottom: 1px solid var(--color-border);
 	}
 
-	.breakdown-table td.amount {
+	.breakdown-table tr:last-child td {
+		border-bottom: none;
+	}
+
+	.amount {
 		text-align: right;
 		font-variant-numeric: tabular-nums;
 		font-weight: 600;
 	}
 
-	.breakdown-table td.pct {
+	.amount.income {
+		color: var(--color-income);
+	}
+
+	.amount.expense {
+		color: var(--color-expense);
+	}
+
+	.pct {
 		text-align: right;
 		color: var(--color-text-secondary);
 	}
@@ -244,7 +436,7 @@
 		width: 10px;
 		height: 10px;
 		border-radius: 50%;
-		margin-right: var(--space-xs);
+		margin-right: var(--space-sm);
 		vertical-align: middle;
 	}
 
@@ -252,16 +444,14 @@
 		text-align: center;
 		color: var(--color-text-secondary);
 		font-style: italic;
-		padding: var(--space-lg) !important;
+		padding: var(--space-xl) var(--space-md) !important;
 	}
 
 	@media (max-width: 768px) {
 		.category-report-grid {
 			grid-template-columns: 1fr;
 		}
-	}
 
-	@media (max-width: 640px) {
 		.report-controls {
 			flex-direction: column;
 			align-items: stretch;
@@ -269,7 +459,6 @@
 
 		.control-group select {
 			width: 100%;
-			min-height: 44px;
 		}
 
 		.breakdown-table th,

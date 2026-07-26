@@ -23,7 +23,7 @@
 
 <style>
 	.form-container {
-		max-width: 600px;
+		max-width: 640px;
 		margin: 0 auto;
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);

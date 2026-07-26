@@ -2,7 +2,8 @@ import { json } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
 import type { Transaction } from '$lib/types';
 
-export async function GET({ url }: { url: URL }) {
+export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
+	const userId = locals.user!.userId;
 	const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1'));
 	const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') ?? '20')));
 	const offset = (page - 1) * limit;
@@ -13,8 +14,8 @@ export async function GET({ url }: { url: URL }) {
 	const sort = url.searchParams.get('sort') === 'amount' ? 'amount' : 'date';
 	const order = url.searchParams.get('order') === 'asc' ? 'ASC' : 'DESC';
 
-	const conditions: string[] = [];
-	const params: (string | number)[] = [];
+	const conditions: string[] = ['t.user_id = $1'];
+	const params: (string | number)[] = [userId];
 
 	if (type && (type === 'income' || type === 'expense')) {
 		conditions.push('t.type = $' + (params.length + 1));
@@ -33,7 +34,7 @@ export async function GET({ url }: { url: URL }) {
 		params.push(date_to);
 	}
 
-	const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+	const where = 'WHERE ' + conditions.join(' AND ');
 
 	const countRow = await queryOne<{ total: number }>(
 		`SELECT COUNT(*)::int as total FROM transactions t ${where}`,
@@ -58,7 +59,8 @@ export async function GET({ url }: { url: URL }) {
 	});
 }
 
-export async function POST({ request }: { request: Request }) {
+export async function POST({ request, locals }: { request: Request; locals: App.Locals }) {
+	const userId = locals.user!.userId;
 	const body = await request.json();
 
 	const { type, amount, description, date, category_id } = body;
@@ -79,22 +81,24 @@ export async function POST({ request }: { request: Request }) {
 		return json({ error: 'Category is required' }, { status: 400 });
 	}
 
-	const category = await queryOne<{ id: number }>('SELECT id FROM categories WHERE id = $1', [category_id]);
+	const category = await queryOne<{ id: number }>('SELECT id FROM categories WHERE user_id = $1 AND id = $2', [userId, category_id]);
 	if (!category) {
 		return json({ error: 'Category not found' }, { status: 400 });
 	}
 
 	await execute(
-		`INSERT INTO transactions (amount, description, date, category_id, type)
-		 VALUES ($1, $2, $3, $4, $5)`,
-		[amount, description.trim(), date, category_id, type]
+		`INSERT INTO transactions (user_id, amount, description, date, category_id, type)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		[userId, amount, description.trim(), date, category_id, type]
 	);
 
 	const transaction = await queryOne<Transaction>(
 		`SELECT t.*, c.name as category_name, c.color as category_color
 		 FROM transactions t
 		 LEFT JOIN categories c ON t.category_id = c.id
-		 ORDER BY t.id DESC LIMIT 1`
+		 WHERE t.user_id = $1
+		 ORDER BY t.id DESC LIMIT 1`,
+		[userId]
 	);
 
 	return json(transaction, { status: 201 });

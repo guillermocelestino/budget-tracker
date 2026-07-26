@@ -1,14 +1,16 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { queryOne, queryMany, execute } from '$lib/database/query';
-import type { Category, Transaction } from '$lib/types';
+import { queryMany, execute } from '$lib/database/query';
+import type { Category } from '$lib/types';
 
-export async function load() {
-	const categories = await queryMany<Category>('SELECT * FROM categories ORDER BY name ASC');
+export async function load({ locals }: { locals: App.Locals }) {
+	const userId = locals.user!.userId;
+	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
 	return { categories };
 }
 
 export const actions = {
-	default: async ({ request }) => {
+	default: async ({ request, locals }) => {
+		const userId = locals.user!.userId;
 		const data = await request.formData();
 
 		const type = data.get('type') as string;
@@ -40,9 +42,9 @@ export const actions = {
 		}
 
 		await execute(
-			`INSERT INTO transactions (amount, description, date, category_id, type)
-			 VALUES ($1, $2, $3, $4, $5)`,
-			[parseFloat(amountStr), description.trim(), date, parseInt(category_id), type]
+			`INSERT INTO transactions (user_id, amount, description, date, category_id, type)
+			 VALUES ($1, $2, $3, $4, $5, $6)`,
+			[userId, parseFloat(amountStr), description.trim(), date, parseInt(category_id), type]
 		);
 
 		redirect(303, '/transactions');

@@ -4,6 +4,8 @@ export function translatePgToSQLite(sql: string): string {
 	return sql
 		// Postgres parameter placeholders $1, $2 → ?
 		.replace(/\$\d+/g, '?')
+		// Postgres cast syntax ::int, ::numeric → remove (MUST come before EXTRACT)
+		.replace(/::\w+(?:\(\d+(?:,\d+)?\))?/g, '')
 		// TO_CHAR(date, 'YYYY-MM') → strftime('%Y-%m', date)
 		// Supports table-qualified columns like t.date (the [^,]+ captures dots)
 		.replace(/TO_CHAR\(([^,]+),\s*'YYYY-MM'\)/gi, "strftime('%Y-%m', $1)")
@@ -13,15 +15,16 @@ export function translatePgToSQLite(sql: string): string {
 		// Handles nested parens up to one level deep
 		.replace(/EXTRACT\(YEAR\s+FROM\s+((?:[^()]|\([^()]*\))+)\)/gi,
 			(_, expr) => `CAST(strftime('%Y', ${expr}) AS INTEGER)`)
+		// EXTRACT(MONTH FROM <expr>) → CAST(strftime('%m', <expr>) AS INTEGER)
+		.replace(/EXTRACT\(MONTH\s+FROM\s+((?:[^()]|\([^()]*\))+)\)/gi,
+			(_, expr) => `CAST(strftime('%m', ${expr}) AS INTEGER)`)
 		// NOW() → datetime('now')
 		.replace(/\bNOW\(\)/gi, "datetime('now')")
 		// CURRENT_DATE → date('now')
 		.replace(/\bCURRENT_DATE\b/gi, "date('now')")
 		// CURRENT_TIMESTAMP → datetime('now')
 		.replace(/\bCURRENT_TIMESTAMP\b/gi, "datetime('now')")
-		// Postgres cast syntax ::int, ::numeric → remove
-		.replace(/::\w+(?:\(\d+(?:,\d+)?\))?/g, '')
-		// Remove empty parentheses from line-wrapping
+		// Empty parentheses from line-wrapping
 		.replace(/\(\s*\)/g, '()');
 }
 

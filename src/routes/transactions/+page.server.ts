@@ -2,7 +2,8 @@ import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
 import type { Transaction, Category } from '$lib/types';
 
-export async function load({ url }: { url: URL }) {
+export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
+	const userId = locals.user!.userId;
 	const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1'));
 	const limit = 20;
 	const offset = (page - 1) * limit;
@@ -11,8 +12,8 @@ export async function load({ url }: { url: URL }) {
 	const date_from = url.searchParams.get('date_from');
 	const date_to = url.searchParams.get('date_to');
 
-	const conditions: string[] = [];
-	const params: (string | number)[] = [];
+	const conditions: string[] = ['t.user_id = $1'];
+	const params: (string | number)[] = [userId];
 
 	if (type && (type === 'income' || type === 'expense')) {
 		conditions.push('t.type = $' + (params.length + 1));
@@ -31,7 +32,7 @@ export async function load({ url }: { url: URL }) {
 		params.push(date_to);
 	}
 
-	const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+	const where = 'WHERE ' + conditions.join(' AND ');
 
 	const countRow = await queryOne<{ total: number }>(
 		`SELECT COUNT(*)::int as total FROM transactions t ${where}`,
@@ -48,7 +49,7 @@ export async function load({ url }: { url: URL }) {
 		[...params, limit, offset]
 	);
 
-	const categories = await queryMany<Category>('SELECT * FROM categories ORDER BY name ASC');
+	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
 
 	return {
 		transactions,
@@ -60,7 +61,8 @@ export async function load({ url }: { url: URL }) {
 }
 
 export const actions = {
-	delete: async ({ request }) => {
+	delete: async ({ request, locals }) => {
+		const userId = locals.user!.userId;
 		const data = await request.formData();
 		const id = parseInt(data.get('id') as string);
 
@@ -68,12 +70,12 @@ export const actions = {
 			return fail(400, { error: 'Invalid transaction ID' });
 		}
 
-		const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE id = $1', [id]);
+		const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
 		if (!existing) {
 			return fail(404, { error: 'Transaction not found' });
 		}
 
-		await execute('DELETE FROM transactions WHERE id = $1', [id]);
+		await execute('DELETE FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
 		return { success: true };
 	},
 };

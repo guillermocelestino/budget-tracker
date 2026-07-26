@@ -35,6 +35,16 @@
 		}
 	});
 
+	const filteredCategories = $derived(
+		categories.filter(cat => cat.type === type)
+	);
+
+	$effect(() => {
+		if (category_id && !filteredCategories.find(c => c.id === category_id)) {
+			category_id = '';
+		}
+	});
+
 	function formatWithCommas(value: string): string {
 		const parts = value.split('.');
 		parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -126,16 +136,16 @@
 
 		<div class="form-group">
 			<label class="form-label" for="description">Description</label>
-			<input
+			<textarea
 				id="description"
 				name="description"
-				type="text"
 				required
-				maxlength="255"
+				maxlength="500"
 				bind:value={description}
 				class:input-error={errors.description}
 				placeholder="What was this for?"
-			/>
+				rows="3"
+			></textarea>
 			{#if errors.description}
 				<span class="form-error">{errors.description}</span>
 			{/if}
@@ -160,11 +170,13 @@
 			<label class="form-label" for="category_id">Category</label>
 			<select id="category_id" name="category_id" required bind:value={category_id} class:input-error={errors.category_id}>
 				<option value="">Select a category</option>
-				{#each categories as cat (cat.id)}
+				{#each filteredCategories as cat (cat.id)}
 					<option value={cat.id}>{cat.icon} {cat.name}</option>
 				{/each}
 			</select>
-			{#if errors.category_id}
+			{#if filteredCategories.length === 0}
+				<span class="form-error">No {type} categories found. Create one in Categories first.</span>
+			{:else if errors.category_id}
 				<span class="form-error">{errors.category_id}</span>
 			{/if}
 		</div>
@@ -209,7 +221,8 @@
 	input[type="text"],
 	input[type="number"],
 	input[type="date"],
-	select {
+	select,
+	textarea {
 		padding: var(--space-sm) var(--space-md);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-sm);
@@ -218,14 +231,26 @@
 		background: var(--color-surface);
 		color: var(--color-text);
 		transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-		min-height: 44px;
+		width: 100%;
 		-webkit-appearance: none;
 		appearance: none;
-		width: 100%;
+	}
+
+	input,
+	select,
+	textarea {
+		min-height: 44px;
+	}
+
+	textarea {
+		resize: vertical;
+		min-height: 80px;
+		line-height: 1.5;
 	}
 
 	input:focus,
-	select:focus {
+	select:focus,
+	textarea:focus {
 		outline: none;
 		border-color: var(--color-primary);
 		box-shadow: 0 0 0 3px var(--color-primary-light);

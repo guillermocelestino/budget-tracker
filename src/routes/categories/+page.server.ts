@@ -2,38 +2,50 @@ import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
 import type { Category } from '$lib/types';
 
-export async function load() {
-	const categories = await queryMany<Category>('SELECT * FROM categories ORDER BY name ASC');
+export async function load({ locals }: { locals: App.Locals }) {
+	const userId = locals.user!.userId;
+	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
 
-	const spending = await queryMany<{ category_id: number; total: number }>(
-		`SELECT category_id, SUM(amount) as total
+	const spending = await queryMany<{ category_id: number; income: number; expense: number }>(
+		`SELECT category_id,
+				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
 		 FROM transactions
-		 WHERE type = 'expense' AND TO_CHAR(date, 'YYYY-MM') = TO_CHAR(CURRENT_DATE, 'YYYY-MM')
-		 GROUP BY category_id`
+		 WHERE TO_CHAR(date, 'YYYY-MM') = TO_CHAR(CURRENT_DATE, 'YYYY-MM') AND user_id = $1
+		 GROUP BY category_id`,
+		[userId]
 	);
 
-	const spendingMap: Record<number, number> = {};
+	const expenseMap: Record<number, number> = {};
+	const incomeMap: Record<number, number> = {};
 	for (const s of spending) {
-		spendingMap[s.category_id] = parseFloat(s.total);
+		expenseMap[s.category_id] = parseFloat(String(s.expense));
+		incomeMap[s.category_id] = parseFloat(String(s.income));
 	}
 
-	return { categories, spending: spendingMap };
+	return { categories, spending: expenseMap, income: incomeMap };
 }
 
 export const actions = {
-	create: async ({ request }) => {
+	create: async ({ request, locals }) => {
+		const userId = locals.user!.userId;
 		const data = await request.formData();
 
 		const name = (data.get('name') as string)?.trim();
 		const color = (data.get('color') as string) || '#6366f1';
 		const icon = (data.get('icon') as string) || '📁';
+		const categoryType = (data.get('type') as string) || 'expense';
 		const budgetLimitStr = data.get('budget_limit') as string;
 
 		if (!name || name.length === 0) {
 			return fail(400, { error: 'Name is required', field: 'name' });
 		}
 
-		const existing = await queryOne<{ id: number }>('SELECT id FROM categories WHERE name = $1', [name]);
+		if (!['income', 'expense'].includes(categoryType)) {
+			return fail(400, { error: 'Invalid category type' });
+		}
+
+		const existing = await queryOne<{ id: number }>('SELECT id FROM categories WHERE user_id = $1 AND name = $2', [userId, name]);
 		if (existing) {
 			return fail(409, { error: 'A category with this name already exists', field: 'name' });
 		}
@@ -43,28 +55,34 @@ export const actions = {
 			: null;
 
 		await execute(
-			'INSERT INTO categories (name, color, icon, budget_limit) VALUES ($1, $2, $3, $4)',
-			[name, color, icon, budget_limit]
+			'INSERT INTO categories (user_id, name, color, icon, type, budget_limit) VALUES ($1, $2, $3, $4, $5, $6)',
+			[userId, name, color, icon, categoryType, budget_limit]
 		);
 
 		return { success: true };
 	},
 
-	update: async ({ request }) => {
+	update: async ({ request, locals }) => {
+		const userId = locals.user!.userId;
 		const data = await request.formData();
 
 		const id = parseInt(data.get('id') as string);
 		const name = (data.get('name') as string)?.trim();
 		const color = (data.get('color') as string) || '#6366f1';
 		const icon = (data.get('icon') as string) || '📁';
+		const categoryType = (data.get('type') as string) || 'expense';
 		const budgetLimitStr = data.get('budget_limit') as string;
 
 		if (isNaN(id)) return fail(400, { error: 'Invalid ID' });
 		if (!name || name.length === 0) return fail(400, { error: 'Name is required', field: 'name' });
 
+		if (!['income', 'expense'].includes(categoryType)) {
+			return fail(400, { error: 'Invalid category type' });
+		}
+
 		const existing = await queryOne<{ id: number }>(
-			'SELECT id FROM categories WHERE name = $1 AND id != $2',
-			[name, id]
+			'SELECT id FROM categories WHERE user_id = $1 AND name = $2 AND id != $3',
+			[userId, name, id]
 		);
 		if (existing) return fail(409, { error: 'A category with this name already exists', field: 'name' });
 
@@ -73,24 +91,25 @@ export const actions = {
 			: null;
 
 		await execute(
-			'UPDATE categories SET name = $1, color = $2, icon = $3, budget_limit = $4 WHERE id = $5',
-			[name, color, icon, budget_limit, id]
+			'UPDATE categories SET name = $1, color = $2, icon = $3, type = $4, budget_limit = $5 WHERE user_id = $6 AND id = $7',
+			[name, color, icon, categoryType, budget_limit, userId, id]
 		);
 
 		return { success: true };
 	},
 
-	delete: async ({ request }) => {
+	delete: async ({ request, locals }) => {
+		const userId = locals.user!.userId;
 		const data = await request.formData();
 		const id = parseInt(data.get('id') as string);
 
 		if (isNaN(id)) return fail(400, { error: 'Invalid ID' });
 
-		const existing = await queryOne<{ id: number }>('SELECT id FROM categories WHERE id = $1', [id]);
+		const existing = await queryOne<{ id: number }>('SELECT id FROM categories WHERE user_id = $1 AND id = $2', [userId, id]);
 		if (!existing) return fail(404, { error: 'Category not found' });
 
 		try {
-			await execute('DELETE FROM categories WHERE id = $1', [id]);
+			await execute('DELETE FROM categories WHERE user_id = $1 AND id = $2', [userId, id]);
 			return { success: true };
 		} catch {
 			return fail(409, { error: 'Cannot delete: this category has transactions' });
