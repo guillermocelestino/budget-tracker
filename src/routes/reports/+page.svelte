@@ -245,9 +245,11 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 			<div class="section-title-group">
 				<div class="section-icon income">
 					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<line x1="12" x2="12" y1="2" y2="22"/>
-						<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-					</svg>
+							<line x1="12" x2="12" y1="2" y2="22"/>
+							<path d="M6 4h7a4 4 0 0 1 0 8H6"/>
+							<line x1="4" x2="18" y1="12" y2="12"/>
+							<line x1="4" x2="18" y1="16" y2="16"/>
+						</svg>
 				</div>
 				<h2 class="section-title">Income by Category</h2>
 			</div>

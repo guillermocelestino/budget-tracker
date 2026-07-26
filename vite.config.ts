@@ -8,7 +8,7 @@ export default defineConfig({
 		SvelteKitPWA({
 			// Enable PWA features during dev so manifest is visible in DevTools
 			devOptions: {
-				enabled: true,
+				enabled: false,
 				type: 'module'
 			},
 			registerType: 'autoUpdate',
@@ -46,11 +46,13 @@ export default defineConfig({
 				// Include patterns starting with prerendered/ and client/ to prevent the
 				// plugin from adding its own defaults that don't match dev-dist structure
 				globPatterns: [
-					'**/*.{js,css,html,ico,png,svg,woff2}',
-					'prerendered/_',
-					'client/_'
+					'**/*.{js,css,html,ico,png,svg,woff2}'
 				],
-				globIgnores: ['**/node_modules/**/*'],
+				globIgnores: [
+					'**/node_modules/**/*',
+					'dev-dist/sw.js',
+					'dev-dist/workbox-*.js'
+				],
 				runtimeCaching: [
 					{
 						urlPattern: /^\/api\/.*/i,

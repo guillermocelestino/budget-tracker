@@ -54,11 +54,11 @@
 					</th>
 					<th>Description</th>
 					<th>Category</th>
-					<th class="sortable" tabindex="0" role="columnheader" onclick={() => toggleSort('amount')} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSort('amount'); } }}>
-						<span class="th-content">
+					<th class="sortable sort-amount" tabindex="0" role="columnheader" onclick={() => toggleSort('amount')} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSort('amount'); } }}>
+						<span class="th-content th-right">
 							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<line x1="12" x2="12" y1="2" y2="22"/>
-								<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+								<path d="M6 4h7a4 4 0 0 1 0 8H6" /><line x1="4" x2="18" y1="12" y2="12" /><line x1="4" x2="18" y1="16" y2="16"/>
 							</svg>
 							Amount
 						</span>
@@ -219,6 +219,17 @@
 	th.sortable {
 		cursor: pointer;
 		user-select: none;
+	}
+
+	th.sort-amount {
+		text-align: right;
+	}
+
+	.th-right {
+		justify-content: flex-end;
+	}
+
+	th.sortable {
 		transition: color var(--transition-fast);
 	}
 

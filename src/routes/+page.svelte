@@ -1,14 +1,19 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 
-	onMount(() => {
-		goto('/dashboard', { replaceState: true });
-	});
+	if (browser) {
+		// Clear any cached service worker data
+		if ('serviceWorker' in navigator) {
+			navigator.serviceWorker.getRegistrations().then(regs => {
+				regs.forEach(r => r.unregister());
+			});
+		}
+		// Force redirect to dashboard or login
+		window.location.href = '/dashboard';
+	}
 </script>
 
 <svelte:head>
 	<title>Budget Tracker</title>
+	<meta http-equiv="refresh" content="0; url=/dashboard" />
 </svelte:head>
-
-<p style="text-align: center; padding: 2rem; color: var(--color-text-secondary);">Redirecting...</p>

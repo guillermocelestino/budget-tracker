@@ -1,8 +1,9 @@
 export function formatCurrency(amount: number): string {
-	return new Intl.NumberFormat('en-PH', {
-		style: 'currency',
-		currency: 'PHP',
-	}).format(amount);
+	const formatted = Math.abs(amount).toLocaleString('en-PH', {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	});
+	return amount < 0 ? `-₱${formatted}` : `₱${formatted}`;
 }
 
 export function formatDate(dateStr: string): string {

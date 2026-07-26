@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, applyAction } from '$app/forms';
 	import { page } from '$app/stores';
-
+	
 	let data = $derived($page.data as App.PageData);
 	let error = $derived(($page.form as { error?: string } | null)?.error ?? '');
 	let isLoading = $state(false);
@@ -35,9 +35,24 @@
 
 		<form method="POST" use:enhance={() => {
 			isLoading = true;
-			return async ({ update }) => {
-				await update();
+			return async ({ result }) => {
 				isLoading = false;
+				if (result.type === 'redirect') {
+					await applyAction(result);
+					return;
+				}
+				if (result.type === 'failure') {
+					await applyAction(result);
+					return;
+				}
+				if (result.type === 'success') {
+					const data = result.data as { redirect?: string };
+					if (data?.redirect) {
+						await applyAction(result);
+						window.location.href = data.redirect;
+						return;
+					}
+				}
 			};
 		}}>
 			{#if error}

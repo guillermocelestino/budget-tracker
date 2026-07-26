@@ -10,9 +10,13 @@ if (process.env['POSTGRES_URL'] && !process.env['JWT_SECRET']) {
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
-	// Database initialization is now lazy — happens on first DB access inside
-	// getPgPool()/getSQLiteDb(), not on every request. This means hitting
-	// routes like /login that don't touch the DB won't trigger schema creation.
+	// Root path redirects to dashboard
+	if (event.url.pathname === '/') {
+		return new Response(null, {
+			status: 302,
+			headers: { location: '/dashboard' },
+		});
+	}
 
 	const publicPaths = ['/login'];
 

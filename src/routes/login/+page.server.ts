@@ -1,4 +1,4 @@
-import { redirect, fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { queryOne } from '$lib/database/query';
 import { verifyPassword, createToken } from '$lib/auth';
 
