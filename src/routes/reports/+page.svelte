@@ -7,6 +7,7 @@
 	import MonthlyChart from '$lib/components/MonthlyChart.svelte';
 	import CategoryChart from '$lib/components/CategoryChart.svelte';
 	import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
+import PageBackground from '$lib/components/PageBackground.svelte';
 
 	let data = $derived($page.data as App.PageData);
 
@@ -104,6 +105,8 @@
 </svelte:head>
 
 <PageHeader title="Reports" />
+
+<PageBackground />
 
 <SummaryCards
 	totalIncome={data.monthSummary?.income ?? 0}

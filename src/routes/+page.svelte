@@ -4,6 +4,7 @@
 	import TransactionList from '$lib/components/TransactionList.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
+import PageBackground from '$lib/components/PageBackground.svelte';
 	import { enhance } from '$app/forms';
 	import { showSuccess, showError } from '$lib/stores/toast.svelte';
 

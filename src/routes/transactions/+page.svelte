@@ -5,6 +5,7 @@
 	import TransactionList from '$lib/components/TransactionList.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
+import PageBackground from '$lib/components/PageBackground.svelte';
 	import { showSuccess, showError } from '$lib/stores/toast.svelte';
 
 	let data = $derived($page.data as App.PageData);
@@ -49,6 +50,8 @@
 <svelte:head>
 	<title>Transactions — Budget Tracker</title>
 </svelte:head>
+
+<PageBackground />
 
 <PageHeader title="Transactions">
 	{#snippet action()}

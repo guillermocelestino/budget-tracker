@@ -7,6 +7,7 @@
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
 	import { showSuccess, showError } from '$lib/stores/toast.svelte';
 	import type { Category } from '$lib/types';
+import PageBackground from '$lib/components/PageBackground.svelte';
 
 	let data = $derived($page.data as App.PageData);
 
@@ -44,6 +45,8 @@
 <svelte:head>
 	<title>Categories — Budget Tracker</title>
 </svelte:head>
+
+<PageBackground />
 
 <PageHeader title="Categories">
 	{#snippet action()}

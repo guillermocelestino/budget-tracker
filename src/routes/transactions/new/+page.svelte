@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import TransactionForm from '$lib/components/TransactionForm.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+import PageBackground from '$lib/components/PageBackground.svelte';
 
 	let data = $derived($page.data as App.PageData);
 	let form = $derived($page.form as { errors?: Record<string, string>; values?: Record<string, string> } | null);
@@ -10,6 +11,8 @@
 <svelte:head>
 	<title>Add Transaction — Budget Tracker</title>
 </svelte:head>
+
+<PageBackground />
 
 <PageHeader title="Add Transaction" />
 
