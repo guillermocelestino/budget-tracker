@@ -11,6 +11,10 @@
 
 	let showForm = $state(false);
 	let activeTab = $state<'active' | 'paid'>('active');
+	let viewMode = $state<'card' | 'table'>('card');
+	let showAddForm = $state(false);
+	let editingId = $state<number | null>(null);
+	let editForm = $state({ borrower_name: '', amount: '', interest_rate: '', date_lent: '', due_date: '', status: 'active', notes: '' });
 	let markPaidId = $state<number | null>(null);
 	let recordAsIncome = $state(true);
 	let deleteId = $state<number | null>(null);
@@ -58,6 +62,34 @@
 	}
 
 	const showLendings = $derived(activeTab === 'active' ? activeLendings : paidLendings);
+
+	function startEdit(lending: { id: number; borrower_name: string; amount: number; interest_rate: number; date_lent: string; due_date: string | null; status: string; notes: string | null }) {
+		showForm = true;
+		editingId = lending.id;
+		editForm = {
+			borrower_name: lending.borrower_name,
+			amount: lending.amount.toString(),
+			interest_rate: lending.interest_rate.toString(),
+			date_lent: lending.date_lent,
+			due_date: lending.due_date ?? '',
+			status: lending.status,
+			notes: lending.notes ?? '',
+		};
+		rawAmount = lending.amount.toString();
+	}
+
+	function cancelEdit() {
+		showForm = false;
+		editingId = null;
+		editForm = { borrower_name: '', amount: '', interest_rate: '', date_lent: '', due_date: '', status: 'active', notes: '' };
+		rawAmount = '';
+	}
+
+	function formatEditAmount(value: string): string {
+		const num = parseFloat(value.replace(/,/g, ''));
+		if (isNaN(num)) return '';
+		return formatWithCommas(num % 1 === 0 ? String(num) : num.toFixed(2));
+	}
 </script>
 
 <svelte:head>
@@ -66,7 +98,7 @@
 
 <PageHeader title="Lending">
 	{#snippet action()}
-		<button class="btn-add" onclick={() => showForm = true}>
+		<button class="btn-add" onclick={() => { showForm = true; editingId = null; editForm = { borrower_name: '', amount: '', interest_rate: '', date_lent: '', due_date: '', status: 'active', notes: '' }; rawAmount = ''; }}>
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 				<line x1="12" x2="12" y1="5" y2="19"/>
 				<line x1="5" x2="19" y1="12" y2="12"/>
@@ -121,34 +153,40 @@
 	</div>
 </div>
 
-<!-- New Lending Form -->
+<!-- New Lending / Edit Form -->
 {#if showForm}
-	<div class="form-overlay" onclick={() => showForm = false}></div>
+	<div class="form-overlay" onclick={() => { showForm = false; editingId = null; }}></div>
 	<div class="form-panel">
 		<div class="form-panel-header">
 			<h3>
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<line x1="12" x2="12" y1="5" y2="19"/>
-					<line x1="5" x2="19" y1="12" y2="12"/>
+					<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+					<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
 				</svg>
-				New Lending
+				{editingId ? 'Edit Lending' : 'New Lending'}
 			</h3>
-			<button class="btn-close" onclick={() => showForm = false} aria-label="Close">&times;</button>
+			<button class="btn-close" onclick={() => { showForm = false; editingId = null; rawAmount = ''; }} aria-label="Close">&times;</button>
 		</div>
-		<form method="POST" action="?/create" use:enhance={() => {
+		<form method="POST" action={editingId ? '?/update' : '?/create'} use:enhance={() => {
 			return async ({ result, update }) => {
 				await update();
 				if (result.type === 'success') {
 					showForm = false;
-					showSuccess('Lending recorded successfully');
+					editingId = null;
+					rawAmount = '';
+					showSuccess(editingId ? 'Lending updated' : 'Lending recorded successfully');
 				} else if (result.type === 'failure') {
 					showError(result.data?.error || 'Failed to record lending');
 				}
 			};
 		}}>
+			{#if editingId}
+				<input type="hidden" name="id" value={editingId} />
+				<input type="hidden" name="status" value={editForm.status} />
+			{/if}
 			<div class="form-group">
 				<label for="borrower_name">Borrower Name</label>
-				<input id="borrower_name" name="borrower_name" type="text" required placeholder="Who borrowed the money?" />
+				<input id="borrower_name" name="borrower_name" type="text" required placeholder="Who borrowed the money?" value={editingId ? editForm.borrower_name : ''} />
 			</div>
 			<div class="form-row">
 				<div class="form-group">
@@ -161,125 +199,359 @@
 							inputmode="decimal"
 							required
 							placeholder="0.00"
-							value={displayAmount}
-							oninput={onAmountInput}
-							onfocus={onAmountFocus}
-							onblur={onAmountBlur}
+							value={editingId ? formatEditAmount(editForm.amount) : displayAmount}
+							oninput={(e) => {
+								const input = e.target as HTMLInputElement;
+								let raw = input.value.replace(/[^0-9.]/g, '');
+								const dots = raw.match(/\./g);
+								if (dots && dots.length > 1) raw = raw.slice(0, raw.lastIndexOf('.'));
+								if (editingId) { editForm.amount = raw; }
+								else { rawAmount = raw; }
+								input.value = raw ? formatWithCommas(raw) : '';
+							}}
+							onfocus={(e) => { const input = e.target as HTMLInputElement; const val = editingId ? editForm.amount : rawAmount; input.value = val; const len = input.value.length; input.setSelectionRange(len, len); }}
+							onblur={(e) => {
+								const input = e.target as HTMLInputElement;
+								const raw = editingId ? editForm.amount : rawAmount;
+								if (raw) {
+									const num = parseFloat(raw);
+									if (!isNaN(num)) {
+										input.value = formatWithCommas(num % 1 === 0 ? String(num) : num.toFixed(2));
+									}
+								}
+							}}
 							autocomplete="off"
 						/>
 					</div>
-					<input type="hidden" name="amount" value={rawAmount} />
+					<input type="hidden" name="amount" value={editingId ? editForm.amount : rawAmount} />
 				</div>
 				<div class="form-group">
 					<label for="interest_rate">Interest %</label>
-					<input id="interest_rate" name="interest_rate" type="number" step="0.1" placeholder="0" value="0" />
+					<input id="interest_rate" name="interest_rate" type="number" step="0.1" placeholder="0" value={editingId ? editForm.interest_rate : '0'} />
 				</div>
 			</div>
 			<div class="form-row">
 				<div class="form-group">
 					<label for="date_lent">Date Lent</label>
-					<input id="date_lent" name="date_lent" type="date" required />
+					<input id="date_lent" name="date_lent" type="date" required value={editingId ? editForm.date_lent : ''} />
 				</div>
 				<div class="form-group">
 					<label for="due_date">Due Date</label>
-					<input id="due_date" name="due_date" type="date" />
+					<input id="due_date" name="due_date" type="date" value={editingId ? editForm.due_date : ''} />
 				</div>
 			</div>
 			<div class="form-group">
 				<label for="notes">Notes</label>
-				<textarea id="notes" name="notes" rows="2" placeholder="Optional notes"></textarea>
+				<textarea id="notes" name="notes" rows="2" placeholder="Optional notes">{editingId ? editForm.notes : ''}</textarea>
 			</div>
 			<div class="form-actions">
-				<button type="submit" class="btn btn-primary">Record Lending</button>
-				<button type="button" class="btn btn-secondary" onclick={() => showForm = false}>Cancel</button>
+				<button type="submit" class="btn btn-primary">{editingId ? 'Update Lending' : 'Record Lending'}</button>
+				<button type="button" class="btn btn-secondary" onclick={() => { showForm = false; editingId = null; rawAmount = ''; }}>Cancel</button>
 			</div>
 		</form>
 	</div>
 {/if}
 
-<!-- Tabs -->
-<div class="tabs">
-	<button class="tab" class:active={activeTab === 'active'} onclick={() => activeTab = 'active'}>
-		Active ({activeLendings.length})
-	</button>
-	<button class="tab" class:active={activeTab === 'paid'} onclick={() => activeTab = 'paid'}>
-		Paid ({paidLendings.length})
-	</button>
+<!-- Tabs + View Toggle -->
+<div class="tabs-row">
+	<div class="tabs">
+		<button class="tab" class:active={activeTab === 'active'} onclick={() => activeTab = 'active'}>
+			Active ({activeLendings.length})
+		</button>
+		<button class="tab" class:active={activeTab === 'paid'} onclick={() => activeTab = 'paid'}>
+			Paid ({paidLendings.length})
+		</button>
+	</div>
+	<div class="view-toggle">
+		<button class="toggle-btn" class:active={viewMode === 'card'} onclick={() => viewMode = 'card'} title="Card View">
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<rect x="3" y="3" width="7" height="7" rx="1"/>
+				<rect x="14" y="3" width="7" height="7" rx="1"/>
+				<rect x="3" y="14" width="7" height="7" rx="1"/>
+				<rect x="14" y="14" width="7" height="7" rx="1"/>
+			</svg>
+		</button>
+		<button class="toggle-btn" class:active={viewMode === 'table'} onclick={() => viewMode = 'table'} title="Table View">
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<rect x="3" y="3" width="18" height="18" rx="2"/>
+				<line x1="3" y1="9" x2="21" y2="9"/>
+				<line x1="3" y1="15" x2="21" y2="15"/>
+				<line x1="9" y1="3" x2="9" y2="21"/>
+				<line x1="15" y1="3" x2="15" y2="21"/>
+			</svg>
+		</button>
+	</div>
 </div>
 
-<!-- Lending Cards -->
-{#if showLendings.length === 0}
-	<div class="empty-state">
-		<div class="empty-illustration">
-			<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
-				<path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
-				<path d="M3 12h18v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7z"/>
-			</svg>
+<!-- Lending Content: Card or Table View -->
+{#if viewMode === 'card'}
+	{#if showLendings.length === 0}
+		<div class="empty-state">
+			<div class="empty-illustration">
+				<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
+					<path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
+					<path d="M3 12h18v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7z"/>
+				</svg>
+			</div>
+			<h3>No {activeTab} lendings</h3>
+			<p>{activeTab === 'active' ? 'Start tracking money you lent out' : 'Paid lendings will appear here'}</p>
+			{#if activeTab === 'active'}
+				<button class="btn-gradient" onclick={() => { showForm = true; editingId = null; editForm = { borrower_name: '', amount: '', interest_rate: '', date_lent: '', due_date: '', status: 'active', notes: '' }; rawAmount = ''; }}>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+						<line x1="12" x2="12" y1="5" y2="19"/>
+						<line x1="5" x2="19" y1="12" y2="12"/>
+					</svg>
+					Add Your First Lending
+				</button>
+			{/if}
 		</div>
-		<h3>No {activeTab} lendings</h3>
-		<p>{activeTab === 'active' ? 'Start tracking money you lent out' : 'Paid lendings will appear here'}</p>
-		{#if activeTab === 'active'}
-			<button class="btn-gradient" onclick={() => showForm = true}>
+	{:else}
+		<div class="lending-grid">
+			{#each showLendings as lending (lending.id)}
+				<div class="lending-card" class:paid={lending.status === 'paid'}>
+					<div class="lending-header">
+						<div class="lending-borrower">
+							<div class="borrower-avatar">{lending.borrower_name.charAt(0).toUpperCase()}</div>
+							<span>{lending.borrower_name}</span>
+						</div>
+						<span class="badge" class:active={lending.status === 'active'} class:paid={lending.status === 'paid'}>
+							{lending.status === 'active' ? 'Active' : 'Paid'}
+						</span>
+					</div>
+					<div class="lending-amount">{formatCurrency(lending.amount)}</div>
+					<div class="lending-details">
+						<div class="detail">
+							<span class="detail-label">Interest</span>
+							<span class="detail-value">{lending.interest_rate}%</span>
+						</div>
+						<div class="detail">
+							<span class="detail-label">Date Lent</span>
+							<span class="detail-value">{formatDate(lending.date_lent)}</span>
+						</div>
+						{#if lending.due_date}
+							<div class="detail">
+								<span class="detail-label">Due Date</span>
+								<span class="detail-value">{formatDate(lending.due_date)}</span>
+							</div>
+						{/if}
+					</div>
+					{#if lending.notes}
+						<p class="lending-notes">📝 {lending.notes}</p>
+					{/if}
+					<div class="lending-actions">
+						<button class="btn-edit" onclick={() => startEdit(lending)}>
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+								<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+							</svg>
+							Edit
+						</button>
+						{#if lending.status === 'active'}
+							<button class="btn-paid" onclick={() => markPaidId = lending.id}>
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+									<polyline points="20 6 9 17 4 12"/>
+								</svg>
+								Mark as Paid
+							</button>
+						{/if}
+						<button class="btn-delete" onclick={() => deleteId = lending.id} aria-label="Delete">
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<polyline points="3 6 5 6 21 6"/>
+								<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+							</svg>
+						</button>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
+
+{:else}
+	<!-- Table View -->
+	<div class="table-section">
+		{#if showAddForm}
+			<div class="inline-add-form">
+				<form method="POST" action="?/create" use:enhance={() => {
+					return async ({ result, update }) => {
+						await update();
+						if (result.type === 'success') {
+							showAddForm = false;
+							rawAmount = '';
+							showSuccess('Lending recorded successfully');
+						} else if (result.type === 'failure') {
+							showError(result.data?.error || 'Failed to record lending');
+						}
+					};
+				}}>
+					<div class="inline-form-row">
+						<div class="inline-form-group">
+							<input name="borrower_name" type="text" placeholder="Borrower name" required />
+						</div>
+						<div class="inline-form-group">
+							<div class="amount-wrap">
+								<span class="amount-prefix">₱</span>
+								<input
+									type="text"
+									inputmode="decimal"
+									placeholder="0.00"
+									value={displayAmount}
+									oninput={onAmountInput}
+									onfocus={onAmountFocus}
+									onblur={onAmountBlur}
+									autocomplete="off"
+								/>
+							</div>
+							<input type="hidden" name="amount" value={rawAmount} />
+						</div>
+						<div class="inline-form-group">
+							<input name="interest_rate" type="number" step="0.1" placeholder="Interest %" value="0" />
+						</div>
+						<div class="inline-form-group">
+							<input name="date_lent" type="date" required />
+						</div>
+						<div class="inline-form-group">
+							<input name="due_date" type="date" />
+						</div>
+						<div class="inline-form-actions">
+							<button type="submit" class="btn btn-primary-sm">Save</button>
+							<button type="button" class="btn btn-secondary-sm" onclick={() => { showAddForm = false; rawAmount = ''; }}>Cancel</button>
+						</div>
+					</div>
+				</form>
+			</div>
+		{:else}
+			<button class="btn-add-new" onclick={() => showAddForm = true}>
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 					<line x1="12" x2="12" y1="5" y2="19"/>
 					<line x1="5" x2="19" y1="12" y2="12"/>
 				</svg>
-				Add Your First Lending
+				Add New Lending
 			</button>
 		{/if}
-	</div>
-{:else}
-	<div class="lending-grid">
-		{#each showLendings as lending (lending.id)}
-			<div class="lending-card" class:paid={lending.status === 'paid'}>
-				<div class="lending-header">
-					<div class="lending-borrower">
-						<div class="borrower-avatar">{lending.borrower_name.charAt(0).toUpperCase()}</div>
-						<span>{lending.borrower_name}</span>
-					</div>
-					<span class="badge" class:active={lending.status === 'active'} class:paid={lending.status === 'paid'}>
-						{lending.status === 'active' ? 'Active' : 'Paid'}
-					</span>
+
+		{#if showLendings.length === 0}
+			<div class="empty-state">
+				<div class="empty-illustration">
+					<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
+						<path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
+						<path d="M3 12h18v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7z"/>
+					</svg>
 				</div>
-				<div class="lending-amount">{formatCurrency(lending.amount)}</div>
-				<div class="lending-details">
-					<div class="detail">
-						<span class="detail-label">Interest</span>
-						<span class="detail-value">{lending.interest_rate}%</span>
-					</div>
-					<div class="detail">
-						<span class="detail-label">Date Lent</span>
-						<span class="detail-value">{formatDate(lending.date_lent)}</span>
-					</div>
-					{#if lending.due_date}
-						<div class="detail">
-							<span class="detail-label">Due Date</span>
-							<span class="detail-value">{formatDate(lending.due_date)}</span>
-						</div>
-					{/if}
-				</div>
-				{#if lending.notes}
-					<p class="lending-notes">📝 {lending.notes}</p>
-				{/if}
-				<div class="lending-actions">
-					{#if lending.status === 'active'}
-						<button class="btn-paid" onclick={() => markPaidId = lending.id}>
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-								<polyline points="20 6 9 17 4 12"/>
-							</svg>
-							Mark as Paid
-						</button>
-					{/if}
-					<button class="btn-delete" onclick={() => deleteId = lending.id} aria-label="Delete">
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<polyline points="3 6 5 6 21 6"/>
-							<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-						</svg>
-					</button>
-				</div>
+				<h3>No {activeTab} lendings</h3>
+				<p>{activeTab === 'active' ? 'Start tracking money you lent out' : 'Paid lendings will appear here'}</p>
 			</div>
-		{/each}
+		{:else}
+			<div class="table-container">
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Borrower</th>
+							<th class="text-right">Amount</th>
+							<th class="text-right">Interest</th>
+							<th>Date Lent</th>
+							<th>Due Date</th>
+							<th>Status</th>
+							<th class="text-center">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each showLendings as lending (lending.id)}
+							{#if editingId === lending.id}
+								<tr class="edit-row">
+									<td>
+										<input type="text" bind:value={editForm.borrower_name} class="edit-input" />
+									</td>
+									<td>
+										<div class="amount-wrap amount-sm">
+											<span class="amount-prefix">₱</span>
+											<input
+												type="text"
+												class="edit-input"
+												value={formatEditAmount(editForm.amount)}
+												oninput={(e) => {
+													const input = e.target as HTMLInputElement;
+													let raw = input.value.replace(/[^0-9.]/g, '');
+													editForm.amount = raw;
+													input.value = formatEditAmount(raw);
+												}}
+												autocomplete="off"
+											/>
+										</div>
+									</td>
+									<td>
+										<input type="number" step="0.1" bind:value={editForm.interest_rate} class="edit-input edit-input-sm" />
+									</td>
+									<td>
+										<input type="date" bind:value={editForm.date_lent} class="edit-input" />
+									</td>
+									<td>
+										<input type="date" bind:value={editForm.due_date} class="edit-input" />
+									</td>
+									<td>
+										<select bind:value={editForm.status} class="edit-select">
+											<option value="active">Active</option>
+											<option value="paid">Paid</option>
+										</select>
+									</td>
+									<td class="text-center">
+										<div class="action-btns">
+											<form method="POST" action="?/update" use:enhance={() => {
+												return async ({ result, update }) => {
+													await update();
+													if (result.type === 'success') {
+														editingId = null;
+														showSuccess('Lending updated');
+													} else {
+														showError(result.data?.error || 'Failed to update');
+													}
+												};
+											}}>
+												<input type="hidden" name="id" value={lending.id} />
+												<input type="hidden" name="borrower_name" value={editForm.borrower_name} />
+												<input type="hidden" name="amount" value={editForm.amount} />
+												<input type="hidden" name="interest_rate" value={editForm.interest_rate} />
+												<input type="hidden" name="date_lent" value={editForm.date_lent} />
+												<input type="hidden" name="due_date" value={editForm.due_date} />
+												<input type="hidden" name="status" value={editForm.status} />
+												<input type="hidden" name="notes" value={editForm.notes} />
+												<button type="submit" class="btn-save-sm">Save</button>
+											</form>
+											<button class="btn-cancel-sm" onclick={cancelEdit}>Cancel</button>
+										</div>
+									</td>
+								</tr>
+							{:else}
+								<tr>
+									<td>
+										<div class="borrower-cell">
+											<div class="borrower-avatar">{lending.borrower_name.charAt(0).toUpperCase()}</div>
+											{lending.borrower_name}
+										</div>
+									</td>
+									<td class="text-right amount-cell">{formatCurrency(lending.amount)}</td>
+									<td class="text-right">{lending.interest_rate}%</td>
+									<td>{formatDate(lending.date_lent)}</td>
+									<td>{lending.due_date ? formatDate(lending.due_date) : '—'}</td>
+									<td>
+										<span class="badge" class:active={lending.status === 'active'} class:paid={lending.status === 'paid'}>
+											{lending.status === 'active' ? 'Active' : 'Paid'}
+										</span>
+									</td>
+									<td class="text-center">
+										<div class="action-btns">
+											<button class="action-btn edit" onclick={() => startEdit(lending)}>Edit</button>
+											<button class="action-btn delete" onclick={() => deleteId = lending.id}>Delete</button>
+										</div>
+									</td>
+								</tr>
+							{/if}
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
 	</div>
 {/if}
 
@@ -477,11 +749,9 @@
 		to { opacity: 1; transform: translateY(0); }
 	}
 
-	/* Tabs */
 	.tabs {
 		display: flex;
 		gap: var(--space-sm);
-		margin-bottom: var(--space-lg);
 		background: var(--color-bg);
 		padding: 4px;
 		border-radius: var(--radius-md);
@@ -514,7 +784,6 @@
 		color: var(--color-text);
 	}
 
-	/* Form Overlay */
 	.form-overlay {
 		position: fixed;
 		inset: 0;
@@ -648,7 +917,6 @@
 		border-bottom-left-radius: 0;
 	}
 
-	/* Lending Grid */
 	.lending-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -820,7 +1088,6 @@
 		color: var(--color-expense);
 	}
 
-	/* Empty State */
 	.empty-state {
 		text-align: center;
 		padding: var(--space-2xl);
@@ -881,7 +1148,6 @@
 		to { opacity: 1; transform: translateY(0); }
 	}
 
-	/* Modal */
 	.modal-icon-wrap {
 		width: 64px;
 		height: 64px;
@@ -988,21 +1254,336 @@
 		background: var(--color-danger-hover);
 	}
 
+	.tabs-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: var(--space-lg);
+	}
+
+	.view-toggle {
+		display: flex;
+		gap: 2px;
+		background: var(--color-bg);
+		padding: 4px;
+		border-radius: var(--radius-md);
+		border: 1px solid var(--color-border);
+	}
+
+	.toggle-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 8px 12px;
+		border: none;
+		background: transparent;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		color: var(--color-text-secondary);
+		transition: all var(--transition-fast);
+		min-height: 36px;
+	}
+
+	.toggle-btn.active {
+		background: var(--color-primary);
+		color: white;
+		box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+	}
+
+	.toggle-btn:hover:not(.active) {
+		background: var(--color-surface);
+		color: var(--color-text);
+	}
+
+	.btn-edit {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: var(--space-xs) var(--space-md);
+		background: var(--color-primary-light);
+		color: var(--color-primary);
+		border: 1px solid rgba(99, 102, 241, 0.2);
+		border-radius: var(--radius-sm);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		cursor: pointer;
+		min-height: 36px;
+		transition: all var(--transition-fast);
+	}
+
+	.btn-edit:hover {
+		background: var(--color-primary);
+		color: white;
+	}
+
+	.table-section {
+		background: rgba(255, 255, 255, 0.85);
+		backdrop-filter: blur(20px);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-xl);
+		padding: var(--space-lg);
+		animation: fadeSlideIn 0.4s ease-out;
+	}
+
+	@keyframes fadeSlideIn {
+		from { opacity: 0; transform: translateY(10px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+
+	.btn-add-new {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-xs);
+		padding: var(--space-sm) var(--space-md);
+		background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
+		color: white;
+		border: none;
+		border-radius: var(--radius-md);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		cursor: pointer;
+		min-height: 40px;
+		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+		transition: all var(--transition-fast);
+		margin-bottom: var(--space-md);
+	}
+
+	.btn-add-new:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+	}
+
+	.inline-add-form {
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		padding: var(--space-md);
+		margin-bottom: var(--space-md);
+		animation: fadeIn 200ms ease;
+	}
+
+	.inline-form-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-sm);
+		align-items: center;
+	}
+
+	.inline-form-group {
+		flex: 1;
+		min-width: 120px;
+	}
+
+	.inline-form-group input {
+		width: 100%;
+		padding: var(--space-sm) var(--space-md);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		font-size: var(--font-size-sm);
+		font-family: inherit;
+		background: var(--color-surface);
+		color: var(--color-text);
+		min-height: 40px;
+	}
+
+	.inline-form-group input:focus {
+		outline: none;
+		border-color: var(--color-primary);
+		box-shadow: 0 0 0 3px var(--color-primary-light);
+	}
+
+	.inline-form-group .amount-wrap {
+		display: flex;
+	}
+
+	.inline-form-actions {
+		display: flex;
+		gap: var(--space-xs);
+	}
+
+	.table-container {
+		overflow-x: auto;
+	}
+
+	.data-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: var(--font-size-sm);
+	}
+
+	.data-table th {
+		text-align: left;
+		padding: var(--space-sm) var(--space-md);
+		color: var(--color-text-secondary);
+		font-weight: 600;
+		border-bottom: 2px solid var(--color-border);
+		white-space: nowrap;
+	}
+
+	.data-table td {
+		padding: var(--space-sm) var(--space-md);
+		border-bottom: 1px solid var(--color-border);
+		vertical-align: middle;
+	}
+
+	.data-table tr:hover {
+		background: var(--color-bg);
+	}
+
+	.text-right { text-align: right; }
+	.text-center { text-align: center; }
+
+	.borrower-cell {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		font-weight: 600;
+	}
+
+	.amount-cell {
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.edit-row {
+		background: linear-gradient(90deg, rgba(99, 102, 241, 0.05) 0%, rgba(99, 102, 241, 0.02) 100%) !important;
+	}
+
+	.edit-input {
+		width: 100%;
+		padding: 6px 10px;
+		border: 1px solid var(--color-primary);
+		border-radius: var(--radius-sm);
+		font-size: var(--font-size-sm);
+		font-family: inherit;
+		background: white;
+		color: var(--color-text);
+		min-height: 36px;
+	}
+
+	.edit-input:focus {
+		outline: none;
+		box-shadow: 0 0 0 3px var(--color-primary-light);
+	}
+
+	.edit-input-sm {
+		width: 80px;
+		min-height: 36px;
+	}
+
+	.edit-select {
+		padding: 6px 10px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		font-size: var(--font-size-sm);
+		font-family: inherit;
+		background: var(--color-surface);
+		color: var(--color-text);
+		min-height: 36px;
+	}
+
+	.edit-select:focus {
+		outline: none;
+		border-color: var(--color-primary);
+	}
+
+	.action-btns {
+		display: flex;
+		gap: var(--space-xs);
+		justify-content: center;
+	}
+
+	.action-btn {
+		padding: 4px 10px;
+		border: none;
+		border-radius: var(--radius-sm);
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+		min-height: 32px;
+	}
+
+	.action-btn.edit {
+		background: var(--color-primary-light);
+		color: var(--color-primary);
+	}
+
+	.action-btn.edit:hover {
+		background: var(--color-primary);
+		color: white;
+	}
+
+	.action-btn.delete {
+		background: var(--color-expense-light);
+		color: var(--color-expense);
+	}
+
+	.action-btn.delete:hover {
+		background: var(--color-expense);
+		color: white;
+	}
+
+	.btn-save-sm {
+		padding: 4px 10px;
+		background: var(--color-income);
+		color: white;
+		border: none;
+		border-radius: var(--radius-sm);
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		cursor: pointer;
+		min-height: 32px;
+	}
+
+	.btn-cancel-sm {
+		padding: 4px 10px;
+		background: var(--color-bg);
+		color: var(--color-text);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		cursor: pointer;
+		min-height: 32px;
+	}
+
+	.btn-save-sm:hover { opacity: 0.9; }
+	.btn-cancel-sm:hover { background: var(--color-border); }
+
+	.btn-primary-sm {
+		padding: var(--space-xs) var(--space-md);
+		background: var(--color-primary);
+		color: white;
+		border: none;
+		border-radius: var(--radius-sm);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		cursor: pointer;
+		min-height: 40px;
+	}
+
+	.btn-secondary-sm {
+		padding: var(--space-xs) var(--space-md);
+		background: var(--color-bg);
+		color: var(--color-text);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		cursor: pointer;
+		min-height: 40px;
+	}
+
 	@media (max-width: 768px) {
-		.summary-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.form-row {
-			grid-template-columns: 1fr;
-		}
-
-		.lending-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.lending-amount {
-			font-size: var(--font-size-xl);
-		}
+		.summary-grid { grid-template-columns: 1fr; }
+		.form-row { grid-template-columns: 1fr; }
+		.lending-grid { grid-template-columns: 1fr; }
+		.lending-amount { font-size: var(--font-size-xl); }
+		.tabs-row { flex-direction: column; align-items: stretch; gap: var(--space-sm); }
+		.view-toggle { width: fit-content; }
+		.inline-form-row { flex-direction: column; }
+		.inline-form-group { width: 100%; min-width: unset; }
+		.data-table { display: block; overflow-x: auto; }
 	}
 </style>

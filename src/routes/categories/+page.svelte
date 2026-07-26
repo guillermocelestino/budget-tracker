@@ -6,16 +6,20 @@
 	import CategoryForm from '$lib/components/CategoryForm.svelte';
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
 	import { showSuccess, showError } from '$lib/stores/toast.svelte';
+	import { formatCurrency } from '$lib/utils/format';
 	import type { Category } from '$lib/types';
-import PageBackground from '$lib/components/PageBackground.svelte';
+	import PageBackground from '$lib/components/PageBackground.svelte';
 
 	let data = $derived($page.data as App.PageData);
 
 	let showForm = $state(false);
+	let viewMode = $state<'card' | 'table'>('card');
 	let editingCategory = $state<Category | null>(null);
 	let deleteId = $state<number | null>(null);
 
 	let formError = $state('');
+
+	const categories = $derived(data.categories ?? []);
 
 	function openAdd() {
 		editingCategory = null;
@@ -103,13 +107,75 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 	</div>
 {/if}
 
-<CategoryList
-	categories={data.categories ?? []}
-	spending={data.spending ?? {}}
+<!-- View Toggle -->
+<div class="view-toggle-row">
+	<div class="view-toggle">
+		<button class="toggle-btn" class:active={viewMode === 'card'} onclick={() => viewMode = 'card'} title="Card View">
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<rect x="3" y="3" width="7" height="7" rx="1"/>
+				<rect x="14" y="3" width="7" height="7" rx="1"/>
+				<rect x="3" y="14" width="7" height="7" rx="1"/>
+				<rect x="14" y="14" width="7" height="7" rx="1"/>
+			</svg>
+		</button>
+		<button class="toggle-btn" class:active={viewMode === 'table'} onclick={() => viewMode = 'table'} title="Table View">
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<rect x="3" y="3" width="18" height="18" rx="2"/>
+				<line x1="3" y1="9" x2="21" y2="9"/>
+				<line x1="3" y1="15" x2="21" y2="15"/>
+				<line x1="9" y1="3" x2="9" y2="21"/>
+				<line x1="15" y1="3" x2="15" y2="21"/>
+			</svg>
+		</button>
+	</div>
+</div>
+
+{#if viewMode === 'card'}
+	<CategoryList
+		categories={categories}
+		spending={data.spending ?? {}}
 		income={data.income ?? {}}
-	onEdit={openEdit}
-	onDelete={(id) => deleteId = id}
-/>
+		onEdit={openEdit}
+		onDelete={(id) => deleteId = id}
+	/>
+{:else}
+	<div class="cat-table-section">
+		<table class="cat-table">
+			<thead>
+				<tr>
+					<th>Category</th>
+					<th>Type</th>
+					<th>Spent</th>
+					<th>Budget</th>
+					<th class="actions-col">Actions</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each categories as cat (cat.id)}
+					<tr>
+						<td>
+							<span class="cat-icon-sm" style="background: {cat.color}15; color: {cat.color}">{cat.icon}</span>
+							<span class="cat-name-cell">{cat.name}</span>
+						</td>
+						<td>
+							<span class="type-badge-sm" class:income={cat.type === 'income'} class:expense={cat.type === 'expense'}>
+								{cat.type === 'income' ? '💰 Income' : '💸 Expense'}
+							</span>
+						</td>
+						<td class="amount-cell">{formatCurrency((data.spending ?? {})[cat.id] || 0)}</td>
+						<td>
+							{cat.budget_limit ? formatCurrency(cat.budget_limit) : '—'}
+						</td>
+						<td class="actions-cell">
+							<button class="btn-action" onclick={() => openEdit(cat)} title="Edit">✏️</button>
+							<button class="btn-action" onclick={() => deleteId = cat.id} title="Delete">🗑️</button>
+						</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
+{/if}
 
 {#if deleteId !== null}
 	<ModalDialog open={deleteId !== null} onclose={() => deleteId = null} title="Delete Category">
@@ -156,7 +222,7 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 		align-items: center;
 		gap: var(--space-xs);
 		padding: var(--space-sm) var(--space-md);
-		background: var(--color-primary);
+		background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
 		color: white;
 		border: none;
 		border-radius: var(--radius-md);
@@ -164,20 +230,163 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 		font-weight: 600;
 		cursor: pointer;
 		min-height: 44px;
+		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 		transition: all var(--transition-fast);
-		box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
 	}
 
 	.btn-primary-sm:hover {
-		background: var(--color-primary-hover);
-		transform: translateY(-1px);
-		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+		transform: translateY(-2px);
+		box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
 	}
 
-	.btn-primary-sm:active {
-		transform: translateY(0);
+	/* View Toggle */
+	.view-toggle-row {
+		display: flex;
+		justify-content: flex-end;
+		margin-bottom: var(--space-md);
 	}
 
+	.view-toggle {
+		display: flex;
+		gap: 2px;
+		background: var(--color-bg);
+		padding: 4px;
+		border-radius: var(--radius-md);
+		border: 1px solid var(--color-border);
+	}
+
+	.toggle-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 8px 12px;
+		border: none;
+		background: transparent;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		color: var(--color-text-secondary);
+		transition: all var(--transition-fast);
+		min-height: 36px;
+	}
+
+	.toggle-btn.active {
+		background: var(--color-primary);
+		color: white;
+		box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+	}
+
+	.toggle-btn:hover:not(.active) {
+		background: var(--color-surface);
+		color: var(--color-text);
+	}
+
+	/* Table View */
+	.cat-table-section {
+		background: rgba(255, 255, 255, 0.85);
+		backdrop-filter: blur(20px);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-xl);
+		padding: var(--space-lg);
+		animation: fadeSlideIn 0.4s ease-out;
+	}
+
+	@keyframes fadeSlideIn {
+		from { opacity: 0; transform: translateY(10px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+
+	.cat-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: var(--font-size-sm);
+	}
+
+	.cat-table th {
+		text-align: left;
+		padding: var(--space-sm) var(--space-md);
+		color: var(--color-text-secondary);
+		font-weight: 600;
+		border-bottom: 2px solid var(--color-border);
+		background: var(--color-bg);
+	}
+
+	.cat-table th.actions-col {
+		text-align: center;
+		width: 90px;
+	}
+
+	.cat-table td {
+		padding: var(--space-sm) var(--space-md);
+		border-bottom: 1px solid var(--color-border);
+		vertical-align: middle;
+	}
+
+	.cat-table tr:hover td {
+		background: var(--color-primary-light);
+	}
+
+	.cat-icon-sm {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		border-radius: var(--radius-md);
+		font-size: 1rem;
+		margin-right: var(--space-sm);
+		vertical-align: middle;
+	}
+
+	.cat-name-cell {
+		font-weight: 600;
+		vertical-align: middle;
+	}
+
+	.type-badge-sm {
+		display: inline-block;
+		padding: 2px 8px;
+		border-radius: 999px;
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+	}
+
+	.type-badge-sm.income {
+		background: rgba(16, 185, 129, 0.1);
+		color: var(--color-income);
+	}
+
+	.type-badge-sm.expense {
+		background: rgba(239, 68, 68, 0.1);
+		color: var(--color-expense);
+	}
+
+	.amount-cell {
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.actions-cell {
+		text-align: center;
+		white-space: nowrap;
+	}
+
+	.btn-action {
+		background: none;
+		border: none;
+		cursor: pointer;
+		padding: 6px;
+		border-radius: var(--radius-sm);
+		font-size: 1rem;
+		min-width: 32px;
+		min-height: 32px;
+		transition: background var(--transition-fast);
+	}
+
+	.btn-action:hover {
+		background: var(--color-bg);
+	}
+
+	/* Modal */
 	.form-panel {
 		max-width: 500px;
 		margin-left: auto;
@@ -192,14 +401,8 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 	}
 
 	@keyframes slideIn {
-		from {
-			opacity: 0;
-			transform: translateY(-10px);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0);
-		}
+		from { opacity: 0; transform: translateY(-10px); }
+		to { opacity: 1; transform: translateY(0); }
 	}
 
 	.form-panel-header {

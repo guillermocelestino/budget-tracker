@@ -15,17 +15,17 @@ export async function load({ locals }: { locals: App.Locals }) {
 		[userId, 'paid']
 	);
 
-	const totals = await queryOne<{ total_lent: number; total_recovered: number }>(
+	const totals = await queryOne<{ total_lent: string; total_recovered: string }>(
 		`SELECT
-			COALESCE(SUM(CASE WHEN status = 'active' THEN amount ELSE 0 END), 0) as total_lent,
+			COALESCE(SUM(amount), 0) as total_lent,
 			COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as total_recovered
 		 FROM lendings
 		 WHERE user_id = $1`,
 		[userId]
 	);
 
-	const totalLent = parseFloat(String(totals?.total_lent ?? 0));
-	const totalRecovered = parseFloat(String(totals?.total_recovered ?? 0));
+	const totalLent = parseFloat(String(totals?.total_lent ?? '0'));
+	const totalRecovered = parseFloat(String(totals?.total_recovered ?? '0'));
 
 	return {
 		activeLendings,
@@ -60,6 +60,35 @@ export const actions = {
 			`INSERT INTO lendings (user_id, borrower_name, amount, interest_rate, date_lent, due_date, notes)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 			[userId, borrower_name, parseFloat(amountStr), interest_rate, date_lent, due_date || null, notes]
+		);
+
+		return { success: true };
+	},
+
+	update: async ({ request, locals }) => {
+		const userId = locals.user!.userId;
+		const data = await request.formData();
+
+		const id = parseInt(data.get('id') as string);
+		const borrower_name = (data.get('borrower_name') as string)?.trim();
+		const amountStr = (data.get('amount') as string)?.replace(/,/g, '');
+		const interest_rate = parseFloat(data.get('interest_rate') as string) || 0;
+		const date_lent = data.get('date_lent') as string;
+		const due_date = data.get('due_date') as string;
+		const status = data.get('status') as string;
+		const notes = (data.get('notes') as string)?.trim() || null;
+
+		if (isNaN(id)) return fail(400, { error: 'Invalid ID' });
+		if (!borrower_name) return fail(400, { error: 'Borrower name is required' });
+		if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0) {
+			return fail(400, { error: 'Amount must be a positive number' });
+		}
+		if (!date_lent) return fail(400, { error: 'Date lent is required' });
+
+		await execute(
+			`UPDATE lendings SET borrower_name = $1, amount = $2, interest_rate = $3, date_lent = $4, due_date = $5, status = $6, notes = $7, updated_at = NOW()
+			 WHERE user_id = $8 AND id = $9`,
+			[borrower_name, parseFloat(amountStr), interest_rate, date_lent, due_date || null, status, notes, userId, id]
 		);
 
 		return { success: true };
