@@ -10,6 +10,9 @@
 	let { children }: { children?: import('svelte').Snippet } = $props();
 
 	const isLoginPage = $derived($page.url.pathname === '/login');
+	const isPublicRoute = $derived($page.url.pathname === '/' && !$page.data.user);
+	const showSidebar = $derived(!isLoginPage && !isPublicRoute);
+	const isNoSidebar = $derived(isLoginPage || isPublicRoute);
 </script>
 
 <svelte:head>
@@ -21,11 +24,11 @@
 <ToastContainer />
 
 <div class="app-shell">
-	{#if !isLoginPage}
+	{#if showSidebar}
 		<Sidebar />
 	{/if}
-	<div class="main-area" class:no-sidebar={isLoginPage}>
-		<main class="main-content" class:navigating={$navigating} class:no-sidebar={isLoginPage}>
+	<div class="main-area" class:no-sidebar={isNoSidebar}>
+		<main class="main-content" class:navigating={$navigating} class:no-sidebar={isNoSidebar}>
 			{@render children()}
 		</main>
 	</div>

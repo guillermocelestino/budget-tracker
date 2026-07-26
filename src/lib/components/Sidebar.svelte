@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 
 	const navItems = [
-		{ href: '/', label: 'Dashboard', icon: 'dashboard' },
+		{ href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
 		{ href: '/transactions', label: 'Transactions', icon: 'creditcard' },
 		{ href: '/categories', label: 'Categories', icon: 'tags' },
 		{ href: '/reports', label: 'Reports', icon: 'chart' },

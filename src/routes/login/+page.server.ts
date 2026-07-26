@@ -4,7 +4,7 @@ import { verifyPassword, createToken } from '$lib/auth';
 
 export function load({ locals }: { locals: App.Locals }) {
 	if (locals.user) {
-		redirect(302, '/');
+		redirect(302, '/dashboard');
 	}
 }
 
@@ -38,6 +38,6 @@ export const actions = {
 			secure: process.env['NODE_ENV'] === 'production',
 		});
 
-		redirect(302, '/');
+		redirect(302, '/dashboard');
 	},
 };

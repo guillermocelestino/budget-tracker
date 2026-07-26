@@ -202,6 +202,7 @@
 		border-bottom: 2px solid var(--color-border);
 		background: var(--color-bg);
 		white-space: nowrap;
+		vertical-align: middle;
 	}
 
 	.th-content {
