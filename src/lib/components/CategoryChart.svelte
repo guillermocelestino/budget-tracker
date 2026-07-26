@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import '$lib/utils/chart';
 	import { Doughnut } from 'svelte-chartjs';
 	import { formatCurrency } from '$lib/utils/format';
@@ -13,6 +14,15 @@
 		colors: string[];
 	} = $props();
 
+	let isDark = $state(false);
+
+	onMount(() => {
+		const mq = window.matchMedia('(prefers-color-scheme: dark)');
+		isDark = mq.matches;
+		mq.addEventListener('change', (e) => isDark = e.matches);
+		return () => mq.removeEventListener('change', () => {});
+	});
+
 	const chartData = $derived({
 		labels,
 		datasets: [
@@ -20,7 +30,7 @@
 				data,
 				backgroundColor: colors,
 				borderWidth: 2,
-				borderColor: '#ffffff',
+				borderColor: isDark ? '#1f2937' : '#ffffff',
 			},
 		],
 	});
@@ -31,6 +41,9 @@
 		plugins: {
 			legend: {
 				position: 'right' as const,
+				labels: {
+					color: isDark ? '#e5e7eb' : '#374151',
+				},
 			},
 			tooltip: {
 				callbacks: {

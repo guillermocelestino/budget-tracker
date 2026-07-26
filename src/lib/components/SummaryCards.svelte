@@ -5,10 +5,12 @@
 		totalIncome = 0,
 		totalExpenses = 0,
 		balance = 0,
+		savingsRate = 0,
 	}: {
 		totalIncome?: number;
 		totalExpenses?: number;
 		balance?: number;
+		savingsRate?: number;
 	} = $props();
 </script>
 
@@ -32,7 +34,6 @@
 			<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<path d="M2 12a5 5 0 0 0 5 5 8 8 0 0 1 5 2 8 8 0 0 1 5-2 5 5 0 0 0 5-5V7h-5a8 8 0 0 0-5 2 8 8 0 0 0-5-2H2Z"/>
 				<path d="M6 11c1.5 0 3 .5 3 2-2 0-3 0-3-2Z"/>
-				<path d="M18 11c-1.5 0-3 .5-3 2 2 0 3 0 3-2Z"/>
 			</svg>
 		</div>
 		<div class="card-content">
@@ -44,25 +45,28 @@
 
 	<div class="summary-card balance" class:negative={balance < 0}>
 		<div class="card-icon">
-			{#if balance < 0}
-				<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<rect width="20" height="14" x="2" y="5" rx="2"/>
-					<line x1="2" x2="22" y1="10" y2="10"/>
-					<path d="M12 12v4"/>
-					<path d="M8 12v4"/>
-					<path d="M16 12v4"/>
-				</svg>
-			{:else}
-				<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2h2v-4h-2c0-1-.5-1.5-1-2V5z"/>
-					<path d="M2 9v1c0 1.1.9 2 2 2h1"/>
-					<path d="M16 11h.01"/>
-				</svg>
-			{/if}
+			<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2h2v-4h-2c0-1-.5-1.5-1-2V5z"/>
+			</svg>
 		</div>
 		<div class="card-content">
 			<span class="card-label">Current Balance</span>
 			<span class="card-value">{formatCurrency(balance)}</span>
+		</div>
+		<div class="card-accent"></div>
+	</div>
+
+	<div class="summary-card savings">
+		<div class="card-icon">
+			<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M12 2L2 7l10 5 10-5-10-5z"/>
+				<path d="M2 17l10 5 10-5"/>
+				<path d="M2 12l10 5 10-5"/>
+			</svg>
+		</div>
+		<div class="card-content">
+			<span class="card-label">Savings Rate</span>
+			<span class="card-value" class:negative={savingsRate < 0}>{savingsRate.toFixed(1)}%</span>
 		</div>
 		<div class="card-accent"></div>
 	</div>
@@ -71,7 +75,7 @@
 <style>
 	.summary-grid {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(4, 1fr);
 		gap: var(--space-md);
 		margin-bottom: var(--space-lg);
 	}
@@ -103,7 +107,8 @@
 		border-color: rgba(239, 68, 68, 0.3);
 	}
 
-	.summary-card.balance:hover {
+	.summary-card.balance:hover,
+	.summary-card.savings:hover {
 		border-color: rgba(99, 102, 241, 0.3);
 	}
 
@@ -127,7 +132,8 @@
 		color: var(--color-expense);
 	}
 
-	.summary-card.balance .card-icon {
+	.summary-card.balance .card-icon,
+	.summary-card.savings .card-icon {
 		background: linear-gradient(135deg, var(--color-primary-light) 0%, rgba(99, 102, 241, 0.15) 100%);
 		color: var(--color-primary);
 	}
@@ -158,8 +164,13 @@
 		transition: opacity 300ms ease;
 	}
 
-	.summary-card.balance.negative .card-value {
+	.summary-card.balance.negative .card-value,
+	.summary-card.savings .card-value.negative {
 		color: var(--color-expense);
+	}
+
+	.summary-card.savings .card-value {
+		color: var(--color-income);
 	}
 
 	.card-accent {
@@ -180,12 +191,19 @@
 		background: var(--color-expense);
 	}
 
-	.summary-card.balance .card-accent {
+	.summary-card.balance .card-accent,
+	.summary-card.savings .card-accent {
 		background: var(--color-primary);
 	}
 
 	.summary-card.balance.negative .card-accent {
 		background: var(--color-expense);
+	}
+
+	@media (max-width: 1024px) {
+		.summary-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
 	}
 
 	@media (max-width: 768px) {

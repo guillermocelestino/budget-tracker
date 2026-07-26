@@ -103,12 +103,25 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 		return Math.round(((curr - prev) / prev) * 100);
 	}
 
-	return {
-		monthlyData,
-		expenseData,
-		incomeData,
-		year,
-		month,
+	// All-time monthly data for trend computation
+	const allMonthsData = await queryMany<MonthlyReportItem>(
+		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
+				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+		 FROM transactions
+		 WHERE user_id = $1
+		 GROUP BY month
+		 ORDER BY month ASC`,
+		[userId]
+	);
+
+return {
+	monthlyData,
+	allMonthsData,
+	expenseData,
+	incomeData,
+	year,
+	month,
 		monthSummary: {
 			income: currIncome,
 			expense: currExpense,

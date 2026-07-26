@@ -6,7 +6,7 @@
 	import SummaryCards from '$lib/components/SummaryCards.svelte';
 	import MonthlyChart from '$lib/components/MonthlyChart.svelte';
 	import CategoryChart from '$lib/components/CategoryChart.svelte';
-import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
+	import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
 
 	let data = $derived($page.data as App.PageData);
 
@@ -42,6 +42,31 @@ import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
 		(data.monthlyData ?? []).map(m => m.expense)
 	);
 
+	// Linear regression for trend lines
+	function linearRegression(data: number[]) {
+		const n = data.length;
+		if (n === 0) return { values: [], next: 0 };
+		if (n === 1) return { values: [data[0]], next: data[0] };
+		const xMean = (n - 1) / 2;
+		const yMean = data.reduce((a, b) => a + b, 0) / n;
+		let num = 0, den = 0;
+		for (let i = 0; i < n; i++) {
+			num += (i - xMean) * (data[i] - yMean);
+			den += (i - xMean) ** 2;
+		}
+		const slope = den === 0 ? 0 : num / den;
+		const intercept = yMean - slope * xMean;
+		return {
+			values: data.map((_, i) => Math.round(slope * i + intercept)),
+			next: Math.max(0, Math.round(slope * n + intercept)),
+		};
+	}
+
+	// Compute trend directly from chart data (same length, always aligned)
+	const incomeTrend = $derived(linearRegression(monthlyIncome));
+	const expenseTrend = $derived(linearRegression(monthlyExpense));
+
+	let showTrend = $state(false);
 
 	// Income chart data
 	const incomeLabels = $derived(
@@ -84,7 +109,20 @@ import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
 	totalIncome={data.monthSummary?.income ?? 0}
 	totalExpenses={data.monthSummary?.expense ?? 0}
 	balance={data.monthSummary?.balance ?? 0}
+	savingsRate={data.monthSummary?.income > 0 ? ((data.monthSummary.income - data.monthSummary.expense) / data.monthSummary.income) * 100 : 0}
 />
+
+<YearOverYearCard yoyData={data.yoyData} selectedMonth={selectedMonth} />
+
+<div class="report-actions">
+	<button class="btn-refresh" onclick={() => goto(`/reports?year=${selectedYear}&month=${selectedMonth}&t=${Date.now()}`, { replaceState: true, invalidateAll: true })}>
+		<svg class="refresh-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<polyline points="23 4 23 10 17 10"/>
+			<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+		</svg>
+		Refresh
+	</button>
+</div>
 
 <div class="report-controls">
 	<div class="control-group">
@@ -123,8 +161,56 @@ import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
 		labels={monthlyLabels}
 		incomeData={monthlyIncome}
 		expenseData={monthlyExpense}
+		trendIncome={incomeTrend.values}
+		trendExpense={expenseTrend.values}
+		showTrend={showTrend}
 	/>
+
+	<div class="chart-controls">
+		<label class="trend-toggle" class:active={showTrend}>
+			<input type="checkbox" bind:checked={showTrend} />
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+				<polyline points="17 6 23 6 23 12"/>
+			</svg>
+			<span>Trend lines</span>
+		</label>
+	</div>
 </section>
+
+{#if showTrend}
+	<section class="report-section forecast-section">
+		<div class="section-header">
+			<div class="section-title-group">
+				<div class="section-icon">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M12 2L2 7l10 5 10-5-10-5z"/>
+						<path d="M2 17l10 5 10-5"/>
+						<path d="M2 12l10 5 10-5"/>
+					</svg>
+				</div>
+				<h2 class="section-title">Forecast</h2>
+			</div>
+		</div>
+		<div class="forecast-grid">
+			<div class="forecast-card income">
+				<span class="forecast-label">Projected Income</span>
+				<span class="forecast-value">{formatCurrency(incomeTrend.next)}</span>
+				<span class="forecast-next">Next month</span>
+			</div>
+			<div class="forecast-card expense">
+				<span class="forecast-label">Projected Expenses</span>
+				<span class="forecast-value">{formatCurrency(expenseTrend.next)}</span>
+				<span class="forecast-next">Next month</span>
+			</div>
+			<div class="forecast-card balance">
+				<span class="forecast-label">Projected Balance</span>
+				<span class="forecast-value" class:negative={incomeTrend.next - expenseTrend.next < 0}>{formatCurrency(incomeTrend.next - expenseTrend.next)}</span>
+				<span class="forecast-next">Based on trend</span>
+			</div>
+		</div>
+	</section>
+{/if}
 
 <div class="divider">
 	<span class="divider-line"></span>
@@ -256,6 +342,37 @@ import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
 		</div>
 	</div>
 </div>
+
+<!-- Top Spending Categories -->
+{#if (data.expenseData ?? []).filter(c => c.total > 0).length > 0}
+	<section class="report-section">
+		<div class="section-header">
+			<div class="section-title-group">
+				<div class="section-icon expense">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M17 1l4 4-4 4"/>
+						<path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+						<path d="M7 23l-4-4 4-4"/>
+						<path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+					</svg>
+				</div>
+				<h2 class="section-title">Top Spending Categories</h2>
+			</div>
+		</div>
+		<div class="top-categories">
+			{#each (data.expenseData ?? []).filter(c => c.total > 0).sort((a, b) => b.total - a.total).slice(0, 3) as cat, i}
+				<div class="top-cat-item">
+					<span class="top-cat-rank">{i + 1}</span>
+					<span class="top-cat-name">{cat.category_name}</span>
+					<div class="top-cat-bar">
+						<div class="top-cat-fill" style="width: {(cat.total / Math.max(...(data.expenseData ?? []).filter(c => c.total > 0).map(c => c.total))) * 100}%;"></div>
+					</div>
+					<span class="top-cat-amount">{formatCurrency(cat.total)}</span>
+				</div>
+			{/each}
+		</div>
+	</section>
+{/if}
 
 <style>
 	.report-controls {
@@ -447,6 +564,218 @@ import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
 		padding: var(--space-xl) var(--space-md) !important;
 	}
 
+	.top-categories {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+	}
+
+	.top-cat-item {
+		display: grid;
+		grid-template-columns: 32px 1fr auto;
+		align-items: center;
+		gap: var(--space-md);
+		padding: var(--space-md);
+		background: var(--color-bg);
+		border-radius: var(--radius-md);
+		border: 1px solid var(--color-border);
+		transition: all var(--transition-fast);
+	}
+
+	.top-cat-item:hover {
+		border-color: var(--color-primary);
+		box-shadow: var(--shadow-sm);
+		transform: translateX(4px);
+	}
+
+	.top-cat-rank {
+		width: 32px;
+		height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius-md);
+		font-size: var(--font-size-sm);
+		font-weight: 700;
+		flex-shrink: 0;
+	}
+
+	.top-cat-item:nth-child(1) .top-cat-rank {
+		background: linear-gradient(135deg, #f59e0b, #fbbf24);
+		color: white;
+		box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+	}
+
+	.top-cat-item:nth-child(2) .top-cat-rank {
+		background: linear-gradient(135deg, #6b7280, #9ca3af);
+		color: white;
+		box-shadow: 0 2px 8px rgba(107, 114, 128, 0.3);
+	}
+
+	.top-cat-item:nth-child(3) .top-cat-rank {
+		background: linear-gradient(135deg, #92400e, #b45309);
+		color: white;
+		box-shadow: 0 2px 8px rgba(146, 64, 14, 0.3);
+	}
+
+	.top-cat-name {
+		font-weight: 600;
+		color: var(--color-text);
+		font-size: var(--font-size-sm);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.top-cat-bar {
+		height: 8px;
+		background: var(--color-border);
+		border-radius: 999px;
+		overflow: hidden;
+		min-width: 80px;
+	}
+
+	.top-cat-fill {
+		height: 100%;
+		border-radius: 999px;
+		background: var(--color-expense);
+		transition: width 500ms cubic-bezier(0.4, 0, 0.2, 1);
+	}
+
+	.top-cat-amount {
+		font-weight: 700;
+		font-size: var(--font-size-sm);
+		color: var(--color-expense);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+
+	.chart-controls {
+		display: flex;
+		justify-content: center;
+		margin-top: var(--space-md);
+	}
+
+	.trend-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-sm);
+		cursor: pointer;
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--color-primary);
+		padding: var(--space-sm) var(--space-lg);
+		border: 2px solid var(--color-primary);
+		border-radius: 999px;
+		background: var(--color-surface);
+		box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
+		transition: all var(--transition-fast);
+		user-select: none;
+	}
+
+	.trend-toggle:hover {
+		background: var(--color-primary-light);
+		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+		transform: translateY(-1px);
+	}
+
+	.trend-toggle:active {
+		transform: translateY(0);
+	}
+
+	.trend-toggle.active {
+		background: var(--color-primary);
+		color: white;
+		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+	}
+
+	.trend-toggle.active svg {
+		color: white;
+	}
+
+	.trend-toggle input {
+		display: none;
+	}
+
+	.forecast-section {
+		margin-bottom: var(--space-lg);
+	}
+
+	.forecast-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: var(--space-md);
+	}
+
+	.forecast-card {
+		padding: var(--space-md);
+		border-radius: var(--radius-md);
+		border: 1px solid var(--color-border);
+		background: var(--color-bg);
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.forecast-label {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+	}
+
+	.forecast-value {
+		font-size: var(--font-size-lg);
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.forecast-card.income .forecast-value {
+		color: var(--color-income);
+	}
+
+	.forecast-card.expense .forecast-value {
+		color: var(--color-expense);
+	}
+
+	.forecast-card.balance .forecast-value {
+		color: var(--color-income);
+	}
+
+	.forecast-card.balance .forecast-value.negative {
+		color: var(--color-expense);
+	}
+
+	.forecast-next {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-secondary);
+	}
+
+	.report-actions {
+		display: flex;
+		justify-content: flex-end;
+		margin-bottom: var(--space-md);
+	}
+
+	.btn-refresh {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-xs);
+		padding: var(--space-xs) var(--space-md);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-size: var(--font-size-sm);
+		font-family: inherit;
+		color: var(--color-text-secondary);
+		transition: all var(--transition-fast);
+		min-height: 36px;
+	}
+
+	.btn-refresh:hover {
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+
 	@media (max-width: 768px) {
 		.category-report-grid {
 			grid-template-columns: 1fr;
@@ -464,6 +793,10 @@ import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
 		.breakdown-table th,
 		.breakdown-table td {
 			padding: var(--space-sm);
+		}
+
+		.forecast-grid {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>

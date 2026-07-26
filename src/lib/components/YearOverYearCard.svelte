@@ -7,6 +7,7 @@
 	}: {
 		yoyData: {
 			prevYearMonth: string;
+			currentMonth: { income: number; expense: number; balance: number };
 			previousMonth: { income: number; expense: number; balance: number };
 			currentYTD: { income: number; expense: number };
 			previousYTD: { income: number; expense: number };
