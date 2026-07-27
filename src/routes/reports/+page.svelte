@@ -22,6 +22,15 @@
 		if (data.month) selectedMonth = data.month;
 	});
 
+	let activeTab = $state('overview');
+
+	const sections = [
+		{ id: 'overview', label: 'Overview' },
+		{ id: 'income', label: 'Income' },
+		{ id: 'expenses', label: 'Expenses' },
+		{ id: 'lending', label: 'Lending' },
+	];
+
 	function changeYear(year: string) {
 		selectedYear = year;
 		const params = new URLSearchParams({ year, month: selectedMonth });
@@ -132,6 +141,22 @@
 {/if}
 
 <YearOverYearCard yoyData={data.yoyData} selectedMonth={selectedMonth} />
+
+<div class="report-actions">
+	<div class="report-tabs">
+		{#each sections as s}
+			<button class="report-tab" class:active={activeTab === s.id} onclick={() => activeTab = s.id}>{s.label}</button>
+		{/each}
+	</div>
+	<a href="/api/reports/export?year={selectedYear}&month={selectedMonth}" class="btn-export-report" download>
+		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+			<polyline points="7 10 12 15 17 10"/>
+			<line x1="12" x2="12" y1="15" y2="3"/>
+		</svg>
+		Export CSV
+	</a>
+</div>
 
 <div class="report-controls">
 	<div class="control-group">
@@ -386,6 +411,7 @@
 {/if}
 
 <!-- Lending Overview -->
+{#if activeTab === 'lending'}
 {#if data.lendingSummary && data.lendingSummary.totalLent > 0}
 	<section class="report-section">
 		<div class="section-header">
@@ -428,6 +454,7 @@
 			</div>
 		</div>
 	</section>
+{/if}
 {/if}
 
 <style>
@@ -1074,5 +1101,77 @@
 
 	.lending-bar-fill.expense {
 		background: linear-gradient(90deg, var(--color-expense) 0%, #f87171 100%);
+	}
+
+	.report-actions {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-md);
+		margin-bottom: var(--space-lg);
+		flex-wrap: wrap;
+	}
+
+	.report-tabs {
+		display: flex;
+		gap: 4px;
+		background: var(--color-bg);
+		padding: 4px;
+		border-radius: var(--radius-md);
+		border: 1px solid var(--color-border);
+	}
+
+	.report-tab {
+		padding: var(--space-sm) var(--space-md);
+		border: none;
+		background: transparent;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		font-family: inherit;
+		color: var(--color-text-secondary);
+		transition: all var(--transition-fast);
+		min-height: 36px;
+	}
+
+	.report-tab.active {
+		background: var(--color-primary);
+		color: white;
+		box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+	}
+
+	.report-tab:not(.active):hover {
+		background: var(--color-surface);
+		color: var(--color-text);
+	}
+
+	.btn-export-report {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: var(--space-sm) var(--space-md);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		color: var(--color-text-secondary);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		cursor: pointer;
+		text-decoration: none;
+		min-height: 40px;
+		transition: all var(--transition-fast);
+		white-space: nowrap;
+	}
+
+	.btn-export-report:hover {
+		background: var(--color-primary-light);
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+		text-decoration: none;
+	}
+
+	.content-hidden {
+		display: none;
 	}
 </style>

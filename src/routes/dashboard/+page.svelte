@@ -2,10 +2,12 @@
 	import { page, navigating } from '$app/stores';
 	import SummaryCards from '$lib/components/SummaryCards.svelte';
 	import LendingSummaryCards from '$lib/components/LendingSummaryCards.svelte';
-	import Sparkline from '$lib/components/Sparkline.svelte';
+		import Sparkline from '$lib/components/Sparkline.svelte';
 	import TransactionList from '$lib/components/TransactionList.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
+	import MonthlyTrendChart from '$lib/components/MonthlyTrendChart.svelte';
+	import CategoryDonutChart from '$lib/components/CategoryDonutChart.svelte';
 	import PageBackground from '$lib/components/PageBackground.svelte';
 	import { enhance } from '$app/forms';
 	import { formatCurrency } from '$lib/utils/format';
@@ -53,6 +55,29 @@
 			<div class="trend-card">
 				<span class="trend-label">Expenses</span>
 				<Sparkline labels={data.trendLabels} data={data.trendExpenses ?? []} />
+			</div>
+		</div>
+	</section>
+{/if}
+
+{#if data.categoryLabels && data.categoryLabels.length > 0}
+	<section class="charts-section">
+		<h2 class="section-title">Financial Overview</h2>
+		<div class="charts-grid">
+			<div class="chart-card">
+				<h3 class="chart-title">Monthly Income vs Expenses</h3>
+				<MonthlyTrendChart
+					labels={data.trendLabels ?? []}
+					incomeData={data.trendIncome ?? []}
+					expenseData={data.trendExpenses ?? []}
+				/>
+			</div>
+			<div class="chart-card">
+				<h3 class="chart-title">Expenses by Category</h3>
+				<CategoryDonutChart
+					labels={data.categoryLabels ?? []}
+					data={data.categoryData ?? []}
+				/>
 			</div>
 		</div>
 	</section>

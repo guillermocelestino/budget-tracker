@@ -7,6 +7,7 @@
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
 import PageBackground from '$lib/components/PageBackground.svelte';
 	import { showSuccess, showError } from '$lib/stores/toast.svelte';
+	import { formatCurrency } from '$lib/utils/format';
 
 	let data = $derived($page.data as App.PageData);
 	let deleteId = $state<number | null>(null);
@@ -45,6 +46,14 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 		params.set('page', String(p));
 		goto(`/transactions?${params.toString()}`);
 	}
+
+	const filteredIncome = $derived(
+		data.transactions?.reduce((sum, t) => t.type === 'income' ? sum + t.amount : sum, 0) ?? 0
+	);
+	const filteredExpenses = $derived(
+		data.transactions?.reduce((sum, t) => t.type === 'expense' ? sum + t.amount : sum, 0) ?? 0
+	);
+	const filteredBalance = filteredIncome - filteredExpenses;
 </script>
 
 <svelte:head>
@@ -56,20 +65,12 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 <PageHeader title="Transactions">
 	{#snippet action()}
 		<a href="/transactions/new" class="btn-primary-sm">+ Add Transaction</a>
-		<div class="export-group">
-			<a href="/api/transactions/export?exportType=all&type={typeFilter}&category_id={categoryFilter}&date_from={dateFromFilter}&date_to={dateToFilter}" class="btn-export" download>
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-					<polyline points="7 10 12 15 17 10"/>
-					<line x1="12" x2="12" y1="15" y2="3"/>
-				</svg>
-				Export
-			</a>
-		</div>
+
 	{/snippet}
 </PageHeader>
 
-<button class="filter-toggle" onclick={() => showFilters = !showFilters}>
+<div class="toolbar-row">
+	<button class="filter-toggle" onclick={() => showFilters = !showFilters}>
 	<span class="filter-toggle-label">
 		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 			<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
@@ -85,6 +86,15 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 		</svg>
 	</span>
 </button>
+	<a href="/api/transactions/export?exportType=all&type={typeFilter}&category_id={categoryFilter}&date_from={dateFromFilter}&date_to={dateToFilter}" class="btn-export" download>
+		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+			<polyline points="7 10 12 15 17 10"/>
+			<line x1="12" x2="12" y1="15" y2="3"/>
+		</svg>
+		Export All
+	</a>
+</div>
 
 {#if showFilters}
 	<div class="filter-panel">
@@ -107,6 +117,23 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 		<div class="filter-actions">
 			<button class="btn-filter" onclick={applyFilters}>Apply</button>
 			<button class="btn-clear" onclick={clearFilters}>Clear</button>
+		</div>
+	</div>
+{/if}
+
+{#if data.transactions && data.transactions.length > 0}
+	<div class="summary-bar">
+		<div class="summary-item income">
+			<span class="summary-label">Income</span>
+			<span class="summary-value">{formatCurrency(filteredIncome)}</span>
+		</div>
+		<div class="summary-item expense">
+			<span class="summary-label">Expenses</span>
+			<span class="summary-value">{formatCurrency(filteredExpenses)}</span>
+		</div>
+		<div class="summary-item balance">
+			<span class="summary-label">Balance</span>
+			<span class="summary-value" class:negative={filteredBalance < 0}>{formatCurrency(filteredBalance)}</span>
 		</div>
 	</div>
 {/if}
@@ -264,8 +291,40 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 		background: var(--color-border);
 	}
 
+	.toolbar-row {
+		display: flex;
+		align-items: start;
+		gap: var(--space-sm);
+		margin-bottom: var(--space-sm);
+	}
+
+	.btn-export {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 10px 16px;
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		color: var(--color-text-secondary);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		cursor: pointer;
+		text-decoration: none;
+		min-height: 44px;
+		transition: all var(--transition-fast);
+	}
+
+	.btn-export:hover {
+		background: var(--color-primary-light);
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+		text-decoration: none;
+	}
+
 	.btn-primary-sm {
-		display: inline-block;
+		display: inline-flex;
+		align-items: center;
 		padding: var(--space-sm) var(--space-md);
 		background: var(--color-primary);
 		color: white;
@@ -274,8 +333,45 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 		font-weight: 600;
 		text-decoration: none;
 		min-height: 44px;
-		line-height: 44px;
+		gap: 6px;
+		min-height: 44px;
 	}
+
+	.summary-bar {
+		display: flex;
+		gap: var(--space-md);
+		margin-bottom: var(--space-md);
+	}
+
+	.summary-item {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: var(--space-sm) var(--space-md);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		flex: 1;
+	}
+
+	.summary-label {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-secondary);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.summary-value {
+		font-size: var(--font-size-lg);
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.summary-item.income .summary-value { color: var(--color-income); }
+	.summary-item.expense .summary-value { color: var(--color-expense); }
+	.summary-item.balance .summary-value { color: var(--color-primary); }
+	.summary-item.balance .summary-value.negative { color: var(--color-expense); }
 
 	.pagination {
 		display: flex;

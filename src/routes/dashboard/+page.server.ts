@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
-import type { Transaction } from '$lib/types';
+import type { Transaction, CategoryReportItem } from '$lib/types';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -44,6 +44,18 @@ export async function load({ locals }: { locals: App.Locals }) {
 	const totalExpenses = parseFloat(summary?.totalexpenses ?? '0');
 	const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0;
 
+	// Category expense data for donut chart
+	const categoryExpenses = await queryMany<CategoryReportItem>(
+		`SELECT c.id as category_id, c.name as category_name, c.color as category_color,
+				COALESCE(SUM(t.amount), 0) as total
+		 FROM transactions t
+		 JOIN categories c ON t.category_id = c.id
+		 WHERE t.user_id = $1 AND t.type = 'expense' AND t.date >= $2 AND t.date <= $3
+		 GROUP BY c.id, c.name, c.color
+		 ORDER BY total DESC`,
+		[userId, firstDay, lastDay]
+	);
+
 	// Monthly trend data for sparklines (last 6 months)
 	const trendData = await queryMany<{ month: string; income: string; expense: string }>(
 		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
@@ -69,6 +81,9 @@ export async function load({ locals }: { locals: App.Locals }) {
 			totalRecovered,
 			outstanding: totalLent - totalRecovered,
 		},
+		categoryLabels: categoryExpenses.map(c => c.category_name),
+		categoryData: categoryExpenses.map(c => c.total),
+		categoryColors: categoryExpenses.map(c => c.category_color),
 		trendLabels: trendData.map(r => r.month),
 		trendIncome: trendData.map(r => parseFloat(r.income)),
 		trendExpenses: trendData.map(r => parseFloat(r.expense)),
