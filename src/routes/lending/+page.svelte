@@ -5,6 +5,8 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
 	import PageBackground from '$lib/components/PageBackground.svelte';
+	import LendingBalanceHeader from '$lib/components/LendingBalanceHeader.svelte';
+	import ActiveIouList from '$lib/components/ActiveIouList.svelte';
 	import { showSuccess, showError } from '$lib/stores/toast.svelte';
 
 	let data = $derived($page.data as App.PageData);
@@ -18,6 +20,7 @@
 	let markPaidId = $state<number | null>(null);
 	let recordAsIncome = $state(true);
 	let deleteId = $state<number | null>(null);
+	let searchQuery = $state('');
 
 	const activeLendings = $derived(data.activeLendings ?? []);
 	const paidLendings = $derived(data.paidLendings ?? []);
@@ -87,48 +90,10 @@
 
 <PageBackground />
 
-<!-- Summary Cards -->
-<div class="summary-grid">
-	<div class="summary-card">
-		<div class="card-icon lent">
-			<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
-				<path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
-			</svg>
-		</div>
-		<div class="card-content">
-			<span class="card-label">Total Lent</span>
-			<span class="card-value">{formatCurrency(totals.totalLent)}</span>
-		</div>
-		<div class="card-accent"></div>
-	</div>
-	<div class="summary-card recovered">
-		<div class="card-icon">
-			<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<line x1="12" x2="12" y1="2" y2="22"/>
-				<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-			</svg>
-		</div>
-		<div class="card-content">
-			<span class="card-label">Recovered</span>
-			<span class="card-value income">{formatCurrency(totals.totalRecovered)}</span>
-		</div>
-		<div class="card-accent"></div>
-	</div>
-	<div class="summary-card">
-		<div class="card-icon outstanding">
-			<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<circle cx="12" cy="12" r="10"/>
-				<path d="M12 6v6l4 2"/>
-			</svg>
-		</div>
-		<div class="card-content">
-			<span class="card-label">Outstanding</span>
-			<span class="card-value expense">{formatCurrency(totals.outstanding)}</span>
-		</div>
-		<div class="card-accent"></div>
-	</div>
-</div>
+<LendingBalanceHeader
+	totalOwedToMe={totals.outstanding}
+	totalIOwe={0}
+/>
 
 <!-- New Lending / Edit Form -->
 {#if showForm}
@@ -284,64 +249,12 @@
 			{/if}
 		</div>
 	{:else}
-		<div class="lending-grid">
-			{#each showLendings as lending (lending.id)}
-				<div class="lending-card" class:paid={lending.status === 'paid'}>
-					<div class="lending-header">
-						<div class="lending-borrower">
-							<div class="borrower-avatar">{lending.borrower_name.charAt(0).toUpperCase()}</div>
-							<span>{lending.borrower_name}</span>
-						</div>
-						<span class="badge" class:active={lending.status === 'active'} class:paid={lending.status === 'paid'}>
-							{lending.status === 'active' ? 'Active' : 'Paid'}
-						</span>
-					</div>
-					<div class="lending-amount">{formatCurrency(lending.amount)}</div>
-					<div class="lending-details">
-						<div class="detail">
-							<span class="detail-label">Interest</span>
-							<span class="detail-value">{lending.interest_rate}%</span>
-						</div>
-						<div class="detail">
-							<span class="detail-label">Date Lent</span>
-							<span class="detail-value">{formatDate(lending.date_lent)}</span>
-						</div>
-						{#if lending.due_date}
-							<div class="detail">
-								<span class="detail-label">Due Date</span>
-								<span class="detail-value">{formatDate(lending.due_date)}</span>
-							</div>
-						{/if}
-					</div>
-					{#if lending.notes}
-						<p class="lending-notes">📝 {lending.notes}</p>
-					{/if}
-					<div class="lending-actions">
-						<button class="btn-edit" onclick={() => startEdit(lending)}>
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-								<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-							</svg>
-							Edit
-						</button>
-						{#if lending.status === 'active'}
-							<button class="btn-paid" onclick={() => markPaidId = lending.id}>
-								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-									<polyline points="20 6 9 17 4 12"/>
-								</svg>
-								Mark as Paid
-							</button>
-						{/if}
-						<button class="btn-delete" onclick={() => deleteId = lending.id} aria-label="Delete">
-							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<polyline points="3 6 5 6 21 6"/>
-								<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-							</svg>
-						</button>
-					</div>
-				</div>
-			{/each}
-		</div>
+		<ActiveIouList
+			ious={showLendings}
+			onPay={(id) => markPaidId = id}
+			onEdit={(id) => { const l = showLendings.find(l => l.id === id); if (l) startEdit(l); }}
+			onDelete={(id) => deleteId = id}
+		/>
 	{/if}
 
 {:else}
