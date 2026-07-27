@@ -1,481 +1,396 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
-	import { enhance } from '$app/forms';
-	import TransactionList from '$lib/components/TransactionList.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import ModalDialog from '$lib/components/ModalDialog.svelte';
-import PageBackground from '$lib/components/PageBackground.svelte';
-	import { showSuccess, showError } from '$lib/stores/toast.svelte';
-	import { formatCurrency } from '$lib/utils/format';
+  import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
+  import { enhance } from '$app/forms';
+  import PageHeader from '$lib/components/PageHeader.svelte';
+  import PageBackground from '$lib/components/PageBackground.svelte';
+  import TransactionSummary from '$lib/components/TransactionSummary.svelte';
+  import TransactionFilters from '$lib/components/TransactionFilters.svelte';
+  import TransactionList from '$lib/components/TransactionList.svelte';
+  import ModalDialog from '$lib/components/ModalDialog.svelte';
+  import { showSuccess, showError } from '$lib/stores/toast.svelte';
 
-	let data = $derived($page.data as App.PageData);
-	let deleteId = $state<number | null>(null);
+  let data = $derived($page.data as App.PageData);
+  let deleteId = $state<number | null>(null);
 
-	let typeFilter = $state($page.url.searchParams.get('type') || '');
-	let categoryFilter = $state($page.url.searchParams.get('category_id') || '');
-	let dateFromFilter = $state($page.url.searchParams.get('date_from') || '');
-	let dateToFilter = $state($page.url.searchParams.get('date_to') || '');
+  // ═════════════════════════════════════════════════════════════════
+  // FILTER STATE — initialized from URL, synced back via $effect
+  // ═════════════════════════════════════════════════════════════════
 
-	let showFilters = $state(true);
+  let filters = $state({
+    date: $page.url.searchParams.get('date') || '',
+    category: $page.url.searchParams.get('category') || '',
+    type: $page.url.searchParams.get('type') || '',
+    customFrom: $page.url.searchParams.get('from') || '',
+    customTo: $page.url.searchParams.get('to') || '',
+  });
 
-	const activeFilterCount = $derived(
-		[typeFilter, categoryFilter, dateFromFilter, dateToFilter].filter(Boolean).length
-	);
+  // ─── Sync filters → URL (auto-navigates, triggers server load) ──
 
-	function applyFilters() {
-		const params = new URLSearchParams();
-		if (typeFilter) params.set('type', typeFilter);
-		if (categoryFilter) params.set('category_id', categoryFilter);
-		if (dateFromFilter) params.set('date_from', dateFromFilter);
-		if (dateToFilter) params.set('date_to', dateToFilter);
-		params.set('page', '1');
-		goto(`/transactions?${params.toString()}`);
-	}
+  $effect(() => {
+    const params = new URLSearchParams();
 
-	function clearFilters() {
-		typeFilter = '';
-		categoryFilter = '';
-		dateFromFilter = '';
-		dateToFilter = '';
-		goto('/transactions');
-	}
+    // Map our filter format to the server-expected URL params
+    if (filters.type) params.set('type', filters.type);
 
-	function goToPage(p: number) {
-		const params = new URLSearchParams($page.url.searchParams);
-		params.set('page', String(p));
-		goto(`/transactions?${params.toString()}`);
-	}
+    if (filters.category) {
+      const cat = (data.categories ?? []).find((c) => c.name === filters.category);
+      if (cat) params.set('category_id', String(cat.id));
+    }
 
-	const filteredIncome = $derived(
-		data.transactions?.reduce((sum, t) => t.type === 'income' ? sum + t.amount : sum, 0) ?? 0
-	);
-	const filteredExpenses = $derived(
-		data.transactions?.reduce((sum, t) => t.type === 'expense' ? sum + t.amount : sum, 0) ?? 0
-	);
-	const filteredBalance = filteredIncome - filteredExpenses;
+    if (filters.date) {
+      const range = dateRangeFromFilter(filters.date, filters.customFrom, filters.customTo);
+      if (range.from) params.set('date_from', range.from);
+      if (range.to) params.set('date_to', range.to);
+    }
+
+    const newQs = params.toString();
+    const currentQs = $page.url.search.replace(/^\?/, '');
+
+    if (newQs !== currentQs) {
+      goto(`/transactions${newQs ? '?' + newQs : ''}`, {
+        keepFocus: true,
+        noScroll: true,
+      });
+    }
+  });
+
+  // ─── Helpers —─────────────────────────────────────────────────────
+
+  function dateRangeFromFilter(
+    filter: string,
+    customFrom?: string,
+    customTo?: string
+  ): { from: string; to: string } {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+
+    switch (filter) {
+      case 'this-week': {
+        const day = now.getDay();
+        const mon = new Date(now);
+        mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+        const sun = new Date(mon);
+        sun.setDate(mon.getDate() + 6);
+        return {
+          from: mon.toISOString().slice(0, 10),
+          to: sun.toISOString().slice(0, 10),
+        };
+      }
+      case 'this-month':
+        return { from: `${y}-${m}-01`, to: `${y}-${m}-${d}` };
+      case 'last-3-months': {
+        const d3 = new Date(now);
+        d3.setMonth(now.getMonth() - 3);
+        return { from: d3.toISOString().slice(0, 10), to: `${y}-${m}-${d}` };
+      }
+      case 'custom':
+        return { from: customFrom || '', to: customTo || '' };
+      default:
+        return { from: '', to: '' };
+    }
+  }
+
+  // ─── Event handlers ───────────────────────────────────────────────
+
+  function handleFilterChange(newFilters: {
+    date: string;
+    category: string;
+    type: string;
+    customFrom?: string;
+    customTo?: string;
+  }) {
+    filters = {
+      date: newFilters.date,
+      category: newFilters.category,
+      type: newFilters.type,
+      customFrom: newFilters.customFrom || '',
+      customTo: newFilters.customTo || '',
+    };
+  }
+
+  function handleCardClick(type: string) {
+    filters = { ...filters, type };
+  }
+
+  function goToPage(p: number) {
+    const params = new URLSearchParams($page.url.searchParams);
+    params.set('page', String(p));
+    goto(`/transactions?${params.toString()}`, { keepFocus: true, noScroll: true });
+  }
+
+  // ─── Active type for summary cards ────────────────────────────────
+
+  const activeType = $derived(filters.type);
+
+  // ─── Transaction count info ───────────────────────────────────────
+
+  const totalCount = $derived(data.total ?? 0);
+  const showingCount = $derived(data.transactions?.length ?? 0);
 </script>
 
 <svelte:head>
-	<title>Transactions — Budget Tracker</title>
+  <title>Transactions — Budget Tracker</title>
 </svelte:head>
 
 <PageBackground />
 
 <PageHeader title="Transactions">
-	{#snippet action()}
-		<a href="/transactions/new" class="btn-primary-sm">+ Add Transaction</a>
-
-	{/snippet}
+  {#snippet action()}
+    <a href="/transactions/new" class="btn-add">+ Add Transaction</a>
+  {/snippet}
 </PageHeader>
 
-<div class="toolbar-row">
-	<button class="filter-toggle" onclick={() => showFilters = !showFilters}>
-	<span class="filter-toggle-label">
-		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-			<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-		</svg>
-		Filters
-	</span>
-	{#if activeFilterCount > 0}
-		<span class="filter-badge">{activeFilterCount}</span>
-	{/if}
-	<span class="filter-arrow" class:open={showFilters}>
-		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-			<polyline points="6 9 12 15 18 9"/>
-		</svg>
-	</span>
-</button>
-	<a href="/api/transactions/export?exportType=all&type={typeFilter}&category_id={categoryFilter}&date_from={dateFromFilter}&date_to={dateToFilter}" class="btn-export" download>
-		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-			<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-			<polyline points="7 10 12 15 17 10"/>
-			<line x1="12" x2="12" y1="15" y2="3"/>
-		</svg>
-		Export All
-	</a>
-</div>
-
-{#if showFilters}
-	<div class="filter-panel">
-		<select bind:value={typeFilter}>
-			<option value="">All Types</option>
-			<option value="income">Income</option>
-			<option value="expense">Expense</option>
-		</select>
-
-		<select bind:value={categoryFilter}>
-			<option value="">All Categories</option>
-			{#each data.categories ?? [] as cat (cat.id)}
-				<option value={cat.id}>{cat.icon} {cat.name}</option>
-			{/each}
-		</select>
-
-		<input type="date" bind:value={dateFromFilter} placeholder="From" />
-		<input type="date" bind:value={dateToFilter} placeholder="To" />
-
-		<div class="filter-actions">
-			<button class="btn-filter" onclick={applyFilters}>Apply</button>
-			<button class="btn-clear" onclick={clearFilters}>Clear</button>
-		</div>
-	</div>
-{/if}
-
-{#if data.transactions && data.transactions.length > 0}
-	<div class="summary-bar">
-		<div class="summary-item income">
-			<span class="summary-label">Income</span>
-			<span class="summary-value">{formatCurrency(filteredIncome)}</span>
-		</div>
-		<div class="summary-item expense">
-			<span class="summary-label">Expenses</span>
-			<span class="summary-value">{formatCurrency(filteredExpenses)}</span>
-		</div>
-		<div class="summary-item balance">
-			<span class="summary-label">Balance</span>
-			<span class="summary-value" class:negative={filteredBalance < 0}>{formatCurrency(filteredBalance)}</span>
-		</div>
-	</div>
-{/if}
-
-<TransactionList
-	transactions={data.transactions ?? []}
-	onDelete={(id) => deleteId = id}
+<!-- ═══ Filter pills ═══ -->
+<TransactionFilters
+  categories={data.categories ?? []}
+  activeFilters={{
+    date: filters.date,
+    category: filters.category,
+    type: filters.type,
+  }}
+  onFilterChange={handleFilterChange}
 />
 
+<!-- ═══ Interactive summary cards ═══ -->
+<TransactionSummary
+  transactions={data.transactions ?? []}
+  {activeType}
+  onCardClick={handleCardClick}
+/>
+
+<!-- ═══ Result count + export ═══ -->
+<div class="result-meta">
+  <span class="result-count">
+    showing {showingCount}{showingCount !== totalCount ? ` of ${totalCount}` : ''} transactions
+  </span>
+  <a
+    href="/api/transactions/export?{$page.url.searchParams.toString()}"
+    class="btn-export"
+    download
+  >
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" x2="12" y1="15" y2="3"/>
+    </svg>
+    Export
+  </a>
+</div>
+
+<!-- ═══ Transaction list ═══ -->
+<TransactionList
+  transactions={data.transactions ?? []}
+  onEdit={(id) => goto(`/transactions/${id}/edit`)}
+  onDelete={(id) => (deleteId = id)}
+/>
+
+<!-- ═══ Pagination ═══ -->
 {#if (data.totalPages ?? 0) > 1}
-	<div class="pagination">
-		<button class="page-btn" disabled={data.page === 1} onclick={() => goToPage(data.page! - 1)}>← Prev</button>
-		<span class="page-info">Page {data.page} of {data.totalPages}</span>
-		<button class="page-btn" disabled={data.page === data.totalPages} onclick={() => goToPage(data.page! + 1)}>Next →</button>
-	</div>
+  <div class="pagination">
+    <button
+      class="page-btn"
+      disabled={data.page === 1}
+      onclick={() => goToPage((data.page ?? 1) - 1)}
+    >← Prev</button>
+    <span class="page-info">Page {data.page} of {data.totalPages}</span>
+    <button
+      class="page-btn"
+      disabled={data.page === data.totalPages}
+      onclick={() => goToPage((data.page ?? 1) + 1)}
+    >Next →</button>
+  </div>
 {/if}
 
+<!-- ═══ Delete confirmation modal ═══ -->
 {#if deleteId !== null}
-	<ModalDialog open={deleteId !== null} onclose={() => deleteId = null} title="Delete Transaction">
-		<p>Are you sure you want to delete this transaction? This action cannot be undone.</p>
-		<form method="POST" action="?/delete" use:enhance={() => {
-			return async ({ result, update }: { result: { type: string; data?: { error?: string } }; update: () => Promise<void> }) => {
-				if (result.type === 'success') {
-					deleteId = null;
-					showSuccess('Transaction deleted successfully');
-				} else if (result.type === 'failure') {
-					showError(result.data?.error || 'Failed to delete transaction');
-				}
-				await update();
-			};
-		}}>
-			<input type="hidden" name="id" value={deleteId} />
-			<div class="modal-actions">
-				<button type="submit" class="btn-danger">Delete</button>
-				<button type="button" class="btn-cancel" onclick={() => deleteId = null}>Cancel</button>
-			</div>
-		</form>
-	</ModalDialog>
+  <ModalDialog open={deleteId !== null} onclose={() => (deleteId = null)} title="Delete Transaction">
+    <p>Are you sure you want to delete this transaction? This action cannot be undone.</p>
+    <form
+      method="POST"
+      action="?/delete"
+      use:enhance={() => {
+        return async ({
+          result,
+          update,
+        }: {
+          result: { type: string; data?: { error?: string } };
+          update: () => Promise<void>;
+        }) => {
+          if (result.type === 'success') {
+            deleteId = null;
+            showSuccess('Transaction deleted successfully');
+          } else if (result.type === 'failure') {
+            showError(result.data?.error || 'Failed to delete transaction');
+          }
+          await update();
+        };
+      }}
+    >
+      <input type="hidden" name="id" value={deleteId} />
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-danger">Delete</button>
+        <button type="button" class="btn btn-secondary" onclick={() => (deleteId = null)}>Cancel</button>
+      </div>
+    </form>
+  </ModalDialog>
 {/if}
 
 <style>
-	.filter-toggle {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-xs);
-		padding: var(--space-sm) var(--space-md);
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		cursor: pointer;
-		font-size: var(--font-size-sm);
-		font-family: inherit;
-		font-weight: 600;
-		color: var(--color-text);
-		min-height: 44px;
-		margin-bottom: var(--space-sm);
-		transition: background var(--transition-fast);
-	}
+  /* ─── Add button ─── */
+  .btn-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: var(--space-sm) var(--space-md);
+    background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
+    color: white;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    text-decoration: none;
+    min-height: 44px;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    transition: all var(--transition-fast);
+  }
 
-	.filter-toggle:hover {
-		background: var(--color-primary-light);
-	}
+  .btn-add:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+    text-decoration: none;
+    color: white;
+  }
 
-	.filter-toggle-label {
-		display: flex;
-		align-items: center;
-		gap: var(--space-xs);
-	}
+  /* ─── Result count ─── */
+  .result-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-md);
+  }
 
-	.filter-badge {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		min-width: 22px;
-		height: 22px;
-		padding: 0 6px;
-		background: var(--color-primary);
-		color: white;
-		border-radius: 999px;
-		font-size: 0.75rem;
-		font-weight: 700;
-		line-height: 1;
-	}
+  .result-count {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    font-weight: 500;
+  }
 
-	.filter-arrow {
-		font-size: 0.7rem;
-		color: var(--color-text-secondary);
-		transition: transform var(--transition-fast);
-	}
+  .btn-export {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    min-height: 40px;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+  }
 
-	.filter-panel {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-sm);
-		margin-bottom: var(--space-md);
-		padding: var(--space-md);
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		align-items: center;
-	}
+  .btn-export:hover {
+    background: var(--color-primary-light);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    text-decoration: none;
+  }
 
-	.filter-panel select,
-	.filter-panel input {
-		padding: var(--space-xs) var(--space-sm);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		font-size: var(--font-size-sm);
-		font-family: inherit;
-		background: var(--color-bg);
-		color: var(--color-text);
-		min-height: 44px;
-		flex: 1;
-		min-width: 140px;
-	}
+  /* ─── Pagination ─── */
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+    margin-top: var(--space-lg);
+  }
 
-	.filter-panel select:focus,
-	.filter-panel input:focus {
-		outline: none;
-		border-color: var(--color-primary);
-	}
+  .page-btn {
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-family: inherit;
+    font-weight: 600;
+    min-height: 44px;
+    min-width: 80px;
+    transition: all var(--transition-fast);
+  }
 
-	.filter-actions {
-		display: flex;
-		gap: var(--space-sm);
-	}
+  .page-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 
-	.btn-filter,
-	.btn-clear {
-		padding: var(--space-xs) var(--space-md);
-		border-radius: var(--radius-sm);
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		cursor: pointer;
-		border: 1px solid var(--color-border);
-		min-height: 44px;
-	}
+  .page-btn:hover:not(:disabled) {
+    background: var(--color-primary-light);
+    border-color: var(--color-primary);
+  }
 
-	.btn-filter {
-		background: var(--color-primary);
-		color: white;
-		border-color: var(--color-primary);
-	}
+  .page-info {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+    border-radius: var(--radius-sm);
+  }
 
-	.btn-filter:hover {
-		background: var(--color-primary-hover);
-	}
+  /* ─── Modal actions ─── */
+  .modal-actions {
+    display: flex;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+  }
 
-	.btn-clear {
-		background: var(--color-bg);
-		color: var(--color-text);
-	}
+  .btn {
+    flex: 1;
+    padding: var(--space-sm) var(--space-lg);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    min-height: 44px;
+    transition: all var(--transition-fast);
+  }
 
-	.btn-clear:hover {
-		background: var(--color-border);
-	}
+  .btn-danger {
+    background: var(--color-expense);
+    color: white;
+  }
 
-	.toolbar-row {
-		display: flex;
-		align-items: start;
-		gap: var(--space-sm);
-		margin-bottom: var(--space-sm);
-	}
+  .btn-danger:hover {
+    background: var(--color-danger-hover);
+  }
 
-	.btn-export {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		padding: 10px 16px;
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		color: var(--color-text-secondary);
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		cursor: pointer;
-		text-decoration: none;
-		min-height: 44px;
-		transition: all var(--transition-fast);
-	}
+  .btn-secondary {
+    background: var(--color-bg);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+  }
 
-	.btn-export:hover {
-		background: var(--color-primary-light);
-		border-color: var(--color-primary);
-		color: var(--color-primary);
-		text-decoration: none;
-	}
+  .btn-secondary:hover {
+    background: var(--color-border);
+  }
 
-	.btn-primary-sm {
-		display: inline-flex;
-		align-items: center;
-		padding: var(--space-sm) var(--space-md);
-		background: var(--color-primary);
-		color: white;
-		border-radius: var(--radius-md);
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		text-decoration: none;
-		min-height: 44px;
-		gap: 6px;
-		min-height: 44px;
-	}
+  /* ─── Responsive ─── */
+  @media (max-width: 768px) {
+    .pagination {
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
 
-	.summary-bar {
-		display: flex;
-		gap: var(--space-md);
-		margin-bottom: var(--space-md);
-	}
-
-	.summary-item {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		padding: var(--space-sm) var(--space-md);
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		flex: 1;
-	}
-
-	.summary-label {
-		font-size: var(--font-size-xs);
-		color: var(--color-text-secondary);
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-	}
-
-	.summary-value {
-		font-size: var(--font-size-lg);
-		font-weight: 700;
-		font-variant-numeric: tabular-nums;
-	}
-
-	.summary-item.income .summary-value { color: var(--color-income); }
-	.summary-item.expense .summary-value { color: var(--color-expense); }
-	.summary-item.balance .summary-value { color: var(--color-primary); }
-	.summary-item.balance .summary-value.negative { color: var(--color-expense); }
-
-	.pagination {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: var(--space-md);
-		margin-top: var(--space-lg);
-	}
-
-	.page-btn {
-		padding: 10px var(--space-md);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		background: var(--color-surface);
-		cursor: pointer;
-		font-size: var(--font-size-sm);
-		min-height: 44px;
-		min-width: 80px;
-		transition: background var(--transition-fast), border-color var(--transition-fast);
-	}
-
-	.page-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.page-btn:hover:not(:disabled) {
-		background: var(--color-primary-light);
-		border-color: var(--color-primary);
-	}
-
-	.page-info {
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		padding: var(--space-xs) var(--space-md);
-		background: var(--color-primary-light);
-		color: var(--color-primary);
-		border-radius: var(--radius-sm);
-	}
-
-	.modal-actions {
-		display: flex;
-		gap: var(--space-sm);
-		margin-top: var(--space-md);
-	}
-
-	.btn-danger {
-		padding: 12px var(--space-lg);
-		background: var(--color-expense);
-		color: white;
-		border: none;
-		border-radius: var(--radius-md);
-		cursor: pointer;
-		font-weight: 600;
-		flex: 1;
-	}
-
-	.btn-danger:hover {
-		background: var(--color-danger-hover);
-	}
-
-	.btn-cancel {
-		padding: 12px var(--space-lg);
-		background: var(--color-bg);
-		color: var(--color-text);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		cursor: pointer;
-		font-weight: 600;
-		flex: 1;
-	}
-
-	.btn-cancel:hover {
-		background: var(--color-border);
-	}
-
-	@media (max-width: 768px) {
-		.filter-panel {
-			flex-direction: column;
-			align-items: stretch;
-		}
-
-		.filter-panel select,
-		.filter-panel input {
-			width: 100%;
-			min-width: 0;
-		}
-
-		.filter-actions {
-			flex-direction: column;
-		}
-
-		.filter-actions .btn-filter,
-		.filter-actions .btn-clear {
-			width: 100%;
-		}
-
-		.pagination {
-			flex-direction: column;
-			gap: var(--space-sm);
-		}
-
-		.page-btn {
-			width: 100%;
-		}
-	}
+    .page-btn {
+      width: 100%;
+    }
+  }
 </style>

@@ -27,6 +27,26 @@ export async function load({ locals }: { locals: App.Locals }) {
 }
 
 export const actions = {
+	budgetUpdate: async ({ request, locals }) => {
+		const userId = locals.user!.userId;
+		const data = await request.formData();
+		const id = parseInt(data.get('id') as string);
+		const budgetLimitStr = data.get('budget_limit') as string;
+
+		if (isNaN(id)) return fail(400, { error: 'Invalid ID' });
+
+		const budget_limit = budgetLimitStr && budgetLimitStr.length > 0
+			? parseFloat(budgetLimitStr)
+			: null;
+
+		await execute(
+			'UPDATE categories SET budget_limit = $1 WHERE user_id = $2 AND id = $3',
+			[budget_limit, userId, id]
+		);
+
+		return { success: true };
+	},
+
 	create: async ({ request, locals }) => {
 		const userId = locals.user!.userId;
 		const data = await request.formData();

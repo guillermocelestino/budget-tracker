@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page, navigating } from '$app/stores';
 	import SummaryCards from '$lib/components/SummaryCards.svelte';
-	import LendingSummaryCards from '$lib/components/LendingSummaryCards.svelte';
+	import LendingBalanceHeader from '$lib/components/LendingBalanceHeader.svelte';
 		import Sparkline from '$lib/components/Sparkline.svelte';
 	import TransactionList from '$lib/components/TransactionList.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
@@ -37,10 +37,9 @@
 />
 
 {#if data.lendingSummary}
-	<LendingSummaryCards
-		totalLent={data.lendingSummary.totalLent}
-		totalRecovered={data.lendingSummary.totalRecovered}
-		outstanding={data.lendingSummary.outstanding}
+	<LendingBalanceHeader
+		totalOwedToMe={data.lendingSummary.totalLent}
+		totalIOwe={0}
 	/>
 {/if}
 

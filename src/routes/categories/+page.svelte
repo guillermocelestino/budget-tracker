@@ -1,533 +1,464 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	import { enhance } from '$app/forms';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import CategoryList from '$lib/components/CategoryList.svelte';
-	import CategoryForm from '$lib/components/CategoryForm.svelte';
-	import CategoryUsageBar from '$lib/components/CategoryUsageBar.svelte';
-	import ModalDialog from '$lib/components/ModalDialog.svelte';
-	import { showSuccess, showError } from '$lib/stores/toast.svelte';
-	import { formatCurrency } from '$lib/utils/format';
-	import type { Category } from '$lib/types';
-	import PageBackground from '$lib/components/PageBackground.svelte';
+  import { page } from '$app/stores';
+  import { enhance } from '$app/forms';
+  import PageHeader from '$lib/components/PageHeader.svelte';
+  import CategoryList from '$lib/components/CategoryList.svelte';
+  import type { EnrichedCategory } from '$lib/components/CategoryList.svelte';
+  import CategoryForm from '$lib/components/CategoryForm.svelte';
+  import ModalDialog from '$lib/components/ModalDialog.svelte';
+  import PageBackground from '$lib/components/PageBackground.svelte';
+  import { showSuccess, showError } from '$lib/stores/toast.svelte';
+  import { formatCurrency } from '$lib/utils/format';
 
-	let data = $derived($page.data as App.PageData);
+  let data = $derived($page.data as App.PageData);
 
-	let showForm = $state(false);
-	let viewMode = $state<'card' | 'table'>('card');
-	let editingCategory = $state<Category | null>(null);
-	let deleteId = $state<number | null>(null);
+  const categories = $derived(data.categories ?? []);
+  const spendingMap = $derived(data.spending ?? ({} as Record<number, number>));
+  const incomeMap = $derived(data.income ?? ({} as Record<number, number>));
 
-	let formError = $state('');
+  // Enrich categories with budgeted/spent/earned
+  const enriched = $derived<EnrichedCategory[]>(
+    categories.map(cat => ({
+      ...cat,
+      budgeted: cat.budget_limit ?? 0,
+      spent: spendingMap[cat.id] || 0,
+      earned: incomeMap[cat.id] || 0,
+    }))
+  );
 
-	const categories = $derived(data.categories ?? []);
+  // Slide-over state
+  let showPanel = $state(false);
+  let editingCategory = $state<EnrichedCategory | null>(null);
+  let deleteId = $state<number | null>(null);
+  let panelError = $state('');
 
-	function openAdd() {
-		editingCategory = null;
-		formError = '';
-		showForm = true;
-		if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-			window.scrollTo({ top: 0, behavior: 'smooth' });
-		}
-	}
+  // Monthly summary
+  const expenseCats = $derived(categories.filter(c => c.type === 'expense'));
+  const totalBudgeted = $derived(
+    expenseCats.reduce((sum, c) => sum + (c.budget_limit ?? 0), 0)
+  );
+  const totalSpent = $derived(
+    categories.reduce((sum, c) => sum + (spendingMap[c.id] || 0), 0)
+  );
+  const totalRemaining = $derived(totalBudgeted - totalSpent);
+  const overBudgetCount = $derived(
+    expenseCats.filter(c => c.budget_limit && (spendingMap[c.id] || 0) > c.budget_limit).length
+  );
 
-	function openEdit(cat: Category) {
-		editingCategory = cat;
-		formError = '';
-		showForm = true;
-		if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-			window.scrollTo({ top: 0, behavior: 'smooth' });
-		}
-	}
+  function openAdd() {
+    editingCategory = null;
+    panelError = '';
+    showPanel = true;
+  }
 
-	function closeForm() {
-		showForm = false;
-		editingCategory = null;
-		formError = '';
-	}
+  function openEdit(cat: EnrichedCategory) {
+    editingCategory = cat;
+    panelError = '';
+    showPanel = true;
+  }
+
+  function closePanel() {
+    showPanel = false;
+    editingCategory = null;
+    panelError = '';
+  }
 </script>
 
 <svelte:head>
-	<title>Categories — Budget Tracker</title>
+  <title>Categories — Budget Tracker</title>
 </svelte:head>
 
 <PageBackground />
 
 <PageHeader title="Categories">
-	{#snippet action()}
-		<button class="btn-primary-sm" onclick={openAdd}>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-				<line x1="12" x2="12" y1="5" y2="19"/>
-				<line x1="5" x2="19" y1="12" y2="12"/>
-			</svg>
-			Add Category
-		</button>
-	{/snippet}
+  {#snippet action()}
+    <button class="btn-add" onclick={openAdd}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" x2="12" y1="5" y2="19"/>
+        <line x1="5" x2="19" y1="12" y2="12"/>
+      </svg>
+      Add Category
+    </button>
+  {/snippet}
 </PageHeader>
 
-{#if showForm}
-	<div class="form-panel">
-		<div class="form-panel-header">
-			<h3>
-				{#if editingCategory}
-					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
-					</svg>
-					Edit Category
-				{:else}
-					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<line x1="12" x2="12" y1="5" y2="19"/>
-						<line x1="5" x2="19" y1="12" y2="12"/>
-					</svg>
-					Add Category
-				{/if}
-			</h3>
-			<button class="btn-close" onclick={closeForm} aria-label="Close">
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<line x1="18" x2="6" y1="6" y2="18"/>
-					<line x1="6" x2="18" y1="6" y2="18"/>
-				</svg>
-			</button>
-		</div>
-
-		<CategoryForm
-			category={editingCategory ?? undefined}
-			action={editingCategory ? '?/update' : '?/create'}
-			onCancel={closeForm}
-			onSuccess={closeForm}
-		/>
-	</div>
+<!-- ═══ Monthly summary bar ═══ -->
+{#if expenseCats.length > 0}
+  <div class="summary-bar">
+    <div class="summary-stat">
+      <span class="summary-value">{formatCurrency(totalBudgeted)}</span>
+      <span class="summary-label">Budgeted</span>
+    </div>
+    <div class="summary-divider"></div>
+    <div class="summary-stat">
+      <span class="summary-value">{formatCurrency(totalSpent)}</span>
+      <span class="summary-label">Spent</span>
+    </div>
+    <div class="summary-divider"></div>
+    <div class="summary-stat">
+      <span class="summary-value" class:positive={totalRemaining >= 0} class:negative={totalRemaining < 0}>
+        {formatCurrency(totalRemaining)}
+      </span>
+      <span class="summary-label">Available</span>
+    </div>
+    {#if overBudgetCount > 0}
+      <div class="summary-divider"></div>
+      <div class="summary-stat warn">
+        <span class="summary-value warn">{overBudgetCount}</span>
+        <span class="summary-label">Over budget</span>
+      </div>
+    {/if}
+  </div>
 {/if}
 
-<!-- View Toggle -->
-<div class="view-toggle-row">
-	<div class="view-toggle">
-		<button class="toggle-btn" class:active={viewMode === 'card'} onclick={() => viewMode = 'card'} title="Card View">
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<rect x="3" y="3" width="7" height="7" rx="1"/>
-				<rect x="14" y="3" width="7" height="7" rx="1"/>
-				<rect x="3" y="14" width="7" height="7" rx="1"/>
-				<rect x="14" y="14" width="7" height="7" rx="1"/>
-			</svg>
-		</button>
-		<button class="toggle-btn" class:active={viewMode === 'table'} onclick={() => viewMode = 'table'} title="Table View">
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<rect x="3" y="3" width="18" height="18" rx="2"/>
-				<line x1="3" y1="9" x2="21" y2="9"/>
-				<line x1="3" y1="15" x2="21" y2="15"/>
-				<line x1="9" y1="3" x2="9" y2="21"/>
-				<line x1="15" y1="3" x2="15" y2="21"/>
-			</svg>
-		</button>
-	</div>
-</div>
+<!-- ═══ Category list ═══ -->
+<CategoryList
+  categories={enriched}
+  onEdit={openEdit}
+  onDelete={(id) => deleteId = id}
+/>
 
-{#if viewMode === 'card'}
-	<CategoryList
-		categories={categories}
-		spending={data.spending ?? {}}
-		income={data.income ?? {}}
-		onEdit={openEdit}
-		onDelete={(id) => deleteId = id}
-	/>
-{:else}
-	<div class="cat-table-section">
-		<table class="cat-table">
-			<thead>
-				<tr>
-					<th>Category</th>
-					<th>Type</th>
-					<th>Spent</th>
-					<th>Budget</th>
-					<th>Usage</th>
-					<th class="actions-col">Actions</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each categories as cat (cat.id)}
-					<tr>
-						<td>
-							<span class="cat-icon-sm" style="background: {cat.color}15; color: {cat.color}">{cat.icon}</span>
-							<span class="cat-name-cell">{cat.name}</span>
-						</td>
-						<td>
-							<span class="type-badge-sm" class:income={cat.type === 'income'} class:expense={cat.type === 'expense'}>
-								{cat.type === 'income' ? '💰 Income' : '💸 Expense'}
-							</span>
-						</td>
-						<td class="amount-cell">{formatCurrency((data.spending ?? {})[cat.id] || 0)}</td>
-						<td>
-							{cat.budget_limit ? formatCurrency(cat.budget_limit) : '—'}
-						</td>
-						<td class="usage-cell">
-							{#if cat.budget_limit && cat.type === 'expense'}
-								<CategoryUsageBar spent={(data.spending ?? {})[cat.id] || 0} budget={cat.budget_limit} compact={true} />
-							{:else if cat.budget_limit}
-								<span class="no-usage">—</span>
-							{:else}
-								<span class="no-usage">No budget</span>
-							{/if}
-						</td>
-						<td class="actions-cell">
-							<button class="btn-action" onclick={() => openEdit(cat)} title="Edit">✏️</button>
-							<button class="btn-action" onclick={() => deleteId = cat.id} title="Delete">🗑️</button>
-						</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
-	</div>
+<!-- ═══ Slide-over panel for add/edit ═══ -->
+{#if showPanel}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="slide-over-backdrop" onclick={closePanel} role="presentation"></div>
+  <div class="slide-over" class:open={showPanel}>
+    <div class="slide-over-header">
+      <h3>
+        {#if editingCategory}
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+          </svg>
+          Edit Category
+        {:else}
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" x2="12" y1="5" y2="19"/>
+            <line x1="5" x2="19" y1="12" y2="12"/>
+          </svg>
+          Add Category
+        {/if}
+      </h3>
+      <button class="slide-over-close" onclick={closePanel} aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" x2="6" y1="6" y2="18"/>
+          <line x1="6" x2="18" y1="6" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="slide-over-body">
+      <CategoryForm
+        category={editingCategory ?? undefined}
+        action={editingCategory ? '?/update' : '?/create'}
+        onCancel={closePanel}
+        onSuccess={closePanel}
+      />
+    </div>
+  </div>
 {/if}
 
+<!-- ═══ Delete confirmation ═══ -->
 {#if deleteId !== null}
-	<ModalDialog open={deleteId !== null} onclose={() => deleteId = null} title="Delete Category">
-		<div class="modal-content">
-			<div class="modal-icon">
-				<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-					<line x1="12" x2="12" y1="9" y2="13"/>
-					<line x1="12" x2="12.01" y1="17" y2="17"/>
-				</svg>
-			</div>
-			<p>Are you sure you want to delete this category?</p>
-			<p class="warning">Categories with transactions cannot be deleted.</p>
-		</div>
-		<form method="POST" action="?/delete" use:enhance={() => {
-			return async ({ result, update }: { result: { type: string; data?: { error?: string } }; update: () => Promise<void> }) => {
-				if (result.type === 'success') {
-					deleteId = null;
-					showSuccess('Category deleted successfully');
-				} else if (result.type === 'failure') {
-					showError(result.data?.error || 'Failed to delete category');
-				}
-				await update();
-			};
-		}}>
-			<input type="hidden" name="id" value={deleteId} />
-			<div class="modal-actions">
-				<button type="submit" class="btn-danger">
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<polyline points="3 6 5 6 21 6"/>
-						<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-					</svg>
-					Delete
-				</button>
-				<button type="button" class="btn-cancel" onclick={() => deleteId = null}>Cancel</button>
-			</div>
-		</form>
-	</ModalDialog>
+  <ModalDialog open={deleteId !== null} onclose={() => deleteId = null} title="Delete Category">
+    <div class="modal-content">
+      <div class="modal-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" x2="12" y1="9" y2="13"/>
+          <line x1="12" x2="12.01" y1="17" y2="17"/>
+        </svg>
+      </div>
+      <p>Are you sure you want to delete this category?</p>
+      <p class="warning-text">Categories with transactions cannot be deleted.</p>
+    </div>
+    <form method="POST" action="?/delete" use:enhance={() => {
+      return async ({ result, update }) => {
+        if (result.type === 'success') {
+          deleteId = null;
+          showSuccess('Category deleted successfully');
+        } else if (result.type === 'failure') {
+          showError((result.data as { error?: string })?.error || 'Failed to delete category');
+        }
+        await update();
+      };
+    }}>
+      <input type="hidden" name="id" value={deleteId} />
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-danger">Delete</button>
+        <button type="button" class="btn btn-secondary" onclick={() => deleteId = null}>Cancel</button>
+      </div>
+    </form>
+  </ModalDialog>
 {/if}
 
 <style>
-	.btn-primary-sm {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-xs);
-		padding: var(--space-sm) var(--space-md);
-		background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
-		color: white;
-		border: none;
-		border-radius: var(--radius-md);
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		cursor: pointer;
-		min-height: 44px;
-		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-		transition: all var(--transition-fast);
-	}
+  /* ─── Add button ─── */
+  .btn-add {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-sm) var(--space-md);
+    background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 44px;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    transition: all var(--transition-fast);
+  }
 
-	.btn-primary-sm:hover {
-		transform: translateY(-2px);
-		box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
-	}
+  .btn-add:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+  }
 
-	/* View Toggle */
-	.view-toggle-row {
-		display: flex;
-		justify-content: flex-end;
-		margin-bottom: var(--space-md);
-	}
+  .header-subtitle {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+  }
 
-	.view-toggle {
-		display: flex;
-		gap: 2px;
-		background: var(--color-bg);
-		padding: 4px;
-		border-radius: var(--radius-md);
-		border: 1px solid var(--color-border);
-	}
+  /* ─── Monthly summary bar ─── */
+  .summary-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-md) var(--space-lg);
+    margin-bottom: var(--space-lg);
+    animation: fadeSlideIn 0.4s ease-out;
+  }
 
-	.toggle-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 8px 12px;
-		border: none;
-		background: transparent;
-		border-radius: var(--radius-sm);
-		cursor: pointer;
-		color: var(--color-text-secondary);
-		transition: all var(--transition-fast);
-		min-height: 36px;
-	}
+  .summary-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
 
-	.toggle-btn.active {
-		background: var(--color-primary);
-		color: white;
-		box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
-	}
+  .summary-stat.warn {
+    color: var(--color-expense);
+  }
 
-	.toggle-btn:hover:not(.active) {
-		background: var(--color-surface);
-		color: var(--color-text);
-	}
+  .summary-value {
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text);
+  }
 
-	/* Table View */
-	.cat-table-section {
-		background: var(--color-surface);
-		backdrop-filter: blur(20px);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-xl);
-		padding: var(--space-lg);
-		animation: fadeSlideIn 0.4s ease-out;
-	}
+  .summary-value.positive {
+    color: var(--color-income);
+  }
 
-	@keyframes fadeSlideIn {
-		from { opacity: 0; transform: translateY(10px); }
-		to { opacity: 1; transform: translateY(0); }
-	}
+  .summary-value.negative {
+    color: var(--color-expense);
+  }
 
-	.cat-table {
-		width: 100%;
-		border-collapse: collapse;
-		font-size: var(--font-size-sm);
-	}
+  .summary-value.warn {
+    color: var(--color-expense);
+  }
 
-	.cat-table th {
-		text-align: left;
-		padding: var(--space-sm) var(--space-md);
-		color: var(--color-text-secondary);
-		font-weight: 600;
-		border-bottom: 2px solid var(--color-border);
-		background: var(--color-bg);
-	}
+  .summary-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    font-weight: 500;
+  }
 
-	.cat-table th.actions-col {
-		text-align: center;
-		width: 90px;
-	}
+  .summary-divider {
+    width: 1px;
+    height: 32px;
+    background: var(--color-border);
+    flex-shrink: 0;
+  }
 
-	.cat-table td {
-		padding: var(--space-sm) var(--space-md);
-		border-bottom: 1px solid var(--color-border);
-		vertical-align: middle;
-	}
+  /* ─── Slide-over panel ─── */
+  .slide-over-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 98;
+    animation: fadeIn 200ms ease;
+  }
 
-	.cat-table tr:hover td {
-		background: var(--color-primary-light);
-	}
+  .slide-over {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 480px;
+    max-width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    background: var(--color-surface);
+    border-left: 1px solid var(--color-border);
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
+    z-index: var(--z-modal);
+    display: flex;
+    flex-direction: column;
+    animation: slideInRight 250ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
 
-	.cat-icon-sm {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 32px;
-		height: 32px;
-		border-radius: var(--radius-md);
-		font-size: 1rem;
-		margin-right: var(--space-sm);
-		vertical-align: middle;
-	}
+  [data-theme="dark"] .slide-over {
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
+  }
 
-	.cat-name-cell {
-		font-weight: 600;
-		vertical-align: middle;
-	}
+  .slide-over-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-lg) var(--space-xl);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
 
-	.type-badge-sm {
-		display: inline-block;
-		padding: 2px 8px;
-		border-radius: 999px;
-		font-size: var(--font-size-xs);
-		font-weight: 600;
-	}
+  .slide-over-header h3 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text);
+  }
 
-	.type-badge-sm.income {
-		background: rgba(16, 185, 129, 0.1);
-		color: var(--color-income);
-	}
+  .slide-over-header h3 svg {
+    color: var(--color-primary);
+  }
 
-	.type-badge-sm.expense {
-		background: rgba(239, 68, 68, 0.1);
-		color: var(--color-expense);
-	}
+  .slide-over-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+  }
 
-	.amount-cell {
-		font-weight: 600;
-		font-variant-numeric: tabular-nums;
-	}
+  .slide-over-close:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
 
-	.actions-cell {
-		text-align: center;
-		white-space: nowrap;
-	}
+  .slide-over-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-lg) var(--space-xl);
+  }
 
-	.btn-action {
-		background: none;
-		border: none;
-		cursor: pointer;
-		padding: 6px;
-		border-radius: var(--radius-sm);
-		font-size: 1rem;
-		min-width: 32px;
-		min-height: 32px;
-		transition: background var(--transition-fast);
-	}
+  /* ─── Delete modal ─── */
+  .modal-content {
+    text-align: center;
+  }
 
-	.btn-action:hover {
-		background: var(--color-bg);
-	}
+  .modal-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto var(--space-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--color-expense-light) 0%, rgba(239, 68, 68, 0.1) 100%);
+    color: var(--color-expense);
+    border-radius: var(--radius-lg);
+  }
 
-	/* Modal */
-	.form-panel {
-		max-width: 500px;
-		margin-left: auto;
-		margin-right: auto;
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-xl);
-		padding: var(--space-lg);
-		margin-bottom: var(--space-lg);
-		box-shadow: var(--shadow-md);
-		animation: slideIn 200ms ease-out;
-	}
+  .modal-content p {
+    margin: 0;
+    color: var(--color-text);
+  }
 
-	@keyframes slideIn {
-		from { opacity: 0; transform: translateY(-10px); }
-		to { opacity: 1; transform: translateY(0); }
-	}
+  .warning-text {
+    margin-top: var(--space-sm) !important;
+    color: var(--color-text-secondary) !important;
+    font-size: var(--font-size-sm);
+  }
 
-	.form-panel-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		margin-bottom: var(--space-md);
-		padding-bottom: var(--space-md);
-		border-bottom: 1px solid var(--color-border);
-	}
+  .modal-actions {
+    display: flex;
+    gap: var(--space-sm);
+    margin-top: var(--space-lg);
+  }
 
-	.form-panel-header h3 {
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
-		margin: 0;
-		font-size: var(--font-size-lg);
-		font-weight: 600;
-		color: var(--color-text);
-	}
+  .btn {
+    flex: 1;
+    padding: var(--space-sm) var(--space-lg);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    min-height: 44px;
+    transition: all var(--transition-fast);
+  }
 
-	.form-panel-header h3 svg {
-		color: var(--color-primary);
-	}
+  .btn-danger {
+    background: var(--color-expense);
+    color: white;
+  }
 
-	.btn-close {
-		background: none;
-		border: none;
-		cursor: pointer;
-		padding: 8px;
-		border-radius: var(--radius-md);
-		color: var(--color-text-secondary);
-		transition: all var(--transition-fast);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
+  .btn-danger:hover {
+    background: var(--color-danger-hover);
+  }
 
-	.btn-close:hover {
-		background: var(--color-bg);
-		color: var(--color-text);
-	}
+  .btn-secondary {
+    background: var(--color-bg);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+  }
 
-	.form-error {
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
-		color: var(--color-expense);
-		font-size: var(--font-size-sm);
-		margin-bottom: var(--space-md);
-		padding: var(--space-sm) var(--space-md);
-		background: var(--color-expense-light);
-		border-radius: var(--radius-md);
-	}
+  .btn-secondary:hover {
+    background: var(--color-border);
+  }
 
-	.modal-content {
-		text-align: center;
-	}
+  /* ─── Animations ─── */
+  @keyframes slideInRight {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
 
-	.modal-icon {
-		width: 64px;
-		height: 64px;
-		margin: 0 auto var(--space-md);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: linear-gradient(135deg, var(--color-expense-light) 0%, rgba(239, 68, 68, 0.1) 100%);
-		color: var(--color-expense);
-		border-radius: var(--radius-lg);
-	}
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
 
-	.modal-content p {
-		margin: 0;
-		color: var(--color-text);
-	}
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 
-	.modal-content .warning {
-		margin-top: var(--space-sm);
-		color: var(--color-text-secondary);
-		font-size: var(--font-size-sm);
-	}
+  /* ─── Mobile: bottom sheet ─── */
+  @media (max-width: 640px) {
+    .slide-over {
+      width: 100vw;
+      animation: slideUp 250ms cubic-bezier(0.22, 1, 0.36, 1);
+      border-left: none;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    }
 
-	.modal-actions {
-		display: flex;
-		gap: var(--space-sm);
-		margin-top: var(--space-lg);
-	}
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
 
-	.btn-danger {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: var(--space-xs);
-		flex: 1;
-		padding: var(--space-sm) var(--space-lg);
-		background: var(--color-expense);
-		color: white;
-		border: none;
-		border-radius: var(--radius-md);
-		cursor: pointer;
-		font-weight: 600;
-		min-height: 44px;
-		transition: all var(--transition-fast);
-	}
+    .summary-bar {
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+      padding: var(--space-md);
+    }
 
-	.btn-danger:hover {
-		background: var(--color-danger-hover);
-	}
+    .summary-divider {
+      display: none;
+    }
 
-	.btn-cancel {
-		flex: 1;
-		padding: var(--space-sm) var(--space-lg);
-		background: var(--color-bg);
-		color: var(--color-text);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		cursor: pointer;
-		font-weight: 600;
-		min-height: 44px;
-		transition: all var(--transition-fast);
-	}
-
-	.btn-cancel:hover {
-		background: var(--color-border);
-	}
+    .summary-stat {
+      flex: 1;
+      min-width: 80px;
+    }
+  }
 </style>

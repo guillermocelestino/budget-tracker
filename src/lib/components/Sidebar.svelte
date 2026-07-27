@@ -1,627 +1,854 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	import { onMount } from 'svelte';
+  import { page } from '$app/stores';
+  import { onMount } from 'svelte';
 
-	const navItems = [
-		{ href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-		{ href: '/transactions', label: 'Transactions', icon: 'creditcard' },
-		{ href: '/lending', label: 'Lending', icon: 'lending' },
-		{ href: '/categories', label: 'Categories', icon: 'tags' },
-		{ href: '/reports', label: 'Reports', icon: 'chart' },
-	];
+  // ─── Navigation Architecture ──────────────────────────────────────
+  // Two zones: Primary (core workflows, visited daily/weekly)
+  //              Secondary (configuration, visited infrequently)
 
-	let mobileOpen = $state(false);
-	let collapsed = $state(false);
-	let darkMode = $state(false);
+  const primaryNav = [
+    { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+    { href: '/transactions', label: 'Transactions', icon: 'transactions' },
+    { href: '/lending', label: 'Lending', icon: 'lending' },
+    { href: '/reports', label: 'Reports', icon: 'reports' },
+  ];
 
-	onMount(() => {
-		const savedCollapsed = localStorage.getItem('sidebar-collapsed');
-		if (savedCollapsed === 'true') {
-			collapsed = true;
-			document.documentElement.style.setProperty('--sidebar-width', '72px');
-		}
+  const secondaryNav = [
+    { href: '/categories', label: 'Categories', icon: 'categories' },
+    { href: '/settings', label: 'Settings', icon: 'settings' },
+  ];
 
-		const savedTheme = localStorage.getItem('theme');
-		if (savedTheme === 'dark') {
-			darkMode = true;
-			document.documentElement.setAttribute('data-theme', 'dark');
-		}
-	});
+  // ─── State ────────────────────────────────────────────────────────
 
-	function toggleTheme() {
-		darkMode = !darkMode;
-		document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
-		localStorage.setItem('theme', darkMode ? 'dark' : 'light');
-	}
+  let mobileOpen = $state(false);
+  let isCollapsed = $state(false);
+  let darkMode = $state(false);
 
-	function toggleCollapse() {
-		collapsed = !collapsed;
-		document.documentElement.style.setProperty(
-			'--sidebar-width',
-			collapsed ? '72px' : '260px'
-		);
-		localStorage.setItem('sidebar-collapsed', String(collapsed));
-	}
+  // ─── Restore saved preferences ────────────────────────────────────
 
-	function isActive(href: string): boolean {
-		const currentPath = $page.url.pathname;
-		if (href === '/') return currentPath === '/';
-		return currentPath.startsWith(href);
-	}
+  onMount(() => {
+    const savedCollapsed = localStorage.getItem('sidebar-collapsed');
+    if (savedCollapsed === 'true') {
+      isCollapsed = true;
+      document.documentElement.style.setProperty('--sidebar-width', '72px');
+    }
+
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+      darkMode = true;
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  });
+
+  // ─── Actions ──────────────────────────────────────────────────────
+
+  function toggleTheme() {
+    darkMode = !darkMode;
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+  }
+
+  function toggleCollapse() {
+    isCollapsed = !isCollapsed;
+    document.documentElement.style.setProperty(
+      '--sidebar-width',
+      isCollapsed ? '72px' : '256px'
+    );
+    localStorage.setItem('sidebar-collapsed', String(isCollapsed));
+  }
+
+  function isActive(href: string): boolean {
+    const path = $page.url.pathname;
+    if (href === '/') return path === '/';
+    return path.startsWith(href);
+  }
+
+  // ─── Icon Components (inline SVGs, project convention) ────────────
+  // Swap these for lucide-svelte <IconHome /> placeholders when ready.
+
+  const icons: Record<string, string> = {
+    dashboard: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/>
+      <rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>
+    </svg>`,
+    transactions: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/>
+    </svg>`,
+    lending: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m20.42 4.58-7.65 7.65-2.12-2.12a1.5 1.5 0 0 0-2.12 2.12l3.54 3.54a1.5 1.5 0 0 0 2.12-2.12L12 12"/>
+      <path d="m8.58 15.42-3.54 3.54"/><path d="m15.42 8.58 3.54-3.54"/>
+    </svg>`,
+    reports: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>
+    </svg>`,
+    categories: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/>
+      <path d="M7 7h.01"/>
+    </svg>`,
+    settings: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>`,
+  };
 </script>
 
-<button class="mobile-toggle" onclick={() => mobileOpen = !mobileOpen} aria-label="Toggle navigation" aria-expanded={mobileOpen}>
-	<span class="hamburger"></span>
+<!-- ═══ Mobile hamburger ═══ -->
+<button
+  class="mobile-toggle"
+  onclick={() => (mobileOpen = !mobileOpen)}
+  aria-label="Toggle navigation"
+  aria-expanded={mobileOpen}
+>
+  <span class="hamburger"></span>
 </button>
 
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape' && mobileOpen) mobileOpen = false; }} />
 
+<!-- ═══ Sidebar (desktop drawer) ═══ -->
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
-<aside class="sidebar" class:open={mobileOpen} class:collapsed>
-	<!-- Logo/Brand -->
-	<div class="sidebar-header">
-		<div class="logo-container">
-			<div class="logo-icon">
-				<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M12 2v20M6 4h7a4 4 0 0 1 0 8H6" /><line x1="4" x2="18" y1="12" y2="12" /><line x1="4" x2="18" y1="16" y2="16"/>
-				</svg>
-			</div>
-		</div>
-		{#if !collapsed}
-			<div class="brand-text">
-				<h2>Budget Tracker</h2>
-				<span class="brand-tagline">Smart Finance</span>
-			</div>
-		{/if}
-	</div>
+<aside class="sidebar" class:open={mobileOpen} class:collapsed={isCollapsed}>
+  <!-- ─── Brand header ─── -->
+  <div class="sidebar-header">
+    <a href="/dashboard" class="logo-link">
+      <div class="logo-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v20M6 4h7a4 4 0 0 1 0 8H6"/><line x1="4" x2="18" y1="12" y2="12"/><line x1="4" x2="18" y1="16" y2="16"/>
+        </svg>
+      </div>
+      {#if !isCollapsed}
+        <div class="brand-text">
+          <h2>Budget Tracker</h2>
+          <span class="brand-tagline">Smart Finance</span>
+        </div>
+      {/if}
+    </a>
+  </div>
 
-	<!-- User Profile -->
-	<div class="user-profile">
-		<div class="user-avatar">
-			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-				<circle cx="12" cy="7" r="4"/>
-			</svg>
-		</div>
-		{#if !collapsed}
-			<div class="user-info">
-				<span class="user-name">Guest User</span>
-				<span class="user-email">Manage your finances</span>
-			</div>
-		{/if}
-	</div>
+  <!-- ─── User profile ─── -->
+  <div class="user-profile">
+    <div class="user-avatar">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    </div>
+    {#if !isCollapsed}
+      <div class="user-info">
+        <span class="user-name">Guest User</span>
+        <span class="user-email">Manage your finances</span>
+      </div>
+    {/if}
+  </div>
 
-	<!-- Navigation -->
-	<nav class="sidebar-nav">
-		{#each navItems as item}
-			<a
-				href={item.href}
-				class="nav-item"
-				class:active={isActive(item.href)}
-				title={collapsed ? item.label : undefined}
-			>
-				<div class="nav-indicator"></div>
-				<span class="nav-icon">
-					{#if item.icon === 'dashboard'}
-						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<rect width="7" height="9" x="3" y="3" rx="1"/>
-							<rect width="7" height="5" x="14" y="3" rx="1"/>
-							<rect width="7" height="9" x="14" y="12" rx="1"/>
-							<rect width="7" height="5" x="3" y="16" rx="1"/>
-						</svg>
-					{:else if item.icon === 'creditcard'}
-						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<rect width="20" height="14" x="2" y="5" rx="2"/>
-							<path d="M2 10h20"/>
-						</svg>
-					{:else if item.icon === 'tags'}
-						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/>
-							<path d="M7 7h.01"/>
-						</svg>
-					{:else if item.icon === 'lending'}
-						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="m20.42 4.58-7.65 7.65-2.12-2.12a1.5 1.5 0 0 0-2.12 2.12l3.54 3.54a1.5 1.5 0 0 0 2.12-2.12L12 12"/>
-							<path d="m8.58 15.42-3.54 3.54"/>
-							<path d="m15.42 8.58 3.54-3.54"/>
-						</svg>
-					{:else if item.icon === 'chart'}
-						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M3 3v18h18"/>
-							<path d="M18 17V9"/>
-							<path d="M13 17V5"/>
-							<path d="M8 17v-3"/>
-						</svg>
-					{/if}
-				</span>
-				{#if !collapsed}
-					<span class="nav-label">{item.label}</span>
-				{/if}
-			</a>
-		{/each}
-	</nav>
+  <!-- ─── Primary Navigation (core workflows) ─── -->
+  <nav class="sidebar-nav" aria-label="Primary">
+    {#each primaryNav as item}
+      <a
+        href={item.href}
+        class="nav-item"
+        class:active={isActive(item.href)}
+        title={isCollapsed ? item.label : undefined}
+      >
+        <span class="nav-icon">{@html icons[item.icon]}</span>
+        <span class="nav-label">{item.label}</span>
+      </a>
+    {/each}
+  </nav>
 
-	<!-- Footer -->
-	<div class="sidebar-footer">
-		<button class="collapse-btn" onclick={toggleCollapse} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
-			<span class="collapse-icon" class:rotated={collapsed}>
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="m15 18-6-6 6-6"/>
-				</svg>
-			</span>
-			{#if !collapsed}
-				<span class="nav-label">Collapse</span>
-			{/if}
-		</button>
+  <!-- ─── Zone divider ─── -->
+  <div class="nav-divider"></div>
 
-		<button class="theme-btn" onclick={toggleTheme} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
-			<span class="theme-icon">
-				{#if darkMode}
-					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<circle cx="12" cy="12" r="5"/>
-						<line x1="12" x2="12" y1="1" y2="3"/>
-						<line x1="12" x2="12" y1="21" y2="23"/>
-						<line x1="4.22" x2="5.64" y1="4.22" y2="5.64"/>
-						<line x1="18.36" x2="19.78" y1="18.36" y2="19.78"/>
-						<line x1="1" x2="3" y1="12" y2="12"/>
-						<line x1="21" x2="23" y1="12" y2="12"/>
-						<line x1="4.22" x2="5.64" y1="19.78" y2="18.36"/>
-						<line x1="18.36" x2="19.78" y1="5.64" y2="4.22"/>
-					</svg>
-				{:else}
-					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-					</svg>
-				{/if}
-			</span>
-			{#if !collapsed}
-				<span class="nav-label">{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
-			{/if}
-		</button>
+  <!-- ─── Secondary Navigation (configuration) ─── -->
+  <nav class="sidebar-nav" aria-label="Secondary">
+    {#each secondaryNav as item}
+      <a
+        href={item.href}
+        class="nav-item secondary-item"
+        class:active={isActive(item.href)}
+        title={isCollapsed ? item.label : undefined}
+      >
+        <span class="nav-icon">{@html icons[item.icon]}</span>
+        <span class="nav-label">{item.label}</span>
+      </a>
+    {/each}
+  </nav>
 
-		<a href="/logout" class="logout-link">
-			<span class="logout-icon">
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-					<polyline points="16 17 21 12 16 7"/>
-					<line x1="21" x2="9" y1="12" y2="12"/>
-				</svg>
-			</span>
-			{#if !collapsed}
-				<span class="nav-label">Logout</span>
-			{/if}
-		</a>
+  <!-- ─── Push footer down ─── -->
+  <div class="sidebar-spacer"></div>
 
-		{#if !collapsed}
-			<div class="version-badge">v0.1.0</div>
-		{/if}
-	</div>
+  <!-- ─── Footer (theme, collapse, logout) ─── -->
+  <div class="sidebar-footer">
+    <!-- Theme toggle -->
+    <button class="footer-item" onclick={toggleTheme} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+      <span class="footer-icon">
+        {#if darkMode}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/><line x1="12" x2="12" y1="1" y2="3"/><line x1="12" x2="12" y1="21" y2="23"/>
+            <line x1="4.22" x2="5.64" y1="4.22" y2="5.64"/><line x1="18.36" x2="19.78" y1="18.36" y2="19.78"/>
+            <line x1="1" x2="3" y1="12" y2="12"/><line x1="21" x2="23" y1="12" y2="12"/>
+            <line x1="4.22" x2="5.64" y1="19.78" y2="18.36"/><line x1="18.36" x2="19.78" y1="5.64" y2="4.22"/>
+          </svg>
+        {:else}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        {/if}
+      </span>
+      {#if !isCollapsed}
+        <span class="nav-label">{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+      {/if}
+    </button>
+
+    <!-- Collapse toggle -->
+    <button class="footer-item collapse-trigger" onclick={toggleCollapse} aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+      <span class="footer-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m15 18-6-6 6-6"/>
+        </svg>
+      </span>
+      {#if !isCollapsed}
+        <span class="nav-label">Collapse</span>
+      {/if}
+    </button>
+
+    <!-- Logout -->
+    <a href="/logout" class="footer-item logout-link">
+      <span class="footer-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>
+        </svg>
+      </span>
+      {#if !isCollapsed}
+        <span class="nav-label">Logout</span>
+      {/if}
+    </a>
+
+    {#if !isCollapsed}
+      <div class="version-badge">v0.1.0</div>
+    {/if}
+  </div>
 </aside>
 
+<!-- ═══ Mobile bottom navigation (≤480px) ═══ -->
+<nav class="bottom-nav" aria-label="Bottom navigation">
+  {#each primaryNav as item}
+    <a
+      href={item.href}
+      class="bn-item"
+      class:active={isActive(item.href)}
+    >
+      <span class="bn-icon">{@html icons[item.icon]}</span>
+      <span class="bn-label">{item.label}</span>
+    </a>
+  {/each}
+</nav>
+
+<!-- ═══ Mobile overlay ═══ -->
 {#if mobileOpen}
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
-	<div class="sidebar-overlay" onclick={() => mobileOpen = false}></div>
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
+  <div class="sidebar-overlay" onclick={() => (mobileOpen = false)} role="presentation"></div>
 {/if}
 
 <style>
-	.mobile-toggle {
-		display: none;
-		position: fixed;
-		top: var(--space-sm);
-		left: var(--space-sm);
-		z-index: 100;
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		padding: 10px;
-		cursor: pointer;
-		min-width: 44px;
-		min-height: 44px;
-		align-items: center;
-		justify-content: center;
-		box-shadow: var(--shadow-sm);
-	}
+  /* ═══════════════════════════════════════════════════════════════════
+     SIDEBAR COMPLETE — CSS
+     Design: Linear-inspired soft pill × Monarch logical grouping
+     Tokens: variables.css
+     ═══════════════════════════════════════════════════════════════════ */
 
-	.hamburger,
-	.hamburger::before,
-	.hamburger::after {
-		display: block;
-		width: 22px;
-		height: 2px;
-		background: var(--color-text);
-		border-radius: 2px;
-		position: relative;
-	}
+  /* ─── Mobile hamburger ─── */
+  .mobile-toggle {
+    display: none;
+    position: fixed;
+    top: var(--space-sm);
+    left: var(--space-sm);
+    z-index: 100;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 10px;
+    cursor: pointer;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-sm);
+    -webkit-tap-highlight-color: transparent;
+  }
 
-	.hamburger::before,
-	.hamburger::after {
-		content: '';
-		position: absolute;
-		left: 0;
-	}
+  .hamburger,
+  .hamburger::before,
+  .hamburger::after {
+    display: block;
+    width: 22px;
+    height: 2px;
+    background: var(--color-text);
+    border-radius: 2px;
+    position: relative;
+    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
 
-	.hamburger::before {
-		top: -7px;
-	}
+  .hamburger::before,
+  .hamburger::after {
+    content: '';
+    position: absolute;
+    left: 0;
+  }
 
-	.hamburger::after {
-		top: 7px;
-	}
+  .hamburger::before { top: -7px; }
+  .hamburger::after  { top: 7px; }
 
-	.sidebar {
-		position: fixed;
-		top: 0;
-		left: 0;
-		width: var(--sidebar-width);
-		height: 100vh;
-		background: var(--color-surface);
-		
-		border-right: 1px solid var(--color-border);
-		display: flex;
-		flex-direction: column;
-		z-index: 90;
-		transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1);
-		overflow: hidden;
-		box-shadow: 4px 0 20px var(--shadow-sm);
-	}
+  /* ─── Sidebar shell ─── */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--sidebar-width, 256px);
+    height: 100vh;
+    height: 100dvh;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    z-index: 90;
+    overflow: hidden;
+    /* Smooth collapse/expand — Linear-inspired ease-out */
+    transition: width 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
 
-	.sidebar-header {
-		display: flex;
-		align-items: center;
-		gap: var(--space-md);
-		padding: var(--space-lg);
-		border-bottom: 1px solid var(--color-border);
-		min-height: 80px;
-	}
+  /* ─── Brand header ─── */
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    padding: var(--space-lg);
+    border-bottom: 1px solid var(--color-border);
+    min-height: 80px;
+    flex-shrink: 0;
+  }
 
-	.logo-container {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 44px;
-		height: 44px;
-		background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
-		border-radius: var(--radius-md);
-		flex-shrink: 0;
-		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
-	}
+  .logo-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    text-decoration: none;
+    color: inherit;
+  }
 
-	.logo-icon {
-		color: white;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
+  .logo-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+    color: white;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+  }
 
-	.brand-text h2 {
-		font-size: var(--font-size-base);
-		font-weight: 700;
-		color: var(--color-text);
-		margin: 0;
-		line-height: 1.2;
-	}
+  .brand-text h2 {
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    color: var(--color-text);
+    margin: 0;
+    line-height: 1.2;
+  }
 
-	.brand-tagline {
-		font-size: var(--font-size-xs);
-		color: var(--color-text-secondary);
-	}
+  .brand-tagline {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+  }
 
-	.user-profile {
-		display: flex;
-		align-items: center;
-		gap: var(--space-md);
-		padding: var(--space-md) var(--space-lg);
-		margin: var(--space-md);
-		background: var(--color-bg);
-		border-radius: var(--radius-md);
-		border: 1px solid var(--color-border);
-		transition: all var(--transition-fast);
-	}
+  /* ─── User profile ─── */
+  .user-profile {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+    margin: var(--space-md);
+    background: var(--color-bg);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
 
-	.user-avatar {
-		width: 40px;
-		height: 40px;
-		background: linear-gradient(135deg, var(--color-primary-light) 0%, transparent 100%);
-		border-radius: var(--radius-md);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		color: var(--color-primary);
-		flex-shrink: 0;
-	}
+  .user-avatar {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--color-primary-light) 0%, transparent 100%);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary);
+    flex-shrink: 0;
+  }
 
-	.user-info {
-		display: flex;
-		flex-direction: column;
-		overflow: hidden;
-	}
+  .user-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
 
-	.user-name {
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		color: var(--color-text);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
+  .user-name {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-	.user-email {
-		font-size: var(--font-size-xs);
-		color: var(--color-text-secondary);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
+  .user-email {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-	.sidebar-nav {
-		flex: 1;
-		padding: var(--space-sm) var(--space-sm);
-		overflow-y: auto;
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}
+  /* ─── Navigation ─── */
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-xs) var(--space-sm);
+  }
 
-	.nav-item {
-		position: relative;
-		display: flex;
-		align-items: center;
-		gap: var(--space-md);
-		padding: 12px var(--space-md);
-		color: var(--color-text);
-		text-decoration: none;
-		font-size: var(--font-size-sm);
-		min-height: 48px;
-		border-radius: var(--radius-md);
-		transition: all var(--transition-fast);
-		overflow: hidden;
-	}
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    min-height: 48px;
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 10px;
+    cursor: pointer;
+    /* Soft pill transition */
+    transition: all 120ms cubic-bezier(0.4, 0, 0.2, 1);
+    -webkit-tap-highlight-color: transparent;
+  }
 
-	.nav-indicator {
-		position: absolute;
-		left: 0;
-		top: 50%;
-		transform: translateY(-50%) scaleY(0);
-		width: 3px;
-		height: 24px;
-		background: linear-gradient(180deg, var(--color-primary) 0%, #8b5cf6 100%);
-		border-radius: 0 2px 2px 0;
-		transition: transform 200ms ease;
-	}
+  /* Hover — subtle tint, no board */
+  .nav-item:hover {
+    background: rgba(0, 0, 0, 0.04);
+  }
 
-	.nav-item:hover {
-		background: var(--color-bg);
-	}
+  [data-theme="dark"] .nav-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
 
-	.nav-item:hover .nav-icon {
-		color: var(--color-primary);
-		transform: scale(1.05);
-	}
+  .nav-item:hover .nav-icon {
+    scale: 1.05;
+  }
 
-	.nav-item.active {
-		background: var(--color-primary-light);
-		color: var(--color-primary);
-		font-weight: 600;
-	}
+  /* Active — soft pill, NO left border */
+  .nav-item.active {
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+    font-weight: 600;
+  }
 
-	.nav-item.active .nav-indicator {
-		transform: translateY(-50%) scaleY(1);
-	}
+  [data-theme="dark"] .nav-item.active {
+    background: rgba(99, 102, 241, 0.18);
+  }
 
-	.nav-item.active .nav-icon {
-		color: var(--color-primary);
-	}
+  .nav-item.active .nav-icon {
+    color: var(--color-primary);
+  }
 
-	.nav-icon {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		flex-shrink: 0;
-		color: var(--color-text-secondary);
-		transition: all var(--transition-fast);
-	}
+  .nav-item:active {
+    scale: 0.97;
+  }
 
-	.nav-label {
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		transition: opacity 200ms ease;
-	}
+  /* Secondary items — slightly smaller text to create hierarchy */
+  .secondary-item {
+    font-size: 13px;
+  }
 
-	.collapsed .nav-label {
-		opacity: 0;
-		width: 0;
-	}
+  .secondary-item.active {
+    font-weight: 600;
+  }
 
-	.collapsed .nav-item {
-		justify-content: center;
-		padding: 12px;
-	}
+  /* ─── Nav icon ─── */
+  .nav-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    color: var(--color-text-secondary);
+    transition: scale 120ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
 
-	.sidebar-footer {
-		padding: var(--space-md);
-		border-top: 1px solid var(--color-border);
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-xs);
-	}
+  /* ─── Nav label — sequenced fade for collapse/expand ─── */
+  .nav-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 1;
+    /* When EXPANDING, wait for sidebar to grow then fade in */
+    transition: opacity 150ms ease 180ms;
+  }
 
-	.collapse-btn {
-		display: flex;
-		align-items: center;
-		gap: var(--space-md);
-		background: none;
-		border: none;
-		cursor: pointer;
-		padding: 10px var(--space-md);
-		color: var(--color-text-secondary);
-		font-size: var(--font-size-sm);
-		font-family: inherit;
-		transition: all var(--transition-fast);
-		white-space: nowrap;
-		border-radius: var(--radius-md);
-		min-height: 44px;
-	}
+  .collapsed .nav-label {
+    opacity: 0;
+    width: 0;
+    margin: 0;
+    /* When COLLAPSING, fade out immediately, no delay */
+    transition: opacity 80ms ease, width 0ms linear 80ms;
+  }
 
-	.collapse-btn:hover {
-		background: var(--color-bg);
-		color: var(--color-text);
-	}
+  /* Centered icons in collapsed mode */
+  .collapsed .nav-item {
+    justify-content: center;
+    padding: 10px;
+    margin: 0 auto;
+    width: 44px;
+    border-radius: 12px;
+  }
 
-	.collapse-icon {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		flex-shrink: 0;
-		transition: transform 300ms ease;
-	}
+  .collapsed .sidebar-nav {
+    padding: var(--space-xs) 0;
+    align-items: center;
+  }
 
-	.collapse-icon.rotated {
-		transform: rotate(180deg);
-	}
+  .collapsed .nav-icon {
+    margin: 0;
+  }
 
-	.theme-btn {
-	display: flex;
-	align-items: center;
-	gap: var(--space-md);
-	padding: 10px var(--space-md);
-	background: var(--color-bg);
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	cursor: pointer;
-	color: var(--color-text-secondary);
-	font-size: var(--font-size-sm);
-	font-family: inherit;
-	transition: all var(--transition-fast);
-	white-space: nowrap;
-	min-height: 44px;
-	width: 100%;
-}
+  .collapsed .user-profile {
+    justify-content: center;
+    padding: var(--space-sm);
+    margin: var(--space-sm);
+  }
 
-.theme-btn:hover {
-	background: var(--color-primary-light);
-	border-color: var(--color-primary);
-	color: var(--color-primary);
-}
+  .collapsed .logo-link {
+    justify-content: center;
+  }
 
-.theme-btn:active {
-	transform: scale(0.98);
-}
+  /* ─── Zone divider ─── */
+  .nav-divider {
+    height: 1px;
+    background: var(--color-border);
+    margin: var(--space-xs) var(--space-lg);
+    flex-shrink: 0;
+    transition: margin 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
 
-.theme-icon {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	flex-shrink: 0;
-	transition: transform var(--transition-fast);
-}
+  .collapsed .nav-divider {
+    margin: var(--space-xs) var(--space-md);
+  }
 
-.theme-btn:hover .theme-icon {
-	transform: rotate(15deg);
-}
+  /* ─── Spacer ─── */
+  .sidebar-spacer {
+    flex: 1;
+  }
 
-.sidebar.collapsed .theme-btn {
-	justify-content: center;
-	padding: 10px;
-}
+  /* ─── Footer ─── */
+  .sidebar-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-md);
+    border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
 
-.logout-link {
-		display: flex;
-		align-items: center;
-		gap: var(--space-md);
-		color: var(--color-text-secondary);
-		font-size: var(--font-size-sm);
-		text-decoration: none;
-		padding: 10px var(--space-md);
-		transition: all var(--transition-fast);
-		white-space: nowrap;
-		border-radius: var(--radius-md);
-		min-height: 44px;
-	}
+  .footer-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    min-height: 44px;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 10px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: inherit;
+    transition: all 120ms cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
 
-	.logout-link:hover {
-		background: var(--color-expense-light);
-		color: var(--color-expense);
-	}
+  .footer-item:hover {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--color-text);
+  }
 
-	.logout-icon {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		flex-shrink: 0;
-		transition: transform var(--transition-fast);
-	}
+  [data-theme="dark"] .footer-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text);
+  }
 
-	.logout-link:hover .logout-icon {
-		transform: translateX(-2px);
-	}
+  .footer-item:active {
+    scale: 0.97;
+  }
 
-	.version-badge {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		padding: 4px 10px;
-		background: var(--color-bg);
-		border: 1px solid var(--color-border);
-		border-radius: 20px;
-		font-size: 11px;
-		font-weight: 500;
-		color: var(--color-text-secondary);
-		width: fit-content;
-		margin-top: var(--space-sm);
-	}
+  .logout-link:hover {
+    color: var(--color-expense);
+    background: var(--color-expense-light);
+  }
 
-	.sidebar-overlay {
-		display: none;
-	}
+  [data-theme="dark"] .logout-link:hover {
+    background: rgba(239, 68, 68, 0.12);
+  }
 
-	/* Mobile Styles */
-	@media (max-width: 768px) {
-		.mobile-toggle {
-			display: flex;
-		}
+  .footer-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+  }
 
-		.sidebar {
-			transform: translateX(-100%);
-			width: 280px !important;
-		}
+  .collapse-trigger svg {
+    transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
 
-		.sidebar.open {
-			transform: translateX(0);
-		}
+  .collapsed .collapse-trigger svg {
+    transform: rotate(180deg);
+  }
 
-		.collapsed .nav-label,
-		.collapsed .brand-text {
-			opacity: 1;
-			width: auto;
-		}
+  /* Collapsed footer items centered */
+  .collapsed .footer-item {
+    justify-content: center;
+    padding: 10px;
+    margin: 0 auto;
+    width: 44px;
+    border-radius: 12px;
+  }
 
-		.collapsed .nav-item {
-			justify-content: flex-start;
-			padding: 12px var(--space-md);
-		}
+  .collapsed .sidebar-footer {
+    align-items: center;
+  }
 
-		.user-profile,
-		.version-badge {
-			display: flex;
-		}
+  .version-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    width: fit-content;
+    margin-top: var(--space-xs);
+  }
 
-		.sidebar-overlay {
-			display: block;
-			position: fixed;
-			inset: 0;
-			background: rgba(0, 0, 0, 0.4);
-			backdrop-filter: blur(4px);
-			z-index: 89;
-		}
+  .collapsed .version-badge {
+    display: none;
+  }
 
-		.sidebar-header {
-			min-height: auto;
-			padding: var(--space-md);
-		}
+  /* ─── Mobile overlay ─── */
+  .sidebar-overlay {
+    display: none;
+  }
 
-		.user-profile {
-			margin: var(--space-sm);
-		}
-	}
+  /* ═══════════════════════════════════════════════════════════════════
+     MOBILE BOTTOM NAV
+     ═══════════════════════════════════════════════════════════════════ */
+  .bottom-nav {
+    display: none;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     RESPONSIVE
+     ═══════════════════════════════════════════════════════════════════ */
+
+  /* ─── Tablet & down: off-canvas drawer ─── */
+  @media (max-width: 768px) {
+    .mobile-toggle {
+      display: flex;
+    }
+
+    .sidebar {
+      transform: translateX(-100%);
+      width: 300px !important;
+      transition: transform 250ms cubic-bezier(0.22, 1, 0.36, 1),
+                  width 0ms;  /* reset sidebar JS resize but keep transform */
+    }
+
+    .sidebar.open {
+      transform: translateX(0);
+    }
+
+    /* On mobile, labels always visible (drawer is always expanded) */
+    .sidebar .nav-label {
+      opacity: 1;
+      width: auto;
+      margin: revert;
+      transition: none;
+    }
+
+    .sidebar .nav-item {
+      justify-content: flex-start;
+      padding: 10px 12px;
+      margin: 0;
+      width: auto;
+      border-radius: 10px;
+    }
+
+    .sidebar .sidebar-nav {
+      align-items: stretch;
+      padding: var(--space-xs) var(--space-sm);
+    }
+
+    .sidebar .user-profile {
+      justify-content: flex-start;
+      padding: var(--space-md) var(--space-lg);
+      margin: var(--space-md);
+    }
+
+    .sidebar .logo-link {
+      justify-content: flex-start;
+    }
+
+    .sidebar .footer-item {
+      justify-content: flex-start;
+      padding: 10px 12px;
+      margin: 0;
+      width: auto;
+      border-radius: 10px;
+    }
+
+    .sidebar .sidebar-footer {
+      align-items: stretch;
+    }
+
+    .sidebar .nav-divider {
+      margin: var(--space-xs) var(--space-lg);
+    }
+
+    .sidebar-overlay {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(4px);
+      z-index: 89;
+      animation: overlayIn 200ms ease;
+    }
+
+    .sidebar-header {
+      min-height: auto;
+      padding: var(--space-md);
+    }
+
+    .user-profile {
+      margin: var(--space-sm);
+    }
+  }
+
+  /* ─── Phone: show bottom nav for primary items ─── */
+  @media (max-width: 480px) {
+    .bottom-nav {
+      display: flex;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 64px;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+      background: var(--color-surface);
+      border-top: 1px solid var(--color-border);
+      justify-content: space-around;
+      align-items: center;
+      z-index: 85;
+      box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+    }
+
+    [data-theme="dark"] .bottom-nav {
+      box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .bn-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 6px 12px;
+      min-height: 48px;
+      min-width: 56px;
+      text-decoration: none;
+      color: var(--color-text-secondary);
+      border-radius: 8px;
+      transition: all 120ms cubic-bezier(0.4, 0, 0.2, 1);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .bn-item:active {
+      scale: 0.92;
+    }
+
+    .bn-item.active {
+      color: var(--color-primary);
+      background: var(--color-primary-light);
+    }
+
+    [data-theme="dark"] .bn-item.active {
+      background: rgba(99, 102, 241, 0.18);
+    }
+
+    .bn-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+    }
+
+    .bn-label {
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1;
+    }
+
+    .bn-item.active .bn-label {
+      font-weight: 600;
+    }
+
+    /* Push main content up so bottom nav doesn't overlap */
+    :global(main) {
+      padding-bottom: 72px !important;
+    }
+  }
+
+  /* ─── Reduced motion ─── */
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar,
+    .nav-item,
+    .nav-label,
+    .collapse-trigger svg,
+    .footer-item,
+    .sidebar-overlay,
+    .bn-item,
+    .hamburger,
+    .hamburger::before,
+    .hamburger::after {
+      transition: none !important;
+    }
+
+    .sidebar {
+      transition: width 0ms !important;
+    }
+  }
+
+  /* ─── Animations ─── */
+  @keyframes overlayIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
 </style>

@@ -1,1177 +1,711 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
-	import { formatCurrency, getMonthLabel } from '$lib/utils/format';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import SummaryCards from '$lib/components/SummaryCards.svelte';
-	import LendingSummaryCards from '$lib/components/LendingSummaryCards.svelte';
-	import MonthlyChart from '$lib/components/MonthlyChart.svelte';
-	import CategoryChart from '$lib/components/CategoryChart.svelte';
-	import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
-	import PageBackground from '$lib/components/PageBackground.svelte';
+  import { page } from '$app/stores';
+  import { formatCurrency, getMonthLabel } from '$lib/utils/format';
+  import PageHeader from '$lib/components/PageHeader.svelte';
+  import ReportsHeader from '$lib/components/ReportsHeader.svelte';
+  import MonthlyTrendChart from '$lib/components/MonthlyTrendChart.svelte';
+  import ReportsDataTable from '$lib/components/ReportsDataTable.svelte';
+  import PageBackground from '$lib/components/PageBackground.svelte';
 
-	let data = $derived($page.data as App.PageData);
+  let data = $derived($page.data as App.PageData);
 
-	let selectedYear = $state(String(new Date().getFullYear()));
-	let selectedMonth = $state(
-		`${String(new Date().getFullYear())}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
-	);
+  // ─── State ────────────────────────────────────────────────────────
 
-	$effect(() => {
-		if (data.year) selectedYear = data.year;
-		if (data.month) selectedMonth = data.month;
-	});
+  let selectedTimeframe = $state('1Y');
+  let activeTab = $state('cashflow');
 
-	let activeTab = $state('overview');
+  const tabs = [
+    { id: 'cashflow', label: 'Cash Flow' },
+    { id: 'income', label: 'Income' },
+    { id: 'expenses', label: 'Expenses' },
+  ];
 
-	const sections = [
-		{ id: 'overview', label: 'Overview' },
-		{ id: 'income', label: 'Income' },
-		{ id: 'expenses', label: 'Expenses' },
-		{ id: 'lending', label: 'Lending' },
-	];
+  // ─── Monthly data ─────────────────────────────────────────────────
 
-	function changeYear(year: string) {
-		selectedYear = year;
-		const params = new URLSearchParams({ year, month: selectedMonth });
-		goto(`/reports?${params.toString()}`);
-	}
+  const allMonthly = $derived(data.monthlyData ?? []);
 
-	function changeMonth(month: string) {
-		selectedMonth = month;
-		const params = new URLSearchParams({ year: selectedYear, month });
-		goto(`/reports?${params.toString()}`);
-	}
+  const filteredMonthly = $derived.by(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
 
-	const monthlyLabels = $derived(
-		(data.monthlyData ?? []).map(m => getMonthLabel(m.month))
-	);
-	const monthlyIncome = $derived(
-		(data.monthlyData ?? []).map(m => m.income)
-	);
-	const monthlyExpense = $derived(
-		(data.monthlyData ?? []).map(m => m.expense)
-	);
+    if (selectedTimeframe === '1M') {
+      return allMonthly.filter(m => {
+        const [y, mo] = m.month.split('-').map(Number);
+        return y === currentYear && mo === currentMonth;
+      });
+    }
+    if (selectedTimeframe === '3M') {
+      const cutoff = currentMonth - 3 <= 0
+        ? `${currentYear - 1}-${String(currentMonth + 9).padStart(2, '0')}`
+        : `${currentYear}-${String(currentMonth - 3).padStart(2, '0')}`;
+      return allMonthly.filter(m => m.month >= cutoff);
+    }
+    if (selectedTimeframe === 'YTD') {
+      return allMonthly.filter(m => {
+        const [y, mo] = m.month.split('-').map(Number);
+        return y < currentYear || (y === currentYear && mo <= currentMonth);
+      });
+    }
+    // '1Y' or 'All'
+    return allMonthly;
+  });
 
-	// Linear regression for trend lines
-	function linearRegression(data: number[]) {
-		const n = data.length;
-		if (n === 0) return { values: [], next: 0 };
-		if (n === 1) return { values: [data[0]], next: data[0] };
-		const xMean = (n - 1) / 2;
-		const yMean = data.reduce((a, b) => a + b, 0) / n;
-		let num = 0, den = 0;
-		for (let i = 0; i < n; i++) {
-			num += (i - xMean) * (data[i] - yMean);
-			den += (i - xMean) ** 2;
-		}
-		const slope = den === 0 ? 0 : num / den;
-		const intercept = yMean - slope * xMean;
-		return {
-			values: data.map((_, i) => Math.round(slope * i + intercept)),
-			next: Math.max(0, Math.round(slope * n + intercept)),
-		};
-	}
+  const monthlyLabels = $derived(filteredMonthly.map(m => getMonthLabel(m.month)));
+  const monthlyIncome = $derived(filteredMonthly.map(m => m.income));
+  const monthlyExpense = $derived(filteredMonthly.map(m => m.expense));
 
-	// Compute trend directly from chart data (same length, always aligned)
-	const incomeTrend = $derived(linearRegression(monthlyIncome));
-	const expenseTrend = $derived(linearRegression(monthlyExpense));
+  const monthlyRows = $derived(
+    filteredMonthly.map(m => ({
+      month: m.month,
+      income: m.income,
+      expense: m.expense,
+    }))
+  );
 
-	let showTrend = $state(false);
+  // ─── Current and previous month data for insights ─────────────────
 
-	// Income chart data
-	const incomeLabels = $derived(
-		(data.incomeData ?? []).map(c => c.category_name)
-	);
-	const incomeValues = $derived(
-		(data.incomeData ?? []).map(c => c.total)
-	);
-	const incomeColors = $derived(
-		(data.incomeData ?? []).map(c => c.category_color)
-	);
+  const currentSummary = $derived.by(() => {
+    const m = filteredMonthly[filteredMonthly.length - 1];
+    if (!m) return { income: 0, expense: 0, balance: 0 };
+    return { income: m.income, expense: m.expense, balance: m.income - m.expense };
+  });
 
-	// Expense chart data
-	const expenseLabels = $derived(
-		(data.expenseData ?? []).map(c => c.category_name)
-	);
-	const expenseValues = $derived(
-		(data.expenseData ?? []).map(c => c.total)
-	);
-	const expenseColors = $derived(
-		(data.expenseData ?? []).map(c => c.category_color)
-	);
+  const previousSummary = $derived.by(() => {
+    const m = filteredMonthly[filteredMonthly.length - 2];
+    if (!m) return { income: 0, expense: 0, balance: 0 };
+    return { income: m.income, expense: m.expense, balance: m.income - m.expense };
+  });
 
-	const months = $derived(
-		Array.from({ length: 12 }, (_, i) => {
-			const m = i + 1;
-			const monthStr = `${selectedYear}-${String(m).padStart(2, '0')}`;
-			return { value: monthStr, label: new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date(parseInt(selectedYear), i)) };
-		})
-	);
+  const changes = $derived.by(() => {
+    const prev = previousSummary;
+    const curr = currentSummary;
+    function pct(a: number, b: number) {
+      if (b === 0) return a > 0 ? 100 : 0;
+      return Math.round(((a - b) / b) * 100);
+    }
+    return {
+      monthIncomeChange: pct(curr.income, prev.income),
+      monthExpenseChange: pct(curr.expense, prev.expense),
+    };
+  });
 
-	// Lending recovery rate
-	const lendingRecoveryRate = $derived(
-		(data.lendingSummary?.totalLent ?? 0) > 0
-			? Math.round(((data.lendingSummary?.totalRecovered ?? 0) / (data.lendingSummary?.totalLent ?? 0)) * 100)
-			: 0
-	);
+  // ─── Top expense insight ──────────────────────────────────────────
+
+  const topExpense = $derived.by(() => {
+    const sorted = [...(data.expenseData ?? [])].sort((a, b) => b.total - a.total);
+    return sorted[0] || null;
+  });
+
+  const totalExpenseAmount = $derived(
+    (data.expenseData ?? []).reduce((s, c) => s + c.total, 0)
+  );
+
+  const topExpensePct = $derived(
+    topExpense && totalExpenseAmount > 0
+      ? (topExpense.total / totalExpenseAmount) * 100
+      : 0
+  );
+
+  // ─── Category breakdown data ──────────────────────────────────────
+
+  const incomeLabels = $derived(
+    (data.incomeData ?? []).map(c => c.category_name)
+  );
+  const incomeValues = $derived(
+    (data.incomeData ?? []).map(c => c.total)
+  );
+  const incomeColors = $derived(
+    (data.incomeData ?? []).map(c => c.category_color)
+  );
+
+  const expenseLabels = $derived(
+    (data.expenseData ?? []).map(c => c.category_name)
+  );
+  const expenseValues = $derived(
+    (data.expenseData ?? []).map(c => c.total)
+  );
+  const expenseColors = $derived(
+    (data.expenseData ?? []).map(c => c.category_color)
+  );
+
+  // ─── SVG donut arc data ──────────────────────────────────────────
+
+  type ArcData = { pct: number; offset: number; color: string; label: string };
+
+  const incomeArcs = $derived.by<ArcData[]>(() => {
+    const vals = incomeValues;
+    const colors = incomeColors;
+    const labels = incomeLabels;
+    const total = vals.reduce((a, b) => a + b, 0);
+    if (total <= 0) return [];
+    let cumulative = 0;
+    return vals.map((v, i) => {
+      const pct = v / total;
+      const offset = cumulative;
+      cumulative += pct * 251.2;
+      return { pct, offset, color: colors[i] || '#6366f1', label: labels[i] || '' };
+    });
+  });
+
+  const expenseArcs = $derived.by<ArcData[]>(() => {
+    const vals = expenseValues;
+    const colors = expenseColors;
+    const labels = expenseLabels;
+    const total = vals.reduce((a, b) => a + b, 0);
+    if (total <= 0) return [];
+    let cumulative = 0;
+    return vals.map((v, i) => {
+      const pct = v / total;
+      const offset = cumulative;
+      cumulative += pct * 251.2;
+      return { pct, offset, color: colors[i] || '#6366f1', label: labels[i] || '' };
+    });
+  });
+
+  function onTimeframeChange(tf: string) {
+    selectedTimeframe = tf;
+  }
+
+  // ─── Summary bar data ─────────────────────────────────────────────
+
+  const totalIncome = $derived(filteredMonthly.reduce((s, m) => s + m.income, 0));
+  const totalExpenses = $derived(filteredMonthly.reduce((s, m) => s + m.expense, 0));
+  const netTotal = $derived(totalIncome - totalExpenses);
 </script>
 
 <svelte:head>
-	<title>Reports — Budget Tracker</title>
+  <title>Reports — Budget Tracker</title>
 </svelte:head>
 
-<PageHeader title="Reports" />
+<PageHeader title="Reports">
+  {#snippet action()}
+    <a
+      href="/api/reports/export?start={filteredMonthly[0]?.month ?? ''}&end={filteredMonthly[filteredMonthly.length - 1]?.month ?? ''}"
+      class="btn-export"
+      download
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" x2="12" y1="15" y2="3"/>
+      </svg>
+      Export CSV
+    </a>
+  {/snippet}
+</PageHeader>
 
 <PageBackground />
 
-<SummaryCards
-	totalIncome={data.monthSummary?.income ?? 0}
-	totalExpenses={data.monthSummary?.expense ?? 0}
-	balance={data.monthSummary?.balance ?? 0}
-	savingsRate={data.monthSummary?.income > 0 ? ((data.monthSummary.income - data.monthSummary.expense) / data.monthSummary.income) * 100 : 0}
+<!-- ═══ Insights header ═══ -->
+<ReportsHeader
+  currentMonth={currentSummary}
+  previousMonth={previousSummary}
+  changes={changes}
+  topExpenseName={topExpense?.category_name ?? ''}
+  topExpenseAmount={topExpense?.total ?? 0}
+  topExpensePct={topExpensePct}
+  timeframe={selectedTimeframe}
+  onTimeframeChange={onTimeframeChange}
 />
 
-{#if data.lendingSummary}
-	<LendingSummaryCards
-		totalLent={data.lendingSummary.totalLent}
-		totalRecovered={data.lendingSummary.totalRecovered}
-		outstanding={data.lendingSummary.outstanding}
-	/>
-{/if}
-
-<YearOverYearCard yoyData={data.yoyData} selectedMonth={selectedMonth} />
-
-<div class="report-actions">
-	<div class="report-tabs">
-		{#each sections as s}
-			<button class="report-tab" class:active={activeTab === s.id} onclick={() => activeTab = s.id}>{s.label}</button>
-		{/each}
-	</div>
-	<a href="/api/reports/export?year={selectedYear}&month={selectedMonth}" class="btn-export-report" download>
-		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-			<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-			<polyline points="7 10 12 15 17 10"/>
-			<line x1="12" x2="12" y1="15" y2="3"/>
-		</svg>
-		Export CSV
-	</a>
+<!-- ═══ View tabs ═══ -->
+<div class="tabs-bar">
+  <div class="tabs-pill">
+    {#each tabs as tab}
+      <button
+        class="tab-btn"
+        class:active={activeTab === tab.id}
+        onclick={() => activeTab = tab.id}
+      >
+        {tab.label}
+      </button>
+    {/each}
+  </div>
 </div>
 
-<div class="report-controls">
-	<div class="control-group">
-		<label for="year-select">
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
-				<line x1="16" x2="16" y1="2" y2="6"/>
-				<line x1="8" x2="8" y1="2" y2="6"/>
-				<line x1="3" x2="21" y1="10" y2="10"/>
-			</svg>
-			Year
-		</label>
-		<select id="year-select" value={selectedYear} onchange={(e) => changeYear((e.target as HTMLSelectElement).value)}>
-			{#each Array.from({ length: 5 }, (_, i) => String(2024 + i)) as yr}
-				<option value={yr}>{yr}</option>
-			{/each}
-		</select>
-	</div>
-</div>
+<!-- ══════════════════════════════════════════════════════════════════
+     CASH FLOW VIEW
+     ══════════════════════════════════════════════════════════════════ -->
+{#if activeTab === 'cashflow'}
+  <div class="view-panel">
+    <!-- Summary bar -->
+    <div class="summary-strip">
+      <div class="strip-item">
+        <span class="strip-value">{formatCurrency(totalIncome)}</span>
+        <span class="strip-label">Total Income</span>
+      </div>
+      <div class="strip-divider"></div>
+      <div class="strip-item">
+        <span class="strip-value expense">{formatCurrency(totalExpenses)}</span>
+        <span class="strip-label">Total Expenses</span>
+      </div>
+      <div class="strip-divider"></div>
+      <div class="strip-item">
+        <span class="strip-value" class:positive={netTotal >= 0} class:negative={netTotal < 0}>
+          {formatCurrency(netTotal)}
+        </span>
+        <span class="strip-label">Net</span>
+      </div>
+    </div>
 
-<section class="report-section">
-	<div class="section-header">
-		<div class="section-title-group">
-			<div class="section-icon">
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M3 3v18h18"/>
-					<path d="M18 17V9"/>
-					<path d="M13 17V5"/>
-					<path d="M8 17v-3"/>
-				</svg>
-			</div>
-			<h2 class="section-title">Monthly Overview</h2>
-		</div>
-	</div>
-	<MonthlyChart
-		labels={monthlyLabels}
-		incomeData={monthlyIncome}
-		expenseData={monthlyExpense}
-		trendIncome={incomeTrend.values}
-		trendExpense={expenseTrend.values}
-		showTrend={showTrend}
-	/>
+    <!-- Chart -->
+    <div class="section-card">
+      <div class="section-card-header">
+        <h3 class="section-card-title">Monthly Trend</h3>
+      </div>
+      <MonthlyTrendChart
+        labels={monthlyLabels}
+        incomeData={monthlyIncome}
+        expenseData={monthlyExpense}
+      />
+    </div>
 
-	<div class="chart-controls">
-		<label class="trend-toggle" class:active={showTrend}>
-			<input type="checkbox" bind:checked={showTrend} />
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-				<polyline points="17 6 23 6 23 12"/>
-			</svg>
-			<span>Trend lines</span>
-		</label>
-	</div>
-</section>
+    <!-- Data table -->
+    <div class="section-card">
+      <div class="section-card-header">
+        <h3 class="section-card-title">Monthly Breakdown</h3>
+      </div>
+      <ReportsDataTable data={monthlyRows} />
+    </div>
+  </div>
 
-{#if showTrend}
-	<section class="report-section forecast-section">
-		<div class="section-header">
-			<div class="section-title-group">
-				<div class="section-icon">
-					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M12 2L2 7l10 5 10-5-10-5z"/>
-						<path d="M2 17l10 5 10-5"/>
-						<path d="M2 12l10 5 10-5"/>
-					</svg>
-				</div>
-				<h2 class="section-title">Forecast</h2>
-			</div>
-		</div>
-		<div class="forecast-grid">
-			<div class="forecast-card income">
-				<span class="forecast-label">Projected Income</span>
-				<span class="forecast-value">{formatCurrency(incomeTrend.next)}</span>
-				<span class="forecast-next">Next month</span>
-			</div>
-			<div class="forecast-card expense">
-				<span class="forecast-label">Projected Expenses</span>
-				<span class="forecast-value">{formatCurrency(expenseTrend.next)}</span>
-				<span class="forecast-next">Next month</span>
-			</div>
-			<div class="forecast-card balance">
-				<span class="forecast-label">Projected Balance</span>
-				<span class="forecast-value" class:negative={incomeTrend.next - expenseTrend.next < 0}>{formatCurrency(incomeTrend.next - expenseTrend.next)}</span>
-				<span class="forecast-next">Based on trend</span>
-			</div>
-		</div>
-	</section>
-{/if}
+<!-- ══════════════════════════════════════════════════════════════════
+     INCOME VIEW
+     ══════════════════════════════════════════════════════════════════ -->
+{:else if activeTab === 'income'}
+  <div class="view-panel">
+    {#if (data.incomeData ?? []).length > 0}
+      <div class="split-view">
+        <div class="split-chart">
+          <div class="section-card">
+            <h3 class="section-card-title">Income Breakdown</h3>
+            <div class="donut-container">
+              <svg width="180" height="180" viewBox="0 0 180 180">
+                <!-- Simple donut using strokes — one arc per category -->
+                {#if incomeArcs.length > 0}
+                  {#each incomeArcs as arc, i}
+                    <circle
+                      cx="90" cy="90" r="40"
+                      fill="none"
+                      stroke={arc.color}
+                      stroke-width="28"
+                      stroke-dasharray="{arc.pct * 251.2} {251.2 - arc.pct * 251.2}"
+                      stroke-dashoffset={-arc.offset}
+                      transform="rotate(-90 90 90)"
+                      stroke-linecap="round"
+                    />
+                  {/each}
+                {/if}
+                <text x="90" y="86" text-anchor="middle" fill="currentColor" font-size="16" font-weight="700" dy="0">
+                  {formatCurrency(incomeValues.reduce((a, b) => a + b, 0))}
+                </text>
+                <text x="90" y="106" text-anchor="middle" fill="var(--color-text-secondary)" font-size="11" font-weight="500">
+                  total
+                </text>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="split-table">
+          <div class="section-card">
+            <h3 class="section-card-title">Categories</h3>
+            <div class="breakdown-list">
+              {#each (data.incomeData ?? []) as cat (cat.category_id)}
+                <div class="breakdown-row">
+                  <span class="breakdown-dot" style="background: {cat.category_color}"></span>
+                  <span class="breakdown-name">{cat.category_name}</span>
+                  <span class="breakdown-amount">{formatCurrency(cat.total)}</span>
+                  <span class="breakdown-pct">
+                    {(() => {
+                      const tot = incomeValues.reduce((a, b) => a + b, 0);
+                      return tot > 0 ? ((cat.total / tot) * 100).toFixed(1) : '0.0';
+                    })()}%
+                  </span>
+                </div>
+              {/each}
+            </div>
+          </div>
+        </div>
+      </div>
+    {:else}
+      <div class="empty-panel">
+        <div class="empty-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" x2="12" y1="2" y2="22"/>
+            <path d="M6 4h7a4 4 0 0 1 0 8H6"/>
+            <line x1="4" x2="18" y1="12" y2="12"/>
+            <line x1="4" x2="18" y1="16" y2="16"/>
+          </svg>
+        </div>
+        <p>No income data for this period</p>
+      </div>
+    {/if}
+  </div>
 
-<div class="divider">
-	<span class="divider-line"></span>
-</div>
-
-<div class="report-controls secondary">
-	<div class="control-group">
-		<label for="month-select">
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
-				<line x1="16" x2="16" y1="2" y2="6"/>
-				<line x1="8" x2="8" y1="2" y2="6"/>
-				<line x1="3" x2="21" y1="10" y2="10"/>
-			</svg>
-			Month
-		</label>
-		<select id="month-select" value={selectedMonth} onchange={(e) => changeMonth((e.target as HTMLSelectElement).value)}>
-			{#each months as m}
-				<option value={m.value}>{m.label}</option>
-			{/each}
-		</select>
-	</div>
-</div>
-
-<div class="category-report-grid">
-	<!-- Income Section -->
-	<div class="report-section">
-		<div class="section-header">
-			<div class="section-title-group">
-				<div class="section-icon income">
-					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<line x1="12" x2="12" y1="2" y2="22"/>
-							<path d="M6 4h7a4 4 0 0 1 0 8H6"/>
-							<line x1="4" x2="18" y1="12" y2="12"/>
-							<line x1="4" x2="18" y1="16" y2="16"/>
-						</svg>
-				</div>
-				<h2 class="section-title">Income by Category</h2>
-			</div>
-		</div>
-		<CategoryChart
-			labels={incomeLabels}
-			data={incomeValues}
-			colors={incomeColors}
-		/>
-		<div class="breakdown-section">
-			<table class="breakdown-table">
-				<thead>
-					<tr>
-						<th>Category</th>
-						<th class="amount">Amount</th>
-						<th class="pct">%</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each data.incomeData ?? [] as cat (cat.category_id)}
-						<tr>
-							<td>
-								<span class="cat-dot" style="background: {cat.category_color}"></span>
-								{cat.category_name}
-							</td>
-							<td class="amount income">{formatCurrency(cat.total)}</td>
-							<td class="pct">
-								{(() => {
-									const total = incomeValues.length > 0 ? incomeValues.reduce((a: number, b: number) => a + b, 0) : 0;
-									return total > 0 ? ((cat.total / total) * 100).toFixed(1) : '0.0';
-								})()}%
-							</td>
-						</tr>
-					{/each}
-					{#if (data.incomeData ?? []).length === 0}
-						<tr>
-							<td colspan="3" class="empty">No income this month</td>
-						</tr>
-					{/if}
-				</tbody>
-			</table>
-		</div>
-	</div>
-
-	<!-- Expense Section -->
-	<div class="report-section">
-		<div class="section-header">
-			<div class="section-title-group">
-				<div class="section-icon expense">
-					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>
-						<path d="M22 12A10 10 0 0 0 12 2v10z"/>
-					</svg>
-				</div>
-				<h2 class="section-title">Expense by Category</h2>
-			</div>
-		</div>
-		<CategoryChart
-			labels={expenseLabels}
-			data={expenseValues}
-			colors={expenseColors}
-		/>
-		<div class="breakdown-section">
-			<table class="breakdown-table">
-				<thead>
-					<tr>
-						<th>Category</th>
-						<th class="amount">Amount</th>
-						<th class="pct">%</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each data.expenseData ?? [] as cat (cat.category_id)}
-						<tr>
-							<td>
-								<span class="cat-dot" style="background: {cat.category_color}"></span>
-								{cat.category_name}
-							</td>
-							<td class="amount expense">{formatCurrency(cat.total)}</td>
-							<td class="pct">
-								{(() => {
-									const total = expenseValues.length > 0 ? expenseValues.reduce((a: number, b: number) => a + b, 0) : 0;
-									return total > 0 ? ((cat.total / total) * 100).toFixed(1) : '0.0';
-								})()}%
-							</td>
-						</tr>
-					{/each}
-					{#if (data.expenseData ?? []).length === 0}
-						<tr>
-							<td colspan="3" class="empty">No expenses this month</td>
-						</tr>
-					{/if}
-				</tbody>
-			</table>
-		</div>
-	</div>
-</div>
-
-<!-- Top Spending Categories -->
-{#if (data.expenseData ?? []).filter(c => c.total > 0).length > 0}
-	<section class="report-section">
-		<div class="section-header">
-			<div class="section-title-group">
-				<div class="section-icon expense">
-					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M17 1l4 4-4 4"/>
-						<path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-						<path d="M7 23l-4-4 4-4"/>
-						<path d="M21 13v2a4 4 0 0 1-4 4H3"/>
-					</svg>
-				</div>
-				<h2 class="section-title">Top Spending Categories</h2>
-			</div>
-		</div>
-		<div class="top-categories">
-			{#each (data.expenseData ?? []).filter(c => c.total > 0).sort((a, b) => b.total - a.total).slice(0, 3) as cat, i}
-				<div class="top-cat-item">
-					<span class="top-cat-rank">{i + 1}</span>
-					<span class="top-cat-name">{cat.category_name}</span>
-					<div class="top-cat-bar">
-						<div class="top-cat-fill" style="width: {(cat.total / Math.max(...(data.expenseData ?? []).filter(c => c.total > 0).map(c => c.total))) * 100}%;"></div>
-					</div>
-					<span class="top-cat-amount">{formatCurrency(cat.total)}</span>
-				</div>
-			{/each}
-		</div>
-	</section>
-{/if}
-
-<!-- Lending Overview -->
-{#if activeTab === 'lending'}
-{#if data.lendingSummary && data.lendingSummary.totalLent > 0}
-	<section class="report-section">
-		<div class="section-header">
-			<div class="section-title-group">
-				<div class="section-icon">
-					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
-						<path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
-					</svg>
-				</div>
-				<h2 class="section-title">Lending Overview</h2>
-			</div>
-		</div>
-		<div class="lending-overview">
-			<div class="recovery-section">
-				<div class="recovery-header">
-					<span>Recovery Rate</span>
-					<span class="recovery-value">{Math.round((data.lendingSummary.totalRecovered / data.lendingSummary.totalLent) * 100)}%</span>
-				</div>
-				<div class="rate-bar">
-					<div class="rate-bar-fill" style="width: {(data.lendingSummary.totalRecovered / data.lendingSummary.totalLent) * 100}%"></div>
-				</div>
-			</div>
-			<div class="lending-grid">
-				<div class="lending-mini-card">
-					<span class="mini-label">Total Lent</span>
-					<span class="mini-value">{formatCurrency(data.lendingSummary.totalLent)}</span>
-					<div class="mini-bar"><div class="mini-bar-fill full"></div></div>
-				</div>
-				<div class="lending-mini-card">
-					<span class="mini-label">Recovered</span>
-					<span class="mini-value income">{formatCurrency(data.lendingSummary.totalRecovered)}</span>
-					<div class="mini-bar"><div class="mini-bar-fill income" style="width: {(data.lendingSummary.totalRecovered / data.lendingSummary.totalLent) * 100}%"></div></div>
-				</div>
-				<div class="lending-mini-card">
-					<span class="mini-label">Outstanding</span>
-					<span class="mini-value expense">{formatCurrency(data.lendingSummary.outstanding)}</span>
-					<div class="mini-bar"><div class="mini-bar-fill expense" style="width: {(data.lendingSummary.outstanding / data.lendingSummary.totalLent) * 100}%"></div></div>
-				</div>
-			</div>
-		</div>
-	</section>
-{/if}
+<!-- ══════════════════════════════════════════════════════════════════
+     EXPENSES VIEW
+     ══════════════════════════════════════════════════════════════════ -->
+{:else if activeTab === 'expenses'}
+  <div class="view-panel">
+    {#if (data.expenseData ?? []).length > 0}
+      <div class="split-view">
+        <div class="split-chart">
+          <div class="section-card">
+            <h3 class="section-card-title">Expense Breakdown</h3>
+            <div class="donut-container">
+              <svg width="180" height="180" viewBox="0 0 180 180">
+                {#if expenseArcs.length > 0}
+                  {#each expenseArcs as arc, i}
+                    <circle
+                      cx="90" cy="90" r="40"
+                      fill="none"
+                      stroke={arc.color}
+                      stroke-width="28"
+                      stroke-dasharray="{arc.pct * 251.2} {251.2 - arc.pct * 251.2}"
+                      stroke-dashoffset={-arc.offset}
+                      transform="rotate(-90 90 90)"
+                      stroke-linecap="round"
+                    />
+                  {/each}
+                {/if}
+                <text x="90" y="86" text-anchor="middle" fill="currentColor" font-size="16" font-weight="700" dy="0">
+                  {formatCurrency(expenseValues.reduce((a, b) => a + b, 0))}
+                </text>
+                <text x="90" y="106" text-anchor="middle" fill="var(--color-text-secondary)" font-size="11" font-weight="500">
+                  total
+                </text>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="split-table">
+          <div class="section-card">
+            <h3 class="section-card-title">Categories</h3>
+            <div class="breakdown-list">
+              {#each (data.expenseData ?? []) as cat (cat.category_id)}
+                <div class="breakdown-row">
+                  <span class="breakdown-dot" style="background: {cat.category_color}"></span>
+                  <span class="breakdown-name">{cat.category_name}</span>
+                  <span class="breakdown-amount expense">{formatCurrency(cat.total)}</span>
+                  <span class="breakdown-pct">
+                    {(() => {
+                      const tot = expenseValues.reduce((a, b) => a + b, 0);
+                      return tot > 0 ? ((cat.total / tot) * 100).toFixed(1) : '0.0';
+                    })()}%
+                  </span>
+                </div>
+              {/each}
+            </div>
+          </div>
+        </div>
+      </div>
+    {:else}
+      <div class="empty-panel">
+        <div class="empty-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/>
+            <path d="M12 18V6"/>
+          </svg>
+        </div>
+        <p>No expense data for this period</p>
+      </div>
+    {/if}
+  </div>
 {/if}
 
 <style>
-	.report-controls {
-		display: flex;
-		gap: var(--space-md);
-		margin-bottom: var(--space-lg);
-		align-items: flex-end;
-	}
-
-	.report-controls.secondary {
-		margin-top: var(--space-lg);
-		margin-bottom: var(--space-md);
-	}
-
-	.control-group {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-
-	.control-group label {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		color: var(--color-text-secondary);
-	}
-
-	.control-group select {
-		padding: 10px 36px 10px 14px;
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		font-size: var(--font-size-base);
-		font-family: inherit;
-		background: var(--color-surface);
-		color: var(--color-text);
-		cursor: pointer;
-		appearance: none;
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-		background-repeat: no-repeat;
-		background-position: right 10px center;
-		min-height: 44px;
-		transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-	}
-
-	.control-group select:hover {
-		border-color: var(--color-primary);
-	}
-
-	.control-group select:focus {
-		outline: none;
-		border-color: var(--color-primary);
-		box-shadow: 0 0 0 3px var(--color-primary-light);
-	}
-
-	.report-section {
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
-		padding: var(--space-lg);
-		margin-bottom: var(--space-lg);
-		box-shadow: var(--shadow-sm);
-	}
-
-	.section-header {
-		margin-bottom: var(--space-md);
-	}
-
-	.section-title-group {
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
-	}
-
-	.section-icon {
-		width: 36px;
-		height: 36px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: var(--radius-md);
-		flex-shrink: 0;
-		background: var(--color-primary-light);
-		color: var(--color-primary);
-	}
-
-	.section-icon.income {
-		background: var(--color-income-light);
-		color: var(--color-income);
-	}
-
-	.section-icon.expense {
-		background: var(--color-expense-light);
-		color: var(--color-expense);
-	}
-
-	.section-title {
-		font-size: var(--font-size-lg);
-		font-weight: 600;
-		color: var(--color-text);
-		margin: 0;
-	}
-
-	.divider {
-		display: flex;
-		align-items: center;
-		margin: var(--space-xl) 0;
-	}
-
-	.divider-line {
-		flex: 1;
-		height: 1px;
-		background: linear-gradient(90deg, transparent, var(--color-border), transparent);
-	}
-
-	.category-report-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: var(--space-lg);
-	}
-
-	.breakdown-section {
-		margin-top: var(--space-md);
-		padding-top: var(--space-md);
-		border-top: 1px solid var(--color-border);
-	}
-
-	.breakdown-table {
-		width: 100%;
-		border-collapse: collapse;
-		font-size: var(--font-size-sm);
-	}
-
-	.breakdown-table th {
-		text-align: left;
-		padding: var(--space-sm) var(--space-md);
-		color: var(--color-text-secondary);
-		font-weight: 600;
-		border-bottom: 2px solid var(--color-border);
-	}
-
-	.breakdown-table th.amount,
-	.breakdown-table th.pct {
-		text-align: right;
-	}
-
-	.breakdown-table td {
-		padding: var(--space-sm) var(--space-md);
-		border-bottom: 1px solid var(--color-border);
-	}
-
-	.breakdown-table tr:last-child td {
-		border-bottom: none;
-	}
-
-	.amount {
-		text-align: right;
-		font-variant-numeric: tabular-nums;
-		font-weight: 600;
-	}
-
-	.amount.income {
-		color: var(--color-income);
-	}
-
-	.amount.expense {
-		color: var(--color-expense);
-	}
-
-	.pct {
-		text-align: right;
-		color: var(--color-text-secondary);
-	}
-
-	.cat-dot {
-		display: inline-block;
-		width: 10px;
-		height: 10px;
-		border-radius: 50%;
-		margin-right: var(--space-sm);
-		vertical-align: middle;
-	}
-
-	.empty {
-		text-align: center;
-		color: var(--color-text-secondary);
-		font-style: italic;
-		padding: var(--space-xl) var(--space-md) !important;
-	}
-
-	.top-categories {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-sm);
-	}
-
-	.top-cat-item {
-		display: grid;
-		grid-template-columns: 32px 1fr auto;
-		align-items: center;
-		gap: var(--space-md);
-		padding: var(--space-md);
-		background: var(--color-bg);
-		border-radius: var(--radius-md);
-		border: 1px solid var(--color-border);
-		transition: all var(--transition-fast);
-	}
-
-	.top-cat-item:hover {
-		border-color: var(--color-primary);
-		box-shadow: var(--shadow-sm);
-		transform: translateX(4px);
-	}
-
-	.top-cat-rank {
-		width: 32px;
-		height: 32px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: var(--radius-md);
-		font-size: var(--font-size-sm);
-		font-weight: 700;
-		flex-shrink: 0;
-	}
-
-	.top-cat-item:nth-child(1) .top-cat-rank {
-		background: linear-gradient(135deg, #f59e0b, #fbbf24);
-		color: white;
-		box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
-	}
-
-	.top-cat-item:nth-child(2) .top-cat-rank {
-		background: linear-gradient(135deg, #6b7280, #9ca3af);
-		color: white;
-		box-shadow: 0 2px 8px rgba(107, 114, 128, 0.3);
-	}
-
-	.top-cat-item:nth-child(3) .top-cat-rank {
-		background: linear-gradient(135deg, #92400e, #b45309);
-		color: white;
-		box-shadow: 0 2px 8px rgba(146, 64, 14, 0.3);
-	}
-
-	.top-cat-name {
-		font-weight: 600;
-		color: var(--color-text);
-		font-size: var(--font-size-sm);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.top-cat-bar {
-		height: 8px;
-		background: var(--color-border);
-		border-radius: 999px;
-		overflow: hidden;
-		min-width: 80px;
-	}
-
-	.top-cat-fill {
-		height: 100%;
-		border-radius: 999px;
-		background: var(--color-expense);
-		transition: width 500ms cubic-bezier(0.4, 0, 0.2, 1);
-	}
-
-	.lending-overview {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-lg);
-	}
-
-	.recovery-section {
-		text-align: center;
-	}
-
-	.recovery-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: var(--space-sm);
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		color: var(--color-text-secondary);
-	}
-
-	.recovery-value {
-		font-size: var(--font-size-xl);
-		font-weight: 700;
-		color: var(--color-income);
-	}
-
-	.rate-bar {
-		height: 12px;
-		background: var(--color-bg);
-		border-radius: 999px;
-		overflow: hidden;
-	}
-
-	.rate-bar-fill {
-		height: 100%;
-		border-radius: 999px;
-		background: linear-gradient(90deg, #34d399, var(--color-income));
-		transition: width 500ms ease;
-	}
-
-	.lending-grid {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: var(--space-md);
-	}
-
-	.lending-mini-card {
-		padding: var(--space-md);
-		background: var(--color-bg);
-		border-radius: var(--radius-md);
-		border: 1px solid var(--color-border);
-	}
-
-	.mini-label {
-		font-size: var(--font-size-sm);
-		color: var(--color-text-secondary);
-		display: block;
-		margin-bottom: 4px;
-	}
-
-	.mini-value {
-		font-size: var(--font-size-lg);
-		font-weight: 700;
-		font-variant-numeric: tabular-nums;
-		display: block;
-		margin-bottom: var(--space-sm);
-	}
-
-	.mini-value.income {
-		color: var(--color-income);
-	}
-
-	.mini-value.expense {
-		color: var(--color-expense);
-	}
-
-	.mini-bar {
-		height: 6px;
-		background: var(--color-border);
-		border-radius: 999px;
-		overflow: hidden;
-	}
-
-	.mini-bar-fill {
-		height: 100%;
-		border-radius: 999px;
-		transition: width 500ms ease;
-	}
-
-	.mini-bar-fill.full {
-		background: var(--color-primary);
-		width: 100%;
-	}
-
-	.mini-bar-fill.income {
-		background: var(--color-income);
-	}
-
-	.mini-bar-fill.expense {
-		background: var(--color-expense);
-	}
-
-	.top-cat-amount {
-		font-weight: 700;
-		font-size: var(--font-size-sm);
-		color: var(--color-expense);
-		font-variant-numeric: tabular-nums;
-		white-space: nowrap;
-	}
-
-	.chart-controls {
-		display: flex;
-		justify-content: center;
-		margin-top: var(--space-md);
-	}
-
-	.trend-toggle {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-sm);
-		cursor: pointer;
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		color: var(--color-primary);
-		padding: var(--space-sm) var(--space-lg);
-		border: 2px solid var(--color-primary);
-		border-radius: 999px;
-		background: var(--color-surface);
-		box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
-		transition: all var(--transition-fast);
-		user-select: none;
-	}
-
-	.trend-toggle:hover {
-		background: var(--color-primary-light);
-		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
-		transform: translateY(-1px);
-	}
-
-	.trend-toggle:active {
-		transform: translateY(0);
-	}
-
-	.trend-toggle.active {
-		background: var(--color-primary);
-		color: white;
-		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
-	}
-
-	.trend-toggle.active svg {
-		color: white;
-	}
-
-	.trend-toggle input {
-		display: none;
-	}
-
-	.forecast-section {
-		margin-bottom: var(--space-lg);
-	}
-
-	.forecast-grid {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: var(--space-md);
-	}
-
-	.forecast-card {
-		padding: var(--space-md);
-		border-radius: var(--radius-md);
-		border: 1px solid var(--color-border);
-		background: var(--color-bg);
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}
-
-	.forecast-label {
-		font-size: var(--font-size-sm);
-		color: var(--color-text-secondary);
-	}
-
-	.forecast-value {
-		font-size: var(--font-size-lg);
-		font-weight: 700;
-		font-variant-numeric: tabular-nums;
-	}
-
-	.forecast-card.income .forecast-value {
-		color: var(--color-income);
-	}
-
-	.forecast-card.expense .forecast-value {
-		color: var(--color-expense);
-	}
-
-	.forecast-card.balance .forecast-value {
-		color: var(--color-income);
-	}
-
-	.forecast-card.balance .forecast-value.negative {
-		color: var(--color-expense);
-	}
-
-	.forecast-next {
-		font-size: var(--font-size-xs);
-		color: var(--color-text-secondary);
-	}
-
-	.report-actions {
-		display: flex;
-		justify-content: flex-end;
-		margin-bottom: var(--space-md);
-	}
-
-	.btn-refresh {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-xs);
-		padding: var(--space-xs) var(--space-md);
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		cursor: pointer;
-		font-size: var(--font-size-sm);
-		font-family: inherit;
-		color: var(--color-text-secondary);
-		transition: all var(--transition-fast);
-		min-height: 36px;
-	}
-
-	.btn-refresh:hover {
-		border-color: var(--color-primary);
-		color: var(--color-primary);
-	}
-
-	@media (max-width: 768px) {
-		.category-report-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.report-controls {
-			flex-direction: column;
-			align-items: stretch;
-		}
-
-		.control-group select {
-			width: 100%;
-		}
-
-		.breakdown-table th,
-		.breakdown-table td {
-			padding: var(--space-sm);
-		}
-
-		.forecast-grid {
-			grid-template-columns: 1fr;
-		}
-	}
-
-	/* Lending Section */
-	.section-icon.lending {
-		background: linear-gradient(135deg, var(--color-primary-light) 0%, rgba(99, 102, 241, 0.15) 100%);
-		color: var(--color-primary);
-	}
-
-	.lending-section {
-		margin-bottom: var(--space-lg);
-	}
-
-	.lending-chart-container {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-lg);
-	}
-
-	.recovery-rate-card {
-		background: var(--color-surface);
-		
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
-		padding: var(--space-lg);
-	}
-
-	.recovery-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: var(--space-sm);
-	}
-
-	.recovery-label {
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		color: var(--color-text-secondary);
-	}
-
-	.recovery-value {
-		font-size: var(--font-size-2xl);
-		font-weight: 700;
-		color: var(--color-text);
-	}
-
-	.recovery-value.good {
-		color: var(--color-income);
-	}
-
-	.recovery-bar-bg {
-		height: 8px;
-		background: var(--color-bg);
-		border-radius: 999px;
-		overflow: hidden;
-	}
-
-	.recovery-bar-fill {
-		height: 100%;
-		background: linear-gradient(90deg, var(--color-primary) 0%, #8b5cf6 100%);
-		border-radius: 999px;
-		transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
-	}
-
-	.lending-bars {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-md);
-	}
-
-	.lending-bar-item {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}
-
-	.lending-bar-info {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
-	.lending-bar-label {
-		font-size: var(--font-size-sm);
-		color: var(--color-text-secondary);
-	}
-
-	.lending-bar-value {
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		color: var(--color-text);
-	}
-
-	.lending-bar-value.income { color: var(--color-income); }
-	.lending-bar-value.expense { color: var(--color-expense); }
-
-	.lending-bar-track {
-		height: 8px;
-		background: var(--color-bg);
-		border-radius: 999px;
-		overflow: hidden;
-	}
-
-	.lending-bar-fill {
-		height: 100%;
-		border-radius: 999px;
-		transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
-	}
-
-	.lending-bar-fill.primary {
-		background: linear-gradient(90deg, var(--color-primary) 0%, #8b5cf6 100%);
-	}
-
-	.lending-bar-fill.income {
-		background: linear-gradient(90deg, var(--color-income) 0%, #34d399 100%);
-	}
-
-	.lending-bar-fill.expense {
-		background: linear-gradient(90deg, var(--color-expense) 0%, #f87171 100%);
-	}
-
-	.report-actions {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-md);
-		margin-bottom: var(--space-lg);
-		flex-wrap: wrap;
-	}
-
-	.report-tabs {
-		display: flex;
-		gap: 4px;
-		background: var(--color-bg);
-		padding: 4px;
-		border-radius: var(--radius-md);
-		border: 1px solid var(--color-border);
-	}
-
-	.report-tab {
-		padding: var(--space-sm) var(--space-md);
-		border: none;
-		background: transparent;
-		border-radius: var(--radius-sm);
-		cursor: pointer;
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		font-family: inherit;
-		color: var(--color-text-secondary);
-		transition: all var(--transition-fast);
-		min-height: 36px;
-	}
-
-	.report-tab.active {
-		background: var(--color-primary);
-		color: white;
-		box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
-	}
-
-	.report-tab:not(.active):hover {
-		background: var(--color-surface);
-		color: var(--color-text);
-	}
-
-	.btn-export-report {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		padding: var(--space-sm) var(--space-md);
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		color: var(--color-text-secondary);
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		cursor: pointer;
-		text-decoration: none;
-		min-height: 40px;
-		transition: all var(--transition-fast);
-		white-space: nowrap;
-	}
-
-	.btn-export-report:hover {
-		background: var(--color-primary-light);
-		border-color: var(--color-primary);
-		color: var(--color-primary);
-		text-decoration: none;
-	}
-
-	.content-hidden {
-		display: none;
-	}
+  /* ═══════════════════════════════════════════════════════════════════
+     REPORTS PAGE
+     ═══════════════════════════════════════════════════════════════════ */
+
+  /* ─── Export button ─── */
+  .btn-export {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    min-height: 40px;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+  }
+
+  .btn-export:hover {
+    background: var(--color-primary-light);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  /* ─── Tabs bar ─── */
+  .tabs-bar {
+    margin-bottom: var(--space-lg);
+  }
+
+  .tabs-pill {
+    display: inline-flex;
+    gap: 2px;
+    background: var(--color-bg);
+    padding: 4px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+  }
+
+  .tab-btn {
+    padding: var(--space-sm) var(--space-lg);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    min-height: 40px;
+    transition: all 120ms ease;
+  }
+
+  .tab-btn.active {
+    background: var(--color-primary);
+    color: white;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  }
+
+  .tab-btn:not(.active):hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  /* ─── View panel ─── */
+  .view-panel {
+    animation: fadeSlideIn 300ms ease-out;
+  }
+
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── Summary strip ─── */
+  .summary-strip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-md) var(--space-lg);
+    margin-bottom: var(--space-lg);
+  }
+
+  .strip-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .strip-value {
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text);
+  }
+
+  .strip-value.expense { color: var(--color-expense); }
+  .strip-value.positive { color: var(--color-income); }
+  .strip-value.negative { color: var(--color-expense); }
+
+  .strip-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    font-weight: 500;
+  }
+
+  .strip-divider {
+    width: 1px;
+    height: 32px;
+    background: var(--color-border);
+    flex-shrink: 0;
+  }
+
+  /* ─── Section cards ─── */
+  .section-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-lg);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .section-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-md);
+  }
+
+  .section-card-title {
+    margin: 0;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  /* ─── Split view (chart + table side by side) ─── */
+  .split-view {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-lg);
+    align-items: start;
+  }
+
+  .split-chart .section-card {
+    margin-bottom: 0;
+  }
+
+  .split-table .section-card {
+    margin-bottom: 0;
+  }
+
+  /* ─── Donut ─── */
+  .donut-container {
+    display: flex;
+    justify-content: center;
+    padding: var(--space-lg) 0;
+  }
+
+  .donut-container svg {
+    color: var(--color-text);
+  }
+
+  /* ─── Category breakdown list ─── */
+  .breakdown-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .breakdown-row {
+    display: grid;
+    grid-template-columns: 14px 1fr auto auto;
+    gap: var(--space-sm);
+    align-items: center;
+    padding: var(--space-sm) var(--space-sm);
+    border-radius: var(--radius-sm);
+    transition: background 120ms ease;
+  }
+
+  .breakdown-row:hover {
+    background: rgba(99, 102, 241, 0.03);
+  }
+
+  .breakdown-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .breakdown-name {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text);
+  }
+
+  .breakdown-amount {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--color-income);
+  }
+
+  .breakdown-amount.expense {
+    color: var(--color-expense);
+  }
+
+  .breakdown-pct {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    text-align: right;
+    min-width: 48px;
+  }
+
+  /* ─── Empty state ─── */
+  .empty-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-2xl);
+    background: var(--color-surface);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-xl);
+    text-align: center;
+    gap: var(--space-md);
+  }
+
+  .empty-icon {
+    width: 72px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--color-primary-light) 0%, rgba(99, 102, 241, 0.1) 100%);
+    color: var(--color-primary);
+    border-radius: var(--radius-lg);
+  }
+
+  .empty-panel p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-base);
+  }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 768px) {
+    .split-view {
+      grid-template-columns: 1fr;
+    }
+
+    .summary-strip {
+      gap: var(--space-sm);
+      padding: var(--space-md);
+    }
+
+    .strip-divider {
+      display: none;
+    }
+
+    .strip-item {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .tabs-pill {
+      width: 100%;
+    }
+
+    .tab-btn {
+      flex: 1;
+      text-align: center;
+      padding: var(--space-sm) var(--space-md);
+    }
+  }
+
+  @media (max-width: 480px) {
+    .strip-value {
+      font-size: var(--font-size-sm);
+    }
+  }
 </style>

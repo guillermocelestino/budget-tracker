@@ -38,7 +38,7 @@
   --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.12);
 
   /* Sidebar */
-  --sidebar-width: 260px;
+  --sidebar-width: 256px;
   --sidebar-collapsed-width: 72px;
 
   /* Z-index layers */
