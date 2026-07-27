@@ -975,8 +975,8 @@
 	}
 
 	.recovery-rate-card {
-		background: rgba(255, 255, 255, 0.85);
-		backdrop-filter: blur(20px);
+		background: var(--color-surface);
+		
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-lg);
 		padding: var(--space-lg);

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { enhance } from '$app/forms';
-	import { formatCurrency, formatDate } from '$lib/utils/format';
+	import { formatCurrency, formatDate, formatWithCommas, handleAmountInput, handleAmountFocus, handleAmountBlur, formatEditAmount } from '$lib/utils/format';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
 	import PageBackground from '$lib/components/PageBackground.svelte';
@@ -25,43 +25,25 @@
 
 	let rawAmount = $state('');
 
-	function formatWithCommas(value: string): string {
-		const parts = value.split('.');
-		parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-		return parts.join('.');
-	}
-
 	const displayAmount = $derived(rawAmount ? formatWithCommas(rawAmount) : '');
 
 	function onAmountInput(e: Event) {
-		const input = e.target as HTMLInputElement;
-		let raw = input.value.replace(/[^0-9.]/g, '');
-		const dots = raw.match(/\./g);
-		if (dots && dots.length > 1) raw = raw.slice(0, raw.lastIndexOf('.'));
-		rawAmount = raw;
-		input.value = raw ? formatWithCommas(raw) : '';
+		rawAmount = handleAmountInput(e);
 	}
 
 	function onAmountFocus(e: Event) {
-		const input = e.target as HTMLInputElement;
-		input.value = rawAmount;
-		const len = input.value.length;
-		input.setSelectionRange(len, len);
+		handleAmountFocus(e, rawAmount);
 	}
 
 	function onAmountBlur(e: Event) {
-		const input = e.target as HTMLInputElement;
-		if (rawAmount) {
-			const num = parseFloat(rawAmount);
-			if (!isNaN(num)) {
-				input.value = formatWithCommas(
-					num % 1 === 0 ? String(num) : num.toFixed(2)
-				);
-			}
-		}
+		handleAmountBlur(e, rawAmount);
 	}
 
 	const showLendings = $derived(activeTab === 'active' ? activeLendings : paidLendings);
+	const filteredLendings = $derived(
+		searchQuery ? showLendings.filter(l => l.borrower_name.toLowerCase().includes(searchQuery.toLowerCase())) : showLendings
+	);
+	const today = $derived(new Date().toISOString().split('T')[0]);
 
 	function startEdit(lending: { id: number; borrower_name: string; amount: number; interest_rate: number; date_lent: string; due_date: string | null; status: string; notes: string | null }) {
 		showForm = true;
@@ -81,15 +63,10 @@
 	function cancelEdit() {
 		showForm = false;
 		editingId = null;
-		editForm = { borrower_name: '', amount: '', interest_rate: '', date_lent: '', due_date: '', status: 'active', notes: '' };
+		editFormData = { borrower_name: '', amount: '', interest_rate: '', date_lent: '', due_date: '', status: 'active', notes: '' };
 		rawAmount = '';
 	}
 
-	function formatEditAmount(value: string): string {
-		const num = parseFloat(value.replace(/,/g, ''));
-		if (isNaN(num)) return '';
-		return formatWithCommas(num % 1 === 0 ? String(num) : num.toFixed(2));
-	}
 </script>
 
 <svelte:head>
@@ -662,8 +639,8 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-md);
-		background: rgba(255, 255, 255, 0.85);
-		backdrop-filter: blur(20px);
+		background: var(--color-surface);
+		
 		border-radius: var(--radius-xl);
 		padding: var(--space-lg);
 		box-shadow: var(--shadow-sm);
@@ -788,7 +765,7 @@
 		position: fixed;
 		inset: 0;
 		background: rgba(0, 0, 0, 0.3);
-		backdrop-filter: blur(4px);
+		
 		z-index: 80;
 		animation: fadeIn 200ms ease;
 	}
@@ -802,8 +779,8 @@
 		position: relative;
 		max-width: 500px;
 		margin: 0 auto var(--space-lg);
-		background: rgba(255, 255, 255, 0.95);
-		backdrop-filter: blur(20px);
+		background: var(--color-surface);
+		
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-xl);
 		padding: var(--space-lg);
@@ -924,8 +901,8 @@
 	}
 
 	.lending-card {
-		background: rgba(255, 255, 255, 0.85);
-		backdrop-filter: blur(20px);
+		background: var(--color-surface);
+		
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-xl);
 		padding: var(--space-lg);
@@ -1091,8 +1068,8 @@
 	.empty-state {
 		text-align: center;
 		padding: var(--space-2xl);
-		background: rgba(255, 255, 255, 0.85);
-		backdrop-filter: blur(20px);
+		background: var(--color-surface);
+		
 		border: 1px dashed var(--color-border);
 		border-radius: var(--radius-xl);
 		animation: fadeSlideIn 0.5s ease-out;
@@ -1317,8 +1294,8 @@
 	}
 
 	.table-section {
-		background: rgba(255, 255, 255, 0.85);
-		backdrop-filter: blur(20px);
+		background: var(--color-surface);
+		
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-xl);
 		padding: var(--space-lg);

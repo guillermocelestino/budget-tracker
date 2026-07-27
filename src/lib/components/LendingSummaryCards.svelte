@@ -68,8 +68,7 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-md);
-		background: rgba(255, 255, 255, 0.85);
-		backdrop-filter: blur(20px);
+		background: var(--color-surface);
 		border-radius: var(--radius-xl);
 		padding: var(--space-lg);
 		box-shadow: var(--shadow-sm);

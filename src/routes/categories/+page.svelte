@@ -4,6 +4,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import CategoryList from '$lib/components/CategoryList.svelte';
 	import CategoryForm from '$lib/components/CategoryForm.svelte';
+	import CategoryUsageBar from '$lib/components/CategoryUsageBar.svelte';
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
 	import { showSuccess, showError } from '$lib/stores/toast.svelte';
 	import { formatCurrency } from '$lib/utils/format';
@@ -88,16 +89,7 @@
 				</svg>
 			</button>
 		</div>
-		{#if formError}
-			<div class="form-error">
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<circle cx="12" cy="12" r="10"/>
-					<line x1="12" x2="12" y1="8" y2="12"/>
-					<line x1="12" x2="12.01" y1="16" y2="16"/>
-				</svg>
-				{formError}
-			</div>
-		{/if}
+
 		<CategoryForm
 			category={editingCategory ?? undefined}
 			action={editingCategory ? '?/update' : '?/create'}
@@ -147,6 +139,7 @@
 					<th>Type</th>
 					<th>Spent</th>
 					<th>Budget</th>
+					<th>Usage</th>
 					<th class="actions-col">Actions</th>
 				</tr>
 			</thead>
@@ -165,6 +158,15 @@
 						<td class="amount-cell">{formatCurrency((data.spending ?? {})[cat.id] || 0)}</td>
 						<td>
 							{cat.budget_limit ? formatCurrency(cat.budget_limit) : '—'}
+						</td>
+						<td class="usage-cell">
+							{#if cat.budget_limit && cat.type === 'expense'}
+								<CategoryUsageBar spent={(data.spending ?? {})[cat.id] || 0} budget={cat.budget_limit} compact={true} />
+							{:else if cat.budget_limit}
+								<span class="no-usage">—</span>
+							{:else}
+								<span class="no-usage">No budget</span>
+							{/if}
 						</td>
 						<td class="actions-cell">
 							<button class="btn-action" onclick={() => openEdit(cat)} title="Edit">✏️</button>
@@ -282,7 +284,7 @@
 
 	/* Table View */
 	.cat-table-section {
-		background: rgba(255, 255, 255, 0.85);
+		background: var(--color-surface);
 		backdrop-filter: blur(20px);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-xl);

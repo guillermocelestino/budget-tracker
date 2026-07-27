@@ -56,6 +56,7 @@ export interface DashboardSummary {
 	totalIncome: number;
 	totalExpenses: number;
 	balance: number;
+		savingsRate?: number;
 }
 
 export interface PaginatedResult<T> {

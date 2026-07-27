@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
 import type { Transaction, Category } from '$lib/types';
+import { transactionsToCSV } from '$lib/utils/format';
 
 export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;

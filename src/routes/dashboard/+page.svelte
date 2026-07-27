@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page, navigating } from '$app/stores';
 	import SummaryCards from '$lib/components/SummaryCards.svelte';
 	import LendingSummaryCards from '$lib/components/LendingSummaryCards.svelte';
+	import Sparkline from '$lib/components/Sparkline.svelte';
 	import TransactionList from '$lib/components/TransactionList.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
@@ -30,6 +31,7 @@
 	totalIncome={data.summary?.totalIncome ?? 0}
 	totalExpenses={data.summary?.totalExpenses ?? 0}
 	balance={data.summary?.balance ?? 0}
+	savingsRate={data.summary?.savingsRate ?? 0}
 />
 
 {#if data.lendingSummary}
@@ -38,6 +40,22 @@
 		totalRecovered={data.lendingSummary.totalRecovered}
 		outstanding={data.lendingSummary.outstanding}
 	/>
+{/if}
+
+{#if data.trendLabels && data.trendLabels.length > 1}
+	<section class="trend-section">
+		<h2 class="section-title">Monthly Trends</h2>
+		<div class="trend-grid">
+			<div class="trend-card">
+				<span class="trend-label">Income</span>
+				<Sparkline labels={data.trendLabels} data={data.trendIncome ?? []} />
+			</div>
+			<div class="trend-card">
+				<span class="trend-label">Expenses</span>
+				<Sparkline labels={data.trendLabels} data={data.trendExpenses ?? []} />
+			</div>
+		</div>
+	</section>
 {/if}
 
 {#if (data.recentTransactions?.length ?? 0) > 0}

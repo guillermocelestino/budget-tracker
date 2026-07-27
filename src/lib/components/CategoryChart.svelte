@@ -4,14 +4,19 @@
 	import { Doughnut } from 'svelte-chartjs';
 	import { formatCurrency } from '$lib/utils/format';
 
+	const defaultColors = [
+		'#4f46e5', '#ec4899', '#10b981', '#f59e0b', '#6366f1',
+		'#8b5cf6', '#06b6d4', '#84cc16', '#f97316', '#ef4444',
+	];
+
 	let {
 		labels = [],
 		data = [],
-		colors = [],
+		colors = defaultColors,
 	}: {
 		labels: string[];
 		data: number[];
-		colors: string[];
+		colors?: string[];
 	} = $props();
 
 	let isDark = $state(false);
@@ -35,7 +40,7 @@
 		],
 	});
 
-	const chartOptions = {
+		const chartOptions = $derived({
 		responsive: true,
 		maintainAspectRatio: false,
 		plugins: {
@@ -55,7 +60,7 @@
 				},
 			},
 		},
-	};
+	});
 </script>
 
 <div class="chart-container">

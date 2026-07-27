@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
-	import { formatDateInput } from '$lib/utils/format';
+	import { formatDateInput, formatWithCommas, handleAmountInput, handleAmountFocus, handleAmountBlur } from '$lib/utils/format';
 	import { showSuccess } from '$lib/stores/toast.svelte';
 	import type { Category, Transaction, TransactionType } from '$lib/types';
 
@@ -45,41 +45,20 @@
 		}
 	});
 
-	function formatWithCommas(value: string): string {
-		const parts = value.split('.');
-		parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-		return parts.join('.');
-	}
-
 	function onAmountInput(e: Event) {
-		const input = e.target as HTMLInputElement;
-		let raw = input.value.replace(/[^0-9.]/g, '');
-		const dots = raw.match(/\./g);
-		if (dots && dots.length > 1) raw = raw.slice(0, raw.lastIndexOf('.'));
-		rawAmount = raw;
-		input.value = raw ? formatWithCommas(raw) : '';
+		rawAmount = handleAmountInput(e);
 	}
 
 	function onAmountFocus(e: Event) {
-		const input = e.target as HTMLInputElement;
-		input.value = rawAmount;
-		const len = input.value.length;
-		input.setSelectionRange(len, len);
+		handleAmountFocus(e, rawAmount);
 	}
 
 	function onAmountBlur(e: Event) {
-		const input = e.target as HTMLInputElement;
-		if (rawAmount) {
-			const num = parseFloat(rawAmount);
-			if (!isNaN(num)) {
-				input.value = formatWithCommas(
-					num % 1 === 0 ? String(num) : num.toFixed(2)
-				);
-			}
-		}
+		handleAmountBlur(e, rawAmount);
 	}
 
 	const displayAmount = $derived(rawAmount ? formatWithCommas(rawAmount) : '');
+
 
 	function handleEnhance() {
 		return async ({ result, update }: { result: { type: string }; update: () => Promise<void> }) => {
@@ -136,16 +115,19 @@
 
 		<div class="form-group">
 			<label class="form-label" for="description">Description</label>
-			<textarea
-				id="description"
-				name="description"
-				required
-				maxlength="500"
-				bind:value={description}
-				class:input-error={errors.description}
-				placeholder="What was this for?"
-				rows="3"
-			></textarea>
+			<div class="desc-input-wrap">
+				<textarea
+					id="description"
+					name="description"
+					required
+					maxlength="500"
+					bind:value={description}
+					class:input-error={errors.description}
+					placeholder="What was this for?"
+					rows="3"
+				></textarea>
+				<span class="char-count">{description.length}/500</span>
+			</div>
 			{#if errors.description}
 				<span class="form-error">{errors.description}</span>
 			{/if}
@@ -153,14 +135,23 @@
 
 		<div class="form-group">
 			<label class="form-label" for="date">Date</label>
-			<input
-				id="date"
-				name="date"
-				type="date"
-				required
-				bind:value={date}
-				class:input-error={errors.date}
-			/>
+			<div class="date-input-row">
+				<input
+					id="date"
+					name="date"
+					type="date"
+					required
+					bind:value={date}
+					class:input-error={errors.date}
+				/>
+				<button type="button" class="btn-today" onclick={() => date = formatDateInput()} title="Set to today">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="12" cy="12" r="10"/>
+						<polyline points="12 6 12 12 16 14"/>
+					</svg>
+					Today
+				</button>
+			</div>
 			{#if errors.date}
 				<span class="form-error">{errors.date}</span>
 			{/if}
@@ -355,6 +346,38 @@
 
 	.btn-secondary:hover {
 		background: var(--color-border);
+	}
+
+	.date-input-row {
+		display: flex;
+		gap: var(--space-sm);
+		align-items: center;
+	}
+
+	.date-input-row input {
+		flex: 1;
+	}
+
+	.btn-today {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: var(--space-xs) var(--space-md);
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--color-primary);
+		min-height: 44px;
+		white-space: nowrap;
+		transition: all var(--transition-fast);
+	}
+
+	.btn-today:hover {
+		background: var(--color-primary-light);
+		border-color: var(--color-primary);
 	}
 
 	@media (max-width: 480px) {

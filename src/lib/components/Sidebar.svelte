@@ -12,14 +12,27 @@
 
 	let mobileOpen = $state(false);
 	let collapsed = $state(false);
+	let darkMode = $state(false);
 
 	onMount(() => {
-		const saved = localStorage.getItem('sidebar-collapsed');
-		if (saved === 'true') {
+		const savedCollapsed = localStorage.getItem('sidebar-collapsed');
+		if (savedCollapsed === 'true') {
 			collapsed = true;
 			document.documentElement.style.setProperty('--sidebar-width', '72px');
 		}
+
+		const savedTheme = localStorage.getItem('theme');
+		if (savedTheme === 'dark') {
+			darkMode = true;
+			document.documentElement.setAttribute('data-theme', 'dark');
+		}
 	});
+
+	function toggleTheme() {
+		darkMode = !darkMode;
+		document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+		localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+	}
 
 	function toggleCollapse() {
 		collapsed = !collapsed;
@@ -141,6 +154,31 @@
 			{/if}
 		</button>
 
+		<button class="theme-btn" onclick={toggleTheme} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+			<span class="theme-icon">
+				{#if darkMode}
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="12" cy="12" r="5"/>
+						<line x1="12" x2="12" y1="1" y2="3"/>
+						<line x1="12" x2="12" y1="21" y2="23"/>
+						<line x1="4.22" x2="5.64" y1="4.22" y2="5.64"/>
+						<line x1="18.36" x2="19.78" y1="18.36" y2="19.78"/>
+						<line x1="1" x2="3" y1="12" y2="12"/>
+						<line x1="21" x2="23" y1="12" y2="12"/>
+						<line x1="4.22" x2="5.64" y1="19.78" y2="18.36"/>
+						<line x1="18.36" x2="19.78" y1="5.64" y2="4.22"/>
+					</svg>
+				{:else}
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+					</svg>
+				{/if}
+			</span>
+			{#if !collapsed}
+				<span class="nav-label">{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+			{/if}
+		</button>
+
 		<a href="/logout" class="logout-link">
 			<span class="logout-icon">
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -216,15 +254,15 @@
 		left: 0;
 		width: var(--sidebar-width);
 		height: 100vh;
-		background: linear-gradient(180deg, var(--color-surface) 0%, rgba(255, 255, 255, 0.95) 100%);
-		backdrop-filter: blur(20px);
+		background: var(--color-surface);
+		
 		border-right: 1px solid var(--color-border);
 		display: flex;
 		flex-direction: column;
 		z-index: 90;
 		transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1);
 		overflow: hidden;
-		box-shadow: 4px 0 20px rgba(0, 0, 0, 0.05);
+		box-shadow: 4px 0 20px var(--shadow-sm);
 	}
 
 	.sidebar-header {
@@ -245,7 +283,7 @@
 		background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
 		border-radius: var(--radius-md);
 		flex-shrink: 0;
-		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
 	}
 
 	.logo-icon {
@@ -283,7 +321,7 @@
 	.user-avatar {
 		width: 40px;
 		height: 40px;
-		background: linear-gradient(135deg, var(--color-primary-light) 0%, #e0e7ff 100%);
+		background: linear-gradient(135deg, var(--color-primary-light) 0%, transparent 100%);
 		border-radius: var(--radius-md);
 		display: flex;
 		align-items: center;
@@ -361,7 +399,7 @@
 	}
 
 	.nav-item.active {
-		background: linear-gradient(90deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.05) 100%);
+		background: var(--color-primary-light);
 		color: var(--color-primary);
 		font-weight: 600;
 	}
@@ -442,7 +480,52 @@
 		transform: rotate(180deg);
 	}
 
-	.logout-link {
+	.theme-btn {
+	display: flex;
+	align-items: center;
+	gap: var(--space-md);
+	padding: 10px var(--space-md);
+	background: var(--color-bg);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	cursor: pointer;
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-sm);
+	font-family: inherit;
+	transition: all var(--transition-fast);
+	white-space: nowrap;
+	min-height: 44px;
+	width: 100%;
+}
+
+.theme-btn:hover {
+	background: var(--color-primary-light);
+	border-color: var(--color-primary);
+	color: var(--color-primary);
+}
+
+.theme-btn:active {
+	transform: scale(0.98);
+}
+
+.theme-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	transition: transform var(--transition-fast);
+}
+
+.theme-btn:hover .theme-icon {
+	transform: rotate(15deg);
+}
+
+.sidebar.collapsed .theme-btn {
+	justify-content: center;
+	padding: 10px;
+}
+
+.logout-link {
 		display: flex;
 		align-items: center;
 		gap: var(--space-md);
@@ -457,7 +540,7 @@
 	}
 
 	.logout-link:hover {
-		background: linear-gradient(90deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
+		background: var(--color-expense-light);
 		color: var(--color-expense);
 	}
 

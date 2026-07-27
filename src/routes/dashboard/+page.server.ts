@@ -40,11 +40,28 @@ export async function load({ locals }: { locals: App.Locals }) {
 	const totalLent = parseFloat(lendingSummary?.totalLent ?? '0');
 	const totalRecovered = parseFloat(lendingSummary?.totalRecovered ?? '0');
 
+	const totalIncome = parseFloat(summary?.totalincome ?? '0');
+	const totalExpenses = parseFloat(summary?.totalexpenses ?? '0');
+	const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0;
+
+	// Monthly trend data for sparklines (last 6 months)
+	const trendData = await queryMany<{ month: string; income: string; expense: string }>(
+		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
+				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+		 FROM transactions
+		 WHERE user_id = $1 AND date >= $2
+		 GROUP BY month
+		 ORDER BY month ASC`,
+		[userId, `${currentMonth.getFullYear() - 1}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-01`]
+	);
+
 	return {
 		summary: {
-			totalIncome: parseFloat(summary?.totalincome ?? '0'),
-			totalExpenses: parseFloat(summary?.totalexpenses ?? '0'),
-			balance: parseFloat(summary?.totalincome ?? '0') - parseFloat(summary?.totalexpenses ?? '0'),
+			totalIncome,
+			totalExpenses,
+			balance: totalIncome - totalExpenses,
+			savingsRate,
 		},
 		recentTransactions,
 		lendingSummary: {
@@ -52,6 +69,9 @@ export async function load({ locals }: { locals: App.Locals }) {
 			totalRecovered,
 			outstanding: totalLent - totalRecovered,
 		},
+		trendLabels: trendData.map(r => r.month),
+		trendIncome: trendData.map(r => parseFloat(r.income)),
+		trendExpenses: trendData.map(r => parseFloat(r.expense)),
 	};
 }
 

@@ -7,13 +7,13 @@
 		<div class="toast toast-{toast.type}" role="alert">
 			<div class="toast-body">
 				<span class="toast-icon">
-					{#if toast.type === 'success'}✅{/if}
-					{#if toast.type === 'error'}❌{/if}
-					{#if toast.type === 'info'}ℹ️{/if}
+					{#if toast.type === 'success'}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{/if}
+					{#if toast.type === 'error'}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg>{/if}
+					{#if toast.type === 'info'}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>{/if}
 				</span>
 				<span class="toast-message">{toast.message}</span>
 			</div>
-			<button class="toast-close" onclick={() => dismissToast(toast.id)} aria-label="Close">&times;</button>
+			<button class="toast-close" onclick={() => dismissToast(toast.id)} aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg></button>
 			{#if toast.duration > 0}
 				<div class="toast-progress" style="animation-duration: {toast.duration}ms"></div>
 			{/if}
