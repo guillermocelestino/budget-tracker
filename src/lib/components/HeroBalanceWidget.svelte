@@ -169,7 +169,7 @@
 </div>
 
 <style>
-  /* ════════════════════════════════════════
+  /* ════════════════════════════════════════════════
      HERO BALANCE WIDGET
      ════════════════════════════════════════ */
 
@@ -362,6 +362,7 @@
     gap: var(--space-sm);
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
+    min-height: 44px;
   }
 
   .lending-dot {
@@ -406,28 +407,54 @@
     color: var(--color-income);
   }
 
-  /* ════════════════════════════════════════
-     RESPONSIVE
-     ════════════════════════════════════════ */
+  /* ═══════════════════════════════════════
+     RESPONSIVE BREAKPOINTS
+     ═══════════════════════════════════════ */
 
   @media (max-width: 768px) {
+    .hero-widget {
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: var(--space-md);
+    }
+
     .hero-section {
-      padding: var(--space-lg) var(--space-lg) var(--space-md);
+      padding: var(--space-lg) var(--space-md) var(--space-sm);
+    }
+
+    .hero-glow {
+      width: 300px;
+      height: 200px;
+      top: -60px;
     }
 
     .hero-value {
-      font-size: 2.25rem;
+      font-size: clamp(28px, 8vw, 48px);
+      word-break: break-word;
+      overflow-wrap: break-word;
+      text-align: center;
+      line-height: 1.2;
     }
 
     .metrics-section {
       flex-direction: column;
+      align-items: stretch;
       gap: var(--space-md);
-      padding: 0 var(--space-lg) var(--space-lg);
+      width: 100%;
+      padding: 0 var(--space-md) var(--space-md);
     }
 
     .metric-block {
       width: 100%;
       min-width: unset;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .metric-body {
+      flex: 1;
+      min-width: 0;
     }
 
     .metric-divider {
@@ -440,7 +467,13 @@
     }
 
     .lending-section {
-      padding: var(--space-md) var(--space-lg);
+      padding: var(--space-sm) var(--space-md);
+    }
+
+    .lending-row {
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: flex-start;
     }
 
     .lending-values {
@@ -449,12 +482,59 @@
   }
 
   @media (max-width: 480px) {
+    .hero-section {
+      padding: var(--space-md) var(--space-sm) var(--space-xs);
+    }
+
+    .hero-glow {
+      width: 240px;
+      height: 200px;
+      top: -40px;
+    }
+
     .hero-value {
-      font-size: 1.75rem;
+      font-size: clamp(1.25rem, 6vw, 1.75rem);
+      overflow-wrap: break-word;
+      word-break: break-word;
+      hyphens: none;
+    }
+
+    .metrics-section {
+      padding: 0 var(--space-sm) var(--space-sm);
+      gap: var(--space-sm);
+    }
+
+    .metric-savings {
+      align-self: stretch;
+      justify-content: center;
+    }
+
+    .lending-section {
+      padding: var(--space-sm);
     }
 
     .lending-row {
-      flex-wrap: wrap;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-xs);
+    }
+
+    .lending-values {
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 375px) {
+    .hero-value {
+      font-size: clamp(1.1rem, 5vw, 1.4rem);
+    }
+
+    .hero-label {
+      font-size: 10px;
+    }
+
+    .metric-label {
+      font-size: 10px;
     }
   }
 

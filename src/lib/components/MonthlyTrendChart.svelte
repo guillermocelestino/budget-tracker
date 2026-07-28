@@ -230,6 +230,7 @@
     height: 340px;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   .chart-source {
@@ -244,10 +245,12 @@
     position: relative;
     height: 290px;
     width: 100%;
+    min-width: 0;
   }
 
   .chart-container > :global(canvas) {
     height: 100% !important;
+    width: 100% !important;
   }
 
   /* ─── Legend ─── */
@@ -294,6 +297,9 @@
     }
     .chart-container {
       height: 230px;
+    }
+    .chart-container > :global(canvas) {
+      height: 230px !important;
     }
   }
 </style>

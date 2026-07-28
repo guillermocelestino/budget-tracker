@@ -229,20 +229,6 @@
   </div>
 </aside>
 
-<!-- ═══ Mobile bottom navigation (≤480px) ═══ -->
-<nav class="bottom-nav" aria-label="Bottom navigation">
-  {#each primaryNav as item}
-    <a
-      href={item.href}
-      class="bn-item"
-      class:active={isActive(item.href)}
-    >
-      <span class="bn-icon">{@html icons[item.icon]}</span>
-      <span class="bn-label">{item.label}</span>
-    </a>
-  {/each}
-</nav>
-
 <!-- ═══ Mobile overlay ═══ -->
 {#if mobileOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
@@ -658,32 +644,19 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     MOBILE BOTTOM NAV
-     ═══════════════════════════════════════════════════════════════════ */
-  .bottom-nav {
-    display: none;
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════
      RESPONSIVE
      ═══════════════════════════════════════════════════════════════════ */
 
   /* ─── Tablet & down: off-canvas drawer ─── */
   @media (max-width: 768px) {
     .mobile-toggle {
-      display: flex;
+      display: none !important;
     }
 
     .sidebar {
-      transform: translateX(-100%);
-      width: 300px !important;
-      transition: transform 250ms cubic-bezier(0.22, 1, 0.36, 1),
-                  width 0ms;  /* reset sidebar JS resize but keep transform */
+      display: none;
     }
 
-    .sidebar.open {
-      transform: translateX(0);
-    }
 
     /* On mobile, labels always visible (drawer is always expanded) */
     .sidebar .nav-label {
@@ -752,80 +725,6 @@
     }
   }
 
-  /* ─── Phone: show bottom nav for primary items ─── */
-  @media (max-width: 480px) {
-    .bottom-nav {
-      display: flex;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 64px;
-      padding-bottom: env(safe-area-inset-bottom, 0);
-      background: var(--color-surface);
-      border-top: 1px solid var(--color-border);
-      justify-content: space-around;
-      align-items: center;
-      z-index: 85;
-      box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
-    }
-
-    [data-theme="dark"] .bottom-nav {
-      box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.2);
-    }
-
-    .bn-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      padding: 6px 12px;
-      min-height: 48px;
-      min-width: 56px;
-      text-decoration: none;
-      color: var(--color-text-secondary);
-      border-radius: 8px;
-      transition: all 120ms cubic-bezier(0.4, 0, 0.2, 1);
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .bn-item:active {
-      scale: 0.92;
-    }
-
-    .bn-item.active {
-      color: var(--color-primary);
-      background: var(--color-primary-light);
-    }
-
-    [data-theme="dark"] .bn-item.active {
-      background: rgba(99, 102, 241, 0.18);
-    }
-
-    .bn-icon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 22px;
-      height: 22px;
-    }
-
-    .bn-label {
-      font-size: 11px;
-      font-weight: 500;
-      line-height: 1;
-    }
-
-    .bn-item.active .bn-label {
-      font-weight: 600;
-    }
-
-    /* Push main content up so bottom nav doesn't overlap */
-    :global(main) {
-      padding-bottom: 72px !important;
-    }
-  }
-
   /* ─── Reduced motion ─── */
   @media (prefers-reduced-motion: reduce) {
     .sidebar,
@@ -834,7 +733,6 @@
     .collapse-trigger svg,
     .footer-item,
     .sidebar-overlay,
-    .bn-item,
     .hamburger,
     .hamburger::before,
     .hamburger::after {

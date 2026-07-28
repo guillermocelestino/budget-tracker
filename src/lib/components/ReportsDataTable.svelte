@@ -37,7 +37,7 @@
   }
 </script>
 
-<div class="table-wrap">
+<div class="table-scroll-wrapper">
   <table class="data-table">
     <thead>
       <tr>
@@ -86,7 +86,8 @@
 </div>
 
 <style>
-  .table-wrap {
+  .table-scroll-wrapper {
+    width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -109,6 +110,7 @@
     letter-spacing: 0.05em;
     border-bottom: 1px solid var(--color-border);
     background: transparent;
+    white-space: nowrap;
   }
 
   .data-table thead th.num {
@@ -120,6 +122,7 @@
     padding: 10px 16px;
     border-bottom: 1px solid var(--color-border);
     transition: background 120ms ease;
+    white-space: nowrap;
   }
 
   .data-table tbody tr:hover td {
@@ -189,6 +192,7 @@
     border-top: 2px solid var(--color-border);
     font-weight: 700;
     background: transparent;
+    white-space: nowrap;
   }
 
   .total-label {
@@ -217,14 +221,29 @@
 
   /* ─── Responsive ─── */
   @media (max-width: 640px) {
+    .table-scroll-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
     .data-table thead th,
     .data-table tbody td,
     .data-table tfoot td {
-      padding: 8px 10px;
+      padding: 10px 8px;
       font-size: 12px;
+      white-space: normal;
+      word-break: break-word;
+      overflow-wrap: break-word;
     }
 
-    .trend-indicator {
+    .trend-indicator,
+    .data-table thead th:last-child {
+      display: none;
+    }
+
+    .data-table thead th:nth-child(3),
+    .data-table tbody td:nth-child(3),
+    .data-table tfoot td:nth-child(3) {
       display: none;
     }
   }

@@ -63,11 +63,11 @@
 	</section>
 {/if}
 
-	<section class="charts-section">
-		<RecentActivityWidget
-			transactions={data.recentTransactions ?? []}
-		/>
-	</section>
+		<section class="charts-section">
+			<RecentActivityWidget
+				transactions={data.recentTransactions ?? []}
+			/>
+		</section>
 
 <style>
 	.header-subtitle {
@@ -94,6 +94,7 @@
 		padding: var(--space-md);
 		box-shadow: var(--shadow-sm);
 		height: 360px;
+		min-width: 0;
 	}
 
 	.chart-card {
@@ -102,5 +103,53 @@
 		border-radius: var(--radius-xl);
 		padding: var(--space-lg);
 		box-shadow: var(--shadow-sm);
+	}
+
+	@media (max-width: 768px) {
+		.cashflow-card {
+			height: 280px;
+			padding: var(--space-sm);
+		}
+		.chart-card {
+			padding: var(--space-md);
+		}
+	}
+
+	@media (max-width: 480px) {
+		.cashflow-card {
+			height: 240px;
+			padding: var(--space-xs);
+		}
+		.chart-card {
+			padding: var(--space-sm);
+			border-radius: var(--radius-lg);
+		}
+		.section-title {
+			font-size: var(--font-size-base);
+		}
+	}
+	
+	/* ═══ FORCED MOBILE OVERRIDES ═══ */
+	@media (max-width: 768px) {
+		.charts-section {
+			width: 100% !important;
+			box-sizing: border-box !important;
+		}
+
+		.cashflow-card {
+			height: 250px !important;
+			max-height: 250px !important;
+			width: 100% !important;
+			box-sizing: border-box !important;
+		}
+
+		.chart-card {
+			width: 100% !important;
+			box-sizing: border-box !important;
+		}
+
+		.section-title {
+			font-size: 1rem !important;
+		}
 	}
 </style>

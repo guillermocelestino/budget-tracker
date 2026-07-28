@@ -301,14 +301,16 @@
     }
 
     .timeframe-pill {
+      display: flex;
       width: 100%;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
     }
 
     .tf-btn {
-      flex-shrink: 0;
-      padding: 8px 14px;
+      flex: 1;
+      padding: 8px 8px;
+      font-size: 12px;
+      min-width: 0;
+      text-align: center;
     }
   }
 </style>

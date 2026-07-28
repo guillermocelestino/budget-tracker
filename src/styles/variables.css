@@ -41,6 +41,14 @@
   --sidebar-width: 256px;
   --sidebar-collapsed-width: 72px;
 
+  /* Breakpoints (used in media queries): mobile 480px, tablet 768px, desktop 1024px */
+
+  /* Safe area insets (populated at runtime by env()) */
+  --safe-top: 0px;
+  --safe-bottom: 0px;
+  --safe-left: 0px;
+  --safe-right: 0px;
+
   /* Z-index layers */
   --z-sidebar: 90;
   --z-modal: 1000;

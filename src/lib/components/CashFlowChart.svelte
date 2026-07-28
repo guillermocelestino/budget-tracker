@@ -325,6 +325,7 @@
     position: relative;
     flex: 1;
     min-height: 0;
+    min-width: 0;
   }
 
   .cf-chart {
@@ -334,6 +335,7 @@
 
   .cf-chart > :global(canvas) {
     height: 100% !important;
+    width: 100% !important;
   }
 
   /* ─── Custom Tooltip ─── */
@@ -430,12 +432,38 @@
      RESPONSIVE
      ════════════════════════════════════════ */
 
-  @media (max-width: 640px) {
+  @media (max-width: 768px) {
     .cf-outer {
       height: 280px;
     }
     .cf-legend-badge {
       display: none;
     }
+    .cf-legend {
+      padding: 0 var(--space-sm) var(--space-xs);
+      gap: var(--space-md);
+    }
   }
+
+  @media (max-width: 480px) {
+    .cf-outer {
+      height: 240px;
+    }
+    .cf-legend-item {
+      font-size: 10px;
+    }
+  }
+
+	/* ═══ FORCED MOBILE OVERRIDES ═══ */
+	@media (max-width: 768px) {
+		.cf-outer {
+			height: 250px !important;
+			max-height: 250px !important;
+		}
+
+		.cf-chart {
+			height: 200px !important;
+			min-height: 200px !important;
+		}
+	}
 </style>

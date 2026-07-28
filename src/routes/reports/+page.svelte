@@ -1,8 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { formatCurrency, getMonthLabel } from '$lib/utils/format';
-  import ExportDropdown from '$lib/components/ExportDropdown.svelte';
-  import { generateReportPdf } from '$lib/utils/pdf';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import ReportsHeader from '$lib/components/ReportsHeader.svelte';
   import MonthlyTrendChart from '$lib/components/MonthlyTrendChart.svelte';
@@ -174,60 +172,6 @@
   const totalIncome = $derived(filteredMonthly.reduce((s, m) => s + m.income, 0));
   const totalExpenses = $derived(filteredMonthly.reduce((s, m) => s + m.expense, 0));
   const netTotal = $derived(totalIncome - totalExpenses);
-
-  // ─── Export context ────────────────────────────────────────────
-
-  const periodLabel = $derived(
-    data.month
-      ? new Date(data.month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-      : data.year || ''
-  );
-
-  const topCategories = $derived(
-    (data.expenseData ?? []).slice(0, 3).map(c => ({
-      name: c.category_name,
-      total: c.total,
-      color: c.category_color,
-    }))
-  );
-
-  async function handleExport(format: 'csv' | 'pdf') {
-    if (format === 'csv') {
-      const params = new URLSearchParams();
-      if (data.month) params.set('month', data.month);
-      if (data.year && !data.month) params.set('year', data.year);
-      window.location.href = `/api/reports/export?${params.toString()}`;
-      return;
-    }
-
-    // PDF: dynamically import jsPDF (browser-only)
-    console.log('[Export] PDF requested');
-
-    const pdfParams = new URLSearchParams();
-    if (data.month) pdfParams.set('month', data.month);
-    if (data.year && !data.month) pdfParams.set('year', data.year);
-    pdfParams.set('format', 'json');
-
-    try {
-      const response = await fetch(`/api/reports/export?${pdfParams.toString()}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const json = await response.json();
-      console.log('[Export] Data fetched:', json.summary, `(${json.transactions?.length || 0} transactions)`);
-
-      if (!json.transactions || json.transactions.length === 0) {
-        console.warn('[Export] No transactions to export');
-        return;
-      }
-
-      // Generate PDF from fetched data
-      const doc = await generateReportPdf(json.summary, json.transactions, json.periodLabel, topCategories);
-      doc.save(`financial-report-${data.month || data.year}-${new Date().toISOString().split('T')[0]}.pdf`);
-      console.log('[Export] PDF saved');
-    } catch (error) {
-      console.error('[Export] PDF generation failed:', error);
-    }
-  }
 </script>
 
 <svelte:head>
@@ -236,11 +180,18 @@
 
 <PageHeader title="Reports">
   {#snippet action()}
-    <ExportDropdown
-      totalFilteredCount={data.transactionCount ?? 0}
-      filterSummary={periodLabel}
-      onExport={handleExport}
-    />
+    <a
+      href="/api/reports/export?start={filteredMonthly[0]?.month ?? ''}&end={filteredMonthly[filteredMonthly.length - 1]?.month ?? ''}"
+      class="btn-export"
+      download
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" x2="12" y1="15" y2="3"/>
+      </svg>
+      Export CSV
+    </a>
   {/snippet}
 </PageHeader>
 

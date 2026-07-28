@@ -148,9 +148,15 @@
   @media (max-width: 640px) {
     .slide-over {
       width: 100vw;
+      max-height: 92vh;
       animation: slideUp 300ms cubic-bezier(0.22, 1, 0.36, 1);
       border-left: none;
       border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding-bottom: var(--safe-bottom, 0px);
+    }
+
+    .slide-over-body {
+      padding: var(--space-md) var(--space-lg);
     }
 
     @keyframes slideUp {

@@ -779,13 +779,37 @@
 
   @media (max-width: 480px) {
     .budget-grid {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
+      gap: var(--space-xs);
+    }
+
+    .available-col {
+      border-top: 1px solid var(--color-border);
+      padding-top: var(--space-xs);
+      margin-top: var(--space-xs);
     }
 
     .cat-icon {
       width: 40px;
       height: 40px;
       font-size: 1rem;
+    }
+
+    .card-actions {
+      opacity: 1;
+    }
+
+    .category-card {
+      padding: var(--space-md);
+    }
+
+    .card-header-area {
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+    }
+
+    .card-body {
+      flex-wrap: wrap;
     }
   }
 </style>
