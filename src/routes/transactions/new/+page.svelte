@@ -9,7 +9,7 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 </script>
 
 <svelte:head>
-	<title>Add Transaction — Budget Tracker</title>
+	<title>Add Transaction — Finance Tracker</title>
 </svelte:head>
 
 <PageBackground />

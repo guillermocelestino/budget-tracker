@@ -65,7 +65,7 @@
 </script>
 
 <svelte:head>
-  <title>Categories — Budget Tracker</title>
+  <title>Categories — Finance Tracker</title>
 </svelte:head>
 
 <PageBackground />

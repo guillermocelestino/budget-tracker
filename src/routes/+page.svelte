@@ -14,6 +14,6 @@
 </script>
 
 <svelte:head>
-	<title>Budget Tracker</title>
+	<title>Finance Tracker</title>
 	<meta http-equiv="refresh" content="0; url=/dashboard" />
 </svelte:head>

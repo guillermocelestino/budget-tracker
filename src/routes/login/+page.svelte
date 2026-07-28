@@ -10,7 +10,7 @@
 </script>
 
 <svelte:head>
-	<title>Login — Budget Tracker</title>
+	<title>Login — Finance Tracker</title>
 </svelte:head>
 
 <div class="login-page">

@@ -58,6 +58,14 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 		[userId, month]
 	);
 
+		const countResult = await queryOne<{ count: string }>(
+			`SELECT COUNT(*) as count
+			 FROM transactions
+			 WHERE user_id = $1 AND TO_CHAR(date, 'YYYY-MM') = $2`,
+			[userId, month]
+		);
+		const transactionCount = parseInt(countResult?.count ?? '0');
+
 	// YoY: Previous year same month
 	const prevYearSummary = await queryOne<{ income: string; expense: string }>(
 		`SELECT
@@ -118,6 +126,7 @@ return {
 	incomeData,
 	year,
 	month,
+	transactionCount,
 		monthSummary: {
 			income: currIncome,
 			expense: currExpense,

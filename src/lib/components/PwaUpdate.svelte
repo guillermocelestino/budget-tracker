@@ -44,7 +44,7 @@
 			<span class="pwa-icon">{'📦'}</span>
 			<div>
 				<strong>Update available</strong>
-				<p>A new version of Budget Tracker is ready.</p>
+				<p>A new version of Finance Tracker is ready.</p>
 			</div>
 		</div>
 		<div class="pwa-buttons">
@@ -58,7 +58,7 @@
 			<span class="pwa-icon">{'✅'}</span>
 			<div>
 				<strong>Ready offline</strong>
-				<p>Budget Tracker can now work without internet.</p>
+				<p>Finance Tracker can now work without internet.</p>
 			</div>
 		</div>
 		<button class="pwa-btn pwa-btn-secondary" onclick={handleDismiss}>Got it</button>

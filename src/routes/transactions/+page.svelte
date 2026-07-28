@@ -7,8 +7,10 @@
   import TransactionSummary from '$lib/components/TransactionSummary.svelte';
   import TransactionFilters from '$lib/components/TransactionFilters.svelte';
   import TransactionList from '$lib/components/TransactionList.svelte';
+  import ExportDropdown from '$lib/components/ExportDropdown.svelte';
   import ModalDialog from '$lib/components/ModalDialog.svelte';
   import { showSuccess, showError } from '$lib/stores/toast.svelte';
+  import { generateTransactionPdf } from '$lib/utils/pdf';
 
   let data = $derived($page.data as App.PageData);
   let deleteId = $state<number | null>(null);
@@ -129,10 +131,58 @@
 
   const totalCount = $derived(data.total ?? 0);
   const showingCount = $derived(data.transactions?.length ?? 0);
+
+  const filterSummary = $derived(
+    [filters.type, filters.category, filters.date].filter(Boolean).join(', ')
+  );
+
+  async function handleExport(format: 'csv' | 'pdf') {
+    const params = $page.url.searchParams.toString();
+
+    if (format === 'csv') {
+      window.location.href = `/api/transactions/export${params ? '?' + params : ''}`;
+      return;
+    }
+
+    console.log('[Export] PDF requested');
+
+    const pdfParams = new URLSearchParams(params);
+    pdfParams.set('format', 'json');
+    pdfParams.set('exportType', 'all');
+
+    try {
+      const response = await fetch(`/api/transactions/export?${pdfParams.toString()}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const json = await response.json();
+      console.log('[Export] Data fetched:', json.summary, `(${json.transactions?.length || 0} transactions)`);
+
+      if (!json.transactions || json.transactions.length === 0) {
+        console.warn('[Export] No transactions to export');
+        return;
+      }
+
+      const filterInfo: { type?: string; category?: string; dateFrom?: string; dateTo?: string } = {};
+      if (filters.type) filterInfo.type = filters.type;
+      if (filters.category) filterInfo.category = filters.category;
+      if (filters.date) {
+        const range = dateRangeFromFilter(filters.date, filters.customFrom, filters.customTo);
+        if (range.from) filterInfo.dateFrom = range.from;
+        if (range.to) filterInfo.dateTo = range.to;
+      }
+
+      const doc = await generateTransactionPdf(json.transactions, filterInfo, json.summary);
+      doc.save(`transactions-${new Date().toISOString().split('T')[0]}.pdf`);
+      console.log('[Export] PDF saved');
+    } catch (error) {
+      console.error('[Export] PDF generation failed:', error);
+      showError('Failed to generate PDF');
+    }
+  }
 </script>
 
 <svelte:head>
-  <title>Transactions — Budget Tracker</title>
+  <title>Transactions — Finance Tracker</title>
 </svelte:head>
 
 <PageBackground />
@@ -166,18 +216,11 @@
   <span class="result-count">
     showing {showingCount}{showingCount !== totalCount ? ` of ${totalCount}` : ''} transactions
   </span>
-  <a
-    href="/api/transactions/export?{$page.url.searchParams.toString()}"
-    class="btn-export"
-    download
-  >
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-      <polyline points="7 10 12 15 17 10"/>
-      <line x1="12" x2="12" y1="15" y2="3"/>
-    </svg>
-    Export
-  </a>
+  <ExportDropdown
+    totalFilteredCount={showingCount}
+    filterSummary={filterSummary}
+    onExport={handleExport}
+  />
 </div>
 
 <!-- ═══ Transaction list ═══ -->

@@ -1,4 +1,4 @@
-import type { Transaction, Category, DashboardSummary, MonthlyReportItem, CategoryReportItem } from '$lib/types';
+import type { Transaction, Category, Lending, DashboardSummary, MonthlyReportItem, CategoryReportItem } from '$lib/types';
 
 declare global {
 	namespace App {
@@ -18,12 +18,18 @@ declare global {
 			income?: Record<number, number>;
 			transaction?: Transaction;
 			lendingSummary?: { totalLent: number; totalRecovered: number; outstanding: number };
+			activeLendings?: Lending[];
+			paidLendings?: Lending[];
+			totals?: { totalLent: number; totalRecovered: number; outstanding: number };
+			transactionCount?: number;
 			categoryLabels?: string[];
 			categoryData?: number[];
 			categoryColors?: string[];
 			trendLabels?: string[];
 			trendIncome?: number[];
 			trendExpenses?: number[];
+			incomeChange?: number;
+			expenseChange?: number;
 			monthlyData?: MonthlyReportItem[];
 			expenseData?: CategoryReportItem[];
 			incomeData?: CategoryReportItem[];

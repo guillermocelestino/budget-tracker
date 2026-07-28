@@ -4,7 +4,7 @@
 </script>
 
 <svelte:head>
-  <title>Settings — Budget Tracker</title>
+  <title>Settings — Finance Tracker</title>
 </svelte:head>
 
 <PageHeader title="Settings" />

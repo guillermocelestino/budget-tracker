@@ -9,6 +9,7 @@ export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 	const date_from = url.searchParams.get('date_from');
 	const date_to = url.searchParams.get('date_to');
 	const exportType = url.searchParams.get('exportType') || 'all';
+	const format = url.searchParams.get('format') || 'csv';
 
 	const limit = 20;
 	const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1'));
@@ -57,6 +58,29 @@ export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 	}
 
 	const transactions = await queryMany<Transaction>(sql, queryParams);
+
+	if (format === 'json') {
+		const totalIncome = transactions
+			.filter(t => t.type === 'income')
+			.reduce((s, t) => s + t.amount, 0);
+		const totalExpenses = transactions
+			.filter(t => t.type === 'expense')
+			.reduce((s, t) => s + t.amount, 0);
+
+		return new Response(JSON.stringify({
+			transactions,
+			summary: {
+				totalIncome,
+				totalExpenses,
+				net: totalIncome - totalExpenses,
+				count: transactions.length,
+			},
+			generatedAt: new Date().toISOString(),
+		}), {
+			headers: { 'Content-Type': 'application/json' },
+		});
+	}
+
 	const csv = transactionsToCSV(transactions);
 	const filename = `transactions-${exportType}-${new Date().toISOString().split('T')[0]}.csv`;
 

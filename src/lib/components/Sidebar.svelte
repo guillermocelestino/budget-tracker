@@ -117,7 +117,7 @@
       </div>
       {#if !isCollapsed}
         <div class="brand-text">
-          <h2>Budget Tracker</h2>
+          <h2>Finance Tracker</h2>
           <span class="brand-tagline">Smart Finance</span>
         </div>
       {/if}

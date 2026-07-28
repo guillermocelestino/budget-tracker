@@ -87,6 +87,16 @@ export async function load({ locals }: { locals: App.Locals }) {
 		trendLabels: trendData.map(r => r.month),
 		trendIncome: trendData.map(r => parseFloat(r.income)),
 		trendExpenses: trendData.map(r => parseFloat(r.expense)),
+		incomeChange: trendData.length >= 2
+			? ((parseFloat(trendData[trendData.length - 1].income)
+				- parseFloat(trendData[trendData.length - 2].income))
+				/ parseFloat(trendData[trendData.length - 2].income)) * 100
+			: 0,
+		expenseChange: trendData.length >= 2
+			? ((parseFloat(trendData[trendData.length - 1].expense)
+				- parseFloat(trendData[trendData.length - 2].expense))
+				/ parseFloat(trendData[trendData.length - 2].expense)) * 100
+			: 0,
 	};
 }
 
