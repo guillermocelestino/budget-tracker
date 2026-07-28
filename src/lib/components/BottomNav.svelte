@@ -186,9 +186,18 @@
     border: none;
     background: none;
     font-family: inherit;
-    transition: color var(--transition-fast);
+    transition: color var(--transition-fast), transform 120ms var(--ease-smooth);
     position: relative;
     -webkit-tap-highlight-color: transparent;
+    will-change: transform;
+  }
+
+  .bn-item:active {
+    transform: scale(0.92);
+  }
+
+  .bn-item.active:active {
+    transform: scale(0.94);
   }
 
   .bn-item.active {
@@ -198,6 +207,14 @@
   .bn-item:hover {
     color: var(--color-primary);
     text-decoration: none;
+  }
+
+  .bn-item svg {
+    transition: transform 200ms var(--ease-spring);
+  }
+
+  .bn-item.active svg {
+    transform: scale(1.1);
   }
 
   /* Active indicator line */
@@ -211,6 +228,12 @@
     height: 2.5px;
     border-radius: 0 0 3px 3px;
     background: var(--color-primary);
+    animation: tab-indicator-in 250ms var(--ease-spring) both;
+  }
+
+  @keyframes tab-indicator-in {
+    from { width: 0; opacity: 0; }
+    to { width: 24px; opacity: 1; }
   }
 
   .bn-label {
@@ -248,6 +271,13 @@
     transition: transform var(--transition-fast), box-shadow var(--transition-fast);
     text-decoration: none;
     -webkit-tap-highlight-color: transparent;
+    animation: fab-spring-in 600ms var(--ease-spring) both;
+  }
+
+  @keyframes fab-spring-in {
+    0% { transform: scale(0); opacity: 0; }
+    60% { transform: scale(1.12); }
+    100% { transform: scale(1); opacity: 1; }
   }
 
   .bn-fab:hover {

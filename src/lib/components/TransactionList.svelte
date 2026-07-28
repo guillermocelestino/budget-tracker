@@ -7,14 +7,57 @@
     onDelete,
     onEdit,
     showActions = true,
+    loading = false,
   }: {
     transactions: Transaction[];
     onDelete?: (id: number) => void;
     onEdit?: (id: number) => void;
     showActions?: boolean;
+    loading?: boolean;
   } = $props();
 
   let editingId = $state<number | null>(null);
+  let swipedRowId = $state<number | null>(null);
+  let swipeOffset = $state(0);
+  let swipeStartX = $state(0);
+  let isSwiping = $state(false);
+
+  function handleSwipeStart(e: TouchEvent, txnId: number) {
+    if (swipedRowId !== txnId && swipedRowId !== null) {
+      swipedRowId = null;
+      swipeOffset = 0;
+    }
+    swipeStartX = e.touches[0].clientX;
+    isSwiping = true;
+  }
+
+  function handleSwipeMove(e: TouchEvent, txnId: number) {
+    if (!isSwiping) return;
+    const currentX = e.touches[0].clientX;
+    const diff = swipeStartX - currentX;
+    if (diff > 0) {
+      swipeOffset = Math.min(diff, 120);
+      swipedRowId = txnId;
+    } else {
+      swipeOffset = 0;
+    }
+  }
+
+  function handleSwipeEnd(e: TouchEvent) {
+    isSwiping = false;
+    if (swipeOffset > 80) {
+      // Delete threshold reached
+      if (swipedRowId !== null && onDelete) {
+        onDelete(swipedRowId);
+      }
+    }
+    swipedRowId = null;
+    swipeOffset = 0;
+  }
+
+  // Touch device check
+  const isTouchDevice = typeof window !== 'undefined' && ('ontouch' in window || (navigator.maxTouchPoints > 0));
+
 
   type DateGroup = { date: string; label: string; items: Transaction[] };
 
@@ -90,9 +133,14 @@
   <div
     class="txn-row"
     class:editing={isExpanded}
+    class:swiped={swipedRowId === txn.id}
     data-txn-id={txn.id}
     role="button"
     tabindex="0"
+    style={swipedRowId === txn.id ? `transform: translateX(-${swipeOffset}px);` : ''}
+    ontouchstart={isTouchDevice ? (e) => handleSwipeStart(e, txn.id) : undefined}
+    ontouchmove={(e) => handleSwipeMove(e, txn.id)}
+    ontouchend={handleSwipeEnd}
     aria-label="{isIncome ? 'Income' : 'Expense'}: {txn.description}, {formatCurrency(txn.amount)}"
     aria-expanded={isExpanded}
     onclick={() => toggleEdit(txn.id)}
@@ -178,7 +226,22 @@
 
 <!-- ── RENDER ── -->
 <div class="txn-list">
-  {#if groups.length === 0}
+  {#if loading}
+    <div class="shimmer-list" aria-busy="true" aria-label="Loading transactions">
+      {#each Array(5) as _}
+        <div class="shimmer-row">
+          <div class="shimmer-dot skeleton" style="width:32px;height:32px"></div>
+          <div class="shimmer-info">
+            <div class="skeleton" style="width:60%;height:14px;margin-bottom:6px"></div>
+            <div class="skeleton" style="width:35%;height:10px"></div>
+          </div>
+          <div class="shimmer-amount">
+            <div class="skeleton" style="width:70px;height:14px"></div>
+          </div>
+        </div>
+      {/each}
+    </div>
+  {:else if groups.length === 0}
     <div class="empty-state">
       <div class="empty-icon">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
@@ -251,7 +314,49 @@
     cursor: pointer;
     font-family: inherit;
     min-height: 56px;
-    transition: background 150ms ease;
+    transition: background 150ms ease, transform 100ms ease-out;
+    will-change: transform;
+  }
+
+  /* Swipe-to-delete affordance */
+  .txn-row.swiped {
+    border-color: var(--color-expense-light);
+  }
+
+  /* Shimmer loading rows */
+  .shimmer-list {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+  }
+
+  .shimmer-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: 12px var(--space-md);
+    border-bottom: 1px solid var(--color-border);
+    min-height: 56px;
+  }
+
+  .shimmer-row:last-child {
+    border-bottom: none;
+  }
+
+  .shimmer-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .shimmer-amount {
+    flex-shrink: 0;
+    min-width: 70px;
+  }
+
+  .skeleton-icon {
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
   }
 
   .txn-row:last-child { border-bottom: none; }
@@ -488,6 +593,13 @@
   }
 
   .empty-action:hover { background: var(--color-primary-hover); text-decoration: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .txn-row {
+    transition: none;
+    will-change: auto;
+    }
+  }
 
   /* ── Mobile ── */
   @media (max-width: 640px) {

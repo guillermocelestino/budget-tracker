@@ -11,6 +11,9 @@
     children: import('svelte').Snippet;
   } = $props();
 
+  // Detect touch device for gesture affordance
+  const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
   // Lock body scroll when open
   $effect(() => {
     if (isOpen) {
@@ -20,6 +23,40 @@
       document.body.style.overflow = '';
     };
   });
+
+  let dragY = $state(0);
+  let isDragging = $state(false);
+  let sheetEl = $state<HTMLElement | null>(null);
+
+  function handleTouchStart(e: TouchEvent) {
+    const scrollTop = sheetEl?.querySelector('.slide-over-body')?.scrollTop ?? 0;
+    // Only initiate drag if at the top of the scroll or touching handle area
+    if (scrollTop > 0) return;
+    isDragging = true;
+    dragY = e.touches[0].clientY;
+  }
+
+  function handleTouchMove(e: TouchEvent) {
+    if (!isDragging) return;
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - dragY;
+    // Only allow dragging down
+    if (diff > 0) {
+      sheetEl?.style.setProperty('transform', 'translateY(' + diff + 'px)');
+    }
+  }
+
+  function handleTouchEnd(e: TouchEvent) {
+    if (!isDragging) return;
+    isDragging = false;
+    const currentY = e.changedTouches[0].clientY;
+    const diff = currentY - dragY;
+    sheetEl?.style.setProperty('transform', '');
+    // If dragged more than 100px, close
+    if (diff > 100) {
+      onClose();
+    }
+  }
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
@@ -33,8 +70,17 @@
 {#if isOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="slide-over-backdrop" onclick={onClose} role="presentation"></div>
-  <div class="slide-over">
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    class="slide-over"
+    bind:this={sheetEl}
+    ontouchstart={isTouchDevice ? handleTouchStart : undefined}
+    ontouchmove={handleTouchMove}
+    ontouchend={handleTouchEnd}
+  >
     <div class="slide-over-header">
+      <!-- Drag handle shown on mobile -->
+      <div class="drag-handle" aria-hidden="true"></div>
       <h3>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -84,6 +130,16 @@
 
   [data-theme="dark"] .slide-over {
     box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .drag-handle {
+    display: none;
+    width: 36px;
+    height: 4px;
+    background: var(--color-border);
+    border-radius: 2px;
+    margin: 0 auto;
+    flex-shrink: 0;
   }
 
   .slide-over-header {
@@ -166,11 +222,11 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .slide-over {
-      animation: none;
-    }
+    .slide-over,
     .slide-over-backdrop {
-      animation: none;
+      animation: none !important;
+      transition: none !important;
+      will-change: auto;
     }
   }
 </style>

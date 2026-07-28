@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
 	import { navigating } from '$app/stores';
 	import favicon from '$lib/assets/favicon.svg';
 	import '../styles/variables.css';
@@ -14,6 +15,19 @@
 	const isPublicRoute = $derived($page.url.pathname === '/' && !$page.data.user);
 	const showSidebar = $derived(!isLoginPage && !isPublicRoute);
 	const isNoSidebar = $derived(isLoginPage || isPublicRoute);
+
+	let isOnline = $state(true);
+
+	onMount(() => {
+		const setOnline = () => (isOnline = true);
+		const setOffline = () => (isOnline = false);
+		window.addEventListener('online', setOnline);
+		window.addEventListener('offline', setOffline);
+		return () => {
+			window.removeEventListener('online', setOnline);
+			window.removeEventListener('offline', setOffline);
+		};
+	});
 </script>
 
 <svelte:head>
@@ -28,7 +42,16 @@
 <PwaUpdate />
 <ToastContainer />
 
-<div class="app-shell">
+{#if !isOnline}
+		<div class="offline-banner" role="alert">
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/>
+			</svg>
+			<span>You are offline. Changes will sync when connectivity returns.</span>
+		</div>
+	{/if}
+
+	<div class="app-shell">
 	{#if showSidebar}
 		<Sidebar />
 	{/if}
@@ -118,7 +141,67 @@
 		overflow-x: hidden;
 	}
 
-		.app-shell {
+	/* ── Offline banner ── */
+	.offline-banner {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		padding: 10px var(--space-md);
+		background: var(--color-warning);
+		color: #1a1a2e;
+		font-size: var(--font-size-sm);
+		font-weight: 500;
+		text-align: center;
+		justify-content: center;
+		animation: banner-slide-down 250ms var(--ease-smooth);
+	}
+
+	@keyframes banner-slide-down {
+		from { transform: translateY(-100%); opacity: 0; }
+		to { transform: translateY(0); opacity: 1; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.offline-banner { animation: none; }
+	}
+
+	/* ── Ambient page background (overlaid gradient) ── */
+	.app-shell::before {
+		content: '';
+		position: fixed;
+		inset: 0;
+		z-index: -2;
+		background:
+			radial-gradient(ellipse 80% 80% at 20% -20%, rgba(99, 102, 241, 0.06) 0%, transparent 50%),
+			radial-gradient(ellipse 60% 60% at 80% 100%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
+		pointer-events: none;
+	}
+
+	@media (max-width: 768px) {
+		.app-shell::before {
+			background:
+				radial-gradient(ellipse 90% 60% at 10% -10%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
+				radial-gradient(ellipse 70% 40% at 90% 110%, rgba(16, 185, 129, 0.04) 0%, transparent 40%);
+		}
+	}
+
+	/* ── Touch gesture affordance ── */
+	@media (pointer: coarse) {
+		:global(.card-clickable),
+		:global(.row-tappable) {
+			cursor: pointer;
+			-webkit-tap-highlight-color: transparent;
+			user-select: none;
+		}
+
+		:global(.card-clickable:active),
+		:global(.row-tappable:active) {
+			background: var(--color-primary-light);
+			transition: background 60ms ease;
+		}
+	}
+
+			.app-shell {
 		display: flex;
 		min-height: 100vh;
 	}
