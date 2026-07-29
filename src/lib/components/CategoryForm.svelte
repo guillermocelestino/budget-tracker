@@ -78,14 +78,6 @@
 			await update();
 		};
 	}
-
-	const flip7Colors = [
-		'#2BA8A2', '#FFD23F', '#EF6C4A', '#5DADE2',
-		'#27AE60', '#E74C3C', '#14302E', '#FFE47A',
-		'#3CC4BD', '#FF8A6A',
-	];
-
-	const iconOptions = ['📁', '💰', '🍔', '🚗', '🏠', '⚡', '🛒', '💊', '🎓', '✈️', '👕', '🎮', '📱', '🎵', '🐾', '🎁'];
 </script>
 
 <form method="POST" {action} use:enhance={handleEnhance}>
@@ -95,71 +87,73 @@
 
 	<!-- Live Preview Chip -->
 	<div class="preview-chip" style="background: {color}12; border-color: {color}40">
-		<span class="preview-icon" style="color: {color}">{icon || '📁'}</span>
-		<span class="preview-name" style="color: {color}">{name || 'Category Name'}</span>
-		<span class="preview-type">{categoryType === 'expense' ? 'Expense' : 'Income'}</span>
+		<span class="preview-icon">{icon}</span>
+		<span class="preview-name">{name || 'Category Name'}</span>
+		<span class="preview-type">{categoryType === 'income' ? 'Income' : 'Expense'}</span>
 	</div>
 
+	<!-- Type Toggle -->
 	<div class="form-group">
 		<label class="form-label">Type</label>
 		<div class="type-toggle">
-			<label class="type-option expense-side" class:active={categoryType === 'expense'}>
-				<input type="radio" name="type" value="expense" bind:group={categoryType} />
-				Expense
+			<label class="type-option" class:active={categoryType === 'expense'}>
+				<input type="radio" name="type" value="expense" bind:group={categoryType} /> 💸 Expense
 			</label>
-			<label class="type-option income-side" class:active={categoryType === 'income'}>
-				<input type="radio" name="type" value="income" bind:group={categoryType} />
-				Income
+			<label class="type-option" class:active={categoryType === 'income'}>
+				<input type="radio" name="type" value="income" bind:group={categoryType} /> 💰 Income
 			</label>
 		</div>
 	</div>
 
+	<!-- Name -->
 	<div class="form-group">
 		<label class="form-label" for="cat-name">Name</label>
-		<input id="cat-name" name="name" type="text" required bind:value={name} placeholder="Category name" />
+		<input id="cat-name" name="name" type="text" required bind:value={name} placeholder="Category name" class="cream-input" />
 	</div>
 
+	<!-- Icon Grid -->
 	<div class="form-group">
-		<label class="form-label" for="cat-icon">Icon</label>
+		<label class="form-label">Icon</label>
 		<div class="icon-grid">
-			{#each iconOptions as opt}
+			{#each ['🍽️', '🚗', '🛍️', '🎬', '📄', '🏥', '📚', '📦', '💰', '💻', '💵', '🏠', '✈️', '🎮', '👕', '🐾'] as opt}
 				<button
 					type="button"
 					class="icon-opt"
 					class:selected={icon === opt}
 					style={icon === opt ? `background: ${color}18; border-color: ${color}60; color: ${color}` : ''}
 					onclick={() => icon = opt}
-					aria-label="Icon {opt}"
 				>{opt}</button>
 			{/each}
 		</div>
 		<input type="hidden" name="icon" value={icon} />
 	</div>
 
+	<!-- Color -->
 	<div class="form-group">
 		<label class="form-label">Color</label>
 		<div class="color-picker">
 			<div class="color-swatches">
-				{#each flip7Colors as c}
+				{#each ['#ef4444','#f97316','#f59e0b','#10b981','#14b8a6','#3b82f6','#6366f1','#8b5cf6','#ec4899','#6b7280'] as c}
 					<button
 						type="button"
 						class="swatch"
 						class:selected={color === c}
 						style="background: {c}"
 						onclick={() => color = c}
-						aria-label="Color {c}"
+						aria-label={c}
 					></button>
 				{/each}
 			</div>
 			<div class="custom-color-wrap">
-				<label class="custom-label" for="cat-color">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" x2="9.17" y1="4.93" y2="9.17"/><line x1="14.83" x2="19.07" y1="14.83" y2="19.07"/><line x1="14.83" x2="19.07" y1="9.17" y2="4.93"/><line x1="4.93" x2="9.17" y1="19.07" y2="14.83"/></svg>
+				<label class="custom-label" for="cat-color" style="background: {color}">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3h.01"/><path d="M12 21h.01"/><path d="M3 12h.01"/><path d="M21 12h.01"/><path d="m3 21 6-6"/><path d="m21 3-6 6"/></svg>
 				</label>
 				<input type="color" id="cat-color" name="color" bind:value={color} class="color-input" />
 			</div>
 		</div>
 	</div>
 
+	<!-- Budget Limit (styled like TransactionForm amount input) -->
 	<div class="form-group">
 		<label class="form-label" for="cat-budget">Budget Limit (optional)</label>
 		<div class="amount-wrap">
@@ -180,7 +174,7 @@
 	</div>
 
 	<div class="form-actions">
-		<button type="submit" class="btn btn-primary">
+		<button type="submit" class="btn btn-submit">
 			{category ? 'Update Category' : 'Add Category'}
 		</button>
 		{#if onCancel}
@@ -198,9 +192,11 @@
 	}
 
 	.form-label {
+		font-family: var(--font-display);
 		font-size: var(--font-size-sm);
 		font-weight: 600;
-		color: var(--color-ink);
+		color: var(--color-text);
+		letter-spacing: 0.02em;
 	}
 
 	/* ─── Live Preview Chip ─── */
@@ -215,33 +211,43 @@
 		width: fit-content;
 	}
 
-	.preview-icon {
-		font-size: 1.25rem;
+	.preview-icon { font-size: 1.25rem; }
+	.preview-name { font-weight: 600; font-size: var(--font-size-sm); }
+	.preview-type { font-size: 11px; font-weight: 600; opacity: 0.6; }
+
+	/* ─── Cream inputs (matches TransactionForm) ─── */
+	.cream-input,
+	input[type="text"],
+	input[type="date"],
+	textarea {
+		padding: var(--space-sm) var(--space-md);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-md);
+		font-size: var(--font-size-base);
+		font-family: var(--font-body);
+		background: var(--color-cream);
+		color: var(--color-text);
+		transition: border-color 200ms var(--ease), box-shadow 200ms var(--ease);
+		width: 100%;
+		-webkit-appearance: none;
+		appearance: none;
+		min-height: 44px;
 	}
 
-	.preview-name {
-		font-weight: 600;
-		font-size: var(--font-size-sm);
+	input:focus,
+	textarea:focus {
+		outline: none;
+		border-color: var(--color-teal);
+		box-shadow: var(--focus);
 	}
 
-	.preview-type {
-		font-size: 11px;
-		font-weight: 600;
-		color: var(--color-text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		padding: 2px 8px;
-		background: var(--color-hairline);
-		border-radius: var(--radius-pill);
-	}
-
-	/* ─── Type Toggle (Pill SegmentedControl) ─── */
+	/* ─── Type toggle ─── */
 	.type-toggle {
 		display: flex;
 		border-radius: var(--radius-pill);
-		overflow: hidden;
-		border: 1px solid var(--color-border);
-		background: var(--color-cream);
+		background: var(--color-bg);
+		padding: 3px;
+		gap: 2px;
 	}
 
 	.type-option {
@@ -249,72 +255,60 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		padding: var(--space-sm) var(--space-md);
+		gap: var(--space-xs);
+		padding: 8px var(--space-md);
+		border-radius: var(--radius-pill);
 		cursor: pointer;
-		font-size: var(--font-size-base);
+		font-family: var(--font-display);
+		font-size: var(--font-size-sm);
 		font-weight: 600;
-		transition: all var(--transition-fast);
-		min-height: 48px;
 		color: var(--color-text-muted);
+		transition: all 300ms var(--bounce);
+		min-height: 44px;
+		border: none;
+		background: transparent;
+		user-select: none;
+		-webkit-tap-highlight-color: transparent;
 	}
 
 	.type-option input { display: none; }
 
-	.type-option.expense-side.active {
-		background: rgba(239, 108, 74, 0.12);
-		color: var(--color-coral);
+	.type-option:first-child.active {
+		background: var(--color-coral);
+		color: white;
+		box-shadow: var(--glow-coral);
 	}
 
-	.type-option.income-side.active {
-		background: var(--color-teal-bg);
-		color: var(--color-teal);
-	}
-
-	/* ─── Inputs ─── */
-	input[type="text"],
-	input[type="number"],
-	input[type="color"] {
-		padding: var(--space-sm) var(--space-md);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
-		font-size: var(--font-size-base);
-		font-family: inherit;
-		background: var(--color-cream);
-		color: var(--color-ink);
-		transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-		width: 100%;
-	}
-
-	input:focus {
-		outline: none;
-		border-color: var(--color-teal);
-		box-shadow: var(--focus);
+	.type-option:nth-child(2).active {
+		background: var(--color-teal);
+		color: white;
+		box-shadow: var(--glow-card);
 	}
 
 	/* ─── Icon Grid ─── */
 	.icon-grid {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 6px;
+		display: grid;
+		grid-template-columns: repeat(8, 1fr);
+		gap: var(--space-sm);
 	}
 
 	.icon-opt {
-		width: 44px;
-		height: 44px;
+		width: 100%;
+		aspect-ratio: 1;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 1.25rem;
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-md);
 		background: var(--color-cream);
 		cursor: pointer;
+		font-size: 1.25rem;
 		transition: all 200ms var(--bounce);
 	}
 
 	.icon-opt:hover {
-		transform: scale(1.08);
 		border-color: var(--color-teal);
+		background: var(--color-teal-bg);
 	}
 
 	.icon-opt.selected {
@@ -346,9 +340,7 @@
 		transition: all 200ms var(--bounce);
 	}
 
-	.swatch:hover {
-		transform: scale(1.2);
-	}
+	.swatch:hover { transform: scale(1.2); }
 
 	.swatch.selected {
 		border-color: var(--color-ink);
@@ -369,10 +361,8 @@
 		width: 32px;
 		height: 32px;
 		border-radius: var(--radius-full);
-		background: var(--color-bg);
-		border: 1px solid var(--color-border);
 		cursor: pointer;
-		color: var(--color-text-muted);
+		color: rgba(255,255,255,0.7);
 	}
 
 	.color-input {
@@ -383,29 +373,54 @@
 		pointer-events: none;
 	}
 
-	/* ─── Amount wrap ─── */
+	/* ─── Amount wrap (matches TransactionForm) ─── */
 	.amount-wrap {
 		display: flex;
 		align-items: stretch;
-		position: relative;
+		flex: 1;
+		background: var(--color-cream);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-md);
+		overflow: hidden;
+		transition: border-color 200ms var(--ease), box-shadow 200ms var(--ease);
+	}
+
+	.amount-wrap:focus-within {
+		border-color: var(--color-teal);
+		box-shadow: var(--focus);
 	}
 
 	.amount-prefix {
 		display: flex;
 		align-items: center;
-		padding: 0 12px;
-		background: var(--color-bg);
-		border: 1px solid var(--color-border);
-		border-right: none;
-		border-radius: var(--radius-lg) 0 0 var(--radius-lg);
-		font-weight: 600;
-		font-size: var(--font-size-base);
+		padding: 0 12px 0 16px;
+		font-family: var(--font-display);
+		font-size: 22px;
+		font-weight: 700;
 		color: var(--color-text-muted);
+		background: transparent;
 	}
 
 	.amount-wrap input {
-		border-top-left-radius: 0;
-		border-bottom-left-radius: 0;
+		border: none !important;
+		background: transparent !important;
+		font-family: var(--font-display);
+		font-size: 24px;
+		font-weight: 700;
+		color: var(--color-text);
+		padding: 8px 16px 8px 0;
+		min-height: 48px;
+		box-shadow: none !important;
+		letter-spacing: -0.01em;
+	}
+
+	.amount-wrap input:focus {
+		box-shadow: none !important;
+	}
+
+	.amount-wrap input::placeholder {
+		color: var(--color-text-muted);
+		opacity: 0.5;
 	}
 
 	/* ─── Form Actions ─── */
@@ -416,35 +431,50 @@
 	}
 
 	.btn {
-		padding: var(--space-sm) var(--space-lg);
+		flex: 1;
+		padding: 12px var(--space-xl);
 		border-radius: var(--radius-pill);
+		font-family: var(--font-display);
 		font-size: var(--font-size-base);
-		font-weight: 600;
+		font-weight: 700;
 		cursor: pointer;
 		border: none;
-		font-family: var(--font-body);
-		transition: all var(--transition-fast);
-		min-height: 44px;
+		min-height: 48px;
+		transition: all 200ms var(--bounce);
+		-webkit-tap-highlight-color: transparent;
 	}
 
-	.btn-primary {
-		background: linear-gradient(135deg, var(--color-teal), var(--color-teal-light));
-		color: white;
+	.btn-submit {
+		background: linear-gradient(135deg, var(--color-gold), var(--color-gold-light));
+		color: var(--color-ink);
+		box-shadow: var(--glow-gold);
 	}
 
-	.btn-primary:hover {
-		background: linear-gradient(135deg, var(--color-teal-dark), var(--color-teal));
-		transform: scale(1.02);
+	.btn-submit:hover {
+		transform: translateY(-1px);
+		box-shadow: 0 6px 24px rgba(255, 210, 63, 0.55);
+	}
+
+	.btn-submit:active {
+		transform: translateY(0) scale(0.98);
 	}
 
 	.btn-secondary {
 		background: var(--color-bg);
-		color: var(--color-ink);
-		border: 1px solid var(--color-border);
+		color: var(--color-text-muted);
+		border: 1px solid var(--color-hairline);
+		font-weight: 600;
 	}
 
 	.btn-secondary:hover {
-		background: var(--color-teal-bg);
-		border-color: var(--color-teal);
+		background: var(--color-cream);
+		border-color: var(--color-border);
+		color: var(--color-text);
+	}
+
+	@media (max-width: 640px) {
+		.icon-grid {
+			grid-template-columns: repeat(4, 1fr);
+		}
 	}
 </style>

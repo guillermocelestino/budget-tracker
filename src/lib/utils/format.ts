@@ -1,18 +1,38 @@
+import { prefs } from '$lib/stores/preferences.svelte';
+
+// Currency → locale + symbol mapping
+const CURRENCY_MAP: Record<string, { locale: string; symbol: string }> = {
+	PHP: { locale: 'en-PH', symbol: '₱' },
+	USD: { locale: 'en-US', symbol: '$' },
+	EUR: { locale: 'de-DE', symbol: '€' },
+	GBP: { locale: 'en-GB', symbol: '£' },
+	JPY: { locale: 'ja-JP', symbol: '¥' },
+};
+
 export function formatCurrency(amount: number): string {
-	const formatted = Math.abs(amount).toLocaleString('en-PH', {
+	const code = (typeof prefs !== 'undefined' ? prefs.currency : 'PHP') || 'PHP';
+	const cfg = CURRENCY_MAP[code] ?? CURRENCY_MAP.PHP;
+	const formatted = Math.abs(amount).toLocaleString(cfg.locale, {
 		minimumFractionDigits: 2,
 		maximumFractionDigits: 2,
 	});
-	return amount < 0 ? `-₱${formatted}` : `₱${formatted}`;
+	return amount < 0 ? `-${cfg.symbol}${formatted}` : `${cfg.symbol}${formatted}`;
 }
 
 export function formatDate(dateStr: string): string {
 	const date = parseDate(dateStr);
-	return new Intl.DateTimeFormat('en-US', {
-		month: 'short',
-		day: 'numeric',
-		year: 'numeric',
-	}).format(date);
+	// Determine the format based on user preference
+	const format = prefs?.dateFormat ?? 'MMM DD, YYYY';
+	// Map format strings to Intl.DateTimeFormat options
+	const formatMap: Record<string, Intl.DateTimeFormatOptions> = {
+		'MMM DD, YYYY': { month: 'short', day: 'numeric', year: 'numeric' },
+		'DD/MM/YYYY': { day: '2-digit', month: '2-digit', year: 'numeric' },
+		'YYYY-MM-DD': { year: 'numeric', month: '2-digit', day: '2-digit' },
+		'MM/DD/YYYY': { month: '2-digit', day: '2-digit', year: 'numeric' },
+		'EEEE, MMMM d': { weekday: 'long', month: 'long', day: 'numeric' },
+	};
+	const options = formatMap[format] ?? formatMap['MMM DD, YYYY'];
+	return new Intl.DateTimeFormat('en-US', options).format(date);
 }
 
 export function formatDateShort(dateStr: string): string {

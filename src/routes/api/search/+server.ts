@@ -1,0 +1,48 @@
+import { queryMany } from '$lib/database/query';
+import type { Transaction, Lending } from '$lib/types';
+
+export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
+	const userId = locals.user!.userId;
+	const q = url.searchParams.get('q')?.trim();
+
+	if (!q || q.length < 2) {
+		return new Response(JSON.stringify({ transactions: [], lendings: [], categories: [] }), {
+			headers: { 'Content-Type': 'application/json' },
+		});
+	}
+
+	const pattern = `%${q}%`;
+
+	// Search transactions by description
+	const transactions = await queryMany<Transaction>(
+		`SELECT t.*, c.name as category_name, c.color as category_color
+		 FROM transactions t
+		 LEFT JOIN categories c ON t.category_id = c.id
+		 WHERE t.user_id = $1 AND (t.description ILIKE $2 OR CAST(t.amount AS TEXT) LIKE $3)
+		 ORDER BY t.date DESC
+		 LIMIT 10`,
+		[userId, pattern, `%${q}%`]
+	);
+
+	// Search lendings by borrower name
+	const lendings = await queryMany<Lending>(
+		`SELECT * FROM lendings
+		 WHERE user_id = $1 AND borrower_name ILIKE $2
+		 ORDER BY date_lent DESC
+		 LIMIT 5`,
+		[userId, pattern]
+	);
+
+	// Search categories by name
+	const categories = await queryMany<{ id: number; name: string; icon: string; color: string; type: string }>(
+		`SELECT id, name, icon, color, type FROM categories
+		 WHERE user_id = $1 AND name ILIKE $2
+		 ORDER BY name ASC
+		 LIMIT 5`,
+		[userId, pattern]
+	);
+
+	return new Response(JSON.stringify({ transactions, lendings, categories }), {
+		headers: { 'Content-Type': 'application/json' },
+	});
+}

@@ -120,8 +120,8 @@
 		max-width: 100vw;
 		height: 100vh;
 		height: 100dvh;
-		background: var(--color-cream);
-		border-left: 1px solid var(--color-border);
+		background: var(--color-surface);
+		border-left: 1px solid var(--color-hairline);
 		box-shadow: -4px 0 32px rgba(20, 48, 46, 0.10);
 		z-index: var(--z-modal);
 		display: flex;

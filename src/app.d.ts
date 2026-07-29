@@ -7,7 +7,9 @@ declare global {
 		}
 
 		interface PageData {
+			user?: { userId: number; username: string } | null;
 			summary?: DashboardSummary;
+			totalBudgeted?: number;
 			recentTransactions?: Transaction[];
 			transactions?: Transaction[];
 			total?: number;
@@ -16,6 +18,7 @@ declare global {
 			categories?: Category[];
 			spending?: Record<number, number>;
 			income?: Record<number, number>;
+					selectedMonth?: string;
 			transaction?: Transaction;
 			lendingSummary?: { totalLent: number; totalRecovered: number; outstanding: number };
 			activeLendings?: Lending[];

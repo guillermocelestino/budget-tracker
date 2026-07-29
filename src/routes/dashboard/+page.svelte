@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import HeroBalanceWidget from '$lib/components/HeroBalanceWidget.svelte';
+	import SafeToSpendWidget from '$lib/components/SafeToSpendWidget.svelte';
+	import ForecastBanner from '$lib/components/ForecastBanner.svelte';
 	import CashFlowChart from '$lib/components/CashFlowChart.svelte';
 	import RecentActivityWidget from '$lib/components/RecentActivityWidget.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
@@ -8,13 +10,23 @@
 	import PageBackground from '$lib/components/PageBackground.svelte';
 	let data = $derived($page.data as App.PageData);
 
+	// ─── Forecast computation ───
+
+	const now = new Date();
+	const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+	const daysElapsed = now.getDate();
+	const daysRemaining = daysInMonth - daysElapsed;
+	const avgDailySpend = $derived(daysElapsed > 0
+		? (data.summary?.totalExpenses ?? 0) / daysElapsed
+		: 0);
+
 	const categoryItems = $derived(
-	(data.categoryLabels ?? []).map((name, i) => ({
-		name,
-		total: (data.categoryData ?? [])[i] || 0,
-		color: (data.categoryColors ?? [])[i] || '#6366f1',
-	}))
-);
+		(data.categoryLabels ?? []).map((name, i) => ({
+			name,
+			total: (data.categoryData ?? [])[i] || 0,
+			color: (data.categoryColors ?? [])[i] || '#6366f1',
+		}))
+	);
 </script>
 
 <svelte:head>
@@ -37,6 +49,19 @@
 	lendingSummary={data.lendingSummary}
 	incomeChange={data.incomeChange}
 	expenseChange={data.expenseChange}
+/>
+
+<SafeToSpendWidget
+	income={data.summary?.totalIncome ?? 0}
+	budgeted={data.totalBudgeted ?? 0}
+	spentSoFar={data.summary?.totalExpenses ?? 0}
+/>
+
+<ForecastBanner
+	currentBalance={data.summary?.balance ?? 0}
+	totalIncome={data.summary?.totalIncome ?? 0}
+	{avgDailySpend}
+	{daysRemaining}
 />
 
 {#if data.trendLabels && data.trendLabels.length > 1}
@@ -128,7 +153,7 @@
 			font-size: var(--font-size-base);
 		}
 	}
-	
+
 	/* ═══ FORCED MOBILE OVERRIDES ═══ */
 	@media (max-width: 768px) {
 		.charts-section {

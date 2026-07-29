@@ -1,6 +1,9 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
+  import { prefs, updatePrefs } from '$lib/stores/preferences.svelte';
+
+  let { onsearch }: { onsearch?: () => void } = $props();
 
   // ─── Navigation Architecture ──────────────────────────────────────
   // Two zones: Primary (core workflows, visited daily/weekly)
@@ -22,7 +25,14 @@
 
   let mobileOpen = $state(false);
   let isCollapsed = $state(false);
-  let darkMode = $state(false);
+
+  // Theme is managed by the shared preferences store (localStorage 'budget-tracker-prefs')
+  // The toggle cycles between 'light' and 'dark'
+
+  const isDarkMode = $derived(
+    prefs.theme === 'dark' || (prefs.theme === 'system' &&
+      typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  );
 
   // ─── Restore saved preferences ────────────────────────────────────
 
@@ -32,20 +42,14 @@
       isCollapsed = true;
       document.documentElement.style.setProperty('--sidebar-width', '72px');
     }
-
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-      darkMode = true;
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }
   });
 
   // ─── Actions ──────────────────────────────────────────────────────
 
   function toggleTheme() {
-    darkMode = !darkMode;
-    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
-    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+    // Toggle between light and dark (ignore 'system' mode for the toggle)
+    const next = prefs.theme === 'dark' ? 'light' : 'dark';
+    updatePrefs({ theme: next });
   }
 
   function toggleCollapse() {
@@ -179,9 +183,9 @@
   <!-- ─── Footer (theme, collapse, logout) ─── -->
   <div class="sidebar-footer">
     <!-- Theme toggle -->
-    <button class="footer-item" onclick={toggleTheme} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+    <button class="footer-item" onclick={toggleTheme} aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
       <span class="footer-icon">
-        {#if darkMode}
+        {#if isDarkMode}
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="5"/><line x1="12" x2="12" y1="1" y2="3"/><line x1="12" x2="12" y1="21" y2="23"/>
             <line x1="4.22" x2="5.64" y1="4.22" y2="5.64"/><line x1="18.36" x2="19.78" y1="18.36" y2="19.78"/>
@@ -195,7 +199,7 @@
         {/if}
       </span>
       {#if !isCollapsed}
-        <span class="nav-label">{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+        <span class="nav-label">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
       {/if}
     </button>
 
@@ -208,6 +212,19 @@
       </span>
       {#if !isCollapsed}
         <span class="nav-label">Collapse</span>
+      {/if}
+    </button>
+
+    <!-- Search -->
+    <button class="footer-item" onclick={onsearch} aria-label="Search (⌘K)">
+      <span class="footer-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/>
+        </svg>
+      </span>
+      {#if !isCollapsed}
+        <span class="nav-label">Search</span>
+        <span class="search-kbd">⌘K</span>
       {/if}
     </button>
 

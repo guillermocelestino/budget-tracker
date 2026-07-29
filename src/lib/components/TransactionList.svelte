@@ -88,6 +88,15 @@
     });
   });
 
+  // ─── Refund detection (description-based, no schema change) ───
+  function isRefund(txn: Transaction): boolean {
+    return txn.description.startsWith('[REFUND]');
+  }
+
+  function cleanDescription(desc: string): string {
+    return desc.replace(/^\[REFUND\]\s*/, '');
+  }
+
   function toggleEdit(id: number) {
     if (!showActions) return;
     editingId = editingId === id ? null : id;
@@ -162,7 +171,12 @@
 
     <!-- Left: description + category pill -->
     <div class="txn-info">
-      <span class="txn-desc">{txn.description}</span>
+      <span class="txn-desc">
+            {#if isRefund(txn)}
+              <span class="refund-chip">↩ Refund</span>
+            {/if}
+            {cleanDescription(txn.description)}
+          </span>
       <span
         class="cat-pill"
         style="background:{(txn.category_color || '#6366f1')}18; color:{txn.category_color || '#6366f1'}"
@@ -655,6 +669,24 @@
   }
 
   /* ── Card layout (≤ 480px): cream surface + left bar + dashed dividers ── */
+  .refund-chip {
+    margin-right: 6px;
+    padding: 1px 8px;
+    background: rgba(93, 173, 226, 0.12);
+    color: var(--color-sky);
+    border-radius: var(--radius-pill);
+    font-family: var(--font-display);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+    vertical-align: middle;
+    border: 1px solid rgba(93, 173, 226, 0.2);
+  }
+
   @media (max-width: 480px) {
     .txn-row {
       flex-wrap: wrap;

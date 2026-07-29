@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import { enhance } from '$app/forms';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import CategoryList from '$lib/components/CategoryList.svelte';
@@ -7,10 +8,28 @@
   import CategoryForm from '$lib/components/CategoryForm.svelte';
   import ModalDialog from '$lib/components/ModalDialog.svelte';
   import PageBackground from '$lib/components/PageBackground.svelte';
+  import MonthPicker from '$lib/components/MonthPicker.svelte';
+  import SlideOver from '$lib/components/SlideOver.svelte';
   import { showSuccess, showError } from '$lib/stores/toast.svelte';
-  import { formatCurrency } from '$lib/utils/format';
+  import { formatCurrency, getCurrentMonth } from '$lib/utils/format';
 
   let data = $derived($page.data as App.PageData);
+
+  // ─── Month selector ───
+  let selectedMonth = $state(data.selectedMonth ?? getCurrentMonth());
+
+  $effect(() => {
+    const params = new URLSearchParams($page.url.searchParams);
+    const current = params.get('month') || getCurrentMonth();
+    if (selectedMonth !== current) {
+      params.set('month', selectedMonth);
+      goto(`/categories?${params.toString()}`, { keepFocus: true, noScroll: true });
+    }
+  });
+
+  function handleMonthChange(month: string) {
+    selectedMonth = month;
+  }
 
   const categories = $derived(data.categories ?? []);
   const spendingMap = $derived(data.spending ?? ({} as Record<number, number>));
@@ -82,6 +101,11 @@
   {/snippet}
 </PageHeader>
 
+<!-- ═══ Month picker ═══ -->
+<div class="month-bar">
+  <MonthPicker {selectedMonth} onChange={handleMonthChange} />
+</div>
+
 <!-- ═══ Monthly summary bar ═══ -->
 {#if expenseCats.length > 0}
   <div class="summary-bar">
@@ -119,42 +143,20 @@
 />
 
 <!-- ═══ Slide-over panel for add/edit ═══ -->
-{#if showPanel}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="slide-over-backdrop" onclick={closePanel} role="presentation"></div>
-  <div class="slide-over" class:open={showPanel}>
-    <div class="slide-over-header">
-      <h3>
-        {#if editingCategory}
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
-          </svg>
-          Edit Category
-        {:else}
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" x2="12" y1="5" y2="19"/>
-            <line x1="5" x2="19" y1="12" y2="12"/>
-          </svg>
-          Add Category
-        {/if}
-      </h3>
-      <button class="slide-over-close" onclick={closePanel} aria-label="Close">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" x2="6" y1="6" y2="18"/>
-          <line x1="6" x2="18" y1="6" y2="18"/>
-        </svg>
-      </button>
-    </div>
-    <div class="slide-over-body">
-      <CategoryForm
-        category={editingCategory ?? undefined}
-        action={editingCategory ? '?/update' : '?/create'}
-        onCancel={closePanel}
-        onSuccess={closePanel}
-      />
-    </div>
-  </div>
-{/if}
+<SlideOver
+  isOpen={showPanel}
+  title={editingCategory ? 'Edit Category' : 'Add Category'}
+  onClose={closePanel}
+>
+  {#snippet children()}
+    <CategoryForm
+      category={editingCategory ?? undefined}
+      action={editingCategory ? '?/update' : '?/create'}
+      onCancel={closePanel}
+      onSuccess={closePanel}
+    />
+  {/snippet}
+</SlideOver>
 
 <!-- ═══ Delete confirmation ═══ -->
 {#if deleteId !== null}
@@ -191,6 +193,13 @@
 {/if}
 
 <style>
+  /* ─── Month bar ─── */
+  .month-bar {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--space-lg);
+  }
+
   /* ─── Add button ─── */
   .btn-add {
     display: inline-flex;
@@ -272,83 +281,6 @@
     height: 32px;
     background: var(--color-border);
     flex-shrink: 0;
-  }
-
-  /* ─── Slide-over panel ─── */
-  .slide-over-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.3);
-    z-index: 98;
-    animation: fadeIn 200ms ease;
-  }
-
-  .slide-over {
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 480px;
-    max-width: 100vw;
-    height: 100vh;
-    height: 100dvh;
-    background: var(--color-surface);
-    border-left: 1px solid var(--color-border);
-    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
-    z-index: var(--z-modal);
-    display: flex;
-    flex-direction: column;
-    animation: slideInRight 250ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  [data-theme="dark"] .slide-over {
-    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
-  }
-
-  .slide-over-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-lg) var(--space-xl);
-    border-bottom: 1px solid var(--color-border);
-    flex-shrink: 0;
-  }
-
-  .slide-over-header h3 {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    margin: 0;
-    font-size: var(--font-size-lg);
-    font-weight: 600;
-    color: var(--color-text);
-  }
-
-  .slide-over-header h3 svg {
-    color: var(--color-primary);
-  }
-
-  .slide-over-close {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 8px;
-    border-radius: var(--radius-md);
-    color: var(--color-text-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all var(--transition-fast);
-  }
-
-  .slide-over-close:hover {
-    background: var(--color-bg);
-    color: var(--color-text);
-  }
-
-  .slide-over-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: var(--space-lg) var(--space-xl);
   }
 
   /* ─── Delete modal ─── */

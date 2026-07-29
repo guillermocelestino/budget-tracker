@@ -2,8 +2,11 @@ import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
 import type { Category } from '$lib/types';
 
-export async function load({ locals }: { locals: App.Locals }) {
+export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;
+	const selectedMonth = url.searchParams.get('month') || (
+		`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+	);
 	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
 
 	const spending = await queryMany<{ category_id: number; income: number; expense: number }>(
@@ -11,9 +14,9 @@ export async function load({ locals }: { locals: App.Locals }) {
 				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
 				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
 		 FROM transactions
-		 WHERE TO_CHAR(date, 'YYYY-MM') = TO_CHAR(CURRENT_DATE, 'YYYY-MM') AND user_id = $1
+		 WHERE TO_CHAR(date, 'YYYY-MM') = $1 AND user_id = $2
 		 GROUP BY category_id`,
-		[userId]
+		[selectedMonth, userId]
 	);
 
 	const expenseMap: Record<number, number> = {};
@@ -23,7 +26,7 @@ export async function load({ locals }: { locals: App.Locals }) {
 		incomeMap[s.category_id] = parseFloat(String(s.income));
 	}
 
-	return { categories, spending: expenseMap, income: incomeMap };
+	return { categories, spending: expenseMap, income: incomeMap, selectedMonth };
 }
 
 export const actions = {

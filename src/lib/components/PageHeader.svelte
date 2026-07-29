@@ -1,9 +1,16 @@
 <script lang="ts">
-	let { title, action }: { title: string; action?: import('svelte').Snippet } = $props();
+	let { title, subtitle, action }: { title: string; subtitle?: import('svelte').Snippet; action?: import('svelte').Snippet } = $props();
 </script>
 
 <div class="page-header">
-	<h1 class="page-title">{title}</h1>
+	<div class="page-title-group">
+		<h1 class="page-title">{title}</h1>
+		{#if subtitle}
+			<div class="page-subtitle">
+				{@render subtitle()}
+			</div>
+		{/if}
+	</div>
 	{#if action}
 		<div class="page-actions">
 			{@render action()}
@@ -26,6 +33,19 @@
 		backdrop-filter: blur(8px);
 		-webkit-backdrop-filter: blur(8px);
 		border-radius: 0;
+	}
+
+	.page-title-group {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.page-subtitle {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-muted);
+		font-weight: 400;
+		line-height: 1.3;
 	}
 
 	.page-title {

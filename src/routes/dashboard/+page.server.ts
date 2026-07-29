@@ -56,6 +56,15 @@ export async function load({ locals }: { locals: App.Locals }) {
 		[userId, firstDay, lastDay]
 	);
 
+	// Budget totals for Safe-to-Spend widget
+	const monthlyBudgeted = await queryOne<{ totalbudgeted: string }>(
+		`SELECT COALESCE(SUM(budget_limit), 0) as totalbudgeted
+		 FROM categories
+		 WHERE user_id = $1 AND type = 'expense'`,
+		[userId]
+	);
+	const totalBudgeted = parseFloat(monthlyBudgeted?.totalbudgeted ?? '0');
+
 	// Monthly trend data for sparklines (last 6 months)
 	const trendData = await queryMany<{ month: string; income: string; expense: string }>(
 		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
@@ -76,6 +85,7 @@ export async function load({ locals }: { locals: App.Locals }) {
 			savingsRate,
 		},
 		recentTransactions,
+		totalBudgeted,
 		lendingSummary: {
 			totalLent,
 			totalRecovered,

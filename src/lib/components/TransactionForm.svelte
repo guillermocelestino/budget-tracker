@@ -24,6 +24,7 @@
 	let description = $state('');
 	let date = $state(formatDateInput());
 	let category_id = $state<number | string>('');
+	let isRefund = $state(false);
 
 	$effect(() => {
 		if (transaction) {
@@ -32,6 +33,7 @@
 			description = transaction.description;
 			date = transaction.date;
 			category_id = transaction.category_id;
+			isRefund = description.startsWith('[REFUND]');
 		}
 	});
 
@@ -72,6 +74,17 @@
 			await update();
 		};
 	}
+
+	// ─── Refund: prepend marker to description ───
+	function getSubmitDescription(): string {
+		if (isRefund && !description.startsWith('[REFUND]')) {
+			return `[REFUND] ${description}`;
+		}
+		if (!isRefund && description.startsWith('[REFUND]')) {
+			return description.replace('[REFUND] ', '');
+		}
+		return description;
+	}
 </script>
 
 <form method="POST" {action} use:enhance={handleEnhance}>
@@ -93,14 +106,31 @@
 			{/if}
 		</fieldset>
 
+		<!-- ═══ Refund toggle ═══ -->
+		<div class="refund-toggle">
+			<label class="refund-label">
+				<input type="checkbox" bind:checked={isRefund} />
+				<span class="refund-check">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+						<polyline points="23 4 23 10 17 10"/>
+						<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+					</svg>
+				</span>
+				<span class="refund-text">Record as refund</span>
+				{#if isRefund}
+					<span class="refund-chip">↩ Refund</span>
+				{/if}
+			</label>
+		</div>
+
 		<div class="form-group">
 			<label class="form-label" for="amount">Amount</label>
 			<div class="amount-section">
 				<button type="button" class="amt-btn amt-minus" onclick={() => adjustAmount(-500)} aria-label="Subtract 500">
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
 				</button>
-				<div class="amount-display-wrap">
-					<span class="amount-prefix">₱</span>
+				<div class="amount-display-wrap" class:refund-active={isRefund}>
+					<span class="amount-prefix">{isRefund ? '↩' : '₱'}</span>
 					<input
 						id="amount"
 						type="text"
@@ -140,6 +170,8 @@
 				></textarea>
 				<span class="char-count">{description.length}/500</span>
 			</div>
+			<!-- Pass potentially modified description with refund marker -->
+			<input type="hidden" name="description" value={getSubmitDescription()} />
 			{#if errors.description}
 				<span class="form-error">{errors.description}</span>
 			{/if}
@@ -226,7 +258,7 @@
 		gap: var(--space-xl);
 	}
 
-	/* ── Flip7 Labels: sentence-case, display font, small ── */
+	/* ── Flip7 Labels ── */
 	.form-label {
 		font-family: var(--font-display);
 		font-size: var(--font-size-sm);
@@ -236,7 +268,7 @@
 		letter-spacing: 0.02em;
 	}
 
-	/* ── Input surfaces: CREAM bg, subtle border, teal focus ── */
+	/* ── Input surfaces ── */
 	input[type="text"],
 	input[type="number"],
 	input[type="date"],
@@ -284,7 +316,77 @@
 		font-weight: 500;
 	}
 
-	/* ── Type toggle: pill segmented control ── */
+	/* ── Refund toggle ── */
+	.refund-toggle {
+		display: flex;
+		align-items: center;
+	}
+
+	.refund-label {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		cursor: pointer;
+		padding: var(--space-xs) var(--space-md);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-pill);
+		transition: all 200ms var(--ease);
+		user-select: none;
+		min-height: 40px;
+	}
+
+	.refund-label:has(input:checked) {
+		background: rgba(93, 173, 226, 0.08);
+		border-color: var(--color-sky);
+		box-shadow: var(--glow-sky);
+	}
+
+	.refund-label input {
+		display: none;
+	}
+
+	.refund-check {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 24px;
+		height: 24px;
+		border: 2px solid var(--color-hairline);
+		border-radius: var(--radius-sm);
+		transition: all 200ms var(--bounce);
+		flex-shrink: 0;
+		color: transparent;
+	}
+
+	.refund-label:has(input:checked) .refund-check {
+		background: var(--color-sky);
+		border-color: var(--color-sky);
+		color: white;
+	}
+
+	.refund-text {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--color-text-muted);
+	}
+
+	.refund-label:has(input:checked) .refund-text {
+		color: var(--color-sky);
+	}
+
+	.refund-chip {
+		margin-left: auto;
+		padding: 2px 10px;
+		background: rgba(93, 173, 226, 0.15);
+		color: var(--color-sky);
+		border-radius: var(--radius-pill);
+		font-family: var(--font-display);
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.03em;
+	}
+
+	/* ── Type toggle ── */
 	.type-toggle {
 		display: flex;
 		border-radius: var(--radius-pill);
@@ -318,14 +420,12 @@
 		display: none;
 	}
 
-	/* Expense active = coral */
 	.type-option:first-child.active {
 		background: var(--color-coral);
 		color: white;
 		box-shadow: var(--glow-coral);
 	}
 
-	/* Income active = teal */
 	.type-option:nth-child(2).active {
 		background: var(--color-teal);
 		color: white;
@@ -395,6 +495,11 @@
 	.amount-display-wrap:focus-within {
 		border-color: var(--color-teal);
 		box-shadow: var(--focus);
+	}
+
+	.amount-display-wrap.refund-active {
+		border-color: var(--color-sky);
+		box-shadow: 0 0 0 4px rgba(93, 173, 226, 0.12);
 	}
 
 	.amount-prefix {
