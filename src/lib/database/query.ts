@@ -1,7 +1,21 @@
 import { usePostgres, getPgPool, getSQLiteDb } from './index';
 
 export function translatePgToSQLite(sql: string): string {
+    // Basic PostgreSQL → SQLite conversion
+    // Replace ILIKE (case‑insensitive LIKE) with SQLite's LIKE (which is case‑insensitive for ASCII)
+    // This simple substitution works because the app builds the pattern with %…% already.
+    // If you need true Unicode case‑insensitivity you could use LOWER(col) LIKE LOWER(val), but
+    // for now the built‑in LIKE is sufficient.
+    // NOTE: we apply this replacement before the other regexes to avoid accidental
+    // interference with other clauses.
+    // The replacement is done using a word boundary to avoid matching identifiers.
+    // Example: "t.description ILIKE $2" → "t.description LIKE $2"
+    // It will also replace any stray "ILIKE" occurrences.
+    // The rest of the function proceeds with existing translations.
+
 	return sql
+        // Replace ILIKE with LIKE for SQLite (case‑insensitive for ASCII)
+        .replace(/\bILIKE\b/gi, 'LIKE')
 		// Postgres parameter placeholders $1, $2 → ?
 		.replace(/\$\d+/g, '?')
 		// Postgres cast syntax ::int, ::numeric → remove (MUST come before EXTRACT)
