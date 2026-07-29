@@ -14,6 +14,7 @@
 
 <div class="lending-summary-grid">
 	<div class="summary-card">
+		<div class="card-accent lent"></div>
 		<div class="card-icon lent">
 			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
@@ -24,9 +25,9 @@
 			<span class="card-label">Total Lent</span>
 			<span class="card-value">{formatCurrency(totalLent)}</span>
 		</div>
-		<div class="card-accent"></div>
 	</div>
 	<div class="summary-card">
+		<div class="card-accent recovered"></div>
 		<div class="card-icon recovered">
 			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<line x1="12" x2="12" y1="2" y2="22"/>
@@ -37,9 +38,9 @@
 			<span class="card-label">Recovered</span>
 			<span class="card-value recovered">{formatCurrency(totalRecovered)}</span>
 		</div>
-		<div class="card-accent"></div>
 	</div>
 	<div class="summary-card">
+		<div class="card-accent outstanding"></div>
 		<div class="card-icon outstanding">
 			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<circle cx="12" cy="12" r="10"/>
@@ -50,7 +51,6 @@
 			<span class="card-label">Outstanding</span>
 			<span class="card-value outstanding">{formatCurrency(outstanding)}</span>
 		</div>
-		<div class="card-accent"></div>
 	</div>
 </div>
 
@@ -60,7 +60,7 @@
 		grid-template-columns: repeat(3, 1fr);
 		gap: var(--space-md);
 		margin-bottom: var(--space-lg);
-		animation: slideInUp 0.5s ease-out;
+		animation: fade-in-up 500ms var(--ease) both;
 	}
 
 	.summary-card {
@@ -68,19 +68,33 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-md);
+		padding: var(--space-lg);
+		padding-left: calc(var(--space-lg) + 4px);
 		background: var(--color-surface);
 		border-radius: var(--radius-xl);
-		padding: var(--space-lg);
-		box-shadow: var(--shadow-sm);
+		box-shadow: var(--shadow-card);
 		border: 1px solid var(--color-border);
 		overflow: hidden;
-		transition: all 200ms ease;
+		transition: all 250ms var(--bounce);
 	}
 
 	.summary-card:hover {
-		transform: translateY(-3px);
+		transform: translateY(-3px) scale(1.02);
 		box-shadow: var(--shadow-lg);
 	}
+
+	.card-accent {
+		position: absolute;
+		top: 0;
+		left: 0;
+		bottom: 0;
+		width: 4px;
+		border-radius: 2px 0 0 2px;
+	}
+
+	.card-accent.lent { background: var(--color-teal); }
+	.card-accent.recovered { background: linear-gradient(180deg, var(--color-teal), var(--color-gold)); }
+	.card-accent.outstanding { background: var(--color-coral); }
 
 	.card-icon {
 		width: 44px;
@@ -88,24 +102,24 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border-radius: var(--radius-md);
+		border-radius: var(--radius-lg);
 		flex-shrink: 0;
 		z-index: 1;
 	}
 
 	.card-icon.lent {
-		background: linear-gradient(135deg, var(--color-primary-light) 0%, rgba(99, 102, 241, 0.15) 100%);
-		color: var(--color-primary);
+		background: var(--color-teal-bg);
+		color: var(--color-teal);
 	}
 
 	.card-icon.recovered {
-		background: linear-gradient(135deg, var(--color-income-light) 0%, rgba(16, 185, 129, 0.15) 100%);
-		color: var(--color-income);
+		background: rgba(255, 210, 63, 0.15);
+		color: var(--color-gold-dark);
 	}
 
 	.card-icon.outstanding {
-		background: linear-gradient(135deg, var(--color-expense-light) 0%, rgba(239, 68, 68, 0.15) 100%);
-		color: var(--color-expense);
+		background: rgba(239, 108, 74, 0.10);
+		color: var(--color-coral);
 	}
 
 	.card-content {
@@ -116,7 +130,7 @@
 
 	.card-label {
 		font-size: var(--font-size-sm);
-		color: var(--color-text-secondary);
+		color: var(--color-text-muted);
 		margin-bottom: 2px;
 		font-weight: 500;
 	}
@@ -125,33 +139,15 @@
 		font-size: var(--font-size-lg);
 		font-weight: 700;
 		font-variant-numeric: tabular-nums;
+		color: var(--color-ink);
 	}
 
 	.card-value.recovered {
-		color: var(--color-income);
+		color: var(--color-teal);
 	}
 
 	.card-value.outstanding {
-		color: var(--color-expense);
-	}
-
-	.card-accent {
-		position: absolute;
-		top: 0;
-		right: 0;
-		width: 60px;
-		height: 60px;
-		border-radius: 0 0 0 100%;
-		opacity: 0.08;
-	}
-
-	.summary-card:nth-child(1) .card-accent { background: var(--color-primary); }
-	.summary-card:nth-child(2) .card-accent { background: var(--color-income); }
-	.summary-card:nth-child(3) .card-accent { background: var(--color-expense); }
-
-	@keyframes slideInUp {
-		from { opacity: 0; transform: translateY(20px); }
-		to { opacity: 1; transform: translateY(0); }
+		color: var(--color-coral);
 	}
 
 	@media (max-width: 768px) {

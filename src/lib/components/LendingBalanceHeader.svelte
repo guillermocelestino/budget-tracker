@@ -36,7 +36,7 @@
 </script>
 
 <div class="balance-hero" class:creditor={isNetCreditor} class:debtor={isNetDebtor} class:settled={isSettled}>
-  <div class="hero-glow"></div>
+  <div class="hero-ribbon"></div>
 
   <!-- Label row -->
   <div class="hero-label-row">
@@ -70,12 +70,12 @@
 
   <!-- Two-column breakdown: owed / owe -->
   <div class="breakdown-row">
-    <div class="breakdown-side">
+    <div class="breakdown-side teal-bar">
       <span class="breakdown-value owed">{formatCurrency(totalOwedToMe)}</span>
       <span class="breakdown-label">Owed to you</span>
     </div>
-    <div class="breakdown-bar"></div>
-    <div class="breakdown-side">
+    <div class="breakdown-divider"></div>
+    <div class="breakdown-side coral-bar">
       <span class="breakdown-value owe">{formatCurrency(totalIOwe)}</span>
       <span class="breakdown-label">You owe</span>
     </div>
@@ -89,81 +89,47 @@
     flex-direction: column;
     align-items: center;
     padding: var(--space-xl) var(--space-lg) var(--space-lg);
+    padding-top: calc(var(--space-xl) + 3px);
     border-radius: var(--radius-xl);
     overflow: hidden;
     margin-bottom: var(--space-lg);
     text-align: center;
     border: 1px solid var(--color-border);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
-    transition: box-shadow 200ms ease, border-color 200ms ease;
+    background: var(--color-cream);
+    box-shadow: var(--shadow-card);
+    transition: box-shadow 200ms var(--bounce);
   }
 
   .balance-hero:hover {
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
   }
 
-  /* Subtle top highlight for depth */
-  .balance-hero::after {
-    content: '';
+  .hero-ribbon {
     position: absolute;
     top: 0;
-    left: 10%;
-    right: 10%;
-    height: 1px;
-    border-radius: 1px;
-    opacity: 0.4;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--color-teal), var(--color-gold));
   }
 
-  /* Net creditor: soft green gradient, green border, green top line */
+  /* Net creditor: teal-tinged hero strip */
   .balance-hero.creditor {
-    background: linear-gradient(170deg, var(--color-surface) 0%, color-mix(in srgb, var(--color-income-light) 40%, var(--color-surface)) 100%);
-    border-color: rgba(16, 185, 129, 0.25);
-    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.06);
+    background: linear-gradient(170deg, var(--color-cream) 0%, var(--color-teal-bg) 100%);
+    border-color: rgba(43, 168, 162, 0.20);
   }
 
-  .balance-hero.creditor::after {
-    background: linear-gradient(90deg, transparent, var(--color-income), transparent);
-  }
-
-  /* Net debtor: soft rose gradient, rose border, rose top line */
+  /* Net debtor: coral-tinged */
   .balance-hero.debtor {
-    background: linear-gradient(170deg, var(--color-surface) 0%, color-mix(in srgb, var(--color-expense-light) 40%, var(--color-surface)) 100%);
-    border-color: rgba(239, 68, 68, 0.2);
-    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.06);
+    background: linear-gradient(170deg, var(--color-cream) 0%, rgba(239, 108, 74, 0.06) 100%);
+    border-color: rgba(239, 108, 74, 0.15);
   }
 
-  .balance-hero.debtor::after {
-    background: linear-gradient(90deg, transparent, var(--color-expense), transparent);
-  }
-
-  /* Settled: clean neutral, no glow */
+  /* Settled: clean */
   .balance-hero.settled {
-    background: var(--color-surface);
-    border-color: var(--color-border);
-    box-shadow: var(--shadow-sm);
+    background: var(--color-cream);
   }
-
-  .balance-hero.settled::after {
-    display: none;
-  }
-
-  /* Radial glow spot behind number — softer, larger */
-  .hero-glow {
-    position: absolute;
-    top: -60px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 300px;
-    height: 200px;
-    border-radius: 50%;
-    pointer-events: none;
-    opacity: 0.15;
-    filter: blur(12px);
-  }
-  .creditor .hero-glow { background: radial-gradient(ellipse, var(--color-income) 0%, transparent 70%); }
-  .debtor  .hero-glow { background: radial-gradient(ellipse, var(--color-expense) 0%, transparent 70%); }
-  .settled .hero-glow { display: none; }
 
   /* Label */
   .hero-label-row { z-index: 1; }
@@ -172,7 +138,7 @@
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.07em;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
   }
 
   /* Big number */
@@ -189,12 +155,12 @@
     font-weight: 800;
     letter-spacing: -0.04em;
     font-variant-numeric: tabular-nums;
-    color: var(--color-text);
+    color: var(--color-ink);
   }
 
-  .creditor .hero-value { color: var(--color-income); }
-  .debtor  .hero-value { color: var(--color-expense); }
-  .settled .hero-value { color: var(--color-text-secondary); }
+  .creditor .hero-value { color: var(--color-teal); }
+  .debtor  .hero-value { color: var(--color-coral); }
+  .settled .hero-value { color: var(--color-text-muted); }
 
   /* Direction icon */
   .hero-icon {
@@ -206,14 +172,14 @@
     border-radius: var(--radius-md);
   }
 
-  .creditor .hero-icon { color: var(--color-income); background: rgba(16, 185, 129, 0.12); }
-  .debtor  .hero-icon { color: var(--color-expense); background: rgba(239, 68, 68, 0.12); }
-  .settled .hero-icon { color: var(--color-text-secondary); background: var(--color-bg); }
+  .creditor .hero-icon { color: var(--color-teal); background: var(--color-teal-bg); }
+  .debtor  .hero-icon { color: var(--color-coral); background: rgba(239, 108, 74, 0.10); }
+  .settled .hero-icon { color: var(--color-text-muted); background: var(--color-hairline); }
 
   /* Sub line */
   .hero-sub {
     font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     margin: 0 0 var(--space-md);
     z-index: 1;
   }
@@ -224,10 +190,11 @@
     align-items: center;
     width: 100%;
     max-width: 360px;
-    background: var(--color-bg);
-    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
     padding: var(--space-md) var(--space-lg);
     z-index: 1;
+    border: 1px solid var(--color-border);
   }
 
   .breakdown-side {
@@ -236,27 +203,41 @@
     flex-direction: column;
     align-items: center;
     gap: 2px;
+    position: relative;
+    padding: var(--space-xs) 0;
   }
 
-  .breakdown-bar {
+  .breakdown-side.teal-bar {
+    border-left: 3px solid var(--color-teal);
+    border-radius: 2px 0 0 2px;
+    padding-left: var(--space-sm);
+  }
+
+  .breakdown-side.coral-bar {
+    border-left: 3px solid var(--color-coral);
+    padding-left: var(--space-sm);
+  }
+
+  .breakdown-divider {
     width: 1px;
     height: 32px;
-    background: var(--color-border);
+    background: var(--color-hairline);
+    margin: 0 var(--space-md);
   }
 
   .breakdown-value {
     font-size: var(--font-size-lg);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
-    color: var(--color-text);
+    color: var(--color-ink);
   }
 
-  .breakdown-row .breakdown-value.owed { color: var(--color-income); }
-  .breakdown-row .breakdown-value.owe { color: var(--color-expense); }
+  .breakdown-row .breakdown-value.owed { color: var(--color-teal); }
+  .breakdown-row .breakdown-value.owe { color: var(--color-coral); }
 
   .breakdown-label {
     font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     font-weight: 500;
   }
 

@@ -35,8 +35,8 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-		<meta name="theme-color" content="#f8f9fa" media="(prefers-color-scheme: light)" />
-		<meta name="theme-color" content="#111827" media="(prefers-color-scheme: dark)" />
+		<meta name="theme-color" content="#2BA8A2" media="(prefers-color-scheme: light)" />
+		<meta name="theme-color" content="#0C1F1E" media="(prefers-color-scheme: dark)" />
 </svelte:head>
 
 <PwaUpdate />
@@ -74,7 +74,7 @@
 	}
 
 	:global(body) {
-		font-family: var(--font-family);
+		font-family: var(--font-body);
 		background: var(--color-bg);
 		color: var(--color-text);
 		font-size: var(--font-size-base);
@@ -83,12 +83,13 @@
 	}
 
 	:global(a) {
-		color: var(--color-primary);
+		color: var(--color-teal);
 		text-decoration: none;
 	}
 
 	:global(a:hover) {
-		text-decoration: underline;
+		color: var(--color-teal-dark);
+			text-decoration: underline;
 	}
 
 	:global(button) {
@@ -100,8 +101,6 @@
 		padding-bottom: var(--safe-bottom);
 		overflow-x: hidden;
 		-webkit-tap-highlight-color: transparent;
-		-webkit-overflow-scrolling: touch;
-		overflow-scrolling: touch;
 	}
 
 	:global(*) {
@@ -117,8 +116,6 @@
 
 	/* Touch-friendly scroll containers */
 	:global(.scrollable) {
-		-webkit-overflow-scrolling: touch;
-		overflow-scrolling: touch;
 		overscroll-behavior: contain;
 	}
 
@@ -136,7 +133,6 @@
 	/* Smooth momentum scrolling */
 	:global(body),
 	:global(html) {
-		-webkit-overflow-scrolling: touch;
 		scroll-behavior: smooth;
 		overflow-x: hidden;
 	}
@@ -172,16 +168,16 @@
 		inset: 0;
 		z-index: -2;
 		background:
-			radial-gradient(ellipse 80% 80% at 20% -20%, rgba(99, 102, 241, 0.06) 0%, transparent 50%),
-			radial-gradient(ellipse 60% 60% at 80% 100%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
+			radial-gradient(ellipse 80% 80% at 20% -20%, rgba(43, 168, 162, 0.08) 0%, transparent 50%),
+			radial-gradient(ellipse 60% 60% at 80% 100%, rgba(255, 210, 63, 0.06) 0%, transparent 50%);
 		pointer-events: none;
 	}
 
 	@media (max-width: 768px) {
 		.app-shell::before {
 			background:
-				radial-gradient(ellipse 90% 60% at 10% -10%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
-				radial-gradient(ellipse 70% 40% at 90% 110%, rgba(16, 185, 129, 0.04) 0%, transparent 40%);
+				radial-gradient(ellipse 90% 60% at 10% -10%, rgba(43, 168, 162, 0.06) 0%, transparent 40%),
+				radial-gradient(ellipse 70% 40% at 90% 110%, rgba(255, 210, 63, 0.06) 0%, transparent 40%);
 		}
 	}
 

@@ -4,7 +4,8 @@
 
 <div class="toast-container">
 	{#each [...toastState.items].reverse() as toast (toast.id)}
-		<div class="toast toast-{toast.type}" role="alert">
+		<div class="toast toast-{toast.type}" class:toast-success={toast.type === 'success'} class:toast-error={toast.type === 'error'} class:toast-info={toast.type === 'info'} role="alert">
+			<div class="toast-accent"></div>
 			<div class="toast-body">
 				<span class="toast-icon">
 					{#if toast.type === 'success'}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{/if}
@@ -41,28 +42,49 @@
 		align-items: center;
 		gap: var(--space-sm);
 		padding: var(--space-sm) var(--space-md);
-		border-radius: var(--radius-md);
-		box-shadow: var(--shadow-md);
-		color: #fff;
+		padding-left: calc(var(--space-md) + 4px);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-card);
+		color: var(--color-ink);
 		font-size: var(--font-size-sm);
 		font-weight: 500;
 		min-width: 280px;
 		max-width: 400px;
 		position: relative;
 		overflow: hidden;
-		animation: slideInDown var(--transition-normal) ease-out;
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		animation: toastIn 400ms var(--bounce);
 	}
 
+	.toast-accent {
+		position: absolute;
+		top: 0;
+		left: 0;
+		bottom: 0;
+		width: 4px;
+		border-radius: 2px 0 0 2px;
+	}
+
+	.toast-success .toast-accent {
+		background: var(--color-teal);
+	}
 	.toast-success {
-		background: var(--color-income);
+		box-shadow: var(--shadow-card), var(--glow-gold);
 	}
 
+	.toast-error .toast-accent {
+		background: var(--color-coral);
+	}
 	.toast-error {
-		background: var(--color-expense);
+		box-shadow: var(--shadow-card), var(--glow-coral);
 	}
 
+	.toast-info .toast-accent {
+		background: var(--color-sky);
+	}
 	.toast-info {
-		background: var(--color-primary);
+		box-shadow: var(--shadow-card), var(--glow-sky);
 	}
 
 	.toast-body {
@@ -77,6 +99,10 @@
 		flex-shrink: 0;
 	}
 
+	.toast-success .toast-icon { color: var(--color-teal); }
+	.toast-error .toast-icon { color: var(--color-coral); }
+	.toast-info .toast-icon { color: var(--color-sky); }
+
 	.toast-message {
 		flex: 1;
 	}
@@ -84,11 +110,11 @@
 	.toast-close {
 		background: none;
 		border: none;
-		color: #fff;
+		color: var(--color-text-muted);
 		font-size: 1.25rem;
 		cursor: pointer;
 		padding: 0 0 0 var(--space-sm);
-		opacity: 0.8;
+		opacity: 0.6;
 		line-height: 1;
 	}
 
@@ -99,30 +125,31 @@
 	.toast-progress {
 		position: absolute;
 		bottom: 0;
-		left: 0;
-		height: 3px;
-		background: rgba(255, 255, 255, 0.4);
+		left: 4px;
+		right: 0;
+		height: 2px;
+		background: var(--color-hairline);
 		animation: progressShrink linear forwards;
 	}
 
-	@keyframes slideInDown {
+	.toast-success .toast-progress { background: var(--color-teal); opacity: 0.3; }
+	.toast-error .toast-progress { background: var(--color-coral); opacity: 0.3; }
+	.toast-info .toast-progress { background: var(--color-sky); opacity: 0.3; }
+
+	@keyframes toastIn {
 		from {
-			transform: translateY(-100%);
+			transform: translateY(-24px) scale(0.96);
 			opacity: 0;
 		}
 		to {
-			transform: translateY(0);
+			transform: translateY(0) scale(1);
 			opacity: 1;
 		}
 	}
 
 	@keyframes progressShrink {
-		from {
-			width: 100%;
-		}
-		to {
-			width: 0%;
-		}
+		from { width: 100%; }
+		to { width: 0%; }
 	}
 
 	@media (max-width: 480px) {

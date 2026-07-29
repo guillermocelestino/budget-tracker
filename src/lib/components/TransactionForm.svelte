@@ -59,6 +59,10 @@
 
 	const displayAmount = $derived(rawAmount ? formatWithCommas(rawAmount) : '');
 
+	function adjustAmount(delta: number) {
+		const val = parseFloat(rawAmount) || 0;
+		rawAmount = String(Math.max(0, val + delta));
+	}
 
 	function handleEnhance() {
 		return async ({ result, update }: { result: { type: string }; update: () => Promise<void> }) => {
@@ -91,21 +95,29 @@
 
 		<div class="form-group">
 			<label class="form-label" for="amount">Amount</label>
-			<div class="amount-wrap">
-				<span class="amount-prefix">₱</span>
-				<input
-					id="amount"
-					type="text"
-					inputmode="decimal"
-					required
-					placeholder="0.00"
-					value={displayAmount}
-					oninput={onAmountInput}
-					onfocus={onAmountFocus}
-					onblur={onAmountBlur}
-					class:input-error={errors.amount}
-					autocomplete="off"
-				/>
+			<div class="amount-section">
+				<button type="button" class="amt-btn amt-minus" onclick={() => adjustAmount(-500)} aria-label="Subtract 500">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+				</button>
+				<div class="amount-display-wrap">
+					<span class="amount-prefix">₱</span>
+					<input
+						id="amount"
+						type="text"
+						inputmode="decimal"
+						required
+						placeholder="0.00"
+						value={displayAmount}
+						oninput={onAmountInput}
+						onfocus={onAmountFocus}
+						onblur={onAmountBlur}
+						class:input-error={errors.amount}
+						autocomplete="off"
+					/>
+				</div>
+				<button type="button" class="amt-btn amt-plus" onclick={() => adjustAmount(500)} aria-label="Add 500">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+				</button>
 			</div>
 			<input type="hidden" name="amount" value={rawAmount} />
 			{#if errors.amount}
@@ -158,26 +170,38 @@
 		</div>
 
 		<div class="form-group">
-			<label class="form-label" for="category_id">Category</label>
-			<select id="category_id" name="category_id" required bind:value={category_id} class:input-error={errors.category_id}>
-				<option value="">Select a category</option>
-				{#each filteredCategories as cat (cat.id)}
-					<option value={cat.id}>{cat.icon} {cat.name}</option>
-				{/each}
-			</select>
-			{#if filteredCategories.length === 0}
-				<span class="form-error">No {type} categories found. Create one in Categories first.</span>
-			{:else if errors.category_id}
-				<span class="form-error">{errors.category_id}</span>
-			{/if}
+			<label class="form-label">Category</label>
+			<div class="category-section">
+				<input type="hidden" name="category_id" value={category_id} />
+				{#if filteredCategories.length > 0}
+					<div class="category-chips">
+						{#each filteredCategories as cat (cat.id)}
+							<button type="button" class="cat-chip" class:active={category_id === cat.id}
+								onclick={() => category_id = cat.id}
+								style="--chip-color: {cat.color || 'var(--color-teal)'}"
+							>
+								<span class="cat-chip-icon">{cat.icon}</span>
+								<span class="cat-chip-name">{cat.name}</span>
+							</button>
+						{/each}
+					</div>
+				{:else}
+					<div class="no-categories">
+						<span class="form-error">No {type} categories found. Create one in Categories first.</span>
+					</div>
+				{/if}
+				{#if errors.category_id && filteredCategories.length > 0}
+					<span class="form-error">{errors.category_id}</span>
+				{/if}
+			</div>
 		</div>
 	</div>
 
 	<div class="form-actions">
-		<button type="submit" class="btn btn-primary">
+		<button type="submit" class="btn btn-submit">
 			{transaction ? 'Update Transaction' : 'Add Transaction'}
 		</button>
-		<button type="button" class="btn btn-secondary" onclick={() => goto('/transactions')}>
+		<button type="button" class="btn btn-cancel" onclick={() => goto('/transactions')}>
 			Cancel
 		</button>
 	</div>
@@ -193,42 +217,44 @@
 	.form-group {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: 6px;
 	}
 
 	.form-grid {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-md);
+		gap: var(--space-xl);
 	}
 
+	/* ── Flip7 Labels: sentence-case, display font, small ── */
 	.form-label {
+		font-family: var(--font-display);
 		font-size: var(--font-size-sm);
 		font-weight: 600;
 		color: var(--color-text);
-		margin-bottom: var(--space-xs);
+		text-transform: none;
+		letter-spacing: 0.02em;
 	}
 
+	/* ── Input surfaces: CREAM bg, subtle border, teal focus ── */
 	input[type="text"],
 	input[type="number"],
 	input[type="date"],
-	select,
 	textarea {
 		padding: var(--space-sm) var(--space-md);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-md);
 		font-size: var(--font-size-base);
-		font-family: inherit;
-		background: var(--color-surface);
+		font-family: var(--font-body);
+		background: var(--color-cream);
 		color: var(--color-text);
-		transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+		transition: border-color 200ms var(--ease), box-shadow 200ms var(--ease);
 		width: 100%;
 		-webkit-appearance: none;
 		appearance: none;
 	}
 
 	input,
-	select,
 	textarea {
 		min-height: 44px;
 	}
@@ -237,52 +263,34 @@
 		resize: vertical;
 		min-height: 80px;
 		line-height: 1.5;
+		background: var(--color-cream);
 	}
 
 	input:focus,
-	select:focus,
 	textarea:focus {
 		outline: none;
-		border-color: var(--color-primary);
-		box-shadow: 0 0 0 3px var(--color-primary-light);
+		border-color: var(--color-teal);
+		box-shadow: var(--focus);
 	}
 
 	.input-error {
-		border-color: var(--color-expense) !important;
+		border-color: var(--color-coral) !important;
+		box-shadow: 0 0 0 4px rgba(239, 108, 74, 0.12) !important;
 	}
 
 	.form-error {
 		font-size: var(--font-size-sm);
-		color: var(--color-expense);
+		color: var(--color-coral);
+		font-weight: 500;
 	}
 
-	.amount-wrap {
-		display: flex;
-		align-items: stretch;
-		position: relative;
-	}
-
-	.amount-prefix {
-		display: flex;
-		align-items: center;
-		padding: 0 12px;
-		background: var(--color-bg);
-		border: 1px solid var(--color-border);
-		border-right: none;
-		border-radius: var(--radius-sm) 0 0 var(--radius-sm);
-		font-weight: 600;
-		font-size: var(--font-size-base);
-		color: var(--color-text-secondary);
-	}
-
-	.amount-wrap input {
-		border-top-left-radius: 0;
-		border-bottom-left-radius: 0;
-	}
-
+	/* ── Type toggle: pill segmented control ── */
 	.type-toggle {
 		display: flex;
-		gap: var(--space-sm);
+		border-radius: var(--radius-pill);
+		background: var(--color-bg);
+		padding: 3px;
+		gap: 2px;
 	}
 
 	.type-option {
@@ -291,93 +299,331 @@
 		align-items: center;
 		justify-content: center;
 		gap: var(--space-xs);
-		padding: var(--space-sm) var(--space-md);
-		border: 2px solid var(--color-border);
-		border-radius: var(--radius-md);
+		padding: 8px var(--space-md);
+		border-radius: var(--radius-pill);
 		cursor: pointer;
-		font-size: var(--font-size-base);
-		font-weight: 500;
-		transition: all var(--transition-fast);
-		min-height: 48px;
+		font-family: var(--font-display);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--color-text-muted);
+		transition: all 300ms var(--bounce);
+		min-height: 44px;
+		border: none;
+		background: transparent;
+		user-select: none;
+		-webkit-tap-highlight-color: transparent;
 	}
 
 	.type-option input {
 		display: none;
 	}
 
-	.type-option.active {
-		border-color: var(--color-primary);
-		background: var(--color-primary-light);
-		color: var(--color-primary);
-	}
-
-	.form-actions {
-		display: flex;
-		gap: var(--space-sm);
-		margin-top: var(--space-lg);
-	}
-
-	.btn {
-		padding: 12px var(--space-lg);
-		border-radius: var(--radius-md);
-		font-size: var(--font-size-base);
-		font-weight: 600;
-		cursor: pointer;
-		border: none;
-		transition: all var(--transition-fast);
-		min-height: 44px;
-		flex: 1;
-	}
-
-	.btn-primary {
-		background: var(--color-primary);
+	/* Expense active = coral */
+	.type-option:first-child.active {
+		background: var(--color-coral);
 		color: white;
+		box-shadow: var(--glow-coral);
 	}
 
-	.btn-primary:hover {
-		background: var(--color-primary-hover);
+	/* Income active = teal */
+	.type-option:nth-child(2).active {
+		background: var(--color-teal);
+		color: white;
+		box-shadow: var(--glow-card);
 	}
 
-	.btn-secondary {
-		background: var(--color-bg);
+	/* ── Amount counter row ── */
+	.amount-section {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+	}
+
+	.amt-btn {
+		width: 44px;
+		height: 44px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: none;
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-size: 20px;
+		font-weight: 700;
+		font-family: var(--font-display);
+		flex-shrink: 0;
+		transition: all 150ms var(--ease);
+		-webkit-tap-highlight-color: transparent;
+		background: var(--color-teal-bg);
+		color: var(--color-teal);
+		box-shadow: var(--glow-soft);
+	}
+
+	.amt-btn:active {
+		transform: scale(0.92);
+	}
+
+	.amt-minus {
+		background: rgba(239, 108, 74, 0.10);
+		color: var(--color-coral);
+	}
+
+	.amt-minus:hover {
+		background: rgba(239, 108, 74, 0.18);
+	}
+
+	.amt-plus {
+		background: var(--color-teal-bg);
+		color: var(--color-teal);
+	}
+
+	.amt-plus:hover {
+		background: rgba(43, 168, 162, 0.18);
+	}
+
+	.amount-display-wrap {
+		display: flex;
+		align-items: stretch;
+		flex: 1;
+		background: var(--color-cream);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-md);
+		overflow: hidden;
+		transition: border-color 200ms var(--ease), box-shadow 200ms var(--ease);
+	}
+
+	.amount-display-wrap:focus-within {
+		border-color: var(--color-teal);
+		box-shadow: var(--focus);
+	}
+
+	.amount-prefix {
+		display: flex;
+		align-items: center;
+		padding: 0 12px 0 16px;
+		font-family: var(--font-display);
+		font-size: 22px;
+		font-weight: 700;
+		color: var(--color-text-muted);
+		background: transparent;
+		border: none;
+	}
+
+	.amount-display-wrap input {
+		border: none !important;
+		background: transparent !important;
+		font-family: var(--font-display);
+		font-size: 24px;
+		font-weight: 700;
 		color: var(--color-text);
-		border: 1px solid var(--color-border);
+		padding: 8px 16px 8px 0;
+		min-height: 48px;
+		box-shadow: none !important;
+		letter-spacing: -0.01em;
 	}
 
-	.btn-secondary:hover {
-		background: var(--color-border);
+	.amount-display-wrap input:focus {
+		box-shadow: none !important;
 	}
 
+	.amount-display-wrap input::placeholder {
+		color: var(--color-text-muted);
+		opacity: 0.5;
+	}
+
+	/* ── Description ── */
+	.desc-input-wrap {
+		position: relative;
+	}
+
+	.desc-input-wrap textarea {
+		padding-right: 60px;
+	}
+
+	.char-count {
+		position: absolute;
+		bottom: 10px;
+		right: 12px;
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		font-family: var(--font-mono);
+		opacity: 0.6;
+		pointer-events: none;
+	}
+
+	/* ── Date row ── */
 	.date-input-row {
 		display: flex;
 		gap: var(--space-sm);
 		align-items: center;
 	}
 
-	.date-input-row input {
+	.date-input-row input[type="date"] {
 		flex: 1;
+		background: var(--color-cream);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-md);
+		padding: var(--space-sm) var(--space-md);
+		font-family: var(--font-body);
+		font-size: var(--font-size-base);
+		min-height: 44px;
+		color: var(--color-text);
+		transition: border-color 200ms var(--ease), box-shadow 200ms var(--ease);
+	}
+
+	.date-input-row input[type="date"]:focus {
+		outline: none;
+		border-color: var(--color-teal);
+		box-shadow: var(--focus);
 	}
 
 	.btn-today {
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
-		padding: var(--space-xs) var(--space-md);
-		background: var(--color-bg);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
+		padding: var(--space-xs) var(--space-lg);
+		background: var(--color-teal-bg);
+		border: 1px solid var(--color-teal);
+		border-radius: var(--radius-pill);
 		cursor: pointer;
+		font-family: var(--font-display);
 		font-size: var(--font-size-sm);
 		font-weight: 600;
-		color: var(--color-primary);
+		color: var(--color-teal);
 		min-height: 44px;
 		white-space: nowrap;
-		transition: all var(--transition-fast);
+		transition: all 200ms var(--ease);
+		box-shadow: var(--glow-card);
 	}
 
 	.btn-today:hover {
-		background: var(--color-primary-light);
-		border-color: var(--color-primary);
+		background: var(--color-teal);
+		color: white;
+		box-shadow: 0 4px 20px rgba(43, 168, 162, 0.30);
+	}
+
+	.btn-today:active {
+		transform: scale(0.96);
+	}
+
+	/* ── Category chips grid ── */
+	.category-section {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.category-chips {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: var(--space-sm);
+	}
+
+	.cat-chip {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		padding: 10px 14px;
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-lg);
+		background: var(--color-cream);
+		cursor: pointer;
+		font-family: var(--font-body);
+		transition: all 200ms var(--bounce);
+		min-height: 48px;
+		-webkit-tap-highlight-color: transparent;
+		text-align: left;
+	}
+
+	.cat-chip:hover {
+		border-color: var(--color-teal);
+		background: var(--color-teal-bg);
+	}
+
+	.cat-chip:active {
+		transform: scale(0.97);
+	}
+
+	.cat-chip.active {
+		background: var(--color-teal-bg);
+		border-color: var(--color-teal);
+		box-shadow: var(--glow-card);
+		transform: scale(1.05);
+	}
+
+	.cat-chip-icon {
+		width: 32px;
+		height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius-md);
+		font-size: 18px;
+		background: var(--color-teal-bg);
+		flex-shrink: 0;
+	}
+
+	.cat-chip.active .cat-chip-icon {
+		background: var(--color-teal);
+	}
+
+	.cat-chip-name {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.no-categories {
+		padding: var(--space-sm) var(--space-md);
+	}
+
+	/* ── Buttons ── */
+	.form-actions {
+		display: flex;
+		gap: var(--space-sm);
+		margin-top: var(--space-xl);
+	}
+
+	.btn {
+		padding: 12px var(--space-xl);
+		border-radius: var(--radius-pill);
+		font-family: var(--font-display);
+		font-size: var(--font-size-base);
+		font-weight: 700;
+		cursor: pointer;
+		border: none;
+		transition: all 200ms var(--bounce);
+		min-height: 48px;
+		flex: 1;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.btn-submit {
+		background: linear-gradient(135deg, var(--color-gold), var(--color-gold-light));
+		color: var(--color-ink);
+		box-shadow: var(--glow-gold);
+	}
+
+	.btn-submit:hover {
+		transform: translateY(-1px);
+		box-shadow: 0 6px 24px rgba(255, 210, 63, 0.55);
+	}
+
+	.btn-submit:active {
+		transform: translateY(0) scale(0.98);
+	}
+
+	.btn-cancel {
+		background: var(--color-bg);
+		color: var(--color-text-muted);
+		border: 1px solid var(--color-hairline);
+		font-weight: 600;
+	}
+
+	.btn-cancel:hover {
+		background: var(--color-cream);
+		border-color: var(--color-border);
+		color: var(--color-text);
 	}
 
 	@media (max-width: 480px) {
@@ -387,6 +633,23 @@
 
 		.btn {
 			width: 100%;
+		}
+
+		.category-chips {
+			grid-template-columns: 1fr;
+		}
+
+		.amount-section {
+			gap: var(--space-xs);
+		}
+
+		.amount-display-wrap input {
+			font-size: 20px;
+		}
+
+		.amt-btn {
+			width: 40px;
+			height: 40px;
 		}
 	}
 </style>

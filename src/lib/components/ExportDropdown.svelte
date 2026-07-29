@@ -140,7 +140,7 @@
 
 <style>
   /* ═══════════════════════════════════════════
-     EXPORT DROPDOWN
+     EXPORT DROPDOWN — Flip7
      ═══════════════════════════════════════════ */
 
   .ex-wrapper {
@@ -148,17 +148,17 @@
     display: inline-block;
   }
 
-  /* ─── Trigger Button ─── */
+  /* ─── Trigger Button: teal ghost pill ─── */
 
   .ex-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     padding: var(--space-sm) var(--space-md);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    color: var(--color-text-secondary);
+    background: transparent;
+    border: 1px solid var(--color-teal);
+    border-radius: var(--radius-pill);
+    color: var(--color-teal);
     font-size: var(--font-size-sm);
     font-weight: 600;
     font-family: inherit;
@@ -170,16 +170,19 @@
   }
 
   .ex-btn:hover {
-    background: var(--color-primary-light);
-    border-color: var(--color-primary);
-    color: var(--color-primary);
+    background: var(--color-teal-bg);
+    box-shadow: var(--glow-card);
   }
 
   .ex-btn.active {
-    background: var(--color-primary-light);
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-    box-shadow: 0 0 0 3px var(--color-primary-light);
+    background: var(--color-teal-bg);
+    border-color: var(--color-teal-dark);
+    color: var(--color-teal-dark);
+    box-shadow: var(--glow-card);
+  }
+
+  .ex-btn:active {
+    transform: scale(0.95);
   }
 
   .ex-chevron {
@@ -195,38 +198,35 @@
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: var(--color-primary);
+    background: var(--color-gold);
+    box-shadow: var(--glow-gold);
     position: absolute;
     top: 8px;
     right: 6px;
   }
 
-  /* ─── Dropdown Panel ─── */
+  /* ─── Dropdown Panel: cream popover ─── */
 
   .ex-dropdown {
     position: absolute;
     top: calc(100% + 6px);
     right: 0;
-    width: 320px;
+    width: 340px;
     max-width: calc(100vw - 24px);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    background: var(--color-cream);
+    border: 1px solid var(--color-hairline);
     border-radius: var(--radius-xl);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-card);
     z-index: 50;
     overflow: hidden;
-    animation: dropIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: dropIn 250ms var(--bounce);
     transform-origin: top right;
-  }
-
-  [data-theme="dark"] .ex-dropdown {
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
   @keyframes dropIn {
     from {
       opacity: 0;
-      transform: translateY(-6px) scale(0.96);
+      transform: translateY(-8px) scale(0.95);
     }
     to {
       opacity: 1;
@@ -242,33 +242,33 @@
     gap: 6px;
     padding: var(--space-sm) var(--space-md);
     font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     font-weight: 500;
-    border-bottom: 1px solid var(--color-border);
-    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-hairline);
+    background: var(--color-teal-bg);
   }
 
   .ex-badge {
     display: inline-flex;
     align-items: center;
     padding: 1px 7px;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-pill);
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    background: var(--color-primary-light);
-    color: var(--color-primary);
+    background: var(--color-teal);
+    color: white;
   }
 
   .ex-muted {
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     font-size: 10px;
     font-weight: 500;
     opacity: 0.7;
   }
 
-  /* ─── Option Rows ─── */
+  /* ─── Option Rows: lift + brighten on hover ─── */
 
   .ex-option {
     display: flex;
@@ -281,8 +281,9 @@
     cursor: pointer;
     text-align: left;
     font-family: inherit;
-    transition: background 120ms ease;
-    border-bottom: 1px solid var(--color-border);
+    transition: all var(--transition-fast);
+    border-bottom: 1px solid var(--color-hairline);
+    position: relative;
   }
 
   .ex-option:last-child {
@@ -290,11 +291,16 @@
   }
 
   .ex-option:hover {
-    background: rgba(99, 102, 241, 0.04);
+    background: var(--color-teal-bg);
+    transform: translateY(-2px);
+    box-shadow: var(--glow-card);
+    border-radius: var(--radius-md);
+    margin: 2px var(--space-xs);
+    padding: var(--space-md) calc(var(--space-md) - var(--space-xs));
   }
 
   .ex-option:active {
-    background: rgba(99, 102, 241, 0.08);
+    transform: scale(0.97);
   }
 
   /* ─── Option Icon ─── */
@@ -310,13 +316,13 @@
   }
 
   .csv-icon {
-    background: var(--color-income-light);
-    color: var(--color-income);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
   }
 
   .pdf-icon {
-    background: var(--color-expense-light);
-    color: var(--color-expense);
+    background: rgba(255, 210, 63, 0.15);
+    color: var(--color-gold-dark);
   }
 
   /* ─── Option Text ─── */
@@ -331,13 +337,27 @@
   .ex-option-title {
     font-size: var(--font-size-sm);
     font-weight: 600;
-    color: var(--color-text);
+    color: var(--color-ink);
   }
 
   .ex-option-sub {
     font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     line-height: 1.3;
+  }
+
+  /* ─── Dark mode ─── */
+  [data-theme="dark"] .ex-dropdown {
+    background: var(--color-surface);
+    border-color: var(--color-hairline);
+  }
+
+  [data-theme="dark"] .ex-summary {
+    background: var(--color-surface);
+  }
+
+  [data-theme="dark"] .ex-option:hover {
+    background: var(--color-teal-bg);
   }
 
   /* ═══════════════════════════════════════════
@@ -354,6 +374,12 @@
   @media (prefers-reduced-motion: reduce) {
     .ex-dropdown {
       animation: none;
+    }
+    .ex-option {
+      transition: none;
+    }
+    .ex-option:hover {
+      transform: none;
     }
   }
 </style>

@@ -272,8 +272,8 @@
 
 <style>
   /* ═══════════════════════════════════════════════════════════════════
-     FILTER BAR
-     Ramp/Stripe-style pill filters with floating popovers
+     FILTER BAR — Flip7
+     Bubbly pill filters with card popovers
      ═══════════════════════════════════════════════════════════════════ */
 
   .filter-bar {
@@ -290,48 +290,49 @@
     position: relative;
   }
 
-  /* ─── Filter pill ─── */
+  /* ─── Bubbly filter pill ─── */
   .filter-pill {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 16px;
-    border-radius: 999px;
-    border: 1px solid var(--color-border);
+    padding: 8px 18px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-hairline);
     background: var(--color-surface);
+    font-family: var(--font-body);
     font-size: var(--font-size-sm);
     font-weight: 500;
-    font-family: inherit;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     cursor: pointer;
     min-height: 40px;
-    transition: all 120ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 200ms var(--bounce);
     white-space: nowrap;
     -webkit-tap-highlight-color: transparent;
   }
 
   .filter-pill:hover {
-    border-color: var(--color-primary);
-    background: var(--color-bg);
-    color: var(--color-text);
+    border-color: var(--color-teal);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
   }
 
   .filter-pill:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--color-teal);
     outline-offset: 2px;
   }
 
-  /* Active (filter is set) */
+  /* Active (filter is set) — teal-bg + glow */
   .filter-pill.active {
-    background: var(--color-primary-light);
-    border-color: var(--color-primary);
-    color: var(--color-primary);
+    background: var(--color-teal-bg);
+    border-color: var(--color-teal);
+    color: var(--color-teal);
     font-weight: 600;
+    box-shadow: var(--glow-card);
   }
 
   .pill-chevron {
     flex-shrink: 0;
-    transition: transform 150ms ease;
+    transition: transform 200ms var(--ease);
   }
 
   .filter-pill.active .pill-chevron {
@@ -340,15 +341,15 @@
 
   /* ─── Clear pill ─── */
   .clear-pill {
-    color: var(--color-expense);
-    border-color: rgba(239, 68, 68, 0.2);
+    color: var(--color-coral);
+    border-color: rgba(239, 108, 74, 0.20);
     background: transparent;
   }
 
   .clear-pill:hover {
-    background: var(--color-expense-light);
-    border-color: var(--color-expense);
-    color: var(--color-expense);
+    background: rgba(239, 108, 74, 0.10);
+    border-color: var(--color-coral);
+    color: var(--color-coral);
   }
 
   .clear-count {
@@ -356,7 +357,7 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     FLOATING POPOVER
+     FLOATING POPOVER — Cream card with shadow-card
      ═══════════════════════════════════════════════════════════════════ */
 
   .filter-popover {
@@ -366,18 +367,13 @@
     min-width: 240px;
     max-height: 340px;
     overflow-y: auto;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    background: var(--color-cream);
+    border: 1px solid var(--color-hairline);
     border-radius: var(--radius-lg);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-card);
     z-index: var(--z-modal, 1000);
     padding: 6px;
-    animation: popoverIn 150ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  [data-theme="dark"] .filter-popover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-    border-color: var(--color-border);
+    animation: popoverIn 200ms var(--bounce);
   }
 
   @keyframes popoverIn {
@@ -405,7 +401,7 @@
 
   .popover-divider {
     height: 1px;
-    background: var(--color-border);
+    background: var(--color-hairline);
     margin: 4px 8px;
   }
 
@@ -416,31 +412,31 @@
     gap: var(--space-sm);
     padding: 10px 12px;
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     background: transparent;
+    font-family: var(--font-body);
     font-size: var(--font-size-sm);
     font-weight: 500;
-    font-family: inherit;
     color: var(--color-text);
     cursor: pointer;
-    transition: background 100ms ease;
+    transition: background 150ms var(--ease);
     text-align: left;
     width: 100%;
     min-height: 40px;
   }
 
   .popover-option:hover {
-    background: rgba(99, 102, 241, 0.05);
+    background: var(--color-teal-bg);
   }
 
   .popover-option.active {
-    background: var(--color-primary-light);
-    color: var(--color-primary);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
     font-weight: 600;
   }
 
   .popover-option:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--color-teal);
     outline-offset: -2px;
   }
 
@@ -449,10 +445,10 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--color-primary);
+    background: var(--color-teal);
     flex-shrink: 0;
     opacity: 0;
-    transition: opacity 100ms ease;
+    transition: opacity 150ms var(--ease);
   }
 
   .popover-option.active .popover-dot {
@@ -486,8 +482,10 @@
   }
 
   .custom-label {
+    font-family: var(--font-display);
     font-size: var(--font-size-sm);
-    font-weight: 500;
+    font-weight: 600;
+    color: var(--color-text);
   }
 
   .custom-inputs {
@@ -500,44 +498,52 @@
     flex: 1;
     min-width: 0;
     padding: 6px 8px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-md);
     font-size: var(--font-size-xs);
-    font-family: inherit;
+    font-family: var(--font-body);
     background: var(--color-surface);
     color: var(--color-text);
     min-height: 34px;
+    transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease);
   }
 
   .date-input:focus {
     outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 2px var(--color-primary-light);
+    border-color: var(--color-teal);
+    box-shadow: var(--focus);
   }
 
   .date-sep {
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     font-size: var(--font-size-xs);
     flex-shrink: 0;
+    font-family: var(--font-mono);
   }
 
   .date-apply {
-    padding: 6px 12px;
+    padding: 6px 14px;
     border: none;
-    border-radius: var(--radius-sm);
-    background: var(--color-primary);
+    border-radius: var(--radius-pill);
+    background: var(--color-teal);
     color: white;
+    font-family: var(--font-display);
     font-size: var(--font-size-xs);
-    font-weight: 600;
-    font-family: inherit;
+    font-weight: 700;
     cursor: pointer;
     min-height: 34px;
     white-space: nowrap;
-    transition: background 100ms ease;
+    transition: all 150ms var(--ease);
+    box-shadow: var(--glow-card);
   }
 
   .date-apply:hover {
-    background: var(--color-primary-hover);
+    background: var(--color-teal-dark);
+    box-shadow: 0 4px 20px rgba(43, 168, 162, 0.30);
+  }
+
+  .date-apply:active {
+    transform: scale(0.96);
   }
 
   /* ─── Responsive ─── */

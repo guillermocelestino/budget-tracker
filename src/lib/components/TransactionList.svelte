@@ -132,6 +132,8 @@
   <!-- Main row -->
   <div
     class="txn-row"
+    class:txn-income={isIncome}
+    class:txn-expense={!isIncome}
     class:editing={isExpanded}
     class:swiped={swipedRowId === txn.id}
     data-txn-id={txn.id}
@@ -270,63 +272,108 @@
 
   .grouped-list {
     background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-hairline);
     border-radius: var(--radius-xl);
     overflow: hidden;
   }
 
-  /* ── Date Header (Monarch-style: sticky, uppercase, muted) ── */
+  /* ── Date Header (Flip7: sentence-case, teal tint) ── */
   .date-header {
     display: flex;
     align-items: baseline;
     gap: var(--space-sm);
     padding: var(--space-sm) var(--space-md);
-    background: var(--color-bg);
-    border-bottom: 1px solid var(--color-border);
+    background: var(--color-teal-bg);
+    border-bottom: 1px dashed var(--color-hairline);
     position: sticky;
     top: 0;
     z-index: 2;
   }
 
   .date-label {
+    font-family: var(--font-display);
     font-size: var(--font-size-xs);
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    font-weight: 700;
+    color: var(--color-teal);
+    text-transform: none;
+    letter-spacing: 0.02em;
   }
 
   .date-count {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
-    opacity: 0.5;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--color-teal);
+    opacity: 0.6;
   }
 
-  /* ── Row ── */
+  /* ── Row with left accent bar ── */
   .txn-row {
     position: relative;
     display: flex;
     align-items: center;
     gap: var(--space-md);
     padding: 12px var(--space-md);
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px dashed var(--color-hairline);
     background: var(--color-surface);
     cursor: pointer;
-    font-family: inherit;
+    font-family: var(--font-body);
     min-height: 56px;
-    transition: background 150ms ease, transform 100ms ease-out;
-    will-change: transform;
+    transition: background 200ms var(--ease);
+    overflow: hidden;
+  }
+
+  /* Left accent bar pseudo-element (slides in on hover) */
+  .txn-row::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    border-radius: 0 2px 2px 0;
+    transition: width 200ms var(--ease);
+    pointer-events: none;
+  }
+
+  .txn-income::before { background: var(--color-teal); }
+  .txn-expense::before { background: var(--color-coral); }
+
+  /* Hover: teal wash + left bar slide-in */
+  .txn-row:hover {
+    background: var(--color-teal-bg);
+  }
+
+  .txn-row:hover::before {
+    width: 4px;
+  }
+
+  /* Editing state */
+  .txn-row.editing {
+    background: var(--color-teal-bg);
+    border-bottom: none;
+  }
+
+  .txn-row.editing::before {
+    width: 4px;
   }
 
   /* Swipe-to-delete affordance */
   .txn-row.swiped {
-    border-color: var(--color-expense-light);
+    border-color: var(--color-coral-light);
+    background: rgba(239, 108, 74, 0.06);
   }
+
+  .txn-row:focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: -2px;
+  }
+
+  .txn-row:last-child { border-bottom: none; }
 
   /* Shimmer loading rows */
   .shimmer-list {
     background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-hairline);
     border-radius: var(--radius-xl);
     overflow: hidden;
   }
@@ -336,7 +383,7 @@
     align-items: center;
     gap: var(--space-md);
     padding: 12px var(--space-md);
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px dashed var(--color-hairline);
     min-height: 56px;
   }
 
@@ -359,23 +406,6 @@
     border-radius: var(--radius-md);
   }
 
-  .txn-row:last-child { border-bottom: none; }
-
-  /* Hover: subtle slate shift */
-  .txn-row:hover { background: rgba(99, 102, 241, 0.04); }
-
-  .txn-row:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: -2px;
-  }
-
-  /* Editing state: left border highlight + tinted background */
-  .txn-row.editing {
-    background: rgba(99, 102, 241, 0.06);
-    border-left: 3px solid var(--color-primary);
-    border-bottom: none;
-  }
-
   /* ── Direction dot (icon) ── */
   .txn-dot {
     width: 32px;
@@ -387,8 +417,8 @@
     flex-shrink: 0;
   }
 
-  .dot-income { background: var(--color-income-light); color: var(--color-income); }
-  .dot-expense { background: var(--color-expense-light); color: var(--color-expense); }
+  .dot-income { background: var(--color-teal-bg); color: var(--color-teal); }
+  .dot-expense { background: rgba(239, 108, 74, 0.10); color: var(--color-coral); }
 
   /* ── Info block: description + category pill ── */
   .txn-info {
@@ -406,19 +436,21 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-family: var(--font-body);
   }
 
   .cat-pill {
-    padding: 2px 8px;
-    border-radius: var(--radius-full);
+    padding: 2px 10px;
+    border-radius: var(--radius-pill);
     font-size: var(--font-size-xs);
     font-weight: 600;
     white-space: nowrap;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.02em;
     flex-shrink: 0;
+    font-family: var(--font-display);
   }
 
-  /* ── Amount column ── */
+  /* ── Amount column: mono, right-aligned, colored by sign ── */
   .txn-amount-col {
     flex-shrink: 0;
     text-align: right;
@@ -428,11 +460,13 @@
   .txn-amount {
     font-size: var(--font-size-sm);
     font-weight: 700;
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
   }
 
-  .amount-income { color: var(--color-income); }
-  .amount-expense { color: var(--color-text); }
+  .amount-income { color: var(--color-teal); }
+  .amount-expense { color: var(--color-coral); }
 
   /* ── Hover-reveal action buttons ── */
   .hover-actions {
@@ -440,7 +474,7 @@
     gap: 2px;
     opacity: 0;
     transform: translateX(4px);
-    transition: opacity 150ms ease, transform 150ms ease;
+    transition: opacity 150ms var(--ease), transform 150ms var(--ease);
     pointer-events: none;
   }
 
@@ -459,23 +493,23 @@
     border: none;
     border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     cursor: pointer;
-    transition: background 120ms ease, color 120ms ease;
+    transition: background 120ms var(--ease), color 120ms var(--ease);
   }
 
-  .hover-btn:hover { background: var(--color-bg); color: var(--color-text); }
-  .hover-delete:hover { background: var(--color-expense-light); color: var(--color-expense); }
+  .hover-btn:hover { background: var(--color-teal-bg); color: var(--color-teal); }
+  .hover-delete:hover { background: rgba(239, 108, 74, 0.10); color: var(--color-coral); }
 
-  /* ── Inline edit panel ── */
+  /* ── Inline edit panel (Flip7) ── */
   .edit-panel {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 10px var(--space-md) 12px;
-    background: rgba(99, 102, 241, 0.04);
-    border-bottom: 1px solid var(--color-border);
-    border-left: 3px solid var(--color-primary);
+    background: var(--color-teal-bg);
+    border-bottom: 1px dashed var(--color-hairline);
+    border-left: 4px solid var(--color-teal);
     gap: var(--space-md);
   }
 
@@ -487,23 +521,26 @@
   }
 
   .edit-date {
+    font-family: var(--font-mono);
     font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
   }
 
   .edit-type-badge {
-    padding: 1px 8px;
-    border-radius: var(--radius-full);
+    padding: 2px 10px;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-display);
     font-size: var(--font-size-xs);
     font-weight: 600;
   }
 
-  .badge-income { background: var(--color-income-light); color: var(--color-income); }
-  .badge-expense { background: var(--color-expense-light); color: var(--color-expense); }
+  .badge-income { background: var(--color-teal-bg); color: var(--color-teal); }
+  .badge-expense { background: rgba(239, 108, 74, 0.10); color: var(--color-coral); }
 
   .edit-cat-name {
     font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
+    font-family: var(--font-body);
   }
 
   .edit-buttons {
@@ -513,31 +550,36 @@
   }
 
   .edit-btn {
-    padding: 6px 14px;
-    border-radius: var(--radius-sm);
+    padding: 6px 16px;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-display);
     font-size: var(--font-size-xs);
-    font-weight: 600;
+    font-weight: 700;
     min-height: 34px;
     cursor: pointer;
     border: none;
-    font-family: inherit;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    transition: all 150ms var(--ease);
   }
 
-  .edit-btn-primary { background: var(--color-primary); color: white; }
-  .edit-btn-primary:hover { background: var(--color-primary-hover); text-decoration: none; }
+  .edit-btn-primary {
+    background: var(--color-teal);
+    color: white;
+    box-shadow: var(--glow-card);
+  }
+  .edit-btn-primary:hover { background: var(--color-teal-dark); text-decoration: none; }
 
   .edit-btn-danger {
     background: transparent;
-    color: var(--color-expense);
-    border: 1px solid var(--color-border);
+    color: var(--color-coral);
+    border: 1px solid var(--color-hairline);
   }
   .edit-btn-danger:hover {
-    background: var(--color-expense-light);
-    border-color: var(--color-expense);
+    background: rgba(239, 108, 74, 0.10);
+    border-color: var(--color-coral);
   }
 
   /* ── Empty state ── */
@@ -549,7 +591,7 @@
     padding: var(--space-2xl) var(--space-md);
     text-align: center;
     background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-hairline);
     border-radius: var(--radius-xl);
   }
 
@@ -559,60 +601,103 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--color-primary-light), rgba(99, 102, 241, 0.1));
-    color: var(--color-primary);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
     border-radius: var(--radius-lg);
     margin-bottom: var(--space-md);
   }
 
   .empty-title {
+    font-family: var(--font-display);
     font-size: var(--font-size-base);
-    font-weight: 600;
+    font-weight: 700;
     color: var(--color-text);
     margin: 0 0 4px;
   }
 
   .empty-sub {
     font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     margin: 0 0 var(--space-md);
   }
 
   .empty-action {
-    padding: var(--space-sm) var(--space-lg);
-    background: var(--color-primary);
+    padding: var(--space-sm) var(--space-xl);
+    background: var(--color-teal);
     color: white;
-    border-radius: var(--radius-md);
-    font-weight: 600;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-display);
+    font-weight: 700;
     font-size: var(--font-size-sm);
     text-decoration: none;
     min-height: 44px;
     display: inline-flex;
     align-items: center;
-    transition: background var(--transition-fast);
+    transition: all 200ms var(--ease);
+    box-shadow: var(--glow-card);
   }
 
-  .empty-action:hover { background: var(--color-primary-hover); text-decoration: none; }
+  .empty-action:hover { background: var(--color-teal-dark); text-decoration: none; }
 
   @media (prefers-reduced-motion: reduce) {
     .txn-row {
-    transition: none;
-    will-change: auto;
+      transition: none;
+    }
+    .txn-row::before {
+      transition: none;
     }
   }
 
-  /* ── Mobile ── */
+  /* ── Mobile (< 640px) ── */
   @media (max-width: 640px) {
     .cat-pill { display: none; }
     .hover-actions { display: none; }
   }
 
+  /* ── Card layout (≤ 480px): cream surface + left bar + dashed dividers ── */
   @media (max-width: 480px) {
     .txn-row {
       flex-wrap: wrap;
       padding: 10px var(--space-md);
       min-height: 60px;
       gap: var(--space-xs);
+      background: var(--color-cream);
+      border: 1px dashed var(--color-hairline);
+      border-left: 4px solid transparent;
+      border-radius: var(--radius-lg);
+      margin: 0 var(--space-sm) 6px;
+    }
+
+    .txn-row::before {
+      display: none;
+    }
+
+    .txn-income {
+      border-left-color: var(--color-teal);
+    }
+
+    .txn-expense {
+      border-left-color: var(--color-coral);
+    }
+
+    .txn-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .txn-row.editing {
+      border-bottom: 1px dashed var(--color-hairline);
+    }
+
+    .grouped-list {
+      background: transparent;
+      border: none;
+      overflow: visible;
+    }
+
+    .date-header {
+      border-radius: var(--radius-md);
+      margin: 0 var(--space-sm);
+      padding: var(--space-xs) var(--space-md);
     }
 
     .txn-dot {
@@ -632,9 +717,25 @@
       margin-left: auto;
     }
 
-    .date-header { padding: var(--space-sm) var(--space-md); }
-    .edit-panel { flex-direction: column; align-items: flex-start; gap: var(--space-sm); }
+    .edit-panel {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-sm);
+      margin: 0 var(--space-sm);
+      border-radius: 0 0 var(--radius-md) var(--radius-md);
+    }
     .edit-buttons { width: 100%; }
     .edit-btn { flex: 1; justify-content: center; }
+
+    .shimmer-list {
+      background: transparent;
+      border: none;
+    }
+    .shimmer-row {
+      background: var(--color-cream);
+      border: 1px dashed var(--color-hairline);
+      border-radius: var(--radius-lg);
+      margin: 0 var(--space-sm) 6px;
+    }
   }
 </style>

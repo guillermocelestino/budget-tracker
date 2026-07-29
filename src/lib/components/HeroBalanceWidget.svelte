@@ -170,14 +170,16 @@
 
 <style>
   /* ════════════════════════════════════════════════
-     HERO BALANCE WIDGET
+     HERO BALANCE WIDGET — FLIP7
      ════════════════════════════════════════ */
 
   .hero-widget {
     position: relative;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    background: var(--color-cream);
+    border: none;
+    border-left: 6px solid var(--color-teal);
     border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
     overflow: hidden;
     margin-bottom: var(--space-lg);
     isolation: isolate;
@@ -200,15 +202,15 @@
     width: 450px;
     height: 280px;
     border-radius: 50%;
-    background: radial-gradient(ellipse, rgba(99, 102, 241, 0.07) 0%, transparent 70%);
+    background: radial-gradient(ellipse, rgba(43, 168, 162, 0.08) 0%, transparent 70%);
     pointer-events: none;
   }
 
   .hero-label {
     display: block;
     font-size: var(--font-size-xs);
-    font-weight: 500;
-    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.12em;
     margin-bottom: 6px;
@@ -217,16 +219,17 @@
   .hero-value {
     display: block;
     font-size: 3rem;
-    font-weight: 200;
-    letter-spacing: -0.035em;
-    line-height: 1.1;
-    color: var(--color-text);
+    font-weight: var(--font-weight-bold);
+    font-family: var(--font-display);
+    letter-spacing: var(--letter-spacing-tight);
+    line-height: var(--line-height-tight);
+    color: var(--color-ink);
     font-variant-numeric: tabular-nums;
-    transition: color 400ms ease;
+    transition: color 400ms var(--bounce);
   }
 
   .hero-value.negative {
-    color: var(--color-expense);
+    color: var(--color-negative);
   }
 
   /* ─── Section 2: Cash Flow Metrics ─── */
@@ -246,12 +249,27 @@
     align-items: flex-start;
     gap: var(--space-sm);
     min-width: 140px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-lg);
+    padding: var(--space-sm) var(--space-md);
+    position: relative;
+  }
+
+  /* Teal left bar for income */
+  .metric-block:first-of-type {
+    border-left: 4px solid var(--color-teal);
+  }
+
+  /* Coral left bar for expense */
+  .metric-block:nth-of-type(2) {
+    border-left: 4px solid var(--color-coral);
   }
 
   .metric-icon {
     width: 34px;
     height: 34px;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -260,13 +278,13 @@
   }
 
   .income-icon {
-    background: var(--color-income-light);
-    color: var(--color-income);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
   }
 
   .expense-icon {
-    background: var(--color-expense-light);
-    color: var(--color-expense);
+    background: rgba(239, 108, 74, 0.10);
+    color: var(--color-coral);
   }
 
   .metric-body {
@@ -277,42 +295,43 @@
 
   .metric-label {
     font-size: var(--font-size-xs);
-    font-weight: 500;
-    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
 
   .metric-value {
     font-size: var(--font-size-lg);
-    font-weight: 700;
-    color: var(--color-text);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-ink);
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
+    letter-spacing: var(--letter-spacing-tight);
     line-height: 1.2;
   }
 
   .metric-trend {
     font-size: var(--font-size-xs);
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     margin-top: 2px;
   }
 
-  .metric-trend.trend-up { color: var(--color-income); }
-  .metric-trend.trend-down { color: var(--color-expense); }
-  .metric-trend.trend-flat { color: var(--color-text-secondary); }
+  .metric-trend.trend-up { color: var(--color-teal); }
+  .metric-trend.trend-down { color: var(--color-coral); }
+  .metric-trend.trend-flat { color: var(--color-text-muted); }
 
   .metric-ratio {
     font-size: var(--font-size-xs);
-    font-weight: 500;
-    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-muted);
     margin-top: 2px;
   }
 
   .metric-divider {
     width: 1px;
     height: 48px;
-    background: var(--color-border);
+    background: var(--color-hairline);
     flex-shrink: 0;
   }
 
@@ -320,28 +339,33 @@
     display: flex;
     align-items: center;
     gap: 5px;
-    padding: 6px 14px;
-    border-radius: var(--radius-full);
+    padding: 6px 16px;
+    border-radius: var(--radius-pill);
     font-size: var(--font-size-sm);
-    font-weight: 700;
-    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-muted);
     background: var(--color-bg);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+    border: 1px solid transparent;
   }
 
   .metric-savings.savings-positive {
-    color: var(--color-income);
-    background: var(--color-income-light);
+    color: var(--color-gold-dark);
+    background: rgba(255, 210, 63, 0.15);
+    border-color: var(--color-gold);
+    box-shadow: var(--glow-gold);
   }
 
   .metric-savings.savings-negative {
-    color: var(--color-expense);
-    background: var(--color-expense-light);
+    color: var(--color-coral);
+    background: rgba(239, 108, 74, 0.10);
+    border-color: var(--color-coral);
+    animation: boom-pulse 2s infinite;
   }
 
   .savings-label {
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
     font-size: var(--font-size-xs);
     opacity: 0.8;
   }
@@ -351,8 +375,8 @@
   .lending-section {
     position: relative;
     z-index: 1;
-    border-top: 1px solid var(--color-border);
-    background: var(--color-bg);
+    border-top: 1px solid var(--color-hairline);
+    background: var(--color-cream);
     padding: var(--space-md) var(--space-xl);
   }
 
@@ -361,7 +385,7 @@
     align-items: center;
     gap: var(--space-sm);
     font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     min-height: 44px;
   }
 
@@ -369,17 +393,17 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--color-text-secondary);
+    background: var(--color-text-muted);
     flex-shrink: 0;
   }
 
   .lending-dot.positive {
-    background: var(--color-income);
+    background: var(--color-teal);
   }
 
   .lending-label {
-    font-weight: 600;
-    color: var(--color-text);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-ink);
     text-transform: uppercase;
     font-size: var(--font-size-xs);
     letter-spacing: 0.05em;
@@ -393,18 +417,18 @@
   }
 
   .lending-values strong {
-    color: var(--color-text);
-    font-weight: 600;
+    color: var(--color-ink);
+    font-weight: var(--font-weight-semibold);
     font-variant-numeric: tabular-nums;
   }
 
   .lending-outstanding {
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     font-variant-numeric: tabular-nums;
   }
 
   .lending-outstanding.positive {
-    color: var(--color-income);
+    color: var(--color-teal);
   }
 
   /* ═══════════════════════════════════════
@@ -433,7 +457,7 @@
       word-break: break-word;
       overflow-wrap: break-word;
       text-align: center;
-      line-height: 1.2;
+      line-height: var(--line-height-tight);
     }
 
     .metrics-section {
@@ -541,6 +565,9 @@
   @media (prefers-reduced-motion: reduce) {
     .hero-glow {
       display: none;
+    }
+    .metric-savings.savings-negative {
+      animation: none;
     }
   }
 </style>

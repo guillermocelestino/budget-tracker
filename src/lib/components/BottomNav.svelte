@@ -143,24 +143,27 @@
 
 <style>
   /* ═══════════════════════════════════════════════
-     BOTTOM NAVIGATION
+     BOTTOM NAVIGATION — Flip7 Design
      ═══════════════════════════════════════════════ */
 
   /* Only visible on mobile */
   .bottom-nav {
     display: none;
     position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    bottom: var(--safe-bottom, 0px);
+    left: 12px;
+    right: 12px;
     height: 64px;
-    padding-bottom: var(--safe-bottom, 0px);
+    margin-bottom: 8px;
     background: var(--color-surface);
-    border-top: 1px solid var(--color-border);
+    border: 1px solid var(--color-hairline);
+    box-shadow: var(--shadow-card);
+    border-radius: var(--radius-pill);
     z-index: var(--z-sidebar);
     flex-direction: row;
     align-items: stretch;
     justify-content: space-around;
+    padding: 0 4px;
   }
 
   @media (max-width: 768px) {
@@ -180,16 +183,16 @@
     flex: 1;
     min-width: 0;
     padding: 4px 2px;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     text-decoration: none;
     cursor: pointer;
     border: none;
     background: none;
     font-family: inherit;
-    transition: color var(--transition-fast), transform 120ms var(--ease-smooth);
+    transition: all var(--transition-fast);
     position: relative;
+    border-radius: var(--radius-lg);
     -webkit-tap-highlight-color: transparent;
-    will-change: transform;
   }
 
   .bn-item:active {
@@ -201,39 +204,42 @@
   }
 
   .bn-item.active {
-    color: var(--color-primary);
+    color: var(--color-teal);
+    background: var(--color-teal-bg);
   }
 
   .bn-item:hover {
-    color: var(--color-primary);
+    color: var(--color-teal);
     text-decoration: none;
   }
 
   .bn-item svg {
-    transition: transform 200ms var(--ease-spring);
+    transition: transform 200ms var(--bounce);
   }
 
   .bn-item.active svg {
     transform: scale(1.1);
+    color: var(--color-teal);
   }
 
-  /* Active indicator line */
-  .bn-item.active::before {
+  /* Gold dot indicator on active tab */
+  .bn-item.active::after {
     content: '';
     position: absolute;
-    top: 0;
+    top: -16px;
     left: 50%;
     transform: translateX(-50%);
-    width: 24px;
-    height: 2.5px;
-    border-radius: 0 0 3px 3px;
-    background: var(--color-primary);
-    animation: tab-indicator-in 250ms var(--ease-spring) both;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-gold);
+    box-shadow: 0 0 6px rgba(255, 210, 63, 0.6);
+    animation: dot-in 250ms var(--bounce) both;
   }
 
-  @keyframes tab-indicator-in {
-    from { width: 0; opacity: 0; }
-    to { width: 24px; opacity: 1; }
+  @keyframes dot-in {
+    from { transform: translateX(-50%) scale(0); opacity: 0; }
+    to { transform: translateX(-50%) scale(1); opacity: 1; }
   }
 
   .bn-label {
@@ -246,6 +252,11 @@
     max-width: 100%;
   }
 
+  .bn-item.active .bn-label {
+    color: var(--color-teal);
+    font-weight: var(--font-weight-bold);
+  }
+
   /* ─── Floating Action Button ─── */
 
   .bn-fab-wrap {
@@ -254,7 +265,7 @@
     justify-content: center;
     flex: 0 0 auto;
     position: relative;
-    top: -14px;
+    top: -16px;
     width: 56px;
   }
 
@@ -262,16 +273,28 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
-    color: white;
-    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
-    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    width: 54px;
+    height: 54px;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%);
+    color: var(--color-ink);
+    box-shadow: var(--glow-gold);
+    transition: all var(--transition-fast);
     text-decoration: none;
+    position: relative;
+    overflow: hidden;
     -webkit-tap-highlight-color: transparent;
-    animation: fab-spring-in 600ms var(--ease-spring) both;
+    animation: fab-spring-in 600ms var(--bounce) both;
+  }
+
+  /* Gloss sheen on FAB */
+  .bn-fab::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.30) 0%, transparent 50%);
+    border-radius: var(--radius-pill);
+    pointer-events: none;
   }
 
   @keyframes fab-spring-in {
@@ -282,12 +305,13 @@
 
   .bn-fab:hover {
     transform: translateY(-2px) scale(1.04);
-    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+    box-shadow: 0 6px 24px rgba(255, 210, 63, 0.55);
     text-decoration: none;
   }
 
   .bn-fab:active {
-    transform: translateY(0) scale(0.96);
+    transform: scale(0.95);
+    box-shadow: var(--glow-gold);
   }
 
   /* ─── More popup panel ─── */
@@ -297,17 +321,18 @@
     bottom: 80px;
     right: 12px;
     min-width: 180px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    background: var(--color-cream);
+    border: 1px solid var(--color-hairline);
     border-radius: var(--radius-xl);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    box-shadow: var(--shadow-card);
     z-index: calc(var(--z-sidebar) + 1);
     overflow: hidden;
     padding: 6px;
   }
 
   [data-theme="dark"] .more-panel {
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    background: var(--color-surface);
+    border-color: var(--color-hairline);
   }
 
   .more-item {
@@ -321,29 +346,29 @@
     font-size: var(--font-size-sm);
     font-weight: 500;
     min-height: 44px;
-    transition: background var(--transition-fast);
+    transition: all var(--transition-fast);
   }
 
   .more-item:hover {
-    background: var(--color-primary-light);
-    color: var(--color-primary);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
     text-decoration: none;
   }
 
   .more-item.active {
-    color: var(--color-primary);
-    background: var(--color-primary-light);
-    font-weight: 600;
+    color: var(--color-teal);
+    background: var(--color-teal-bg);
+    font-weight: var(--font-weight-semibold);
   }
 
   .more-item svg {
     flex-shrink: 0;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
   }
 
   .more-item:hover svg,
   .more-item.active svg {
-    color: var(--color-primary);
+    color: var(--color-teal);
   }
 
   /* ═══════════════════════════════════════════════

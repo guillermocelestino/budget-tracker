@@ -169,8 +169,8 @@
 
 <style>
   /* ═══════════════════════════════════════════════════════════════════
-     TRANSACTION SUMMARY CARDS
-     Interactive: clickable, filter-aware, with trend indicators
+     TRANSACTION SUMMARY CARDS — Flip7 scoring tiles
+     Colored left bars, clickable filter, gold glow on active
      ═══════════════════════════════════════════════════════════════════ */
 
   .summary-cards {
@@ -188,52 +188,62 @@
     gap: var(--space-md);
     padding: var(--space-lg);
     background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-hairline);
     border-radius: var(--radius-xl);
     cursor: pointer;
-    font-family: inherit;
+    font-family: var(--font-body);
     text-align: left;
     overflow: hidden;
     min-height: 120px;
-    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 250ms var(--bounce);
     -webkit-tap-highlight-color: transparent;
   }
 
   .card:hover {
-    border-color: var(--color-text-secondary);
-    box-shadow: var(--shadow-sm);
+    border-color: var(--color-teal);
+    box-shadow: var(--glow-card);
     transform: translateY(-2px);
   }
 
   .card:active {
-    transform: translateY(0);
+    transform: translateY(0) scale(0.98);
   }
 
   .card:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--color-teal);
     outline-offset: 2px;
   }
 
-  /* ─── Left gradient accent bar ─── */
+  /* ─── Left accent bar ─── */
   .card-accent {
     position: absolute;
     left: 0;
     top: 0;
     bottom: 0;
-    width: 3px;
+    width: 4px;
     border-radius: 0 2px 2px 0;
+    transition: all 250ms var(--bounce);
   }
 
   .income-accent {
-    background: linear-gradient(180deg, var(--color-income) 0%, #34d399 100%);
+    background: var(--color-teal);
+    box-shadow: var(--glow-card);
   }
 
   .expense-accent {
-    background: linear-gradient(180deg, var(--color-expense) 0%, #f87171 100%);
+    background: var(--color-coral);
+    box-shadow: var(--glow-coral);
   }
 
   .net-accent {
-    background: linear-gradient(180deg, var(--color-primary) 0%, #8b5cf6 100%);
+    background: var(--color-gold);
+    box-shadow: var(--glow-gold);
+  }
+
+  /* Hero card negative net = coral bar */
+  .hero-card.negative .net-accent {
+    background: var(--color-coral);
+    box-shadow: var(--glow-coral);
   }
 
   /* ─── Icon ─── */
@@ -249,18 +259,23 @@
   }
 
   .income-icon {
-    background: linear-gradient(135deg, var(--color-income-light) 0%, rgba(16, 185, 129, 0.2) 100%);
-    color: var(--color-income);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
   }
 
   .expense-icon {
-    background: linear-gradient(135deg, var(--color-expense-light) 0%, rgba(239, 68, 68, 0.2) 100%);
-    color: var(--color-expense);
+    background: rgba(239, 108, 74, 0.10);
+    color: var(--color-coral);
   }
 
   .net-icon {
-    background: linear-gradient(135deg, var(--color-primary-light) 0%, rgba(99, 102, 241, 0.2) 100%);
-    color: var(--color-primary);
+    background: rgba(255, 210, 63, 0.15);
+    color: var(--color-gold-dark);
+  }
+
+  .hero-card.negative .net-icon {
+    background: rgba(239, 108, 74, 0.10);
+    color: var(--color-coral);
   }
 
   /* ─── Content ─── */
@@ -273,11 +288,12 @@
   }
 
   .card-label {
+    font-family: var(--font-display);
     font-size: var(--font-size-xs);
-    font-weight: 500;
-    color: var(--color-text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: none;
+    letter-spacing: 0.02em;
     margin-bottom: 2px;
   }
 
@@ -286,6 +302,7 @@
     font-weight: 700;
     color: var(--color-text);
     line-height: 1.2;
+    font-family: var(--font-display);
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
   }
@@ -301,33 +318,59 @@
     margin-top: 6px;
     font-size: 11px;
     font-weight: 600;
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
+    padding: 2px 10px;
+    border-radius: var(--radius-pill);
     width: fit-content;
     background: var(--color-bg);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
+    font-family: var(--font-display);
   }
 
   .card-trend.positive {
-    color: var(--color-income);
-    background: var(--color-income-light);
+    color: var(--color-teal);
+    background: var(--color-teal-bg);
   }
 
   .card-trend.negative {
-    color: var(--color-expense);
-    background: var(--color-expense-light);
+    color: var(--color-coral);
+    background: rgba(239, 108, 74, 0.10);
   }
 
-  /* ─── Active state (filter matches this card) ─── */
+  /* ─── Active state (filter matches) — gold accent + glow ─── */
   .card.active {
-    border-color: var(--color-primary);
-    background: var(--color-primary-light);
-    box-shadow: 0 2px 12px rgba(99, 102, 241, 0.15);
+    border-color: var(--color-gold);
+    background: rgba(255, 210, 63, 0.06);
+    box-shadow: var(--glow-gold);
     transform: scale(1.02);
   }
 
+  .card.active .card-accent {
+    background: var(--color-gold);
+    box-shadow: var(--glow-gold);
+  }
+
   .card.active .card-value {
-    color: var(--color-primary);
+    color: var(--color-ink);
+  }
+
+  .card.active .hero-value {
+    color: var(--color-ink);
+  }
+
+  /* Hero card negative active — gold overrides negative */
+  .hero-card.negative.active .card-accent {
+    background: var(--color-gold);
+    box-shadow: var(--glow-gold);
+  }
+
+  .hero-card.negative.active {
+    border-color: var(--color-gold);
+    background: rgba(255, 210, 63, 0.06);
+    box-shadow: var(--glow-gold);
+  }
+
+  .hero-card.negative.active .card-value {
+    color: var(--color-ink);
   }
 
   /* ─── Dimmed state (a different card is active) ─── */
@@ -339,25 +382,6 @@
   .card.dimmed:hover {
     opacity: 0.7;
     transform: scale(1);
-  }
-
-  /* ─── Hero (net) card — special treatment ─── */
-  .hero-card.negative .card-value {
-    color: var(--color-expense);
-  }
-
-  .hero-card.negative {
-    border-color: rgba(239, 68, 68, 0.2);
-  }
-
-  .hero-card.negative.active {
-    border-color: var(--color-expense);
-    background: var(--color-expense-light);
-    box-shadow: 0 2px 12px rgba(239, 68, 68, 0.15);
-  }
-
-  .hero-card.negative.active .card-value {
-    color: var(--color-expense);
   }
 
   /* ─── Responsive ─── */

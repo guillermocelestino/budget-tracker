@@ -58,6 +58,7 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_interactive_supports_focus -->
 	<div class="modal-backdrop" tabindex="-1" onclick={handleBackdrop} role="dialog" aria-modal="true" aria-label={title}>
 		<div class="modal-card" bind:this={modalCard}>
+			<div class="modal-ribbon"></div>
 			<div class="modal-header">
 				<h3 class="modal-title">{title}</h3>
 				<button class="modal-close" onclick={close} aria-label="Close">
@@ -78,7 +79,7 @@
 	.modal-backdrop {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
+		background: rgba(20, 48, 46, 0.4);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -87,13 +88,25 @@
 	}
 
 	.modal-card {
-		background: var(--color-surface);
-		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-lg);
+		background: var(--color-cream);
+		border-radius: var(--radius-xl);
+		box-shadow: var(--shadow-card);
 		min-width: 320px;
 		max-width: 500px;
 		width: 100%;
-		animation: modal-in 200ms ease-out;
+		position: relative;
+		overflow: hidden;
+		animation: modal-in 300ms var(--bounce);
+		border: 1px solid var(--color-border);
+	}
+
+	.modal-ribbon {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 3px;
+		background: linear-gradient(90deg, var(--color-teal), var(--color-gold));
 	}
 
 	.modal-header {
@@ -101,13 +114,17 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: var(--space-md) var(--space-lg);
-		border-bottom: 1px solid var(--color-border);
+		padding-top: calc(var(--space-md) + 3px);
+		border-bottom: 1px dashed var(--color-border);
 	}
 
 	.modal-title {
 		margin: 0;
 		font-size: var(--font-size-lg);
-		color: var(--color-text);
+		font-weight: 700;
+		color: var(--color-ink);
+		font-family: var(--font-display);
+		letter-spacing: var(--letter-spacing-tight);
 	}
 
 	.modal-close {
@@ -115,13 +132,15 @@
 		border: none;
 		font-size: 1.5rem;
 		cursor: pointer;
-		color: var(--color-text-secondary);
+		color: var(--color-text-muted);
 		padding: 0;
 		line-height: 1;
+		transition: transform var(--transition-fast);
 	}
 
 	.modal-close:hover {
-		color: var(--color-text);
+		color: var(--color-ink);
+		transform: rotate(90deg);
 	}
 
 	.modal-body {
@@ -131,11 +150,11 @@
 	@keyframes modal-in {
 		from {
 			opacity: 0;
-			transform: scale(0.95);
+			transform: scale(0.92) translateY(10px);
 		}
 		to {
 			opacity: 1;
-			transform: scale(1);
+			transform: scale(1) translateY(0);
 		}
 	}
 </style>

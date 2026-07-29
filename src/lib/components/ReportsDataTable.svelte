@@ -40,7 +40,7 @@
 <div class="table-scroll-wrapper">
   <table class="data-table">
     <thead>
-      <tr>
+      <tr class="header-row">
         <th>Month</th>
         <th class="num">Income</th>
         <th class="num">Expenses</th>
@@ -50,7 +50,7 @@
     </thead>
     <tbody>
       {#each data as row (row.month)}
-        <tr>
+        <tr class:over-budget={row.expense > row.income}>
           <td class="label-cell">{monthLabel(row.month)}</td>
           <td class="num income">{formatCurrency(row.income)}</td>
           <td class="num expense">{formatCurrency(row.expense)}</td>
@@ -100,16 +100,16 @@
   }
 
   /* ─── Header ─── */
-  .data-table thead th {
+  .header-row th {
     padding: 12px 16px;
     text-align: left;
     font-weight: 600;
-    color: var(--color-text-secondary);
+    color: var(--color-ink);
     font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    border-bottom: 1px solid var(--color-border);
-    background: transparent;
+    text-transform: lowercase;
+    letter-spacing: 0.02em;
+    background: var(--color-cream);
+    border-bottom: 3px dashed var(--color-teal);
     white-space: nowrap;
   }
 
@@ -120,43 +120,62 @@
   /* ─── Body ─── */
   .data-table tbody td {
     padding: 10px 16px;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-hairline);
     transition: background 120ms ease;
     white-space: nowrap;
+    position: relative;
   }
 
   .data-table tbody tr:hover td {
-    background: rgba(99, 102, 241, 0.03);
+    background: var(--color-teal-bg);
+  }
+
+  .data-table tbody tr:hover td:first-child {
+    box-shadow: inset 3px 0 0 0 var(--color-teal);
   }
 
   .data-table tbody tr:last-child td {
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-hairline);
+  }
+
+  .data-table tbody tr.over-budget td {
+    background: rgba(239, 108, 74, 0.04);
+  }
+
+  .data-table tbody tr.over-budget:hover td {
+    background: rgba(239, 108, 74, 0.08);
+  }
+
+  .data-table tbody tr.over-budget td:first-child {
+    box-shadow: inset 3px 0 0 0 var(--color-coral);
   }
 
   .label-cell {
     font-weight: 500;
-    color: var(--color-text);
+    color: var(--color-ink);
   }
 
   .num {
     text-align: right;
     font-weight: 600;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
   }
 
   .income {
-    color: var(--color-income);
+    color: var(--color-teal);
   }
 
   .expense {
-    color: var(--color-expense);
+    color: var(--color-coral);
   }
 
   .positive {
-    color: var(--color-income);
+    color: var(--color-teal);
   }
 
   .negative {
-    color: var(--color-expense);
+    color: var(--color-coral);
   }
 
   /* ─── Trend indicator arrow ─── */
@@ -177,27 +196,30 @@
   }
 
   .net-arrow.positive {
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--color-income);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
   }
 
   .net-arrow.negative {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--color-expense);
+    background: rgba(239, 108, 74, 0.10);
+    color: var(--color-coral);
   }
 
   /* ─── Footer (total row) ─── */
   .data-table tfoot td {
     padding: 12px 16px;
-    border-top: 2px solid var(--color-border);
+    border-top: 2px solid var(--color-hairline);
     font-weight: 700;
-    background: transparent;
+    background: var(--color-cream);
     white-space: nowrap;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
   }
 
   .total-label {
     font-size: 13px;
-    color: var(--color-text);
+    color: var(--color-ink);
+    font-family: var(--font-body);
   }
 
   .total-value {
@@ -210,7 +232,7 @@
     align-items: center;
     justify-content: center;
     padding: var(--space-xl);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     font-style: italic;
     font-size: var(--font-size-sm);
   }

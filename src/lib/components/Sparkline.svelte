@@ -21,14 +21,17 @@
     return () => mq.removeEventListener('change', () => {});
   });
 
+  // Determine direction for color choice
+  const isPositive = $derived(data.length > 0 ? data[data.length - 1] >= data[0] : true);
+
   const chartData = $derived({
     labels,
     datasets: [
       {
         label: 'Amount',
         data,
-        borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderColor: isPositive ? '#2BA8A2' : '#EF6C4A',
+        backgroundColor: isPositive ? 'rgba(43,168,162,0.08)' : 'rgba(239,108,74,0.08)',
         tension: 0.3,
         fill: true,
         pointRadius: 0,

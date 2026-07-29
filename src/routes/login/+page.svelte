@@ -1,40 +1,43 @@
 <script lang="ts">
 	import { enhance, applyAction } from '$app/forms';
 	import { page } from '$app/stores';
-	
+
 	let data = $derived($page.data as App.PageData);
 	let error = $derived(($page.form as { error?: string } | null)?.error ?? '');
 	let isLoading = $state(false);
-		let rememberMe = $state(false);
-		let showPassword = $state(false);
+	let rememberMe = $state(false);
+	let showPassword = $state(false);
 </script>
 
 <svelte:head>
-	<title>Login — Finance Tracker</title>
+	<title>Login — Budget Tracker</title>
 </svelte:head>
 
 <div class="login-page">
-	<!-- Decorative background elements -->
-	<div class="bg-gradient"></div>
-	<div class="bg-grid"></div>
-	<div class="floating-shape shape-1"></div>
-	<div class="floating-shape shape-2"></div>
-	<div class="floating-shape shape-3"></div>
+	<!-- Decorative teal-tinted background -->
+	<div class="bg-texture"></div>
+	<div class="bg-glow bg-glow--1"></div>
+	<div class="bg-glow bg-glow--2"></div>
 
 	<div class="login-card">
-		<!-- Logo/Brand Section -->
-		<div class="login-header">
-			<div class="logo-container">
-				<div class="logo-icon">
-					<svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-						<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" fill="currentColor"/>
-					</svg>
-				</div>
+		<!-- Flip7 Hero — fanned cards behind skewed wordmark -->
+		<div class="hero-area">
+			<div class="brand-cards">
+				<div class="fanned-card" style="--rot: -24deg; --bg: var(--color-teal)"></div>
+				<div class="fanned-card" style="--rot: -12deg; --bg: var(--color-gold)"></div>
+				<div class="fanned-card" style="--rot: 0deg; --bg: var(--color-coral)"></div>
+				<div class="fanned-card" style="--rot: 12deg; --bg: var(--color-gold)"></div>
+				<div class="fanned-card" style="--rot: 24deg; --bg: var(--color-teal)"></div>
 			</div>
-			<h1 class="login-title">Welcome Back</h1>
-			<p class="login-subtitle">Sign in to manage your finances</p>
+			<div class="wordmark-bg">
+				<h1 class="wordmark">BUDGET<br>TRACKER</h1>
+			</div>
 		</div>
 
+		<!-- Folded-ribbon tagline -->
+		<div class="ribbon-banner"><span class="ribbon-text">TRACK &bull; SAVE &bull; WIN</span></div>
+
+		<!-- Form — logic untouched, only visual styling changes -->
 		<form method="POST" use:enhance={() => {
 			isLoading = true;
 			return async ({ result }) => {
@@ -48,10 +51,10 @@
 					return;
 				}
 				if (result.type === 'success') {
-					const data = result.data as { redirect?: string };
-					if (data?.redirect) {
+					const d = result.data as { redirect?: string };
+					if (d?.redirect) {
 						await applyAction(result);
-						window.location.href = data.redirect;
+						window.location.href = d.redirect;
 						return;
 					}
 				}
@@ -137,30 +140,48 @@
 				{/if}
 			</button>
 		</form>
-<!-- 
-		<div class="login-footer">
-			<p>Don't have an account? <a href="/register">Create one</a></p>
-		</div> -->
-	</div>
 
-	<!-- Trust indicators -->
-	<div class="trust-badges">
-		<span class="badge">
-			<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-				<path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+		<!-- Passkey chip — decorative, no auth logic attached -->
+		<button type="button" class="passkey-chip">
+			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+				<path d="M7 11V7a5 5 0 0 1 10 0v4"/>
 			</svg>
-			Secure Login
-		</span>
-		<span class="badge">
-			<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-				<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-			</svg>
-			Encrypted Data
-		</span>
+			Continue with passkey
+		</button>
+
+		<!-- Trust badges — Flip7 style -->
+		<div class="trust-badges">
+			<span class="badge">
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+				</svg>
+				Secure
+			</span>
+			<span class="badge-dot"></span>
+			<span class="badge">
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+					<path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+				</svg>
+				Encrypted
+			</span>
+			<span class="badge-dot"></span>
+			<span class="badge">
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+				</svg>
+				Local
+			</span>
+		</div>
 	</div>
 </div>
 
 <style>
+	/* ═══════════════════════════════════════════════════
+	   FLIP7 LOGIN — "Arcade Day / Night Arcade"
+	   ═══════════════════════════════════════════════════ */
+
 	.login-page {
 		display: flex;
 		flex-direction: column;
@@ -170,160 +191,218 @@
 		padding: var(--space-lg);
 		position: relative;
 		overflow: hidden;
+		background: var(--color-bg);
 	}
 
-	/* Animated gradient background */
-	.bg-gradient {
+	/* ── Background texture — subtle noise overlay ── */
+	.bg-texture {
 		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background: linear-gradient(135deg, var(--color-primary) 0%, #764ba2 50%, #8b5cf6 100%);
-		background-size: 400% 400%;
-		animation: gradientShift 15s ease infinite;
-		z-index: -3;
-	}
-
-	@keyframes gradientShift {
-		0% { background-position: 0% 50%; }
-		50% { background-position: 100% 50%; }
-		100% { background-position: 0% 50%; }
-	}
-
-	/* Grid pattern overlay */
-	.bg-grid {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background-image:
-			linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-			linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-		background-size: 50px 50px;
+		inset: 0;
 		z-index: -2;
+		background-image:
+			radial-gradient(ellipse at 20% 50%, rgba(43, 168, 162, 0.07) 0%, transparent 60%),
+			radial-gradient(ellipse at 80% 20%, rgba(255, 210, 63, 0.05) 0%, transparent 50%),
+			radial-gradient(ellipse at 50% 80%, rgba(239, 108, 74, 0.04) 0%, transparent 50%);
 	}
 
-	/* Floating decorative shapes */
-	.floating-shape {
+	/* ── Floating glow orbs ── */
+	.bg-glow {
 		position: fixed;
 		border-radius: 50%;
-		background: rgba(255, 255, 255, 0.1);
-		backdrop-filter: blur(60px);
+		filter: blur(70px);
 		z-index: -1;
-		animation: float 20s ease-in-out infinite;
+		pointer-events: none;
 	}
 
-	.shape-1 {
-		width: 400px;
-		height: 400px;
-		top: -100px;
-		right: -100px;
-		animation-delay: 0s;
+	.bg-glow--1 {
+		width: 420px;
+		height: 420px;
+		top: -120px;
+		right: -80px;
+		background: rgba(43, 168, 162, 0.10);
+		animation: floatGlow1 18s ease-in-out infinite;
 	}
 
-	.shape-2 {
-		width: 300px;
-		height: 300px;
-		bottom: -50px;
-		left: -50px;
-		animation-delay: -7s;
+	.bg-glow--2 {
+		width: 340px;
+		height: 340px;
+		bottom: -100px;
+		left: -100px;
+		background: rgba(255, 210, 63, 0.08);
+		animation: floatGlow2 22s ease-in-out infinite;
 	}
 
-	.shape-3 {
-		width: 200px;
-		height: 200px;
-		top: 50%;
-		left: 20%;
-		animation-delay: -14s;
+	@keyframes floatGlow1 {
+		0%, 100% { transform: translate(0, 0) scale(1); }
+		33% { transform: translate(30px, -40px) scale(1.1); }
+		66% { transform: translate(-20px, 20px) scale(0.95); }
 	}
 
-	@keyframes float {
-		0%, 100% { transform: translate(0, 0) rotate(0deg); }
-		25% { transform: translate(20px, -30px) rotate(5deg); }
-		50% { transform: translate(-10px, 20px) rotate(-5deg); }
-		75% { transform: translate(30px, 10px) rotate(3deg); }
+	@keyframes floatGlow2 {
+		0%, 100% { transform: translate(0, 0) scale(1); }
+		33% { transform: translate(-30px, 30px) scale(1.08); }
+		66% { transform: translate(20px, -20px) scale(0.92); }
 	}
 
-	/* Login card */
+	/* ═══ Login Card ═══ */
 	.login-card {
 		width: 100%;
-		max-width: 420px;
-		background: rgba(255, 255, 255, 0.95);
-		backdrop-filter: blur(20px);
+		max-width: 400px;
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
 		border-radius: var(--radius-xl);
-		padding: var(--space-2xl);
-		box-shadow:
-			0 25px 50px -12px rgba(0, 0, 0, 0.25),
-			0 0 0 1px rgba(255, 255, 255, 0.1);
-		animation: cardEntrance 0.6s ease-out;
+		padding: var(--space-2xl) var(--space-xl) var(--space-xl);
+		box-shadow: var(--shadow-card);
+		animation: cardEnter 0.55s var(--bounce) backwards;
+		position: relative;
+		z-index: 1;
 	}
 
-	@keyframes cardEntrance {
-		from {
-			opacity: 0;
-			transform: translateY(30px) scale(0.95);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0) scale(1);
-		}
+	@keyframes cardEnter {
+		from { opacity: 0; transform: translateY(28px) scale(0.96); }
+		to { opacity: 1; transform: translateY(0) scale(1); }
 	}
 
-	.login-header {
-		text-align: center;
-		margin-bottom: var(--space-xl);
-	}
-
-	.logo-container {
-		display: inline-flex;
+	/* ═══ Flip7 Hero — Fanned Cards + Wordmark ═══ */
+	.hero-area {
+		display: flex;
+		flex-direction: column;
 		align-items: center;
-		justify-content: center;
-		width: 72px;
-		height: 72px;
-		background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
-		border-radius: var(--radius-lg);
-		margin-bottom: var(--space-lg);
-		box-shadow: 0 10px 30px -5px rgba(99, 102, 241, 0.5);
-		animation: logoFloat 3s ease-in-out infinite;
+		margin-bottom: 8px;
+		position: relative;
 	}
 
-	@keyframes logoFloat {
-		0%, 100% { transform: translateY(0); }
-		50% { transform: translateY(-5px); }
+	/* Fanned bill/coin cards */
+	.brand-cards {
+		position: relative;
+		width: 120px;
+		height: 90px;
+		z-index: 1;
+		margin-bottom: -30px;
 	}
 
-	.logo-icon {
-		color: white;
+	.fanned-card {
+		position: absolute;
+		left: 50%;
+		bottom: 0;
+		width: 46px;
+		height: 64px;
+		margin-left: -23px;
+		background: var(--bg);
+		border-radius: 5px;
+		transform-origin: center bottom;
+		transform: rotate(var(--rot));
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+		animation: cardFanIn 0.45s var(--bounce) both;
 	}
 
-	.login-title {
+	.fanned-card:nth-child(1) { animation-delay: 0.02s; }
+	.fanned-card:nth-child(2) { animation-delay: 0.06s; }
+	.fanned-card:nth-child(3) { animation-delay: 0.10s; }
+	.fanned-card:nth-child(4) { animation-delay: 0.14s; }
+	.fanned-card:nth-child(5) { animation-delay: 0.18s; }
+
+	@keyframes cardFanIn {
+		from { opacity: 0; transform: rotate(var(--rot)) scale(0.7); }
+		to { opacity: 1; transform: rotate(var(--rot)) scale(1); }
+	}
+
+	/* Skewed cream parallelogram wordmark */
+	.wordmark-bg {
+		position: relative;
+		z-index: 2;
+		transform: skewX(-8deg);
+		background: var(--color-cream);
+		border: 2.5px solid var(--color-ink);
+		border-radius: 4px;
+		padding: 10px 34px;
+		box-shadow:
+			0 4px 14px rgba(20, 48, 46, 0.08),
+			inset 0 1px 0 rgba(255, 255, 255, 0.4);
+		animation: wordmarkSlideIn 0.5s var(--bounce) 0.12s both;
+	}
+
+	@keyframes wordmarkSlideIn {
+		from { opacity: 0; transform: skewX(-8deg) translateY(12px); }
+		to { opacity: 1; transform: skewX(-8deg) translateY(0); }
+	}
+
+	.wordmark {
+		transform: skewX(8deg);
+		font-family: var(--font-display);
+		font-weight: var(--font-weight-extrabold);
 		font-size: var(--font-size-2xl);
-		font-weight: 700;
-		color: var(--color-text);
-		margin-bottom: var(--space-xs);
-		letter-spacing: -0.02em;
+		line-height: 1.05;
+		text-align: center;
+		letter-spacing: var(--letter-spacing-heading);
+		color: var(--color-ink);
+		margin: 0;
 	}
 
-	.login-subtitle {
-		font-size: var(--font-size-base);
-		color: var(--color-text-secondary);
+	/* ═══ Folded-ribbon tagline ═══ */
+	.ribbon-banner {
+		position: relative;
+		display: inline-block;
+		background: var(--color-cream);
+		border: 2px solid var(--color-ink);
+		padding: 5px 24px;
+		margin: 0 auto var(--space-xl);
+		border-radius: 2px;
+		animation: ribbonSlideIn 0.5s var(--bounce) 0.22s both;
 	}
 
+	/* Folded tails */
+	.ribbon-banner::before,
+	.ribbon-banner::after {
+		content: '';
+		position: absolute;
+		top: 100%;
+		width: 14px;
+		height: 10px;
+		background: var(--color-ink);
+	}
+
+	.ribbon-banner::before {
+		left: -2px;
+		clip-path: polygon(0 0, 0% 100%, 100% 100%);
+		opacity: 0.7;
+	}
+
+	.ribbon-banner::after {
+		right: -2px;
+		clip-path: polygon(100% 0, 0% 100%, 100% 100%);
+		opacity: 0.7;
+	}
+
+	@keyframes ribbonSlideIn {
+		from { opacity: 0; transform: translateY(10px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+
+	.ribbon-text {
+		font-family: var(--font-display);
+		font-weight: var(--font-weight-bold);
+		font-size: var(--font-size-xs);
+		letter-spacing: 0.15em;
+		color: var(--color-ink);
+		white-space: nowrap;
+	}
+
+	/* ═══ Error Message ═══ */
 	.error-message {
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		gap: var(--space-sm);
-		background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-		color: var(--color-expense);
-		padding: var(--space-sm) var(--space-md);
+		background: rgba(239, 108, 74, 0.08);
+		color: var(--color-coral);
+		padding: 10px 14px;
+		border: 1px solid rgba(239, 108, 74, 0.2);
 		border-radius: var(--radius-md);
 		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
 		margin-bottom: var(--space-md);
-		border: 1px solid rgba(239, 68, 68, 0.2);
-		animation: shake 0.5s ease-in-out;
+		animation: shake 0.4s ease-in-out;
 	}
 
 	@keyframes shake {
@@ -332,6 +411,7 @@
 		75% { transform: translateX(5px); }
 	}
 
+	/* ═══ Form ═══ */
 	.form-group {
 		margin-bottom: var(--space-md);
 	}
@@ -341,13 +421,13 @@
 		align-items: center;
 		gap: var(--space-xs);
 		font-size: var(--font-size-sm);
-		font-weight: 600;
-		color: var(--color-text);
+		font-weight: var(--font-weight-semibold);
+		color: var(--color-ink);
 		margin-bottom: var(--space-xs);
 	}
 
 	.form-label svg {
-		color: var(--color-text-secondary);
+		color: var(--color-text-muted);
 	}
 
 	.input-wrapper {
@@ -362,7 +442,7 @@
 		background: none;
 		border: none;
 		cursor: pointer;
-		color: var(--color-text-secondary);
+		color: var(--color-text-muted);
 		padding: 8px;
 		display: flex;
 		align-items: center;
@@ -373,38 +453,41 @@
 	}
 
 	.password-toggle:hover {
-		color: var(--color-primary);
-		background: var(--color-primary-light);
+		color: var(--color-teal);
+		background: var(--color-teal-bg);
 	}
 
 	.input-wrapper input {
 		padding-right: 44px;
 	}
 
+	/* Cream input surfaces with teal focus ring */
 	input {
 		width: 100%;
 		padding: 14px 16px;
-		border: 2px solid var(--color-border);
+		border: 2px solid var(--color-hairline);
 		border-radius: var(--radius-md);
 		font-size: var(--font-size-base);
-		font-family: inherit;
-		background: var(--color-bg);
-		color: var(--color-text);
+		font-family: var(--font-body);
+		background: var(--color-cream);
+		color: var(--color-ink);
 		transition: all var(--transition-fast);
+		appearance: none;
 	}
 
 	input::placeholder {
-		color: var(--color-text-secondary);
-		opacity: 0.6;
+		color: var(--color-text-muted);
+		opacity: 0.55;
 	}
 
 	input:focus {
 		outline: none;
-		border-color: var(--color-primary);
-		background: white;
-		box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+		border-color: var(--color-teal);
+		box-shadow: var(--focus);
+		background: var(--color-surface);
 	}
 
+	/* ═══ Form Options ═══ */
 	.form-options {
 		display: flex;
 		align-items: center;
@@ -418,48 +501,58 @@
 		gap: var(--space-sm);
 		cursor: pointer;
 		font-size: var(--font-size-sm);
-		color: var(--color-text-secondary);
+		color: var(--color-text-muted);
 	}
 
 	.remember-me input {
 		width: 18px;
 		height: 18px;
-		accent-color: var(--color-primary);
+		accent-color: var(--color-teal);
 		cursor: pointer;
+		padding: 0;
+		border-width: 1.5px;
 	}
 
 	.forgot-link {
 		font-size: var(--font-size-sm);
-		color: var(--color-primary);
-		font-weight: 500;
+		color: var(--color-teal);
+		font-weight: var(--font-weight-semibold);
+		text-decoration: none;
+		transition: all var(--transition-fast);
 	}
 
 	.forgot-link:hover {
+		color: var(--color-teal-dark);
 		text-decoration: underline;
 	}
 
+	/* ═══ Gold Gloss CTA Pill ═══ */
 	.btn-login {
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		gap: var(--space-sm);
 		width: 100%;
-		padding: 14px var(--space-lg);
-		background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
-		color: white;
-		border: none;
-		border-radius: var(--radius-md);
+		padding: 14px var(--space-xl);
+		background: linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-light) 100%);
+		color: var(--color-ink);
+		border: 2px solid var(--color-gold-dark);
+		border-radius: var(--radius-pill);
 		font-size: var(--font-size-base);
-		font-weight: 600;
+		font-weight: var(--font-weight-bold);
+		font-family: var(--font-body);
 		cursor: pointer;
 		transition: all var(--transition-fast);
-		min-height: 50px;
-		box-shadow: 0 4px 15px -3px rgba(99, 102, 241, 0.4);
+		min-height: var(--touch-target-min);
+		box-shadow: var(--glow-gold);
+		letter-spacing: var(--letter-spacing-wide);
 	}
 
 	.btn-login:hover:not(:disabled) {
 		transform: translateY(-2px);
-		box-shadow: 0 8px 25px -5px rgba(99, 102, 241, 0.5);
+		box-shadow:
+			0 6px 28px rgba(255, 210, 63, 0.5),
+			0 0 0 4px rgba(255, 210, 63, 0.12);
 	}
 
 	.btn-login:active:not(:disabled) {
@@ -467,15 +560,16 @@
 	}
 
 	.btn-login:disabled {
-		opacity: 0.7;
+		opacity: 0.6;
 		cursor: not-allowed;
+		box-shadow: none;
 	}
 
 	.spinner {
 		width: 20px;
 		height: 20px;
-		border: 2px solid rgba(255, 255, 255, 0.3);
-		border-top-color: white;
+		border: 2px solid rgba(20, 48, 46, 0.2);
+		border-top-color: var(--color-ink);
 		border-radius: 50%;
 		animation: spin 0.8s linear infinite;
 	}
@@ -484,52 +578,101 @@
 		to { transform: rotate(360deg); }
 	}
 
-	.login-footer {
-		margin-top: var(--space-xl);
-		text-align: center;
+	/* ═══ Passkey Chip ═══ */
+	.passkey-chip {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-sm);
+		width: 100%;
+		padding: 12px var(--space-xl);
+		background: var(--color-teal-bg);
+		color: var(--color-teal-dark);
+		border: 1.5px solid var(--color-teal);
+		border-radius: var(--radius-pill);
 		font-size: var(--font-size-sm);
-		color: var(--color-text-secondary);
+		font-weight: var(--font-weight-semibold);
+		font-family: var(--font-body);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+		min-height: 44px;
+		box-shadow: var(--glow-card);
+		margin-top: var(--space-sm);
+		letter-spacing: var(--letter-spacing-wide);
 	}
 
-	.login-footer a {
-		color: var(--color-primary);
-		font-weight: 600;
+	.passkey-chip:hover {
+		background: var(--color-teal);
+		color: white;
+		box-shadow: var(--glow-card), 0 0 0 4px rgba(43, 168, 162, 0.15);
 	}
 
-	.login-footer a:hover {
-		text-decoration: underline;
+	.passkey-chip svg {
+		flex-shrink: 0;
 	}
 
-	/* Trust badges */
+	/* ═══ Trust Badges ═══ */
 	.trust-badges {
 		display: flex;
-		gap: var(--space-lg);
-		margin-top: var(--space-xl);
-		animation: fadeIn 0.8s ease-out 0.3s backwards;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-md);
+		margin-top: var(--space-lg);
+		animation: fadeIn 0.6s ease-out 0.4s backwards;
 	}
 
 	@keyframes fadeIn {
-		from { opacity: 0; transform: translateY(10px); }
+		from { opacity: 0; transform: translateY(8px); }
 		to { opacity: 1; transform: translateY(0); }
 	}
 
 	.badge {
 		display: flex;
 		align-items: center;
-		gap: var(--space-xs);
+		gap: 5px;
 		font-size: var(--font-size-xs);
-		color: rgba(255, 255, 255, 0.8);
-		font-weight: 500;
+		color: var(--color-text-muted);
+		font-weight: var(--font-weight-medium);
 	}
 
 	.badge svg {
-		opacity: 0.9;
+		opacity: 0.7;
+		flex-shrink: 0;
 	}
 
-	/* Responsive */
+	.badge-dot {
+		width: 3px;
+		height: 3px;
+		border-radius: 50%;
+		background: var(--color-text-muted);
+		opacity: 0.3;
+		flex-shrink: 0;
+	}
+
+	/* ═══ Responsive ═══ */
 	@media (max-width: 480px) {
 		.login-card {
-			padding: var(--space-lg);
+			padding: var(--space-xl) var(--space-lg) var(--space-lg);
+		}
+
+		.wordmark {
+			font-size: var(--font-size-xl);
+		}
+
+		.wordmark-bg {
+			padding: 8px 24px;
+		}
+
+		.brand-cards {
+			width: 100px;
+			height: 74px;
+			margin-bottom: -24px;
+		}
+
+		.fanned-card {
+			width: 38px;
+			height: 52px;
+			margin-left: -19px;
 		}
 
 		.form-options {
@@ -538,10 +681,28 @@
 			align-items: flex-start;
 		}
 
+		.ribbon-banner {
+			padding: 4px 16px;
+			margin-bottom: var(--space-lg);
+		}
+
 		.trust-badges {
-			flex-direction: column;
-			align-items: center;
 			gap: var(--space-sm);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.login-card,
+		.fanned-card,
+		.wordmark-bg,
+		.ribbon-banner,
+		.trust-badges,
+		.bg-glow {
+			animation: none !important;
+		}
+
+		.fanned-card {
+			opacity: 1;
 		}
 	}
 </style>

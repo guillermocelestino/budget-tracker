@@ -27,39 +27,35 @@
 
   .usage-track {
     width: 100%;
-    height: 6px;
-    background: var(--color-bg);
-    border-radius: 999px;
+    height: 8px;
+    background: var(--color-hairline);
+    border-radius: var(--radius-pill);
     overflow: hidden;
   }
 
   .usage-fill {
     height: 100%;
-    border-radius: 999px;
-    transition: width 500ms cubic-bezier(0.4, 0, 0.2, 1),
-                background 300ms ease;
+    border-radius: var(--radius-pill);
+    transition: width 600ms var(--ease), background 400ms ease;
     min-width: 0;
   }
 
-  /* Under budget — cool teal/green gradient */
+  /* On track — teal fill */
   .usage-fill.ok {
-    background: linear-gradient(90deg, #10b981, #34d399);
+    background: linear-gradient(90deg, var(--color-teal), var(--color-teal-light));
   }
 
-  /* Warning zone (75–99%) — amber */
+  /* Near limit (80-100%) — gold fill + --glow-gold */
   .usage-fill.warn {
-    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+    background: linear-gradient(90deg, var(--color-gold-dark), var(--color-gold));
+    box-shadow: var(--glow-gold);
   }
 
-  /* Over budget (100%+) — red gradient with subtle pulse */
+  /* Over budget — coral fill with BoomPulse animation */
   .usage-fill.over {
-    background: linear-gradient(90deg, #ef4444, #f87171);
-    animation: budgetPulse 2s ease-in-out infinite;
-  }
-
-  @keyframes budgetPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.72; }
+    background: linear-gradient(90deg, var(--color-coral-dark), var(--color-coral));
+    box-shadow: var(--glow-coral);
+    animation: boom-pulse 1.2s ease-in-out infinite;
   }
 
   @media (prefers-reduced-motion: reduce) {

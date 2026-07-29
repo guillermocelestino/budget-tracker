@@ -79,11 +79,13 @@
 		};
 	}
 
-	const presetColors = [
-		'#ef4444', '#f97316', '#f59e0b', '#10b981',
-		'#14b8a6', '#3b82f6', '#6366f1', '#8b5cf6',
-		'#ec4899', '#6b7280',
+	const flip7Colors = [
+		'#2BA8A2', '#FFD23F', '#EF6C4A', '#5DADE2',
+		'#27AE60', '#E74C3C', '#14302E', '#FFE47A',
+		'#3CC4BD', '#FF8A6A',
 	];
+
+	const iconOptions = ['📁', '💰', '🍔', '🚗', '🏠', '⚡', '🛒', '💊', '🎓', '✈️', '👕', '🎮', '📱', '🎵', '🐾', '🎁'];
 </script>
 
 <form method="POST" {action} use:enhance={handleEnhance}>
@@ -91,16 +93,23 @@
 		<input type="hidden" name="id" value={category.id} />
 	{/if}
 
+	<!-- Live Preview Chip -->
+	<div class="preview-chip" style="background: {color}12; border-color: {color}40">
+		<span class="preview-icon" style="color: {color}">{icon || '📁'}</span>
+		<span class="preview-name" style="color: {color}">{name || 'Category Name'}</span>
+		<span class="preview-type">{categoryType === 'expense' ? 'Expense' : 'Income'}</span>
+	</div>
+
 	<div class="form-group">
 		<label class="form-label">Type</label>
 		<div class="type-toggle">
-			<label class="type-option" class:active={categoryType === 'expense'}>
+			<label class="type-option expense-side" class:active={categoryType === 'expense'}>
 				<input type="radio" name="type" value="expense" bind:group={categoryType} />
-				💸 Expense
+				Expense
 			</label>
-			<label class="type-option" class:active={categoryType === 'income'}>
+			<label class="type-option income-side" class:active={categoryType === 'income'}>
 				<input type="radio" name="type" value="income" bind:group={categoryType} />
-				💰 Income
+				Income
 			</label>
 		</div>
 	</div>
@@ -111,11 +120,27 @@
 	</div>
 
 	<div class="form-group">
-		<label class="form-label" for="cat-color">Color</label>
+		<label class="form-label" for="cat-icon">Icon</label>
+		<div class="icon-grid">
+			{#each iconOptions as opt}
+				<button
+					type="button"
+					class="icon-opt"
+					class:selected={icon === opt}
+					style={icon === opt ? `background: ${color}18; border-color: ${color}60; color: ${color}` : ''}
+					onclick={() => icon = opt}
+					aria-label="Icon {opt}"
+				>{opt}</button>
+			{/each}
+		</div>
+		<input type="hidden" name="icon" value={icon} />
+	</div>
+
+	<div class="form-group">
+		<label class="form-label">Color</label>
 		<div class="color-picker">
-			<input type="color" id="cat-color" name="color" bind:value={color} class="color-input" />
 			<div class="color-swatches">
-				{#each presetColors as c}
+				{#each flip7Colors as c}
 					<button
 						type="button"
 						class="swatch"
@@ -126,12 +151,13 @@
 					></button>
 				{/each}
 			</div>
+			<div class="custom-color-wrap">
+				<label class="custom-label" for="cat-color">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" x2="9.17" y1="4.93" y2="9.17"/><line x1="14.83" x2="19.07" y1="14.83" y2="19.07"/><line x1="14.83" x2="19.07" y1="9.17" y2="4.93"/><line x1="4.93" x2="9.17" y1="19.07" y2="14.83"/></svg>
+				</label>
+				<input type="color" id="cat-color" name="color" bind:value={color} class="color-input" />
+			</div>
 		</div>
-	</div>
-
-	<div class="form-group">
-		<label class="form-label" for="cat-icon">Icon (emoji)</label>
-		<input id="cat-icon" name="icon" type="text" bind:value={icon} maxlength="2" class="icon-input" />
 	</div>
 
 	<div class="form-group">
@@ -174,12 +200,48 @@
 	.form-label {
 		font-size: var(--font-size-sm);
 		font-weight: 600;
-		color: var(--color-text);
+		color: var(--color-ink);
 	}
 
+	/* ─── Live Preview Chip ─── */
+	.preview-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-sm);
+		padding: var(--space-sm) var(--space-md);
+		border: 1px solid;
+		border-radius: var(--radius-pill);
+		margin-bottom: var(--space-md);
+		width: fit-content;
+	}
+
+	.preview-icon {
+		font-size: 1.25rem;
+	}
+
+	.preview-name {
+		font-weight: 600;
+		font-size: var(--font-size-sm);
+	}
+
+	.preview-type {
+		font-size: 11px;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		padding: 2px 8px;
+		background: var(--color-hairline);
+		border-radius: var(--radius-pill);
+	}
+
+	/* ─── Type Toggle (Pill SegmentedControl) ─── */
 	.type-toggle {
 		display: flex;
-		gap: var(--space-sm);
+		border-radius: var(--radius-pill);
+		overflow: hidden;
+		border: 1px solid var(--color-border);
+		background: var(--color-cream);
 	}
 
 	.type-option {
@@ -187,92 +249,141 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: var(--space-xs);
 		padding: var(--space-sm) var(--space-md);
-		border: 2px solid var(--color-border);
-		border-radius: var(--radius-md);
 		cursor: pointer;
 		font-size: var(--font-size-base);
-		font-weight: 500;
+		font-weight: 600;
 		transition: all var(--transition-fast);
 		min-height: 48px;
+		color: var(--color-text-muted);
 	}
 
-	.type-option input {
-		display: none;
+	.type-option input { display: none; }
+
+	.type-option.expense-side.active {
+		background: rgba(239, 108, 74, 0.12);
+		color: var(--color-coral);
 	}
 
-	.type-option.active {
-		border-color: var(--color-primary);
-		background: var(--color-primary-light);
-		color: var(--color-primary);
+	.type-option.income-side.active {
+		background: var(--color-teal-bg);
+		color: var(--color-teal);
 	}
 
+	/* ─── Inputs ─── */
 	input[type="text"],
 	input[type="number"],
 	input[type="color"] {
 		padding: var(--space-sm) var(--space-md);
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-lg);
 		font-size: var(--font-size-base);
 		font-family: inherit;
-		background: var(--color-surface);
-		color: var(--color-text);
-		transition: border-color var(--transition-fast);
+		background: var(--color-cream);
+		color: var(--color-ink);
+		transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 		width: 100%;
 	}
 
 	input:focus {
 		outline: none;
-		border-color: var(--color-primary);
-		box-shadow: 0 0 0 3px var(--color-primary-light);
+		border-color: var(--color-teal);
+		box-shadow: var(--focus);
 	}
 
-	.icon-input {
-		width: 60px;
-		text-align: center;
-		font-size: 1.5rem;
+	/* ─── Icon Grid ─── */
+	.icon-grid {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
 	}
 
+	.icon-opt {
+		width: 44px;
+		height: 44px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1.25rem;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+		background: var(--color-cream);
+		cursor: pointer;
+		transition: all 200ms var(--bounce);
+	}
+
+	.icon-opt:hover {
+		transform: scale(1.08);
+		border-color: var(--color-teal);
+	}
+
+	.icon-opt.selected {
+		transform: scale(1.1);
+		border-width: 2px;
+		box-shadow: var(--glow-card);
+	}
+
+	/* ─── Color Picker ─── */
 	.color-picker {
 		display: flex;
 		align-items: center;
 		gap: var(--space-md);
 	}
 
-	.color-input {
-		width: 48px;
-		height: 48px;
-		padding: 2px;
-		border-radius: var(--radius-md);
-		cursor: pointer;
-	}
-
 	.color-swatches {
 		display: flex;
-		gap: 4px;
+		gap: 6px;
 		flex-wrap: wrap;
 	}
 
 	.swatch {
-		width: 28px;
-		height: 28px;
-		border-radius: 50%;
+		width: 32px;
+		height: 32px;
+		border-radius: var(--radius-full);
 		border: 2px solid transparent;
 		cursor: pointer;
 		padding: 0;
-		transition: transform var(--transition-fast);
+		transition: all 200ms var(--bounce);
 	}
 
 	.swatch:hover {
-		transform: scale(1.15);
+		transform: scale(1.2);
 	}
 
 	.swatch.selected {
-		border-color: var(--color-text);
-		transform: scale(1.1);
+		border-color: var(--color-ink);
+		transform: scale(1.15);
+		box-shadow: var(--glow-card);
 	}
 
+	.custom-color-wrap {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.custom-label {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		border-radius: var(--radius-full);
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		cursor: pointer;
+		color: var(--color-text-muted);
+	}
+
+	.color-input {
+		width: 0;
+		height: 0;
+		opacity: 0;
+		position: absolute;
+		pointer-events: none;
+	}
+
+	/* ─── Amount wrap ─── */
 	.amount-wrap {
 		display: flex;
 		align-items: stretch;
@@ -286,10 +397,10 @@
 		background: var(--color-bg);
 		border: 1px solid var(--color-border);
 		border-right: none;
-		border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+		border-radius: var(--radius-lg) 0 0 var(--radius-lg);
 		font-weight: 600;
 		font-size: var(--font-size-base);
-		color: var(--color-text-secondary);
+		color: var(--color-text-muted);
 	}
 
 	.amount-wrap input {
@@ -297,6 +408,7 @@
 		border-bottom-left-radius: 0;
 	}
 
+	/* ─── Form Actions ─── */
 	.form-actions {
 		display: flex;
 		gap: var(--space-sm);
@@ -305,30 +417,34 @@
 
 	.btn {
 		padding: var(--space-sm) var(--space-lg);
-		border-radius: var(--radius-md);
+		border-radius: var(--radius-pill);
 		font-size: var(--font-size-base);
 		font-weight: 600;
 		cursor: pointer;
 		border: none;
+		font-family: var(--font-body);
 		transition: all var(--transition-fast);
+		min-height: 44px;
 	}
 
 	.btn-primary {
-		background: var(--color-primary);
+		background: linear-gradient(135deg, var(--color-teal), var(--color-teal-light));
 		color: white;
 	}
 
 	.btn-primary:hover {
-		background: var(--color-primary-hover);
+		background: linear-gradient(135deg, var(--color-teal-dark), var(--color-teal));
+		transform: scale(1.02);
 	}
 
 	.btn-secondary {
 		background: var(--color-bg);
-		color: var(--color-text);
+		color: var(--color-ink);
 		border: 1px solid var(--color-border);
 	}
 
 	.btn-secondary:hover {
-		background: var(--color-border);
+		background: var(--color-teal-bg);
+		border-color: var(--color-teal);
 	}
 </style>

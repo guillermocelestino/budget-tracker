@@ -66,6 +66,7 @@
   <!-- Card 1: Spending change -->
   {#if hasSpendingInsight}
     <div class="insight-card" class:negative={changes.monthExpenseChange > 0} class:positive={changes.monthExpenseChange <= 0}>
+      <div class="insight-ribbon"></div>
       <div class="insight-icon">
         {#if spendingDirection === 'up'}
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -91,6 +92,7 @@
   <!-- Card 2: Savings change -->
   {#if hasSavingsInsight}
     <div class="insight-card" class:positive={savingsDiff >= 0} class:negative={savingsDiff < 0}>
+      <div class="insight-ribbon"></div>
       <div class="insight-icon">
         {#if savingsDiff >= 0}
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -118,6 +120,7 @@
   <!-- Card 3: Top expense category -->
   {#if hasTopExpense}
     <div class="insight-card">
+      <div class="insight-ribbon"></div>
       <div class="insight-icon top">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
@@ -134,7 +137,7 @@
 
 <style>
   /* ═══════════════════════════════════════════════════════════════════
-     TIMEFRAME PILL
+     TIMEFRAME PILL — Flip7
      ═══════════════════════════════════════════════════════════════════ */
 
   .timeframe-bar {
@@ -147,59 +150,51 @@
     gap: 2px;
     background: var(--color-bg);
     padding: 4px;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     border: 1px solid var(--color-border);
   }
 
   .tf-btn {
     padding: 8px 18px;
     border: none;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     background: transparent;
     font-size: 13px;
     font-weight: 600;
     font-family: inherit;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     cursor: pointer;
     min-height: 36px;
-    transition: all 120ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 200ms var(--ease);
     white-space: nowrap;
   }
 
   .tf-btn:hover:not(.active):not(.calendar-btn) {
-    color: var(--color-text);
-    background: rgba(0, 0, 0, 0.03);
-  }
-
-  [data-theme="dark"] .tf-btn:hover:not(.active):not(.calendar-btn) {
-    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-ink);
+    background: var(--color-teal-bg);
   }
 
   .tf-btn.active {
-    background: var(--color-surface);
-    color: var(--color-text);
+    background: var(--color-teal);
+    color: #fff;
     font-weight: 700;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-  }
-
-  [data-theme="dark"] .tf-btn.active {
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--glow-card);
   }
 
   .calendar-btn {
     padding: 8px 10px;
     margin-left: 4px;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     display: flex;
     align-items: center;
   }
 
   .calendar-btn:hover {
-    color: var(--color-primary);
+    color: var(--color-teal);
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     INSIGHT CARDS
+     INSIGHT CARDS — Flip7 folded-ribbon
      ═══════════════════════════════════════════════════════════════════ */
 
   .insight-grid {
@@ -210,6 +205,7 @@
   }
 
   .insight-card {
+    position: relative;
     display: flex;
     align-items: flex-start;
     gap: var(--space-md);
@@ -219,20 +215,34 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-xl);
     padding: var(--space-md) var(--space-lg);
-    transition: box-shadow 200ms ease, border-color 200ms ease;
+    padding-top: calc(var(--space-md) + 3px);
+    transition: all 250ms var(--bounce);
+    overflow: hidden;
   }
 
   .insight-card:hover {
-    box-shadow: var(--shadow-sm);
-    border-color: rgba(99, 102, 241, 0.15);
+    box-shadow: var(--shadow-card);
+    transform: translateY(-2px);
   }
 
-  .insight-card.positive {
-    border-left: 3px solid var(--color-income);
+  .insight-ribbon {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
   }
 
-  .insight-card.negative {
-    border-left: 3px solid var(--color-expense);
+  .insight-card.positive .insight-ribbon {
+    background: linear-gradient(90deg, var(--color-teal), var(--color-gold));
+  }
+
+  .insight-card.negative .insight-ribbon {
+    background: linear-gradient(90deg, var(--color-coral), var(--color-gold));
+  }
+
+  .insight-card:not(.positive):not(.negative) .insight-ribbon {
+    background: linear-gradient(90deg, var(--color-sky), var(--color-teal));
   }
 
   /* ─── Insight icon ─── */
@@ -242,25 +252,25 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     flex-shrink: 0;
-    background: var(--color-primary-light);
-    color: var(--color-primary);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
   }
 
   .insight-card.positive .insight-icon {
-    background: var(--color-income-light);
-    color: var(--color-income);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
   }
 
   .insight-card.negative .insight-icon {
-    background: var(--color-expense-light);
-    color: var(--color-expense);
+    background: rgba(239, 108, 74, 0.10);
+    color: var(--color-coral);
   }
 
   .insight-icon.top {
-    background: linear-gradient(135deg, #f59e0b, #fbbf24);
-    color: white;
+    background: linear-gradient(135deg, var(--color-gold), var(--color-gold-light));
+    color: var(--color-ink);
   }
 
   /* ─── Insight text ─── */
@@ -275,22 +285,14 @@
     margin: 0;
     font-size: 15px;
     font-weight: 700;
-    color: var(--color-text);
+    color: var(--color-ink);
     line-height: 1.3;
-  }
-
-  .insight-card.positive .insight-headline {
-    color: var(--color-income);
-  }
-
-  .insight-card.negative .insight-headline {
-    color: var(--color-expense);
   }
 
   .insight-context {
     margin: 0;
     font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     line-height: 1.4;
   }
 

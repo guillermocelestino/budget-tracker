@@ -52,8 +52,8 @@
 </script>
 
 <div class="summary-row">
-  <!-- INCOME CARD -->
-  <article class="card">
+  <!-- INCOME CARD — teal accent -->
+  <article class="card accent-teal">
     <div class="card-icon-ring income-ring">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
@@ -67,8 +67,8 @@
     </div>
   </article>
 
-  <!-- EXPENSE CARD -->
-  <article class="card">
+  <!-- EXPENSE CARD — coral accent -->
+  <article class="card accent-coral">
     <div class="card-icon-ring expense-ring">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="23 18 14.5 10.5 9.5 15.5 1 6" />
@@ -82,7 +82,7 @@
     </div>
   </article>
 
-  <!-- BALANCE CARD (HERO — Copilot-style big number) -->
+  <!-- BALANCE CARD (HERO — Copilot-style big number) — gold accent -->
   <article class="card hero" class:negative={displayedBalance < 0}>
     <div class="hero-glow"></div>
     <div class="hero-body">
@@ -97,8 +97,8 @@
     </div>
   </article>
 
-  <!-- SAVINGS CARD -->
-  <article class="card" class:negative={displayedSavingsRate < 0}>
+  <!-- SAVINGS CARD — sky accent -->
+  <article class="card accent-sky" class:negative={displayedSavingsRate < 0}>
     <div class="savings-donut">
       <svg viewBox="0 0 44 44" width="44" height="44">
         <circle cx="22" cy="22" r="18" fill="none" stroke="var(--color-border)" stroke-width="4" />
@@ -138,6 +138,7 @@
     gap: var(--space-sm);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
+    border-left: 5px solid var(--color-teal);
     border-radius: var(--radius-xl);
     padding: var(--space-lg);
     overflow: hidden;
@@ -145,8 +146,20 @@
   }
 
   .card:hover {
-    border-color: var(--color-text-secondary);
+    border-color: var(--color-text-muted);
     transform: translateY(-1px);
+  }
+
+  .card.accent-teal {
+    border-left-color: var(--color-teal);
+  }
+
+  .card.accent-coral {
+    border-left-color: var(--color-coral);
+  }
+
+  .card.accent-sky {
+    border-left-color: var(--color-sky);
   }
 
   /* —— Icon ring — small muted ring, not large filled block —— */
@@ -161,13 +174,13 @@
   }
 
   .income-ring {
-    background: linear-gradient(135deg, var(--color-income-light) 0%, rgba(16, 185, 129, 0.2) 100%);
-    color: var(--color-income);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
   }
 
   .expense-ring {
-    background: linear-gradient(135deg, var(--color-expense-light) 0%, rgba(239, 68, 68, 0.2) 100%);
-    color: var(--color-expense);
+    background: rgba(239, 108, 74, 0.10);
+    color: var(--color-coral);
   }
 
   /* —— Typography —— */
@@ -180,7 +193,7 @@
   .label {
     font-size: var(--font-size-xs);
     font-weight: 500;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-bottom: 4px;
@@ -189,7 +202,7 @@
   .amount {
     font-size: var(--font-size-xl);
     font-weight: 700;
-    color: var(--color-text);
+    color: var(--color-ink);
     line-height: 1.15;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.025em;
@@ -206,27 +219,27 @@
   }
 
   .income-trend {
-    color: var(--color-income);
-    background: var(--color-income-light);
+    color: var(--color-teal);
+    background: var(--color-teal-bg);
   }
 
   .expense-chip {
-    color: var(--color-expense);
-    background: var(--color-expense-light);
+    color: var(--color-coral);
+    background: rgba(239, 108, 74, 0.10);
   }
 
   /* —— Hero (balance) card —— */
   .hero {
-    background: linear-gradient(160deg, var(--color-surface) 0%, var(--color-primary-light) 100%);
-    border-color: rgba(99, 102, 241, 0.25);
+    background: linear-gradient(160deg, var(--color-surface) 0%, var(--color-teal-bg) 100%);
+    border-left-color: var(--color-gold);
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
   }
 
   .hero.negative {
-    background: linear-gradient(160deg, var(--color-surface) 0%, var(--color-expense-light) 100%);
-    border-color: rgba(239, 68, 68, 0.25);
+    background: linear-gradient(160deg, var(--color-surface) 0%, rgba(239, 108, 74, 0.08) 100%);
+    border-left-color: var(--color-coral);
   }
 
   .hero-glow {
@@ -236,25 +249,25 @@
     width: 180px;
     height: 180px;
     border-radius: 50%;
-    background: radial-gradient(circle, var(--color-primary-light) 0%, transparent 70%);
+    background: radial-gradient(circle, var(--color-teal-bg) 0%, transparent 70%);
     opacity: 0.4;
     pointer-events: none;
   }
 
   .hero.negative .hero-glow {
-    background: radial-gradient(circle, var(--color-expense-light) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(239, 108, 74, 0.08) 0%, transparent 70%);
   }
 
   .hero-value {
     font-size: var(--font-size-3xl);
     font-weight: 800;
-    color: var(--color-text);
+    color: var(--color-ink);
     letter-spacing: -0.04em;
     font-variant-numeric: tabular-nums;
   }
 
   .hero.negative .hero-value {
-    color: var(--color-expense);
+    color: var(--color-coral);
   }
 
   .hero-ring {
@@ -264,15 +277,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--color-primary);
-    background: var(--color-primary-light);
+    color: var(--color-gold-dark);
+    background: rgba(255, 210, 63, 0.15);
     flex-shrink: 0;
     z-index: 1;
   }
 
   .hero-ring.negative {
-    color: var(--color-expense);
-    background: var(--color-expense-light);
+    color: var(--color-coral);
+    background: rgba(239, 108, 74, 0.10);
   }
 
   /* —— Savings donut ring —— */
@@ -284,12 +297,12 @@
   }
 
   .savings-arc {
-    color: var(--color-income);
+    color: var(--color-teal);
     transition: stroke-dasharray 800ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .card.negative .savings-arc {
-    color: var(--color-expense);
+    color: var(--color-coral);
   }
 
   /* —— Responsive —— */

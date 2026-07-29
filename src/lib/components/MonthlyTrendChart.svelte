@@ -50,25 +50,25 @@
 
   function buildGradients(): { incomeFill: CanvasGradient | string; expenseFill: CanvasGradient | string } {
     if (!canvasEl) return {
-      incomeFill: isDark ? 'rgba(52, 211, 153, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-      expenseFill: isDark ? 'rgba(248, 113, 113, 0.12)' : 'rgba(239, 68, 68, 0.1)',
+      incomeFill: isDark ? 'rgba(60, 196, 189, 0.2)' : 'rgba(43, 168, 162, 0.15)',
+      expenseFill: isDark ? 'rgba(255, 138, 106, 0.12)' : 'rgba(239, 108, 74, 0.10)',
     };
 
     const ctx = canvasEl.getContext('2d');
     if (!ctx) return {
-      incomeFill: 'rgba(16, 185, 129, 0.2)',
-      expenseFill: 'rgba(239, 68, 68, 0.1)',
+      incomeFill: 'rgba(43, 168, 162, 0.15)',
+      expenseFill: 'rgba(239, 108, 74, 0.10)',
     };
 
     const h = canvasEl.clientHeight || 300;
 
     const incomeGrad = ctx.createLinearGradient(0, 0, 0, h);
-    incomeGrad.addColorStop(0, isDark ? 'rgba(52, 211, 153, 0.28)' : 'rgba(16, 185, 129, 0.22)');
-    incomeGrad.addColorStop(1, isDark ? 'rgba(52, 211, 153, 0)' : 'rgba(16, 185, 129, 0)');
+    incomeGrad.addColorStop(0, isDark ? 'rgba(60, 196, 189, 0.25)' : 'rgba(43, 168, 162, 0.18)');
+    incomeGrad.addColorStop(1, isDark ? 'rgba(60, 196, 189, 0)' : 'rgba(43, 168, 162, 0)');
 
     const expenseGrad = ctx.createLinearGradient(0, 0, 0, h);
-    expenseGrad.addColorStop(0, isDark ? 'rgba(248, 113, 113, 0.18)' : 'rgba(239, 68, 68, 0.12)');
-    expenseGrad.addColorStop(1, isDark ? 'rgba(248, 113, 113, 0)' : 'rgba(239, 68, 68, 0)');
+    expenseGrad.addColorStop(0, isDark ? 'rgba(255, 138, 106, 0.18)' : 'rgba(239, 108, 74, 0.12)');
+    expenseGrad.addColorStop(1, isDark ? 'rgba(255, 138, 106, 0)' : 'rgba(239, 108, 74, 0)');
 
     return { incomeFill: incomeGrad, expenseFill: expenseGrad };
   }
@@ -77,9 +77,9 @@
 
   // ─── Derived colors ──────────────────────────────────────────────
 
-  const incomeColor = $derived(isDark ? '#34d399' : '#10b981');
-  const expenseColor = $derived(isDark ? '#f87171' : '#ef4444');
-  const tickColor = $derived(isDark ? '#9ca3af' : '#6b7280');
+  const incomeColor = $derived(isDark ? '#3CC4BD' : '#2BA8A2');
+  const expenseColor = $derived(isDark ? '#FF8A6A' : '#EF6C4A');
+  const tickColor = $derived(isDark ? '#8FB3B0' : '#5C7A78');
 
   // ─── Chart data ──────────────────────────────────────────────────
 
@@ -96,7 +96,7 @@
         pointRadius: 0,
         pointHoverRadius: 6,
         pointHoverBackgroundColor: incomeColor,
-        pointHoverBorderColor: isDark ? '#111827' : '#ffffff',
+        pointHoverBorderColor: isDark ? '#14302E' : '#FFFFFF',
         pointHoverBorderWidth: 2.5,
         borderWidth: 2.5,
       },
@@ -110,19 +110,19 @@
         pointRadius: 0,
         pointHoverRadius: 6,
         pointHoverBackgroundColor: expenseColor,
-        pointHoverBorderColor: isDark ? '#111827' : '#ffffff',
+        pointHoverBorderColor: isDark ? '#14302E' : '#FFFFFF',
         pointHoverBorderWidth: 2.5,
         borderWidth: 2.5,
       },
     ],
   });
 
-  // ─── Chart options — premium Copilot-style ───────────────────────
+  // ─── Chart options — Flip7 style ─────────────────────────────────
 
   const chartOptions = $derived<ChartOptions<'line'>>({
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 600, easing: 'easeOutQuart' },
+    animation: { duration: 1200, easing: 'easeOutQuart' },
     interaction: {
       intersect: false,
       mode: 'index',
@@ -131,10 +131,10 @@
       legend: { display: false },
       tooltip: {
         enabled: true,
-        backgroundColor: isDark ? '#1f2937' : '#ffffff',
-        titleColor: isDark ? '#f9fafb' : '#1a1a2e',
-        bodyColor: isDark ? '#d1d5db' : '#4b5563',
-        borderColor: isDark ? '#374151' : '#e5e7eb',
+        backgroundColor: '#FFF8E7',
+        titleColor: '#14302E',
+        bodyColor: '#5C7A78',
+        borderColor: 'rgba(20,48,46,0.12)',
         borderWidth: 1,
         padding: 14,
         cornerRadius: 12,
@@ -231,6 +231,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    animation: fade-in-up 600ms var(--ease) both;
   }
 
   .chart-source {
@@ -260,7 +261,7 @@
     gap: var(--space-xl);
     margin-top: var(--space-sm);
     padding-top: var(--space-sm);
-    border-top: 1px solid var(--color-border);
+    border-top: 1px dashed var(--color-border);
   }
 
   .legend-item {
@@ -268,8 +269,8 @@
     align-items: center;
     gap: 8px;
     font-size: var(--font-size-xs);
-    font-weight: 500;
-    color: var(--color-text-secondary);
+    font-weight: 600;
+    color: var(--color-text-muted);
     letter-spacing: 0.02em;
   }
 
@@ -287,7 +288,7 @@
     justify-content: center;
     height: 100%;
     gap: var(--space-sm);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     font-size: var(--font-size-sm);
   }
 

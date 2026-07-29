@@ -40,8 +40,9 @@
 
 {#if needRefresh}
 	<div class="pwa-toast" role="alert">
+		<div class="pwa-accent"></div>
 		<div class="pwa-message">
-			<span class="pwa-icon">{'📦'}</span>
+			<span class="pwa-icon">{'⚡'}</span>
 			<div>
 				<strong>Update available</strong>
 				<p>A new version of Finance Tracker is ready.</p>
@@ -53,9 +54,10 @@
 		</div>
 	</div>
 {:else if offlineReady}
-	<div class="pwa-toast" role="status">
+	<div class="pwa-toast offline-toast" role="status">
+		<div class="pwa-accent"></div>
 		<div class="pwa-message">
-			<span class="pwa-icon">{'✅'}</span>
+			<span class="pwa-icon">{'📦'}</span>
 			<div>
 				<strong>Ready offline</strong>
 				<p>Finance Tracker can now work without internet.</p>
@@ -75,13 +77,29 @@
 		flex-direction: column;
 		gap: var(--space-sm);
 		padding: var(--space-md) var(--space-lg);
-		background: var(--color-surface);
-		color: var(--color-text);
+		padding-left: calc(var(--space-lg) + 4px);
+		background: var(--color-cream);
+		color: var(--color-ink);
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-lg);
+		border-radius: var(--radius-xl);
+		box-shadow: var(--shadow-card), var(--glow-sky);
 		max-width: 360px;
-		animation: slideUp 0.3s ease-out;
+		position: relative;
+		overflow: hidden;
+		animation: pwaSlideUp 400ms var(--bounce);
+	}
+
+	.pwa-accent {
+		position: absolute;
+		top: 0;
+		left: 0;
+		bottom: 0;
+		width: 4px;
+		background: var(--color-sky);
+	}
+
+	.offline-toast .pwa-accent {
+		background: var(--color-teal);
 	}
 
 	.pwa-message {
@@ -93,7 +111,7 @@
 	.pwa-message p {
 		margin: var(--space-xs) 0 0;
 		font-size: var(--font-size-sm);
-		opacity: 0.8;
+		color: var(--color-text-muted);
 	}
 
 	.pwa-icon {
@@ -109,37 +127,45 @@
 
 	.pwa-btn {
 		padding: var(--space-xs) var(--space-md);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		font-size: var(--font-size-sm);
-		font-weight: 500;
+		font-weight: 600;
 		cursor: pointer;
 		border: none;
-		transition: opacity 0.15s;
-	}
-
-	.pwa-btn:hover {
-		opacity: 0.9;
+		font-family: var(--font-body);
+		transition: all var(--transition-fast);
+		min-height: 36px;
 	}
 
 	.pwa-btn-primary {
-		background: var(--color-primary);
+		background: var(--color-sky);
 		color: #fff;
+	}
+
+	.pwa-btn-primary:hover {
+		background: var(--color-sky-light);
+		transform: scale(1.03);
 	}
 
 	.pwa-btn-secondary {
 		background: transparent;
-		color: var(--color-text);
+		color: var(--color-ink);
 		border: 1px solid var(--color-border);
 	}
 
-	@keyframes slideUp {
+	.pwa-btn-secondary:hover {
+		background: var(--color-teal-bg);
+		border-color: var(--color-teal);
+	}
+
+	@keyframes pwaSlideUp {
 		from {
 			opacity: 0;
-			transform: translateY(1rem);
+			transform: translateY(1rem) scale(0.97);
 		}
 		to {
 			opacity: 1;
-			transform: translateY(0);
+			transform: translateY(0) scale(1);
 		}
 	}
 

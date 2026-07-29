@@ -117,7 +117,7 @@
       </div>
       {#if !isCollapsed}
         <div class="brand-text">
-          <h2>Finance Tracker</h2>
+          <h2>Trackr</h2>
           <span class="brand-tagline">Smart Finance</span>
         </div>
       {/if}
@@ -237,9 +237,8 @@
 
 <style>
   /* ═══════════════════════════════════════════════════════════════════
-     SIDEBAR COMPLETE — CSS
-     Design: Linear-inspired soft pill × Monarch logical grouping
-     Tokens: variables.css
+     SIDEBAR COMPLETE — Flip7 Design
+     Tokens: variables.css (--color-teal, --color-gold, --color-hairline, etc.)
      ═══════════════════════════════════════════════════════════════════ */
 
   /* ─── Mobile hamburger ─── */
@@ -250,7 +249,7 @@
     left: var(--space-sm);
     z-index: 100;
     background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-hairline);
     border-radius: var(--radius-md);
     padding: 10px;
     cursor: pointer;
@@ -271,7 +270,7 @@
     background: var(--color-text);
     border-radius: 2px;
     position: relative;
-    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 200ms var(--bounce);
   }
 
   .hamburger::before,
@@ -293,13 +292,12 @@
     height: 100vh;
     height: 100dvh;
     background: var(--color-surface);
-    border-right: 1px solid var(--color-border);
+    border-right: 1px solid var(--color-hairline);
     display: flex;
     flex-direction: column;
     z-index: 90;
     overflow: hidden;
-    /* Smooth collapse/expand — Linear-inspired ease-out */
-    transition: width 300ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: width 350ms var(--bounce);
   }
 
   /* ─── Brand header ─── */
@@ -307,7 +305,7 @@
     display: flex;
     align-items: center;
     padding: var(--space-lg);
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-hairline);
     min-height: 80px;
     flex-shrink: 0;
   }
@@ -326,24 +324,27 @@
     justify-content: center;
     width: 44px;
     height: 44px;
-    background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, var(--color-teal) 0%, var(--color-teal-dark) 100%);
     border-radius: var(--radius-md);
     flex-shrink: 0;
     color: white;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+    box-shadow: 0 4px 16px rgba(43, 168, 162, 0.35);
   }
 
   .brand-text h2 {
-    font-size: var(--font-size-base);
-    font-weight: 700;
+    font-family: var(--font-display);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-extrabold);
     color: var(--color-text);
     margin: 0;
     line-height: 1.2;
+    letter-spacing: var(--letter-spacing-heading);
   }
 
   .brand-tagline {
     font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
+    letter-spacing: var(--letter-spacing-wide);
   }
 
   /* ─── User profile ─── */
@@ -353,21 +354,20 @@
     gap: var(--space-md);
     padding: var(--space-md) var(--space-lg);
     margin: var(--space-md);
-    background: var(--color-bg);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border);
+    background: var(--color-teal-bg);
+    border-radius: var(--radius-lg);
     flex-shrink: 0;
   }
 
   .user-avatar {
     width: 40px;
     height: 40px;
-    background: linear-gradient(135deg, var(--color-primary-light) 0%, transparent 100%);
+    background: var(--color-teal);
     border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--color-primary);
+    color: white;
     flex-shrink: 0;
   }
 
@@ -388,7 +388,7 @@
 
   .user-email {
     font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -414,50 +414,65 @@
     font-weight: 500;
     border-radius: 10px;
     cursor: pointer;
-    /* Soft pill transition */
-    transition: all 120ms cubic-bezier(0.4, 0, 0.2, 1);
+    border-left: 4px solid transparent;
+    position: relative;
+    transition: all 140ms var(--bounce);
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Hover — subtle tint, no board */
+  /* Hover — subtle lift + bounce */
   .nav-item:hover {
-    background: rgba(0, 0, 0, 0.04);
+    background: var(--color-teal-bg);
+    transform: translateX(2px);
   }
 
   [data-theme="dark"] .nav-item:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(43, 168, 162, 0.10);
   }
 
   .nav-item:hover .nav-icon {
     scale: 1.05;
   }
 
-  /* Active — soft pill, NO left border */
+  /* Active — teal left accent + pill bg + gold dot */
   .nav-item.active {
-    background: var(--color-primary-light);
-    color: var(--color-primary);
-    font-weight: 600;
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
+    font-weight: var(--font-weight-semibold);
+    border-left: 4px solid var(--color-teal);
+    box-shadow: var(--glow-card);
   }
 
   [data-theme="dark"] .nav-item.active {
-    background: rgba(99, 102, 241, 0.18);
+    background: rgba(43, 168, 162, 0.15);
+    border-left-color: var(--color-teal-light);
   }
 
   .nav-item.active .nav-icon {
-    color: var(--color-primary);
+    color: var(--color-teal);
+  }
+
+  /* Gold dot prefix on active label */
+  .nav-item.active .nav-label::before {
+    content: '●';
+    color: var(--color-gold);
+    font-size: 8px;
+    margin-right: 6px;
+    display: inline-block;
+    vertical-align: middle;
   }
 
   .nav-item:active {
     scale: 0.97;
   }
 
-  /* Secondary items — slightly smaller text to create hierarchy */
+  /* Secondary items — slightly smaller text */
   .secondary-item {
     font-size: 13px;
   }
 
   .secondary-item.active {
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
   }
 
   /* ─── Nav icon ─── */
@@ -468,8 +483,12 @@
     flex-shrink: 0;
     width: 22px;
     height: 22px;
-    color: var(--color-text-secondary);
-    transition: scale 120ms cubic-bezier(0.4, 0, 0.2, 1);
+    color: var(--color-text-muted);
+    transition: scale 140ms var(--bounce);
+  }
+
+  .nav-item.active .nav-icon {
+    color: var(--color-teal);
   }
 
   /* ─── Nav label — sequenced fade for collapse/expand ─── */
@@ -478,7 +497,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     opacity: 1;
-    /* When EXPANDING, wait for sidebar to grow then fade in */
     transition: opacity 150ms ease 180ms;
   }
 
@@ -486,7 +504,6 @@
     opacity: 0;
     width: 0;
     margin: 0;
-    /* When COLLAPSING, fade out immediately, no delay */
     transition: opacity 80ms ease, width 0ms linear 80ms;
   }
 
@@ -497,6 +514,7 @@
     margin: 0 auto;
     width: 44px;
     border-radius: 12px;
+    border-left: none;
   }
 
   .collapsed .sidebar-nav {
@@ -521,10 +539,10 @@
   /* ─── Zone divider ─── */
   .nav-divider {
     height: 1px;
-    background: var(--color-border);
+    background: var(--color-hairline);
     margin: var(--space-xs) var(--space-lg);
     flex-shrink: 0;
-    transition: margin 300ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: margin 350ms var(--bounce);
   }
 
   .collapsed .nav-divider {
@@ -542,7 +560,7 @@
     flex-direction: column;
     gap: 2px;
     padding: var(--space-md);
-    border-top: 1px solid var(--color-border);
+    border-top: 1px solid var(--color-hairline);
     flex-shrink: 0;
   }
 
@@ -552,7 +570,7 @@
     gap: 12px;
     padding: 10px 12px;
     min-height: 44px;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     text-decoration: none;
     font-size: 14px;
     font-weight: 500;
@@ -561,32 +579,37 @@
     background: none;
     border: none;
     font-family: inherit;
-    transition: all 120ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 140ms var(--bounce);
     white-space: nowrap;
     -webkit-tap-highlight-color: transparent;
   }
 
   .footer-item:hover {
-    background: rgba(0, 0, 0, 0.04);
-    color: var(--color-text);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
   }
 
   [data-theme="dark"] .footer-item:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--color-text);
+    background: rgba(43, 168, 162, 0.10);
+    color: var(--color-teal-light);
   }
 
   .footer-item:active {
     scale: 0.97;
   }
 
+  .footer-item:hover .footer-icon {
+    color: var(--color-teal);
+  }
+
   .logout-link:hover {
-    color: var(--color-expense);
-    background: var(--color-expense-light);
+    color: var(--color-coral) !important;
+    background: var(--color-expense-light) !important;
   }
 
   [data-theme="dark"] .logout-link:hover {
-    background: rgba(239, 68, 68, 0.12);
+    background: rgba(239, 108, 74, 0.12) !important;
+    color: var(--color-coral-light) !important;
   }
 
   .footer-icon {
@@ -596,10 +619,12 @@
     flex-shrink: 0;
     width: 18px;
     height: 18px;
+    color: var(--color-text-muted);
+    transition: color 140ms var(--bounce);
   }
 
   .collapse-trigger svg {
-    transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 350ms var(--bounce);
   }
 
   .collapsed .collapse-trigger svg {
@@ -624,12 +649,12 @@
     align-items: center;
     justify-content: center;
     padding: 4px 10px;
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
+    background: var(--color-teal-bg);
+    border: 1px solid var(--color-hairline);
     border-radius: 20px;
     font-size: 11px;
     font-weight: 500;
-    color: var(--color-text-secondary);
+    color: var(--color-teal);
     width: fit-content;
     margin-top: var(--space-xs);
   }
@@ -672,6 +697,7 @@
       margin: 0;
       width: auto;
       border-radius: 10px;
+      border-left: 4px solid transparent;
     }
 
     .sidebar .sidebar-nav {
@@ -709,8 +735,9 @@
       display: block;
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.4);
+      background: rgba(20, 48, 46, 0.40);
       backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
       z-index: 89;
       animation: overlayIn 200ms ease;
     }

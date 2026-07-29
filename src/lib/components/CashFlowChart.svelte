@@ -30,10 +30,10 @@
 
   // ─── Gradient fills (rebuilt when canvas or dark mode changes) ───
   let incomeFill = $state<string | CanvasGradient>(
-    'rgba(16, 185, 129, 0.2)'
+    'rgba(43, 168, 162, 0.2)'
   );
   let expenseFill = $state<string | CanvasGradient>(
-    'rgba(239, 68, 68, 0.1)'
+    'rgba(239, 108, 74, 0.12)'
   );
 
   $effect(() => {
@@ -47,12 +47,12 @@
         const h = Math.max(el.clientHeight, 300);
 
         const ig = ctx.createLinearGradient(0, 0, 0, h);
-        ig.addColorStop(0, dark ? 'rgba(52, 211, 153, 0.28)' : 'rgba(16, 185, 129, 0.22)');
-        ig.addColorStop(1, dark ? 'rgba(52, 211, 153, 0)' : 'rgba(16, 185, 129, 0)');
+        ig.addColorStop(0, dark ? 'rgba(60, 196, 189, 0.25)' : 'rgba(43, 168, 162, 0.20)');
+        ig.addColorStop(1, dark ? 'rgba(60, 196, 189, 0)' : 'rgba(43, 168, 162, 0)');
 
         const eg = ctx.createLinearGradient(0, 0, 0, h);
-        eg.addColorStop(0, dark ? 'rgba(248, 113, 113, 0.18)' : 'rgba(239, 68, 68, 0.12)');
-        eg.addColorStop(1, dark ? 'rgba(248, 113, 113, 0)' : 'rgba(239, 68, 68, 0)');
+        eg.addColorStop(0, dark ? 'rgba(255, 138, 106, 0.18)' : 'rgba(239, 108, 74, 0.12)');
+        eg.addColorStop(1, dark ? 'rgba(255, 138, 106, 0)' : 'rgba(239, 108, 74, 0)');
 
         incomeFill = ig;
         expenseFill = eg;
@@ -61,15 +61,15 @@
     }
 
     // Fallback
-    incomeFill = dark ? 'rgba(52, 211, 153, 0.2)' : 'rgba(16, 185, 129, 0.2)';
-    expenseFill = dark ? 'rgba(248, 113, 113, 0.12)' : 'rgba(239, 68, 68, 0.1)';
+    incomeFill = dark ? 'rgba(60, 196, 189, 0.2)' : 'rgba(43, 168, 162, 0.2)';
+    expenseFill = dark ? 'rgba(255, 138, 106, 0.12)' : 'rgba(239, 108, 74, 0.12)';
   });
 
-  // ─── Derived colors ───
-  const incomeColor = $derived(isDark ? '#34d399' : '#10b981');
-  const expenseColor = $derived(isDark ? '#f87171' : '#ef4444');
-  const tickColor = $derived(isDark ? '#9ca3af' : '#6b7280');
-  const gridColor = $derived(isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)');
+  // ─── Derived colors — Flip7 palette ───
+  const incomeColor = $derived(isDark ? '#3CC4BD' : '#2BA8A2'); // teal
+  const expenseColor = $derived(isDark ? '#FF8A6A' : '#EF6C4A'); // coral
+  const tickColor = $derived(isDark ? '#8FB3B0' : '#5C7A78');
+  const gridColor = $derived(isDark ? 'rgba(234,247,245,0.04)' : 'rgba(20,48,46,0.04)');
 
   // ─── Chart data ───
   const chartData = $derived<ChartData<'line'>>({
@@ -83,11 +83,11 @@
         tension: 0.4,
         fill: true,
         pointRadius: 0,
-        pointHoverRadius: 5,
+        pointHoverRadius: 6,
         pointHoverBackgroundColor: incomeColor,
-        pointHoverBorderColor: isDark ? '#111827' : '#ffffff',
-        pointHoverBorderWidth: 2.5,
-        borderWidth: 2,
+        pointHoverBorderColor: isDark ? '#0C1F1E' : '#ffffff',
+        pointHoverBorderWidth: 3,
+        borderWidth: 2.5,
         order: 2,
       },
       {
@@ -98,11 +98,11 @@
         tension: 0.4,
         fill: true,
         pointRadius: 0,
-        pointHoverRadius: 5,
+        pointHoverRadius: 6,
         pointHoverBackgroundColor: expenseColor,
-        pointHoverBorderColor: isDark ? '#111827' : '#ffffff',
-        pointHoverBorderWidth: 2.5,
-        borderWidth: 2,
+        pointHoverBorderColor: isDark ? '#0C1F1E' : '#ffffff',
+        pointHoverBorderWidth: 3,
+        borderWidth: 2.5,
         order: 2,
       },
     ],
@@ -112,7 +112,7 @@
   const chartOptions = $derived<ChartOptions<'line'>>({
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 600, easing: 'easeOutQuart' },
+    animation: { duration: 1200, easing: 'easeOutQuart' },
     interaction: {
       intersect: false,
       mode: 'index',
@@ -200,7 +200,6 @@
         grid: { display: false },
         border: { display: false },
         beginAtZero: true,
-        // Keep y-axis for auto-scaling but hide everything
       },
     },
     elements: {
@@ -257,7 +256,7 @@
 
 <style>
   /* ════════════════════════════════════════
-     CASH FLOW CHART
+     CASH FLOW CHART — FLIP7
      ════════════════════════════════════════ */
 
   .cf-outer {
@@ -291,7 +290,7 @@
     gap: 8px;
     font-size: var(--font-size-xs);
     font-weight: 500;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     letter-spacing: 0.02em;
   }
 
@@ -310,13 +309,13 @@
   }
 
   .income-badge {
-    color: var(--color-income);
-    background: var(--color-income-light);
+    color: var(--color-teal);
+    background: var(--color-teal-bg);
   }
 
   .expense-badge {
-    color: var(--color-expense);
-    background: var(--color-expense-light);
+    color: var(--color-coral);
+    background: rgba(239, 108, 74, 0.10);
   }
 
   /* ─── Chart Area ─── */
@@ -338,37 +337,43 @@
     width: 100% !important;
   }
 
-  /* ─── Custom Tooltip ─── */
+  /* ─── Custom Tooltip — Cream "Scoring Chip" ─── */
 
   .cf-tooltip {
     position: absolute;
     opacity: 0;
-    background: var(--color-text);
-    color: white;
+    background: var(--color-cream);
+    color: var(--color-ink);
     padding: 12px 16px;
-    border-radius: var(--radius-md);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card), 0 8px 32px rgba(43, 168, 162, 0.12);
     pointer-events: none;
     z-index: 10;
     min-width: 160px;
     transition: opacity 120ms ease;
+    border: 1px solid var(--color-hairline);
+    font-family: var(--font-body);
   }
 
   [data-theme="dark"] .cf-tooltip {
-    background: #1f2937;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    background: #1A3A37;
+    box-shadow: var(--shadow-card), 0 8px 32px rgba(60, 196, 189, 0.12);
   }
 
   :global(.tt-label) {
     font-size: var(--font-size-sm);
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--color-ink);
     margin-bottom: 4px;
+  }
+
+  [data-theme="dark"] :global(.tt-label) {
+    color: var(--color-ink);
   }
 
   :global(.tt-divider) {
     height: 1px;
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--color-hairline);
     margin: 6px 0;
   }
 
@@ -377,13 +382,13 @@
     align-items: center;
     gap: 8px;
     font-size: var(--font-size-xs);
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--color-text-muted);
     padding: 2px 0;
   }
 
   :global(.tt-row.net) {
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--color-ink);
   }
 
   :global(.tt-dot) {
@@ -397,22 +402,23 @@
     margin-left: auto;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
   }
 
   :global(.tt-amount.income) {
-    color: var(--color-income);
+    color: var(--color-teal);
   }
 
   :global(.tt-amount.expense) {
-    color: var(--color-expense);
+    color: var(--color-coral);
   }
 
   :global(.tt-amount.positive) {
-    color: var(--color-income);
+    color: var(--color-teal);
   }
 
   :global(.tt-amount.negative) {
-    color: var(--color-expense);
+    color: var(--color-coral);
   }
 
   /* ─── Empty State ─── */
@@ -424,7 +430,7 @@
     justify-content: center;
     height: 100%;
     gap: var(--space-sm);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     font-size: var(--font-size-sm);
   }
 
@@ -454,16 +460,16 @@
     }
   }
 
-	/* ═══ FORCED MOBILE OVERRIDES ═══ */
-	@media (max-width: 768px) {
-		.cf-outer {
-			height: 250px !important;
-			max-height: 250px !important;
-		}
+		/* ═══ FORCED MOBILE OVERRIDES ═══ */
+		@media (max-width: 768px) {
+			.cf-outer {
+				height: 250px !important;
+				max-height: 250px !important;
+			}
 
-		.cf-chart {
-			height: 200px !important;
-			min-height: 200px !important;
+			.cf-chart {
+				height: 200px !important;
+				min-height: 200px !important;
+			}
 		}
-	}
 </style>

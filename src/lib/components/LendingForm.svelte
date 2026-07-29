@@ -190,18 +190,18 @@
   .form-group label {
     font-size: var(--font-size-sm);
     font-weight: 600;
-    color: var(--color-text);
+    color: var(--color-ink);
   }
 
   .form-group input,
   .form-group textarea {
     padding: var(--space-sm) var(--space-md);
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-lg);
     font-size: var(--font-size-base);
     font-family: inherit;
-    background: var(--color-surface);
-    color: var(--color-text);
+    background: var(--color-cream);
+    color: var(--color-ink);
     width: 100%;
     min-height: 44px;
     transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
@@ -210,8 +210,8 @@
   .form-group input:focus,
   .form-group textarea:focus {
     outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px var(--color-primary-light);
+    border-color: var(--color-teal);
+    box-shadow: 0 0 0 4px rgba(43, 168, 162, 0.18);
   }
 
   .form-group textarea {
@@ -237,9 +237,9 @@
     background: var(--color-bg);
     border: 1px solid var(--color-border);
     border-right: none;
-    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
     font-weight: 600;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     font-size: var(--font-size-base);
   }
 
@@ -257,13 +257,14 @@
   .btn {
     flex: 1;
     padding: var(--space-sm) var(--space-lg);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-pill);
     font-size: var(--font-size-base);
     font-weight: 600;
     cursor: pointer;
     border: none;
     min-height: 44px;
     transition: all var(--transition-fast);
+    font-family: var(--font-body);
   }
 
   .btn:disabled {
@@ -272,22 +273,25 @@
   }
 
   .btn-primary {
-    background: var(--color-primary);
-    color: white;
+    background: linear-gradient(135deg, var(--color-gold), var(--color-gold-light));
+    color: var(--color-ink);
+    box-shadow: var(--glow-gold);
   }
 
   .btn-primary:hover:not(:disabled) {
-    background: var(--color-primary-hover);
+    transform: scale(1.02);
+    box-shadow: 0 4px 24px rgba(255, 210, 63, 0.55);
   }
 
   .btn-secondary {
     background: var(--color-bg);
-    color: var(--color-text);
+    color: var(--color-ink);
     border: 1px solid var(--color-border);
   }
 
   .btn-secondary:hover {
-    background: var(--color-border);
+    background: var(--color-teal-bg);
+    border-color: var(--color-teal);
   }
 
   @media (max-width: 640px) {

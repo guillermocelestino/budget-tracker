@@ -126,12 +126,13 @@
     <div class="category-list">
       {#each incomeCategories as cat (cat.id)}
         <div class="category-card income-card">
+          <div class="card-accent" style="background: {cat.color}"></div>
           <div class="card-body">
             <div class="card-left">
-              <span class="cat-icon" style="background: {cat.color}18; color: {cat.color}">{cat.icon}</span>
+              <span class="cat-icon" style="background: {cat.color}15; color: {cat.color}">{cat.icon}</span>
               <div class="cat-info">
                 <span class="cat-name">{cat.name}</span>
-                <span class="cat-meta">Income</span>
+                <span class="cat-type-badge teal">Income</span>
               </div>
             </div>
             <div class="card-right">
@@ -174,21 +175,15 @@
       {#each expenseCategories as cat (cat.id)}
         <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
         <div class="category-card" class:over-budget={statusClass(cat) === 'over'}>
+          <div class="card-accent" style="background: {cat.color}"></div>
+
           <!-- ─── Card row 1: icon + name + meta + actions ─── -->
           <div class="card-header-area">
             <div class="card-left">
-              <span class="cat-icon" style="background: {cat.color}18; color: {cat.color}">{cat.icon}</span>
+              <span class="cat-icon" style="background: {cat.color}15; color: {cat.color}">{cat.icon}</span>
               <div class="cat-info">
                 <span class="cat-name">{cat.name}</span>
-                <span class="cat-meta">
-                  {#if cat.spent > 0 && cat.budget_limit}
-                    {formatCurrency(cat.spent)} spent
-                  {:else if cat.spent > 0}
-                    No budget set
-                  {:else}
-                    No activity
-                  {/if}
-                </span>
+                <span class="cat-type-badge coral">Expense</span>
               </div>
             </div>
             <div class="card-actions">
@@ -303,18 +298,13 @@
 
 <style>
   /* ═══════════════════════════════════════════════════════════════════
-     CATEGORY LIST
-     Design: Copilot Money card-list × YNAB budget columns
+     CATEGORY LIST — Flip7 Design
      ═══════════════════════════════════════════════════════════════════ */
 
   /* ─── Group headers ─── */
   .category-group {
     margin-bottom: var(--space-lg);
     border: none;
-  }
-
-  .category-group[open] {
-    /* details element open state — keep native styling minimal */
   }
 
   .group-header {
@@ -326,6 +316,7 @@
     cursor: pointer;
     list-style: none;
     user-select: none;
+    border-bottom: 1px dashed var(--color-border);
   }
 
   .group-header::-webkit-details-marker {
@@ -339,7 +330,7 @@
   }
 
   .chevron-icon {
-    transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 200ms var(--ease);
   }
 
   details[open] .chevron-icon {
@@ -348,16 +339,17 @@
 
   .group-title {
     font-size: var(--font-size-sm);
-    font-weight: 600;
-    color: var(--color-text-secondary);
+    font-weight: 700;
+    color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.06em;
+    font-family: var(--font-display);
   }
 
   .group-total {
     font-size: var(--font-size-sm);
-    font-weight: 600;
-    color: var(--color-text);
+    font-weight: 700;
+    color: var(--color-ink);
     font-variant-numeric: tabular-nums;
   }
 
@@ -370,30 +362,43 @@
 
   /* ─── Category card ─── */
   .category-card {
+    position: relative;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-xl);
     padding: var(--space-md) var(--space-lg);
-    transition: box-shadow 200ms ease, border-color 200ms ease;
+    padding-left: calc(var(--space-lg) + 4px);
+    transition: all 250ms var(--bounce);
+    overflow: hidden;
+  }
+
+  .card-accent {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 4px;
+    border-radius: 2px 0 0 2px;
   }
 
   .category-card:hover {
-    border-color: rgba(99, 102, 241, 0.15);
-    box-shadow: var(--shadow-sm);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card);
   }
 
   .category-card.over-budget {
-    border-color: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 108, 74, 0.25);
   }
 
   .category-card.over-budget:hover {
-    border-color: rgba(239, 68, 68, 0.3);
-    box-shadow: 0 2px 12px rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 108, 74, 0.4);
+    box-shadow: var(--glow-coral);
   }
 
   /* Income cards — more compact, no budget info */
   .income-card {
     padding: var(--space-md) var(--space-lg);
+    padding-left: calc(var(--space-lg) + 4px);
   }
 
   /* ─── Card row 1: header area ─── */
@@ -443,13 +448,14 @@
   .cat-info {
     display: flex;
     flex-direction: column;
+    gap: 2px;
     min-width: 0;
   }
 
   .cat-name {
     font-size: 14px;
     font-weight: 600;
-    color: var(--color-text);
+    color: var(--color-ink);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -457,10 +463,32 @@
 
   .cat-meta {
     font-size: 12px;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* ─── Type Badge (Pill) ─── */
+  .cat-type-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 10px;
+    border-radius: var(--radius-pill);
+    width: fit-content;
+    letter-spacing: 0.02em;
+  }
+
+  .cat-type-badge.teal {
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
+  }
+
+  .cat-type-badge.coral {
+    background: rgba(239, 108, 74, 0.10);
+    color: var(--color-coral);
   }
 
   /* ─── Card actions (hover reveal) ─── */
@@ -488,30 +516,30 @@
     align-items: center;
     justify-content: center;
     transition: all 120ms ease;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
   }
 
   .btn-icon:hover {
-    background: rgba(99, 102, 241, 0.1);
-    color: var(--color-primary);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
   }
 
   .btn-icon.danger:hover {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--color-expense);
+    background: rgba(239, 108, 74, 0.10);
+    color: var(--color-coral);
   }
 
   /* ─── Income value ─── */
   .income-value {
     font-size: var(--font-size-base);
     font-weight: 700;
-    color: var(--color-income);
+    color: var(--color-teal);
     font-variant-numeric: tabular-nums;
   }
 
   .income-label {
     font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     display: block;
     margin-top: 2px;
   }
@@ -537,7 +565,7 @@
   .budget-col-label {
     font-size: 12px;
     font-weight: 500;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
@@ -546,7 +574,7 @@
     font-size: 13px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
-    color: var(--color-text);
+    color: var(--color-ink);
     background: none;
     border: none;
     padding: 0;
@@ -564,12 +592,12 @@
   }
 
   .budget-col-value.clickable:hover {
-    border-color: var(--color-primary);
-    color: var(--color-primary);
+    border-color: var(--color-teal);
+    color: var(--color-teal);
   }
 
   .budget-col-value.inverted {
-    color: var(--color-expense);
+    color: var(--color-coral);
   }
 
   /* ─── Available hero number ─── */
@@ -581,11 +609,11 @@
   }
 
   .budget-col-hero.positive {
-    color: var(--color-income);
+    color: var(--color-teal);
   }
 
   .budget-col-hero.negative {
-    color: var(--color-expense);
+    color: var(--color-coral);
   }
 
   /* ─── Status badges ─── */
@@ -594,19 +622,19 @@
     font-size: 11px;
     font-weight: 600;
     padding: 1px 8px;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     margin-top: 4px;
     width: fit-content;
   }
 
   .status-badge.ok {
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--color-income);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
   }
 
   .status-badge.over {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--color-expense);
+    background: rgba(239, 108, 74, 0.10);
+    color: var(--color-coral);
   }
 
   /* ─── Inline budget edit ─── */
@@ -614,18 +642,18 @@
     display: inline-flex;
     align-items: center;
     gap: 0;
-    border: 1px solid var(--color-primary);
+    border: 1px solid var(--color-teal);
     border-radius: var(--radius-sm);
     overflow: hidden;
-    background: var(--color-surface);
-    box-shadow: 0 0 0 3px var(--color-primary-light);
+    background: var(--color-cream);
+    box-shadow: var(--focus);
   }
 
   .budget-prefix {
     padding: 2px 0 2px 6px;
     font-size: 13px;
     font-weight: 600;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     background: var(--color-bg);
     border-right: 1px solid var(--color-border);
   }
@@ -637,7 +665,7 @@
     font-size: 13px;
     font-weight: 600;
     font-family: inherit;
-    color: var(--color-text);
+    color: var(--color-ink);
     background: transparent;
     outline: none;
     font-variant-numeric: tabular-nums;
@@ -647,11 +675,11 @@
   .budget-set-btn {
     background: none;
     border: 1px dashed var(--color-border);
-    border-radius: var(--radius-sm);
-    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    padding: 4px 12px;
     font-size: 13px;
     font-weight: 500;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     cursor: pointer;
     font-family: inherit;
     transition: all 120ms ease;
@@ -660,16 +688,16 @@
   }
 
   .budget-set-btn:hover {
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-    background: var(--color-primary-light);
+    border-color: var(--color-teal);
+    color: var(--color-teal);
+    background: var(--color-teal-bg);
   }
 
   /* ─── Progress section ─── */
   .progress-section {
     margin-top: var(--space-sm);
     padding-top: var(--space-sm);
-    border-top: 1px solid var(--color-border);
+    border-top: 1px dashed var(--color-border);
   }
 
   .progress-footer {
@@ -685,25 +713,25 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .pct-value.ok { color: var(--color-income); }
-  .pct-value.warn { color: #f59e0b; }
-  .pct-value.over { color: var(--color-expense); }
+  .pct-value.ok { color: var(--color-teal); }
+  .pct-value.warn { color: var(--color-gold-dark); }
+  .pct-value.over { color: var(--color-coral); }
 
   .pct-label {
     font-size: 12px;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
   }
 
   /* ─── No budget hint ─── */
   .no-budget-hint {
     margin-top: var(--space-sm);
     padding-top: var(--space-sm);
-    border-top: 1px solid var(--color-border);
+    border-top: 1px dashed var(--color-border);
   }
 
   .hint-text {
     font-size: 12px;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     font-style: italic;
   }
 
@@ -714,10 +742,11 @@
     align-items: center;
     text-align: center;
     padding: var(--space-2xl) var(--space-md);
-    background: var(--color-surface);
+    background: var(--color-cream);
     border: 1px dashed var(--color-border);
     border-radius: var(--radius-xl);
     gap: var(--space-sm);
+    box-shadow: var(--shadow-card);
   }
 
   .empty-icon {
@@ -726,22 +755,22 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--color-primary-light) 0%, rgba(99, 102, 241, 0.1) 100%);
-    color: var(--color-primary);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
     border-radius: var(--radius-lg);
     margin-bottom: var(--space-sm);
   }
 
   .empty-state p {
     font-weight: 600;
-    color: var(--color-text);
+    color: var(--color-ink);
     font-size: var(--font-size-lg);
     margin: 0;
   }
 
   .empty-state span {
     font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     max-width: 280px;
   }
 
@@ -760,7 +789,7 @@
       align-items: center;
       gap: var(--space-sm);
       padding-top: var(--space-xs);
-      border-top: 1px solid var(--color-border);
+      border-top: 1px dashed var(--color-border);
       margin-top: var(--space-xs);
     }
 
@@ -774,6 +803,7 @@
 
     .category-card {
       padding: var(--space-md);
+      padding-left: calc(var(--space-md) + 4px);
     }
   }
 
@@ -784,7 +814,7 @@
     }
 
     .available-col {
-      border-top: 1px solid var(--color-border);
+      border-top: 1px dashed var(--color-border);
       padding-top: var(--space-xs);
       margin-top: var(--space-xs);
     }
@@ -801,6 +831,7 @@
 
     .category-card {
       padding: var(--space-md);
+      padding-left: calc(var(--space-md) + 4px);
     }
 
     .card-header-area {

@@ -76,9 +76,9 @@
   {#if hasTransactions}
     <div class="ra-feed">
       {#each enriched as tx (tx.id)}
-        <div class="ra-row">
-          <!-- Avatar circle -->
-          <div class="ra-avatar" style="background: {tx.isIncome ? 'var(--color-income-light)' : 'var(--color-bg)'}">
+        <div class="ra-row" class:is-expense={!tx.isIncome}>
+          <!-- Avatar circle with colored ring -->
+          <div class="ra-avatar" style="--ring-color: {tx.categoryColor}">
             <span class="ra-initials" class:income={tx.isIncome}>{tx.initials}</span>
           </div>
 
@@ -90,11 +90,16 @@
             {/if}
           </div>
 
-          <!-- Right: amount + date -->
+          <!-- Right: amount + sign chip + date -->
           <div class="ra-right">
-            <span class="ra-amount" class:income={tx.isIncome} class:expense={!tx.isIncome}>
-              {tx.isIncome ? '+' : '−'}{formatCurrency(tx.amount)}
-            </span>
+            <div class="ra-amount-row">
+              <span class="ra-sign-chip" class:income={tx.isIncome} class:expense={!tx.isIncome}>
+                {tx.isIncome ? '+' : '−'}
+              </span>
+              <span class="ra-amount" class:income={tx.isIncome} class:expense={!tx.isIncome}>
+                {formatCurrency(tx.amount)}
+              </span>
+            </div>
             <span class="ra-date">{tx.relativeDate}</span>
           </div>
         </div>
@@ -102,7 +107,7 @@
     </div>
 
   {:else}
-    <!-- ═══ Empty state ═══ -->
+    <!-- ═══ Empty state — Flip7 ═══ -->
     <div class="ra-empty">
       <div class="ra-empty-icon">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -128,7 +133,7 @@
 
 <style>
   /* ═══════════════════════════════════════════════
-     RECENT ACTIVITY WIDGET
+     RECENT ACTIVITY WIDGET — FLIP7
      ═══════════════════════════════════════════════ */
 
   .ra-shell {
@@ -136,7 +141,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-xl);
     overflow: hidden;
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-card);
   }
 
   /* ─── Header ─── */
@@ -146,7 +151,7 @@
     align-items: center;
     justify-content: space-between;
     padding: var(--space-lg) var(--space-lg) var(--space-md);
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-hairline);
   }
 
   .ra-header-left {
@@ -161,15 +166,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--color-primary-light) 0%, rgba(99, 102, 241, 0.1) 100%);
-    color: var(--color-primary);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
     border-radius: var(--radius-md);
   }
 
   .ra-title {
     font-size: var(--font-size-base);
     font-weight: 600;
-    color: var(--color-text);
+    color: var(--color-ink);
     margin: 0;
   }
 
@@ -178,16 +183,35 @@
     align-items: center;
     gap: 6px;
     font-size: var(--font-size-sm);
-    font-weight: 500;
-    color: var(--color-primary);
+    font-weight: 600;
+    color: var(--color-gold-dark);
     text-decoration: none;
     padding: 6px 10px;
     border-radius: var(--radius-sm);
     transition: all var(--transition-fast);
+    position: relative;
+  }
+
+  .ra-view-all::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 10px;
+    right: 10px;
+    height: 2px;
+    background: var(--color-gold);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform var(--transition-normal) var(--ease);
+    border-radius: 1px;
+  }
+
+  .ra-view-all:hover::after {
+    transform: scaleX(1);
   }
 
   .ra-view-all:hover {
-    background: var(--color-primary-light);
+    background: rgba(255, 210, 63, 0.10);
   }
 
   .ra-view-all svg {
@@ -210,20 +234,33 @@
     align-items: center;
     gap: var(--space-md);
     padding: var(--space-md) var(--space-lg);
-    border-bottom: 1px solid var(--color-border);
-    transition: background 120ms ease;
+    border-bottom: 2px dashed var(--color-teal);
+    border-bottom-color: rgba(43, 168, 162, 0.20);
+    transition: transform var(--transition-fast) var(--bounce), background 120ms ease;
     min-height: 68px;
+    position: relative;
+    cursor: default;
   }
 
   .ra-row:last-child {
     border-bottom: none;
   }
 
-  .ra-row:hover {
-    background: rgba(99, 102, 241, 0.03);
+  /* Coral left bar accent for expense / over-budget */
+  .ra-row.is-expense {
+    border-left: 3px solid var(--color-coral);
+    padding-left: calc(var(--space-lg) - 3px);
   }
 
-  /* ─── Avatar ─── */
+  .ra-row:hover {
+    background: var(--color-teal-bg);
+  }
+
+  .ra-row:active {
+    transform: scale(0.97);
+  }
+
+  /* ─── Avatar — teal-bg circle with colored ring ─── */
 
   .ra-avatar {
     width: 40px;
@@ -233,17 +270,18 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    background: var(--color-bg);
+    background: var(--color-teal-bg);
+    box-shadow: inset 0 0 0 2.5px var(--ring-color, var(--color-teal));
   }
 
   .ra-initials {
     font-size: var(--font-size-sm);
     font-weight: 700;
-    color: var(--color-text-secondary);
+    color: var(--color-teal);
   }
 
   .ra-initials.income {
-    color: var(--color-income);
+    color: var(--color-teal);
   }
 
   /* ─── Info column ─── */
@@ -259,7 +297,7 @@
   .ra-description {
     font-size: var(--font-size-sm);
     font-weight: 600;
-    color: var(--color-text);
+    color: var(--color-ink);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -267,13 +305,13 @@
 
   .ra-category {
     font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  /* ─── Right column: amount + date ─── */
+  /* ─── Right column: amount + sign chip + date ─── */
 
   .ra-right {
     display: flex;
@@ -283,29 +321,58 @@
     flex-shrink: 0;
   }
 
+  .ra-amount-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .ra-sign-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .ra-sign-chip.income {
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
+  }
+
+  .ra-sign-chip.expense {
+    background: rgba(239, 108, 74, 0.10);
+    color: var(--color-coral);
+  }
+
   .ra-amount {
     font-size: var(--font-size-sm);
     font-weight: 700;
-    color: var(--color-text);
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
+    letter-spacing: var(--letter-spacing-tight);
   }
 
   .ra-amount.income {
-    color: var(--color-income);
+    color: var(--color-teal);
   }
 
   .ra-amount.expense {
-    color: var(--color-text);
+    color: var(--color-coral);
   }
 
   .ra-date {
     font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     font-weight: 500;
   }
 
-  /* ─── Empty state ─── */
+  /* ─── Empty state — Flip7 ─── */
 
   .ra-empty {
     display: flex;
@@ -323,8 +390,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--color-primary-light) 0%, rgba(99, 102, 241, 0.1) 100%);
-    color: var(--color-primary);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
     border-radius: var(--radius-lg);
     margin-bottom: var(--space-xs);
   }
@@ -338,12 +405,12 @@
   .ra-empty-title {
     font-size: var(--font-size-base);
     font-weight: 600;
-    color: var(--color-text);
+    color: var(--color-ink);
   }
 
   .ra-empty-sub {
     font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     max-width: 280px;
     line-height: 1.4;
   }
@@ -353,22 +420,23 @@
     align-items: center;
     gap: 6px;
     padding: var(--space-sm) var(--space-lg);
-    background: var(--color-primary);
-    color: white;
-    border-radius: var(--radius-md);
+    background: var(--color-gold);
+    color: var(--color-ink);
+    border-radius: var(--radius-pill);
     font-size: var(--font-size-sm);
-    font-weight: 600;
+    font-weight: 700;
     text-decoration: none;
     min-height: 40px;
     transition: all var(--transition-fast);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+    box-shadow: var(--glow-gold);
     margin-top: var(--space-xs);
   }
 
   .ra-empty-cta:hover {
-    background: var(--color-primary-hover);
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+    background: var(--color-gold-dark);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: var(--glow-gold);
   }
 
   /* ═══════════════════════════════════════════════
@@ -385,10 +453,16 @@
       width: 34px;
       height: 34px;
     }
+
+    .ra-row.is-expense {
+      padding-left: calc(var(--space-md) - 3px);
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .ra-row { transition: none; }
+    .ra-row:active { transform: none; }
     .ra-empty-cta { transition: none; }
+    .ra-view-all::after { display: none; }
   }
 </style>
