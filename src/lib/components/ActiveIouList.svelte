@@ -278,7 +278,7 @@
                   </button>
                   {#if iou.status !== 'paid'}
                     <button class="iou-btn iou-btn-pay" onclick={() => onPay?.(iou.id)} type="button">
-                      Repay
+                      {direction === 'lent' ? 'Mark Paid' : 'Repay'}
                     </button>
                   {:else}
                     <span class="recovered-glow">Recovered</span>
@@ -356,7 +356,7 @@
               <td>
                 <div class="action-btns">
                   {#if iou.status !== 'paid'}
-                    <button class="action-btn pay" onclick={() => onPay?.(iou.id)} type="button">Repay</button>
+                    <button class="action-btn pay" onclick={() => onPay?.(iou.id)} type="button">{direction === 'lent' ? 'Paid' : 'Repay'}</button>
                   {/if}
                   <button class="action-btn edit" onclick={() => onEdit?.(iou.id)} type="button">Edit</button>
                   <button class="action-btn delete" onclick={() => onDelete?.(iou.id)} type="button">Del</button>
