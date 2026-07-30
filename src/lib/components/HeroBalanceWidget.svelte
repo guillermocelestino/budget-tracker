@@ -57,21 +57,26 @@
       : '—'
   );
 
-  // ─── Trend helpers ───
-  function trendArrow(change: number | undefined, invert: boolean): string {
+  // ─── Trend helpers — good/bad semantics ───
+  // The arrow always points the LITERAL direction of change (↑ up, ↓ down).
+  // Color communicates good/bad:
+  //   income ↑ = good (mint)    | income ↓ = bad (coral)
+  //   expense ↑ = bad (coral)   | expense ↓ = good (mint)
+  // The `invert` flag flips the polarity for expenses so ↑ always = bad for
+  // that type. This prevents arrow/sign contradictions like "↓ +26.9%".
+
+  function trendArrow(change: number | undefined): string {
     if (change == null) return '';
-    const direction = invert ? -change : change;
-    if (direction > 0) return '↑';
-    if (direction < 0) return '↓';
+    if (change > 0) return '↑';
+    if (change < 0) return '↓';
     return '→';
   }
 
-  function trendClass(change: number | undefined, invert: boolean): string {
+  function trendGoodBad(change: number | undefined, invert: boolean): string {
     if (change == null) return '';
-    const direction = invert ? -change : change;
-    if (direction > 0) return 'trend-up';
-    if (direction < 0) return 'trend-down';
-    return 'trend-flat';
+    // invert=true for expenses: a positive change (more spending) is bad
+    const isGood = invert ? change < 0 : change > 0;
+    return isGood ? 'trend-good' : 'trend-bad';
   }
 
   function trendLabel(change: number | undefined): string {
@@ -87,7 +92,10 @@
   <!-- ═══ Sheen sweep overlay (one-pass on load) ═══ -->
   <div class="vault-sheen"></div>
 
-  <!-- ═══ Gold radial glow behind the balance number ═══ -->
+  <!-- ═══ Dark contrast pool behind the balance number ═══ -->
+  <div class="vault-pool"></div>
+
+  <!-- ═══ Gold warm halo around the balance number ═══ -->
   <div class="vault-glow"></div>
 
   <!-- ═══ Section 1: Hero Balance ═══ -->
@@ -113,8 +121,8 @@
         <span class="tile-label">Income</span>
         <span class="tile-value tile-income-val">{displayIncome}</span>
         {#if incomeChange != null}
-          <span class="tile-trend {trendClass(incomeChange, false)}">
-            {trendArrow(incomeChange, false)} {trendLabel(incomeChange)}
+          <span class="tile-trend {trendGoodBad(incomeChange, false)}">
+            {trendArrow(incomeChange)} {trendLabel(incomeChange)}
           </span>
         {:else}
           <span class="tile-ratio">{incomeRatio}% of total</span>
@@ -134,8 +142,8 @@
         <span class="tile-label">Expenses</span>
         <span class="tile-value tile-expense-val">{displayExpenses}</span>
         {#if expenseChange != null}
-          <span class="tile-trend {trendClass(expenseChange, true)}">
-            {trendArrow(expenseChange, true)} {trendLabel(expenseChange)}
+          <span class="tile-trend {trendGoodBad(expenseChange, true)}">
+            {trendArrow(expenseChange)} {trendLabel(expenseChange)}
           </span>
         {:else}
           <span class="tile-ratio">{expenseRatio}% of income</span>
@@ -227,23 +235,37 @@
     100% { transform: translateX(100%); }
   }
 
-  /* ── Gold radial glow ── */
+  /* ── Dark contrast pool behind the balance number ── */
+  .vault-pool {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -60%);
+    width: 320px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(0,0,0,0.20) 0%, rgba(0,0,0,0) 70%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* ── Gold warm halo around the balance number ── */
   .vault-glow {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -60%);
-    width: 400px;
-    height: 300px;
+    width: 300px;
+    height: 200px;
     border-radius: 50%;
-    background: radial-gradient(ellipse, rgba(255, 210, 63, 0.15) 0%, transparent 70%);
+    background: radial-gradient(ellipse, rgba(255, 210, 63, 0.25) 0%, transparent 65%);
     pointer-events: none;
-    z-index: 1;
-    transition: opacity 300ms var(--ease);
+    z-index: 2;
+    transition: opacity 400ms var(--ease);
   }
 
   .hero-vault:hover .vault-glow {
-    opacity: 1.3;
+    opacity: 1.5;
   }
 
   /* ═══ Section 1: Hero Balance ═══ */
@@ -258,11 +280,13 @@
   .vault-eyebrow {
     display: block;
     font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-semibold);
-    color: rgba(255,255,255,0.6);
+    font-weight: var(--font-weight-bold);
+    color: rgba(255,255,255,0.82);
     text-transform: uppercase;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.18em;
     margin-bottom: 6px;
+    position: relative;
+    z-index: 3;
   }
 
   .vault-value {
@@ -275,10 +299,12 @@
     color: #FFFFFF;
     font-variant-numeric: tabular-nums;
     position: relative;
+    z-index: 3;
+    text-shadow: 0 2px 18px rgba(0,0,0,0.25);
   }
 
   .vault-value.negative {
-    color: #FFD9CE;
+    color: #FFB3A0;
   }
 
   .vault-currency {
@@ -300,17 +326,18 @@
   .vault-tile {
     display: flex;
     align-items: flex-start;
-    gap: var(--space-sm);
+    gap: var(--space-md);
     min-width: 140px;
-    background: rgba(255,255,255,0.10);
-    border: 1px solid rgba(255,255,255,0.20);
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.35);
     border-radius: var(--radius-lg);
     padding: var(--space-sm) var(--space-md);
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(4px);
   }
 
   [data-theme="dark"] .vault-tile {
     background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.22);
   }
 
   .tile-icon {
@@ -325,13 +352,13 @@
   }
 
   .income-icon {
-    background: rgba(200,245,232,0.20);
-    color: #C8F5E8;
+    background: rgba(159,240,214,0.25);
+    color: #9FF0D6;
   }
 
   .expense-icon {
-    background: rgba(255,217,206,0.20);
-    color: #FFD9CE;
+    background: rgba(255,179,160,0.25);
+    color: #FFB3A0;
   }
 
   .tile-body {
@@ -342,39 +369,43 @@
 
   .tile-label {
     font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-semibold);
-    color: rgba(255,255,255,0.6);
+    font-weight: var(--font-weight-bold);
+    color: #9FF0D6;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
+  }
+
+  .tile-icon.income-icon + .tile-body .tile-label {
+    color: #9FF0D6;
+  }
+
+  /* Second tile (expenses) label in coral */
+  .vault-tile:nth-of-type(2) .tile-label {
+    color: #FFB3A0;
   }
 
   .tile-value {
     font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-bold);
+    font-weight: 700;
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     letter-spacing: var(--letter-spacing-tight);
     line-height: 1.2;
-  }
-
-  .tile-income-val {
-    color: #C8F5E8;
-  }
-
-  .tile-expense-val {
-    color: #FFD9CE;
+    color: #FFFFFF;
   }
 
   .tile-trend {
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-semibold);
     margin-top: 2px;
-    color: rgba(255,255,255,0.7);
   }
 
-  .tile-trend.trend-up { color: #C8F5E8; }
-  .tile-trend.trend-down { color: #FFD9CE; }
-  .tile-trend.trend-flat { color: rgba(255,255,255,0.5); }
+  /* Good = mint (income up, expense down) */
+  .tile-trend.trend-good { color: #9FF0D6; }
+  /* Bad = coral (income down, expense up) */
+  .tile-trend.trend-bad { color: #FFB3A0; }
+  /* Flat = muted white */
+  .tile-trend.trend-flat { color: rgba(255,255,255,0.55); }
 
   .tile-ratio {
     font-size: var(--font-size-xs);
@@ -400,7 +431,7 @@
   .vault-pill.pill-positive {
     background: #FFD23F;
     color: #14655F;
-    box-shadow: var(--glow-gold);
+    box-shadow: 0 2px 12px rgba(255, 210, 63, 0.30);
   }
 
   .vault-pill.pill-negative {
