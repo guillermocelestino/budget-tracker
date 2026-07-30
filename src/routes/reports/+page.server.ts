@@ -59,13 +59,20 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 		[userId, month]
 	);
 
-		const countResult = await queryOne<{ count: string }>(
-			`SELECT COUNT(*) as count
-			 FROM transactions
-			 WHERE user_id = $1 AND TO_CHAR(date, 'YYYY-MM') = $2`,
-			[userId, month]
-		);
-		const transactionCount = parseInt(countResult?.count ?? '0');
+	const countResult = await queryOne<{ count: string }>(
+		`SELECT COUNT(*) as count
+		 FROM transactions
+		 WHERE user_id = $1 AND TO_CHAR(date, 'YYYY-MM') = $2`,
+		[userId, month]
+	);
+	const transactionCount = parseInt(countResult?.count ?? '0');
+
+	// All-time count for E1 vs E2 empty-state distinction
+	const allTimeResult = await queryOne<{ count: string }>(
+		`SELECT COUNT(*) as count FROM transactions WHERE user_id = $1`,
+		[userId]
+	);
+	const allTimeCount = parseInt(allTimeResult?.count ?? '0');
 
 	// YoY: Previous year same month
 	const prevYearSummary = await queryOne<{ income: string; expense: string }>(
@@ -121,13 +128,14 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 		return Math.round(((curr - prev) / prev) * 100);
 	}
 
-return {
-	monthlyData,
-	expenseData,
-	incomeData,
-	year,
-	month,
-	transactionCount,
+	return {
+		monthlyData,
+		expenseData,
+		incomeData,
+		year,
+		month,
+		transactionCount,
+		allTimeCount,
 		monthSummary: {
 			income: currIncome,
 			expense: currExpense,
@@ -135,6 +143,7 @@ return {
 		},
 		yoyData: {
 			prevYearMonth,
+			currentMonth: { income: currIncome, expense: currExpense, balance: currIncome - currExpense },
 			previousMonth: { income: prevIncome, expense: prevExpense, balance: prevIncome - prevExpense },
 			currentYTD: { income: currYTDIncome, expense: currYTDExpense },
 			previousYTD: { income: prevYTDIncome, expense: prevYTDExpense },

@@ -6,6 +6,8 @@
 		actionLabel = '',
 		actionHref = '',
 		onAction,
+		secondaryLabel = '',
+		secondaryHref = '',
 	}: {
 		icon?: string;
 		title?: string;
@@ -13,29 +15,43 @@
 		actionLabel?: string;
 		actionHref?: string;
 		onAction?: () => void;
+		secondaryLabel?: string;
+		secondaryHref?: string;
 	} = $props();
 </script>
 
 <div class="empty-state">
-	<div class="empty-icon-box">
-		<span class="empty-icon">{icon}</span>
-	</div>
+	{#if icon}
+		<div class="empty-icon-box">
+			<span class="empty-icon">{icon}</span>
+		</div>
+	{/if}
 	{#if title}
 		<h3 class="empty-title">{title}</h3>
 	{/if}
 	{#if description}
 		<p class="empty-desc">{description}</p>
 	{/if}
-	{#if actionLabel && actionHref}
-		<a href={actionHref} class="empty-action">
-			{actionLabel}
-		</a>
-	{/if}
-	{#if actionLabel && onAction}
-		<button class="empty-action" onclick={onAction} type="button">
-			{actionLabel}
-		</button>
-	{/if}
+	<div class="empty-actions">
+		{#if actionLabel && actionHref}
+			<a href={actionHref} class="empty-action" onclick={onAction ? (e) => { e.preventDefault(); onAction(); } : undefined}>
+				{actionLabel}
+			</a>
+		{/if}
+		{#if actionLabel && onAction && !actionHref}
+			<button class="empty-action" onclick={onAction} type="button">
+				{actionLabel}
+			</button>
+		{/if}
+		{#if secondaryLabel && secondaryHref}
+			<a href={secondaryHref} class="empty-secondary">
+				{secondaryLabel}
+				<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+				</svg>
+			</a>
+		{/if}
+	</div>
 </div>
 
 <style>
@@ -85,8 +101,15 @@
 		line-height: 1.4;
 	}
 
-	.empty-action {
+	.empty-actions {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--space-sm);
 		margin-top: var(--space-sm);
+	}
+
+	.empty-action {
 		padding: var(--space-sm) var(--space-xl);
 		background: linear-gradient(135deg, var(--color-gold), var(--color-gold-light));
 		color: var(--color-ink);
@@ -102,6 +125,17 @@
 		align-items: center;
 		box-shadow: var(--glow-gold);
 		transition: all 200ms var(--bounce);
+		position: relative;
+		overflow: hidden;
+	}
+
+	.empty-action::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(180deg, rgba(255,255,255,0.30) 0%, transparent 50%);
+		border-radius: var(--radius-pill);
+		pointer-events: none;
 	}
 
 	.empty-action:hover {
@@ -113,6 +147,35 @@
 
 	.empty-action:active {
 		transform: scale(0.97);
+	}
+
+	.empty-secondary {
+		font-size: var(--font-size-xs);
+		color: var(--color-teal);
+		text-decoration: none;
+		font-weight: 600;
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 4px 8px;
+		border-radius: var(--radius-sm);
+		transition: all 150ms var(--ease);
+		min-height: 32px;
+	}
+
+	.empty-secondary:hover {
+		background: var(--color-teal-bg);
+		gap: 6px;
+		text-decoration: none;
+		color: var(--color-teal-dark);
+	}
+
+	.empty-secondary svg {
+		transition: transform 150ms var(--ease);
+	}
+
+	.empty-secondary:hover svg {
+		transform: translateX(2px);
 	}
 
 	@media (prefers-reduced-motion: reduce) {

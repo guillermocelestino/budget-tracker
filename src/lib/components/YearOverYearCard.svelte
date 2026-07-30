@@ -29,6 +29,14 @@
 	const incomeChange = $derived(yoyData?.changes.monthIncomeChange ?? 0);
 	const expenseChange = $derived(yoyData?.changes.monthExpenseChange ?? 0);
 
+	// E4: check if comparison is meaningful (at least one period has data)
+	const hasData = $derived(
+		(yoyData?.currentMonth?.income ?? 0) > 0 ||
+		(yoyData?.currentMonth?.expense ?? 0) > 0 ||
+		(yoyData?.previousMonth?.income ?? 0) > 0 ||
+		(yoyData?.previousMonth?.expense ?? 0) > 0
+	);
+
 	function changeClass(change: number): string {
 		if (change > 0) return 'positive';
 		if (change < 0) return 'negative';
@@ -44,109 +52,121 @@
 
 {#if yoyData}
 	<div class="yoy-section">
-		<div class="yoy-ribbon"></div>
-		<div class="yoy-header">
-			<h3 class="yoy-title">
-				{#if incomeUp}
-					<span class="crown">👑</span>
-				{/if}
-				Year-over-Year
-			</h3>
-		</div>
-
-		<!-- Monthly Comparison -->
-		<div class="yoy-grid">
-			<div class="yoy-card current" class:gold={incomeUp}>
-				<div class="yoy-card-label">This Month</div>
-				<div class="yoy-card-month">{selectedMonth}</div>
-				<div class="yoy-card-row">
-					<span class="yoy-label">Income</span>
-					<span class="yoy-value income">{formatCurrency(yoyData.currentMonth?.income ?? 0)}</span>
-				</div>
-				<div class="yoy-card-row">
-					<span class="yoy-label">Expenses</span>
-					<span class="yoy-value expense">{formatCurrency(yoyData.currentMonth?.expense ?? 0)}</span>
-				</div>
-				<div class="yoy-card-row">
-					<span class="yoy-label">Balance</span>
-					<span class="yoy-value" class:income={(yoyData.currentMonth?.balance ?? 0) >= 0} class:expense={(yoyData.currentMonth?.balance ?? 0) < 0}>
-						{formatCurrency(yoyData.currentMonth?.balance ?? 0)}
-					</span>
-				</div>
+		{#if hasData}
+			<div class="yoy-ribbon"></div>
+			<div class="yoy-header">
+				<h3 class="yoy-title">
+					{#if incomeUp}
+						<span class="crown">👑</span>
+					{/if}
+					Year-over-Year
+				</h3>
 			</div>
 
-			<div class="yoy-card previous">
-				<div class="yoy-card-label">Same Month</div>
-				<div class="yoy-card-month">{prevMonthLabel}</div>
-				<div class="yoy-card-row">
-					<span class="yoy-label">Income</span>
-					<span class="yoy-value income">{formatCurrency(yoyData.previousMonth.income)}</span>
+			<!-- Monthly Comparison -->
+			<div class="yoy-grid">
+				<div class="yoy-card current" class:gold={incomeUp}>
+					<div class="yoy-card-label">This Month</div>
+					<div class="yoy-card-month">{selectedMonth}</div>
+					<div class="yoy-card-row">
+						<span class="yoy-label">Income</span>
+						<span class="yoy-value income">{formatCurrency(yoyData.currentMonth?.income ?? 0)}</span>
+					</div>
+					<div class="yoy-card-row">
+						<span class="yoy-label">Expenses</span>
+						<span class="yoy-value expense">{formatCurrency(yoyData.currentMonth?.expense ?? 0)}</span>
+					</div>
+					<div class="yoy-card-row">
+						<span class="yoy-label">Balance</span>
+						<span class="yoy-value" class:income={(yoyData.currentMonth?.balance ?? 0) >= 0} class:expense={(yoyData.currentMonth?.balance ?? 0) < 0}>
+							{formatCurrency(yoyData.currentMonth?.balance ?? 0)}
+						</span>
+					</div>
 				</div>
-				<div class="yoy-card-row">
-					<span class="yoy-label">Expenses</span>
-					<span class="yoy-value expense">{formatCurrency(yoyData.previousMonth.expense)}</span>
-				</div>
-				<div class="yoy-card-row">
-					<span class="yoy-label">Balance</span>
-					<span class="yoy-value" class:income={yoyData.previousMonth.balance >= 0} class:expense={yoyData.previousMonth.balance < 0}>
-						{formatCurrency(yoyData.previousMonth.balance)}
-					</span>
-				</div>
-			</div>
-		</div>
 
-		<!-- Change badges -->
-		<div class="yoy-changes">
-			<div class="change-badge" class:gold-medal={incomeUp} class:quiet={!incomeUp}>
-				<span class="change-arrow">{changeArrow(incomeChange, true)}</span>
-				<span class="change-label">Income</span>
-				<span class="change-value">{incomeChange > 0 ? '+' : ''}{incomeChange}%</span>
+				<div class="yoy-card previous">
+					<div class="yoy-card-label">Same Month</div>
+					<div class="yoy-card-month">{prevMonthLabel}</div>
+					<div class="yoy-card-row">
+						<span class="yoy-label">Income</span>
+						<span class="yoy-value income">{formatCurrency(yoyData.previousMonth.income)}</span>
+					</div>
+					<div class="yoy-card-row">
+						<span class="yoy-label">Expenses</span>
+						<span class="yoy-value expense">{formatCurrency(yoyData.previousMonth.expense)}</span>
+					</div>
+					<div class="yoy-card-row">
+						<span class="yoy-label">Balance</span>
+						<span class="yoy-value" class:income={yoyData.previousMonth.balance >= 0} class:expense={yoyData.previousMonth.balance < 0}>
+							{formatCurrency(yoyData.previousMonth.balance)}
+						</span>
+					</div>
+				</div>
 			</div>
-			<div class="change-badge" class:coral={expenseChange > 0} class:quiet={expenseChange <= 0}>
-				<span class="change-arrow">{changeArrow(expenseChange, false)}</span>
-				<span class="change-label">Expenses</span>
-				<span class="change-value">{expenseChange > 0 ? '+' : ''}{expenseChange}%</span>
-			</div>
-		</div>
 
-		<!-- YTD Comparison -->
-		<div class="ytd-section">
-			<div class="ytd-title">Year to Date</div>
-			<div class="ytd-grid">
-				<div class="ytd-col">
-					<div class="ytd-year">This Year</div>
-					<div class="ytd-row">
-						<span>Income</span>
-						<span class="income">{formatCurrency(yoyData.currentYTD.income)}</span>
-					</div>
-					<div class="ytd-row">
-						<span>Expenses</span>
-						<span class="expense">{formatCurrency(yoyData.currentYTD.expense)}</span>
-					</div>
+			<!-- Change badges -->
+			<div class="yoy-changes">
+				<div class="change-badge" class:gold-medal={incomeUp} class:quiet={!incomeUp}>
+					<span class="change-arrow">{changeArrow(incomeChange, true)}</span>
+					<span class="change-label">Income</span>
+					<span class="change-value">{incomeChange > 0 ? '+' : ''}{incomeChange}%</span>
 				</div>
-				<div class="ytd-changes">
-					<div class="change-badge small" class:gold-medal={yoyData.changes.ytdIncomeChange > 0} class:quiet={yoyData.changes.ytdIncomeChange <= 0}>
-						<span class="change-arrow">{changeArrow(yoyData.changes.ytdIncomeChange, true)}</span>
-						<span class="change-value">{yoyData.changes.ytdIncomeChange > 0 ? '+' : ''}{yoyData.changes.ytdIncomeChange}%</span>
-					</div>
-					<div class="change-badge small" class:coral={yoyData.changes.ytdExpenseChange > 0} class:quiet={yoyData.changes.ytdExpenseChange <= 0}>
-						<span class="change-arrow">{changeArrow(yoyData.changes.ytdExpenseChange, false)}</span>
-						<span class="change-value">{yoyData.changes.ytdExpenseChange > 0 ? '+' : ''}{yoyData.changes.ytdExpenseChange}%</span>
-					</div>
+				<div class="change-badge" class:coral={expenseChange > 0} class:quiet={expenseChange <= 0}>
+					<span class="change-arrow">{changeArrow(expenseChange, false)}</span>
+					<span class="change-label">Expenses</span>
+					<span class="change-value">{expenseChange > 0 ? '+' : ''}{expenseChange}%</span>
 				</div>
-				<div class="ytd-col">
-					<div class="ytd-year">Last Year</div>
-					<div class="ytd-row">
-						<span>Income</span>
-						<span class="income">{formatCurrency(yoyData.previousYTD.income)}</span>
+			</div>
+
+			<!-- YTD Comparison -->
+			<div class="ytd-section">
+				<div class="ytd-title">Year to Date</div>
+				<div class="ytd-grid">
+					<div class="ytd-col">
+						<div class="ytd-year">This Year</div>
+						<div class="ytd-row">
+							<span>Income</span>
+							<span class="income">{formatCurrency(yoyData.currentYTD.income)}</span>
+						</div>
+						<div class="ytd-row">
+							<span>Expenses</span>
+							<span class="expense">{formatCurrency(yoyData.currentYTD.expense)}</span>
+						</div>
 					</div>
-					<div class="ytd-row">
-						<span>Expenses</span>
-						<span class="expense">{formatCurrency(yoyData.previousYTD.expense)}</span>
+					<div class="ytd-changes">
+						<div class="change-badge small" class:gold-medal={yoyData.changes.ytdIncomeChange > 0} class:quiet={yoyData.changes.ytdIncomeChange <= 0}>
+							<span class="change-arrow">{changeArrow(yoyData.changes.ytdIncomeChange, true)}</span>
+							<span class="change-value">{yoyData.changes.ytdIncomeChange > 0 ? '+' : ''}{yoyData.changes.ytdIncomeChange}%</span>
+						</div>
+						<div class="change-badge small" class:coral={yoyData.changes.ytdExpenseChange > 0} class:quiet={yoyData.changes.ytdExpenseChange <= 0}>
+							<span class="change-arrow">{changeArrow(yoyData.changes.ytdExpenseChange, false)}</span>
+							<span class="change-value">{yoyData.changes.ytdExpenseChange > 0 ? '+' : ''}{yoyData.changes.ytdExpenseChange}%</span>
+						</div>
+					</div>
+					<div class="ytd-col">
+						<div class="ytd-year">Last Year</div>
+						<div class="ytd-row">
+							<span>Income</span>
+							<span class="income">{formatCurrency(yoyData.previousYTD.income)}</span>
+						</div>
+						<div class="ytd-row">
+							<span>Expenses</span>
+							<span class="expense">{formatCurrency(yoyData.previousYTD.expense)}</span>
+						</div>
 					</div>
 				</div>
 			</div>
-		</div>
+		{:else}
+			<!-- E4: Calm inline degradation — no prior period to compare -->
+			<div class="yoy-header">
+				<h3 class="yoy-title">Year-over-Year</h3>
+			</div>
+			<div class="no-comparison">
+				<span class="no-comp-icon">📊</span>
+				<p class="no-comp-text">No prior period to compare</p>
+				<p class="no-comp-hint">Data from a previous period is needed to show year-over-year changes.</p>
+			</div>
+		{/if}
 	</div>
 {/if}
 
@@ -205,11 +225,11 @@
 		padding: var(--space-md);
 		border-radius: var(--radius-lg);
 		border: 1px solid var(--color-border);
-		background: var(--color-cream);
+		background: var(--color-surface-inset);
 	}
 
 	.yoy-card.current.gold {
-		background: linear-gradient(170deg, var(--color-cream) 0%, rgba(255, 210, 63, 0.08) 100%);
+		background: linear-gradient(170deg, var(--color-surface-inset) 0%, rgba(255, 210, 63, 0.08) 100%);
 		border-color: rgba(255, 210, 63, 0.25);
 	}
 
@@ -266,19 +286,19 @@
 		gap: var(--space-xs);
 		padding: var(--space-sm) var(--space-md);
 		border-radius: var(--radius-pill);
-		background: var(--color-cream);
+		background: var(--color-surface-inset);
 		border: 1px solid var(--color-border);
 		transition: all 200ms var(--bounce);
 	}
 
 	.change-badge.gold-medal {
-		background: linear-gradient(170deg, var(--color-cream) 0%, rgba(255, 210, 63, 0.12) 100%);
+		background: linear-gradient(170deg, var(--color-surface-inset) 0%, rgba(255, 210, 63, 0.12) 100%);
 		border-color: var(--color-gold);
 		box-shadow: var(--glow-gold);
 	}
 
 	.change-badge.coral {
-		background: linear-gradient(170deg, var(--color-cream) 0%, rgba(239, 108, 74, 0.08) 100%);
+		background: linear-gradient(170deg, var(--color-surface-inset) 0%, rgba(239, 108, 74, 0.08) 100%);
 		border-color: rgba(239, 108, 74, 0.25);
 	}
 
@@ -381,6 +401,38 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-xs);
+	}
+
+	/* ─── E4: No comparison state ─── */
+	.no-comparison {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding: var(--space-xl) var(--space-md);
+		text-align: center;
+		gap: var(--space-xs);
+		background: var(--color-surface-inset);
+		border: 1px dashed var(--color-hairline);
+		border-radius: var(--radius-xl);
+	}
+
+	.no-comp-icon {
+		font-size: 28px;
+		margin-bottom: var(--space-xs);
+	}
+
+	.no-comp-text {
+		font-size: var(--font-size-base);
+		font-weight: 600;
+		color: var(--color-ink);
+		margin: 0;
+	}
+
+	.no-comp-hint {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		margin: 0;
 	}
 
 	@media (max-width: 768px) {

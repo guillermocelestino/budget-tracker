@@ -13,6 +13,7 @@ declare global {
 			recentTransactions?: Transaction[];
 			transactions?: Transaction[];
 			allForBalance?: Transaction[];
+			allTimeCount?: number;
 			total?: number;
 			page?: number;
 			totalPages?: number;
@@ -42,6 +43,7 @@ declare global {
 			netWorth?: NetWorthSnapshot;
 			yoyData?: {
 				prevYearMonth: string;
+				currentMonth: { income: number; expense: number; balance: number };
 				previousMonth: { income: number; expense: number; balance: number };
 				currentYTD: { income: number; expense: number };
 				previousYTD: { income: number; expense: number };

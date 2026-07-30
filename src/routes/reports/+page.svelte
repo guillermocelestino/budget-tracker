@@ -5,7 +5,9 @@
   import ReportsHeader from '$lib/components/ReportsHeader.svelte';
   import MonthlyTrendChart from '$lib/components/MonthlyTrendChart.svelte';
   import ReportsDataTable from '$lib/components/ReportsDataTable.svelte';
+  import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
   import PageBackground from '$lib/components/PageBackground.svelte';
+  import EmptyState from '$lib/components/EmptyState.svelte';
 
   let data = $derived($page.data as App.PageData);
 
@@ -19,6 +21,11 @@
     { id: 'income', label: 'Income' },
     { id: 'expenses', label: 'Expenses' },
   ];
+
+  // ─── Empty condition flags ────────────────────────────────────────
+
+  const allTimeCount = $derived(data.allTimeCount ?? 0);
+  const hasAnyTransactions = $derived(allTimeCount > 0);
 
   // ─── Monthly data ─────────────────────────────────────────────────
 
@@ -62,6 +69,14 @@
       expense: m.expense,
     }))
   );
+
+  // ─── Range-empty (E2) flag ────────────────────────────────────────
+
+  const isRangeEmpty = $derived(filteredMonthly.length === 0 && hasAnyTransactions);
+
+  // ─── Total-empty (E1) flag ────────────────────────────────────────
+
+  const isTotalEmpty = $derived(!hasAnyTransactions);
 
   // ─── Current and previous month data for insights ─────────────────
 
@@ -163,15 +178,23 @@
     });
   });
 
-  function onTimeframeChange(tf: string) {
-    selectedTimeframe = tf;
-  }
-
   // ─── Summary bar data ─────────────────────────────────────────────
 
   const totalIncome = $derived(filteredMonthly.reduce((s, m) => s + m.income, 0));
   const totalExpenses = $derived(filteredMonthly.reduce((s, m) => s + m.expense, 0));
   const netTotal = $derived(totalIncome - totalExpenses);
+
+  // ─── Timeframe change handler ─────────────────────────────────────
+
+  function onTimeframeChange(tf: string) {
+    selectedTimeframe = tf;
+  }
+
+  // ─── Export guard ─────────────────────────────────────────────────
+
+  const hasExportableData = $derived(filteredMonthly.length > 0);
+  const exportStart = $derived(filteredMonthly[0]?.month ?? '');
+  const exportEnd = $derived(filteredMonthly[filteredMonthly.length - 1]?.month ?? '');
 </script>
 
 <svelte:head>
@@ -180,24 +203,39 @@
 
 <PageHeader title="Reports">
   {#snippet action()}
-    <a
-      href="/api/reports/export?start={filteredMonthly[0]?.month ?? ''}&end={filteredMonthly[filteredMonthly.length - 1]?.month ?? ''}"
-      class="btn-export"
-      download
-    >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/>
-        <line x1="12" x2="12" y1="15" y2="3"/>
-      </svg>
-      Export CSV
-    </a>
+    {#if hasExportableData}
+      <a
+        href="/api/reports/export?start={exportStart}&end={exportEnd}"
+        class="btn-export"
+        download
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" x2="12" y1="15" y2="3"/>
+        </svg>
+        Export CSV
+      </a>
+    {:else}
+      <span class="btn-export btn-export-disabled" title="Nothing to export yet">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" x2="12" y1="15" y2="3"/>
+        </svg>
+        Export CSV
+        <span class="export-hint">nothing to export yet</span>
+      </span>
+    {/if}
   {/snippet}
 </PageHeader>
 
 <PageBackground />
 
-<!-- ═══ Insights header ═══ -->
+<!-- ═══ Reports header (timeframe pills + insight cards) ═══ -->
+
+<!-- E4: when comparison is uncomputable, ReportsHeader handles inline degradation
+     (insight cards hide when hasSpendingInsight/hasSavingsInsight are false) -->
 <ReportsHeader
   currentMonth={currentSummary}
   previousMonth={previousSummary}
@@ -209,210 +247,258 @@
   onTimeframeChange={onTimeframeChange}
 />
 
-<!-- ═══ View tabs ═══ -->
-<div class="tabs-bar">
-  <div class="tabs-pill">
-    {#each tabs as tab}
-      <button
-        class="tab-btn"
-        class:active={activeTab === tab.id}
-        onclick={() => activeTab = tab.id}
-      >
-        {tab.label}
-      </button>
-    {/each}
+<!-- ══════════════════════════════════════════════════════════════════
+     E1: TOTAL-EMPTY — page-level, replaces everything below header
+     ══════════════════════════════════════════════════════════════════ -->
+{#if isTotalEmpty}
+  <div class="empty-page-region">
+    <EmptyState
+      icon="🌱"
+      title="Your reports are waiting"
+      description="Log a few transactions and this page turns into your money's story."
+      actionLabel="Add a transaction"
+      actionHref="/transactions/new"
+    />
   </div>
-</div>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     CASH FLOW VIEW
+     E2: RANGE-EMPTY — page-level, timeframe pills still work
      ══════════════════════════════════════════════════════════════════ -->
-{#if activeTab === 'cashflow'}
-  <div class="view-panel">
-    <!-- Summary bar -->
-    <div class="summary-strip">
-      <div class="strip-item">
-        <span class="strip-value">{formatCurrency(totalIncome)}</span>
-        <span class="strip-label">Total Income</span>
-      </div>
-      <div class="strip-divider"></div>
-      <div class="strip-item">
-        <span class="strip-value expense">{formatCurrency(totalExpenses)}</span>
-        <span class="strip-label">Total Expenses</span>
-      </div>
-      <div class="strip-divider"></div>
-      <div class="strip-item">
-        <span class="strip-value" class:positive={netTotal >= 0} class:negative={netTotal < 0}>
-          {formatCurrency(netTotal)}
-        </span>
-        <span class="strip-label">Net</span>
-      </div>
-    </div>
+{:else if isRangeEmpty}
+  <div class="empty-page-region">
+    <EmptyState
+      icon="🔭"
+      title="Nothing in this window"
+      description="There's no activity in the selected period — try a wider range."
+      actionLabel="Show all time"
+      onAction={() => selectedTimeframe = 'All'}
+      secondaryLabel="Add a transaction"
+      secondaryHref="/transactions/new"
+    />
+  </div>
 
-    <!-- Chart -->
-    <div class="section-card">
-      <div class="section-card-header">
-        <h3 class="section-card-title">Monthly Trend</h3>
+<!-- ══════════════════════════════════════════════════════════════════
+     DATA EXISTS — normal render
+     ══════════════════════════════════════════════════════════════════ -->
+{:else}
+
+  <!-- ═══ Tabs ═══ -->
+  <div class="tabs-bar">
+    <div class="tabs-pill">
+      {#each tabs as tab}
+        <button
+          class="tab-btn"
+          class:active={activeTab === tab.id}
+          onclick={() => activeTab = tab.id}
+        >
+          {tab.label}
+        </button>
+      {/each}
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       CASH FLOW TAB
+       ════════════════════════════════════════════════════════════════ -->
+  {#if activeTab === 'cashflow'}
+    <div class="view-panel">
+      <!-- Summary bar -->
+      <div class="summary-strip">
+        <div class="strip-item">
+          <span class="strip-value">{formatCurrency(totalIncome)}</span>
+          <span class="strip-label">Total Income</span>
+        </div>
+        <div class="strip-divider"></div>
+        <div class="strip-item">
+          <span class="strip-value expense">{formatCurrency(totalExpenses)}</span>
+          <span class="strip-label">Total Expenses</span>
+        </div>
+        <div class="strip-divider"></div>
+        <div class="strip-item">
+          <span class="strip-value" class:positive={netTotal >= 0} class:negative={netTotal < 0}>
+            {formatCurrency(netTotal)}
+          </span>
+          <span class="strip-label">Net</span>
+        </div>
       </div>
-      <MonthlyTrendChart
-        labels={monthlyLabels}
-        incomeData={monthlyIncome}
-        expenseData={monthlyExpense}
+
+      <!-- Chart (never renders canvas when empty — MonthlyTrendChart handles "No trend data yet") -->
+      <div class="section-card">
+        <div class="section-card-header">
+          <h3 class="section-card-title">Monthly Trend</h3>
+        </div>
+        <MonthlyTrendChart
+          labels={monthlyLabels}
+          incomeData={monthlyIncome}
+          expenseData={monthlyExpense}
+        />
+      </div>
+
+      <!-- Data table (ReportsDataTable handles empty rows internally) -->
+      <div class="section-card">
+        <div class="section-card-header">
+          <h3 class="section-card-title">Monthly Breakdown</h3>
+        </div>
+        <ReportsDataTable data={monthlyRows} />
+      </div>
+
+      <!-- Year-over-Year card (E4: graceful degradation when no prior period) -->
+      <YearOverYearCard
+        yoyData={data.yoyData}
+        selectedMonth={getMonthLabel(data.month ?? '')}
       />
     </div>
 
-    <!-- Data table -->
-    <div class="section-card">
-      <div class="section-card-header">
-        <h3 class="section-card-title">Monthly Breakdown</h3>
-      </div>
-      <ReportsDataTable data={monthlyRows} />
+  <!-- ════════════════════════════════════════════════════════════════
+       INCOME TAB
+       ════════════════════════════════════════════════════════════════ -->
+  {:else if activeTab === 'income'}
+    <div class="view-panel">
+      {#if (data.incomeData ?? []).length > 0}
+        <div class="split-view">
+          <div class="split-chart">
+            <div class="section-card">
+              <h3 class="section-card-title">Income Breakdown</h3>
+              <div class="donut-container">
+                <svg width="180" height="180" viewBox="0 0 180 180">
+                  {#if incomeArcs.length > 0}
+                    {#each incomeArcs as arc, i}
+                      <circle
+                        cx="90" cy="90" r="40"
+                        fill="none"
+                        stroke={arc.color}
+                        stroke-width="28"
+                        stroke-dasharray="{arc.pct * 251.2} {251.2 - arc.pct * 251.2}"
+                        stroke-dashoffset={-arc.offset}
+                        transform="rotate(-90 90 90)"
+                        stroke-linecap="round"
+                      />
+                    {/each}
+                  {/if}
+                  <text x="90" y="86" text-anchor="middle" fill="currentColor" font-size="16" font-weight="700" dy="0">
+                    {formatCurrency(incomeValues.reduce((a, b) => a + b, 0))}
+                  </text>
+                  <text x="90" y="106" text-anchor="middle" fill="var(--color-text-secondary)" font-size="11" font-weight="500">
+                    total
+                  </text>
+                </svg>
+              </div>
+              <!-- E5: single-category quiet note -->
+              {#if (data.incomeData ?? []).length <= 1}
+                <p class="single-cat-note">🌱 Only one category so far — add more over time</p>
+              {/if}
+            </div>
+          </div>
+          <div class="split-table">
+            <div class="section-card">
+              <h3 class="section-card-title">Categories</h3>
+              <div class="breakdown-list">
+                {#each (data.incomeData ?? []) as cat (cat.category_id)}
+                  <div class="breakdown-row">
+                    <span class="breakdown-dot" style="background: {cat.category_color}"></span>
+                    <span class="breakdown-name">{cat.category_name}</span>
+                    <span class="breakdown-amount">{formatCurrency(cat.total)}</span>
+                    <span class="breakdown-pct">
+                      {(() => {
+                        const tot = incomeValues.reduce((a, b) => a + b, 0);
+                        return tot > 0 ? ((cat.total / tot) * 100).toFixed(1) : '0.0';
+                      })()}%
+                    </span>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          </div>
+        </div>
+      {:else}
+        <!-- E3: TYPE-EMPTY for income tab -->
+        <EmptyState
+          icon="💰"
+          title="No income this period"
+          description="You logged expenses but no income here yet."
+          actionLabel="Log income"
+          actionHref="/transactions/new"
+          secondaryLabel="View the Expenses tab"
+          secondaryHref=""
+        />
+      {/if}
     </div>
-  </div>
 
-<!-- ══════════════════════════════════════════════════════════════════
-     INCOME VIEW
-     ══════════════════════════════════════════════════════════════════ -->
-{:else if activeTab === 'income'}
-  <div class="view-panel">
-    {#if (data.incomeData ?? []).length > 0}
-      <div class="split-view">
-        <div class="split-chart">
-          <div class="section-card">
-            <h3 class="section-card-title">Income Breakdown</h3>
-            <div class="donut-container">
-              <svg width="180" height="180" viewBox="0 0 180 180">
-                <!-- Simple donut using strokes — one arc per category -->
-                {#if incomeArcs.length > 0}
-                  {#each incomeArcs as arc, i}
-                    <circle
-                      cx="90" cy="90" r="40"
-                      fill="none"
-                      stroke={arc.color}
-                      stroke-width="28"
-                      stroke-dasharray="{arc.pct * 251.2} {251.2 - arc.pct * 251.2}"
-                      stroke-dashoffset={-arc.offset}
-                      transform="rotate(-90 90 90)"
-                      stroke-linecap="round"
-                    />
-                  {/each}
-                {/if}
-                <text x="90" y="86" text-anchor="middle" fill="currentColor" font-size="16" font-weight="700" dy="0">
-                  {formatCurrency(incomeValues.reduce((a, b) => a + b, 0))}
-                </text>
-                <text x="90" y="106" text-anchor="middle" fill="var(--color-text-secondary)" font-size="11" font-weight="500">
-                  total
-                </text>
-              </svg>
+  <!-- ════════════════════════════════════════════════════════════════
+       EXPENSES TAB
+       ════════════════════════════════════════════════════════════════ -->
+  {:else if activeTab === 'expenses'}
+    <div class="view-panel">
+      {#if (data.expenseData ?? []).length > 0}
+        <div class="split-view">
+          <div class="split-chart">
+            <div class="section-card">
+              <h3 class="section-card-title">Expense Breakdown</h3>
+              <div class="donut-container">
+                <svg width="180" height="180" viewBox="0 0 180 180">
+                  {#if expenseArcs.length > 0}
+                    {#each expenseArcs as arc, i}
+                      <circle
+                        cx="90" cy="90" r="40"
+                        fill="none"
+                        stroke={arc.color}
+                        stroke-width="28"
+                        stroke-dasharray="{arc.pct * 251.2} {251.2 - arc.pct * 251.2}"
+                        stroke-dashoffset={-arc.offset}
+                        transform="rotate(-90 90 90)"
+                        stroke-linecap="round"
+                      />
+                    {/each}
+                  {/if}
+                  <text x="90" y="86" text-anchor="middle" fill="currentColor" font-size="16" font-weight="700" dy="0">
+                    {formatCurrency(expenseValues.reduce((a, b) => a + b, 0))}
+                  </text>
+                  <text x="90" y="106" text-anchor="middle" fill="var(--color-text-secondary)" font-size="11" font-weight="500">
+                    total
+                  </text>
+                </svg>
+              </div>
+              <!-- E5: single-category quiet note -->
+              {#if (data.expenseData ?? []).length <= 1}
+                <p class="single-cat-note">🌱 Only one category so far — add more over time</p>
+              {/if}
+            </div>
+          </div>
+          <div class="split-table">
+            <div class="section-card">
+              <h3 class="section-card-title">Categories</h3>
+              <div class="breakdown-list">
+                {#each (data.expenseData ?? []) as cat (cat.category_id)}
+                  <div class="breakdown-row">
+                    <span class="breakdown-dot" style="background: {cat.category_color}"></span>
+                    <span class="breakdown-name">{cat.category_name}</span>
+                    <span class="breakdown-amount expense">{formatCurrency(cat.total)}</span>
+                    <span class="breakdown-pct">
+                      {(() => {
+                        const tot = expenseValues.reduce((a, b) => a + b, 0);
+                        return tot > 0 ? ((cat.total / tot) * 100).toFixed(1) : '0.0';
+                      })()}%
+                    </span>
+                  </div>
+                {/each}
+              </div>
             </div>
           </div>
         </div>
-        <div class="split-table">
-          <div class="section-card">
-            <h3 class="section-card-title">Categories</h3>
-            <div class="breakdown-list">
-              {#each (data.incomeData ?? []) as cat (cat.category_id)}
-                <div class="breakdown-row">
-                  <span class="breakdown-dot" style="background: {cat.category_color}"></span>
-                  <span class="breakdown-name">{cat.category_name}</span>
-                  <span class="breakdown-amount">{formatCurrency(cat.total)}</span>
-                  <span class="breakdown-pct">
-                    {(() => {
-                      const tot = incomeValues.reduce((a, b) => a + b, 0);
-                      return tot > 0 ? ((cat.total / tot) * 100).toFixed(1) : '0.0';
-                    })()}%
-                  </span>
-                </div>
-              {/each}
-            </div>
-          </div>
-        </div>
-      </div>
-    {:else}
-      <div class="empty-panel">
-        <div class="empty-icon">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" x2="12" y1="2" y2="22"/>
-            <path d="M6 4h7a4 4 0 0 1 0 8H6"/>
-            <line x1="4" x2="18" y1="12" y2="12"/>
-            <line x1="4" x2="18" y1="16" y2="16"/>
-          </svg>
-        </div>
-        <p>No income data for this period</p>
-      </div>
-    {/if}
-  </div>
-
-<!-- ══════════════════════════════════════════════════════════════════
-     EXPENSES VIEW
-     ══════════════════════════════════════════════════════════════════ -->
-{:else if activeTab === 'expenses'}
-  <div class="view-panel">
-    {#if (data.expenseData ?? []).length > 0}
-      <div class="split-view">
-        <div class="split-chart">
-          <div class="section-card">
-            <h3 class="section-card-title">Expense Breakdown</h3>
-            <div class="donut-container">
-              <svg width="180" height="180" viewBox="0 0 180 180">
-                {#if expenseArcs.length > 0}
-                  {#each expenseArcs as arc, i}
-                    <circle
-                      cx="90" cy="90" r="40"
-                      fill="none"
-                      stroke={arc.color}
-                      stroke-width="28"
-                      stroke-dasharray="{arc.pct * 251.2} {251.2 - arc.pct * 251.2}"
-                      stroke-dashoffset={-arc.offset}
-                      transform="rotate(-90 90 90)"
-                      stroke-linecap="round"
-                    />
-                  {/each}
-                {/if}
-                <text x="90" y="86" text-anchor="middle" fill="currentColor" font-size="16" font-weight="700" dy="0">
-                  {formatCurrency(expenseValues.reduce((a, b) => a + b, 0))}
-                </text>
-                <text x="90" y="106" text-anchor="middle" fill="var(--color-text-secondary)" font-size="11" font-weight="500">
-                  total
-                </text>
-              </svg>
-            </div>
-          </div>
-        </div>
-        <div class="split-table">
-          <div class="section-card">
-            <h3 class="section-card-title">Categories</h3>
-            <div class="breakdown-list">
-              {#each (data.expenseData ?? []) as cat (cat.category_id)}
-                <div class="breakdown-row">
-                  <span class="breakdown-dot" style="background: {cat.category_color}"></span>
-                  <span class="breakdown-name">{cat.category_name}</span>
-                  <span class="breakdown-amount expense">{formatCurrency(cat.total)}</span>
-                  <span class="breakdown-pct">
-                    {(() => {
-                      const tot = expenseValues.reduce((a, b) => a + b, 0);
-                      return tot > 0 ? ((cat.total / tot) * 100).toFixed(1) : '0.0';
-                    })()}%
-                  </span>
-                </div>
-              {/each}
-            </div>
-          </div>
-        </div>
-      </div>
-    {:else}
-      <div class="empty-panel">
-        <div class="empty-icon">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/>
-            <path d="M12 18V6"/>
-          </svg>
-        </div>
-        <p>No expense data for this period</p>
-      </div>
-    {/if}
-  </div>
+      {:else}
+        <!-- E3: TYPE-EMPTY for expenses tab -->
+        <EmptyState
+          icon="🍽️"
+          title="No expenses this period"
+          description="You logged income but no expenses here yet."
+          actionLabel="Log an expense"
+          actionHref="/transactions/new"
+          secondaryLabel="View the Income tab"
+          secondaryHref=""
+        />
+      {/if}
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -437,12 +523,35 @@
     min-height: 40px;
     transition: all var(--transition-fast);
     white-space: nowrap;
+    position: relative;
   }
 
   .btn-export:hover {
     background: var(--color-primary-light);
     border-color: var(--color-primary);
     color: var(--color-primary);
+  }
+
+  .btn-export-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .export-hint {
+    font-size: 10px;
+    color: var(--color-text-muted);
+    position: absolute;
+    bottom: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-weight: 400;
+  }
+
+  /* ─── Empty page region (E1/E2) ─── */
+  .empty-page-region {
+    margin-top: var(--space-lg);
   }
 
   /* ─── Tabs bar ─── */
@@ -587,6 +696,15 @@
     color: var(--color-text);
   }
 
+  /* ─── Single category note (E5) ─── */
+  .single-cat-note {
+    text-align: center;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin: var(--space-xs) 0 var(--space-sm);
+    font-style: italic;
+  }
+
   /* ─── Category breakdown list ─── */
   .breakdown-list {
     display: flex;
@@ -641,37 +759,6 @@
     min-width: 48px;
   }
 
-  /* ─── Empty state ─── */
-  .empty-panel {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-2xl);
-    background: var(--color-surface);
-    border: 1px dashed var(--color-border);
-    border-radius: var(--radius-xl);
-    text-align: center;
-    gap: var(--space-md);
-  }
-
-  .empty-icon {
-    width: 72px;
-    height: 72px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, var(--color-primary-light) 0%, rgba(99, 102, 241, 0.1) 100%);
-    color: var(--color-primary);
-    border-radius: var(--radius-lg);
-  }
-
-  .empty-panel p {
-    margin: 0;
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-base);
-  }
-
   /* ─── Responsive ─── */
   @media (max-width: 768px) {
     .split-view {
@@ -700,6 +787,10 @@
       flex: 1;
       text-align: center;
       padding: var(--space-sm) var(--space-md);
+    }
+
+    .export-hint {
+      display: none;
     }
   }
 
