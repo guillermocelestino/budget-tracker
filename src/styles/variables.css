@@ -6,7 +6,9 @@
   /* ─── Brand palette ─── */
   --color-bg: #EFF8F7;
   --color-surface: #FFFFFF;
-  --color-cream: #FFF8E7;
+  --color-surface-inset: #F0F9F8;
+  --color-surface-ribbon: #FFFFFF;
+  --color-cream: var(--color-surface-inset);
   --color-teal: #2BA8A2;
   --color-teal-light: #3CC4BD;
   --color-teal-dark: #1E8C86;
@@ -135,7 +137,9 @@
 [data-theme="dark"] {
   --color-bg: #0C1F1E;
   --color-surface: #12302E;
-  --color-cream: #1A3A37;
+  --color-surface-inset: #0E2725;
+  --color-surface-ribbon: #12302E;
+  --color-cream: var(--color-surface-inset);
   --color-teal: #3CC4BD;
   --color-teal-light: #57D6CF;
   --color-teal-dark: #2BA8A2;

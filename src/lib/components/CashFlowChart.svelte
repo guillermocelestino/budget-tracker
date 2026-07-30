@@ -356,7 +356,7 @@
   }
 
   [data-theme="dark"] .cf-tooltip {
-    background: #1A3A37;
+    background: #0E2725;
     box-shadow: var(--shadow-card), 0 8px 32px rgba(60, 196, 189, 0.12);
   }
 

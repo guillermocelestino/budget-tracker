@@ -92,7 +92,7 @@
 				},
 			},
 			tooltip: {
-				backgroundColor: '#FFF8E7',
+				backgroundColor: '#F0F9F8',
 				titleColor: '#14302E',
 				bodyColor: '#5C7A78',
 				borderColor: 'rgba(20,48,46,0.12)',

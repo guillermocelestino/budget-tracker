@@ -61,8 +61,8 @@
   function trendArrow(change: number | undefined, invert: boolean): string {
     if (change == null) return '';
     const direction = invert ? -change : change;
-    if (direction > 0) return '▲';
-    if (direction < 0) return '▼';
+    if (direction > 0) return '↑';
+    if (direction < 0) return '↓';
     return '→';
   }
 
@@ -80,86 +80,92 @@
   }
 </script>
 
-<div class="hero-widget">
+<div class="hero-vault">
+  <!-- ═══ Dot-grid texture overlay ═══ -->
+  <div class="vault-texture"></div>
+
+  <!-- ═══ Sheen sweep overlay (one-pass on load) ═══ -->
+  <div class="vault-sheen"></div>
+
+  <!-- ═══ Gold radial glow behind the balance number ═══ -->
+  <div class="vault-glow"></div>
+
   <!-- ═══ Section 1: Hero Balance ═══ -->
-  <div class="hero-section">
-    <div class="hero-glow"></div>
-    <span class="hero-label">Total Balance</span>
-    <span class="hero-value" class:negative={balance < 0}>
-      {balanceSign}{displayBalance}
+  <div class="vault-hero">
+    <span class="vault-eyebrow">Total Balance</span>
+    <span class="vault-value" class:negative={balance < 0}>
+      <span class="vault-currency">{balanceSign}</span>
+      {displayBalance}
     </span>
   </div>
 
   <!-- ═══ Section 2: Cash Flow Metrics ═══ -->
-  <div class="metrics-section">
+  <div class="vault-metrics">
     <!-- Income -->
-    <div class="metric-block">
-      <div class="metric-icon income-icon">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+    <div class="vault-tile">
+      <div class="tile-icon income-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
           <polyline points="17 6 23 6 23 12"/>
         </svg>
       </div>
-      <div class="metric-body">
-        <span class="metric-label">Income</span>
-        <span class="metric-value">{displayIncome}</span>
+      <div class="tile-body">
+        <span class="tile-label">Income</span>
+        <span class="tile-value tile-income-val">{displayIncome}</span>
         {#if incomeChange != null}
-          <span class="metric-trend {trendClass(incomeChange, false)}">
+          <span class="tile-trend {trendClass(incomeChange, false)}">
             {trendArrow(incomeChange, false)} {trendLabel(incomeChange)}
           </span>
         {:else}
-          <span class="metric-ratio">{incomeRatio}% of total</span>
+          <span class="tile-ratio">{incomeRatio}% of total</span>
         {/if}
       </div>
     </div>
 
-    <!-- Divider -->
-    <div class="metric-divider"></div>
-
     <!-- Expenses -->
-    <div class="metric-block">
-      <div class="metric-icon expense-icon">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+    <div class="vault-tile">
+      <div class="tile-icon expense-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 18 14.5 10.5 9.5 15.5 1 6"/>
           <polyline points="7 18 1 18 1 12"/>
         </svg>
       </div>
-      <div class="metric-body">
-        <span class="metric-label">Expenses</span>
-        <span class="metric-value">{displayExpenses}</span>
+      <div class="tile-body">
+        <span class="tile-label">Expenses</span>
+        <span class="tile-value tile-expense-val">{displayExpenses}</span>
         {#if expenseChange != null}
-          <span class="metric-trend {trendClass(expenseChange, true)}">
+          <span class="tile-trend {trendClass(expenseChange, true)}">
             {trendArrow(expenseChange, true)} {trendLabel(expenseChange)}
           </span>
         {:else}
-          <span class="metric-ratio">{expenseRatio}% of income</span>
+          <span class="tile-ratio">{expenseRatio}% of income</span>
         {/if}
       </div>
     </div>
 
-    <!-- Savings Rate Pill -->
-    <div class="metric-savings" class:savings-positive={savingsRate > 0} class:savings-negative={savingsRate <= 0}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Savings Rate Gold Pill -->
+    <div class="vault-pill" class:pill-positive={savingsRate > 0} class:pill-negative={savingsRate <= 0}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="9"/>
         <path d="M8 12h8 M12 8v8"/>
       </svg>
-      <span>{displaySavingsRate}</span>
-      <span class="savings-label">Saved</span>
+      <span class="pill-value">{displaySavingsRate}</span>
+      <span class="pill-label">Saved</span>
     </div>
   </div>
 
   <!-- ═══ Section 3: Lending (conditional) ═══ -->
   {#if hasLending}
-    <div class="lending-section">
-      <div class="lending-row">
-        <span class="lending-dot" class:positive={isLendingPositive}></span>
-        <span class="lending-label">Lending</span>
-        <span class="lending-values">
+    <div class="vault-lending">
+      <div class="lending-strip">
+        <span class="strip-dot" class:strip-positive={isLendingPositive}></span>
+        <span class="strip-label">Lending</span>
+        <span class="strip-values">
           Lent <strong>{formatCurrency(lendingSummary!.totalLent)}</strong>
-          ·
+          <span class="strip-sep">·</span>
           Recovered <strong>{formatCurrency(lendingSummary!.totalRecovered)}</strong>
-          ·
-          <span class="lending-outstanding" class:positive={isLendingPositive}>
+          <span class="strip-sep">·</span>
+          <span class="strip-outstanding" class:strip-positive={isLendingPositive}>
             {displayNetLending} outstanding
           </span>
         </span>
@@ -169,107 +175,148 @@
 </div>
 
 <style>
-  /* ════════════════════════════════════════════════
-     HERO BALANCE WIDGET — FLIP7
-     ════════════════════════════════════════ */
+  /* ═══════════════════════════════════════════════════
+     THE VAULT — Teal-gradient hero balance widget
+     ═══════════════════════════════════════════════════ */
 
-  .hero-widget {
+  .hero-vault {
     position: relative;
-    background: var(--color-cream);
-    border: none;
-    border-left: 6px solid var(--color-teal);
     border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--glow-card), var(--shadow-card);
     overflow: hidden;
     margin-bottom: var(--space-lg);
     isolation: isolate;
+
+    /* LIGHT hero gradient */
+    background: linear-gradient(135deg, #2BA8A2 0%, #1E8C86 55%, #14655F 100%);
   }
 
-  /* ─── Section 1: Hero Balance ─── */
+  [data-theme="dark"] .hero-vault {
+    /* DARK hero gradient — deeper, no glare */
+    background: linear-gradient(135deg, #1E8C86 0%, #14655F 55%, #0C3F3B 100%);
+  }
 
-  .hero-section {
-    position: relative;
+  /* ── Dot-grid texture ── */
+  .vault-texture {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
     z-index: 1;
+  }
+
+  /* ── Sheen sweep (one-pass on load) ── */
+  .vault-sheen {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    background: linear-gradient(
+      105deg,
+      transparent 30%,
+      rgba(255,255,255,0.06) 45%,
+      rgba(255,255,255,0.06) 55%,
+      transparent 70%
+    );
+    animation: sheen-sweep 1.2s var(--ease) forwards;
+  }
+
+  @keyframes sheen-sweep {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  /* ── Gold radial glow ── */
+  .vault-glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -60%);
+    width: 400px;
+    height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(255, 210, 63, 0.15) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 1;
+    transition: opacity 300ms var(--ease);
+  }
+
+  .hero-vault:hover .vault-glow {
+    opacity: 1.3;
+  }
+
+  /* ═══ Section 1: Hero Balance ═══ */
+
+  .vault-hero {
+    position: relative;
+    z-index: 3;
     text-align: center;
     padding: var(--space-xl) var(--space-xl) var(--space-md);
   }
 
-  .hero-glow {
-    position: absolute;
-    top: -100px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 450px;
-    height: 280px;
-    border-radius: 50%;
-    background: radial-gradient(ellipse, rgba(43, 168, 162, 0.08) 0%, transparent 70%);
-    pointer-events: none;
-  }
-
-  .hero-label {
+  .vault-eyebrow {
     display: block;
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-semibold);
-    color: var(--color-text-muted);
+    color: rgba(255,255,255,0.6);
     text-transform: uppercase;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     margin-bottom: 6px;
   }
 
-  .hero-value {
+  .vault-value {
     display: block;
-    font-size: 3rem;
-    font-weight: var(--font-weight-bold);
+    font-size: clamp(40px, 7vw, 72px);
+    font-weight: 800;
     font-family: var(--font-display);
-    letter-spacing: var(--letter-spacing-tight);
-    line-height: var(--line-height-tight);
-    color: var(--color-ink);
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: #FFFFFF;
     font-variant-numeric: tabular-nums;
-    transition: color 400ms var(--bounce);
+    position: relative;
   }
 
-  .hero-value.negative {
-    color: var(--color-negative);
+  .vault-value.negative {
+    color: #FFD9CE;
   }
 
-  /* ─── Section 2: Cash Flow Metrics ─── */
+  .vault-currency {
+    color: #FFD23F;
+  }
 
-  .metrics-section {
+  /* ═══ Section 2: Cash Flow Metrics ═══ */
+
+  .vault-metrics {
+    position: relative;
+    z-index: 3;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: var(--space-md);
     padding: 0 var(--space-xl) var(--space-lg);
-    position: relative;
-    z-index: 1;
   }
 
-  .metric-block {
+  .vault-tile {
     display: flex;
     align-items: flex-start;
     gap: var(--space-sm);
     min-width: 140px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-hairline);
+    background: rgba(255,255,255,0.10);
+    border: 1px solid rgba(255,255,255,0.20);
     border-radius: var(--radius-lg);
     padding: var(--space-sm) var(--space-md);
-    position: relative;
+    backdrop-filter: blur(2px);
   }
 
-  /* Teal left bar for income */
-  .metric-block:first-of-type {
-    border-left: 4px solid var(--color-teal);
+  [data-theme="dark"] .vault-tile {
+    background: rgba(255,255,255,0.08);
   }
 
-  /* Coral left bar for expense */
-  .metric-block:nth-of-type(2) {
-    border-left: 4px solid var(--color-coral);
-  }
-
-  .metric-icon {
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius-md);
+  .tile-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -278,296 +325,296 @@
   }
 
   .income-icon {
-    background: var(--color-teal-bg);
-    color: var(--color-teal);
+    background: rgba(200,245,232,0.20);
+    color: #C8F5E8;
   }
 
   .expense-icon {
-    background: rgba(239, 108, 74, 0.10);
-    color: var(--color-coral);
+    background: rgba(255,217,206,0.20);
+    color: #FFD9CE;
   }
 
-  .metric-body {
+  .tile-body {
     display: flex;
     flex-direction: column;
     gap: 1px;
   }
 
-  .metric-label {
+  .tile-label {
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-semibold);
-    color: var(--color-text-muted);
+    color: rgba(255,255,255,0.6);
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
 
-  .metric-value {
+  .tile-value {
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-bold);
-    color: var(--color-ink);
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     letter-spacing: var(--letter-spacing-tight);
     line-height: 1.2;
   }
 
-  .metric-trend {
+  .tile-income-val {
+    color: #C8F5E8;
+  }
+
+  .tile-expense-val {
+    color: #FFD9CE;
+  }
+
+  .tile-trend {
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-semibold);
     margin-top: 2px;
+    color: rgba(255,255,255,0.7);
   }
 
-  .metric-trend.trend-up { color: var(--color-teal); }
-  .metric-trend.trend-down { color: var(--color-coral); }
-  .metric-trend.trend-flat { color: var(--color-text-muted); }
+  .tile-trend.trend-up { color: #C8F5E8; }
+  .tile-trend.trend-down { color: #FFD9CE; }
+  .tile-trend.trend-flat { color: rgba(255,255,255,0.5); }
 
-  .metric-ratio {
+  .tile-ratio {
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-medium);
-    color: var(--color-text-muted);
+    color: rgba(255,255,255,0.5);
     margin-top: 2px;
   }
 
-  .metric-divider {
-    width: 1px;
-    height: 48px;
-    background: var(--color-hairline);
-    flex-shrink: 0;
-  }
-
-  .metric-savings {
+  /* ── Savings gold pill ── */
+  .vault-pill {
     display: flex;
     align-items: center;
     gap: 5px;
-    padding: 6px 16px;
+    padding: 8px 20px;
     border-radius: var(--radius-pill);
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-bold);
-    color: var(--color-text-muted);
-    background: var(--color-bg);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-    border: 1px solid transparent;
+    min-height: 40px;
   }
 
-  .metric-savings.savings-positive {
-    color: var(--color-gold-dark);
-    background: rgba(255, 210, 63, 0.15);
-    border-color: var(--color-gold);
+  .vault-pill.pill-positive {
+    background: #FFD23F;
+    color: #14655F;
     box-shadow: var(--glow-gold);
   }
 
-  .metric-savings.savings-negative {
-    color: var(--color-coral);
-    background: rgba(239, 108, 74, 0.10);
-    border-color: var(--color-coral);
-    animation: boom-pulse 2s infinite;
+  .vault-pill.pill-negative {
+    background: rgba(255,217,206,0.20);
+    color: #FFD9CE;
+    border: 1px solid rgba(255,217,206,0.30);
   }
 
-  .savings-label {
+  .pill-value {
+    font-weight: var(--font-weight-extrabold);
+    font-size: var(--font-size-base);
+    font-family: var(--font-display);
+  }
+
+  .pill-label {
     font-weight: var(--font-weight-medium);
     font-size: var(--font-size-xs);
-    opacity: 0.8;
+    opacity: 0.85;
   }
 
-  /* ─── Section 3: Lending (conditional) ─── */
+  .vault-pill.pill-negative .pill-label {
+    opacity: 0.7;
+  }
 
-  .lending-section {
+  /* ═══ Section 3: Lending (conditional) ═══ */
+
+  .vault-lending {
     position: relative;
-    z-index: 1;
-    border-top: 1px solid var(--color-hairline);
-    background: var(--color-cream);
+    z-index: 3;
+    border-top: 1px solid rgba(255,255,255,0.12);
+    background: rgba(0,0,0,0.12);
     padding: var(--space-md) var(--space-xl);
   }
 
-  .lending-row {
+  [data-theme="dark"] .vault-lending {
+    background: rgba(0,0,0,0.18);
+  }
+
+  .lending-strip {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
     font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
+    color: rgba(255,255,255,0.7);
     min-height: 44px;
+    flex-wrap: wrap;
   }
 
-  .lending-dot {
+  .strip-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--color-text-muted);
+    background: rgba(255,255,255,0.5);
     flex-shrink: 0;
   }
 
-  .lending-dot.positive {
-    background: var(--color-teal);
+  .strip-dot.strip-positive {
+    background: #FFD23F;
   }
 
-  .lending-label {
+  .strip-label {
     font-weight: var(--font-weight-semibold);
-    color: var(--color-ink);
+    color: rgba(255,255,255,0.85);
     text-transform: uppercase;
     font-size: var(--font-size-xs);
     letter-spacing: 0.05em;
   }
 
-  .lending-values {
+  .strip-values {
     display: flex;
     align-items: center;
     gap: 4px;
     flex-wrap: wrap;
   }
 
-  .lending-values strong {
-    color: var(--color-ink);
+  .strip-values strong {
+    color: rgba(255,255,255,0.85);
     font-weight: var(--font-weight-semibold);
     font-variant-numeric: tabular-nums;
   }
 
-  .lending-outstanding {
-    font-weight: var(--font-weight-semibold);
-    font-variant-numeric: tabular-nums;
+  .strip-sep {
+    opacity: 0.4;
   }
 
-  .lending-outstanding.positive {
-    color: var(--color-teal);
+  .strip-outstanding {
+    font-weight: var(--font-weight-semibold);
+    font-variant-numeric: tabular-nums;
+    color: rgba(255,255,255,0.7);
+  }
+
+  .strip-outstanding.strip-positive {
+    color: #FFD23F;
   }
 
   /* ═══════════════════════════════════════
-     RESPONSIVE BREAKPOINTS
+     RESPONSIVE
      ═══════════════════════════════════════ */
 
   @media (max-width: 768px) {
-    .hero-widget {
+    .hero-vault {
       width: 100%;
       box-sizing: border-box;
       margin-bottom: var(--space-md);
     }
 
-    .hero-section {
+    .vault-hero {
       padding: var(--space-lg) var(--space-md) var(--space-sm);
     }
 
-    .hero-glow {
-      width: 300px;
+    .vault-glow {
+      width: 280px;
       height: 200px;
-      top: -60px;
     }
 
-    .hero-value {
+    .vault-value {
       font-size: clamp(28px, 8vw, 48px);
-      word-break: break-word;
-      overflow-wrap: break-word;
-      text-align: center;
-      line-height: var(--line-height-tight);
     }
 
-    .metrics-section {
+    .vault-metrics {
       flex-direction: column;
       align-items: stretch;
-      gap: var(--space-md);
+      gap: var(--space-sm);
       width: 100%;
       padding: 0 var(--space-md) var(--space-md);
     }
 
-    .metric-block {
+    .vault-tile {
       width: 100%;
       min-width: unset;
-      flex-direction: row;
-      align-items: center;
-      gap: var(--space-sm);
     }
 
-    .metric-body {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .metric-divider {
-      width: 100%;
-      height: 1px;
-    }
-
-    .metric-savings {
+    .vault-pill {
       align-self: flex-start;
     }
 
-    .lending-section {
+    .vault-lending {
       padding: var(--space-sm) var(--space-md);
     }
 
-    .lending-row {
-      flex-wrap: wrap;
+    .lending-strip {
       gap: 6px;
-      align-items: flex-start;
     }
 
-    .lending-values {
+    .strip-values {
       font-size: var(--font-size-xs);
     }
   }
 
   @media (max-width: 480px) {
-    .hero-section {
+    .vault-hero {
       padding: var(--space-md) var(--space-sm) var(--space-xs);
     }
 
-    .hero-glow {
-      width: 240px;
-      height: 200px;
-      top: -40px;
+    .vault-glow {
+      width: 200px;
+      height: 140px;
     }
 
-    .hero-value {
+    .vault-value {
       font-size: clamp(1.25rem, 6vw, 1.75rem);
-      overflow-wrap: break-word;
-      word-break: break-word;
-      hyphens: none;
     }
 
-    .metrics-section {
+    .vault-metrics {
       padding: 0 var(--space-sm) var(--space-sm);
-      gap: var(--space-sm);
+      gap: var(--space-xs);
     }
 
-    .metric-savings {
+    .vault-pill {
       align-self: stretch;
       justify-content: center;
     }
 
-    .lending-section {
+    .vault-lending {
       padding: var(--space-sm);
     }
 
-    .lending-row {
+    .lending-strip {
       flex-direction: column;
       align-items: flex-start;
       gap: var(--space-xs);
     }
 
-    .lending-values {
+    .strip-values {
       width: 100%;
     }
   }
 
   @media (max-width: 375px) {
-    .hero-value {
+    .vault-value {
       font-size: clamp(1.1rem, 5vw, 1.4rem);
     }
-
-    .hero-label {
-      font-size: 10px;
-    }
-
-    .metric-label {
+    .vault-eyebrow {
       font-size: 10px;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .hero-glow {
+    .vault-sheen {
+      animation: none;
       display: none;
     }
-    .metric-savings.savings-negative {
-      animation: none;
+    .vault-glow {
+      display: none;
+    }
+  }
+
+  @media (pointer: fine) {
+    .hero-vault {
+      transition: transform 300ms var(--ease), box-shadow 300ms var(--ease);
+    }
+    .hero-vault:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--glow-card), 0 8px 32px rgba(43, 168, 162, 0.30);
     }
   }
 </style>
