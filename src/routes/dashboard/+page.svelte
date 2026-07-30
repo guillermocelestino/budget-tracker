@@ -8,6 +8,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import CategoryBreakdownWidget from '$lib/components/CategoryBreakdownWidget.svelte';
 	import PageBackground from '$lib/components/PageBackground.svelte';
+	import NetWorthHero from '$lib/components/NetWorthHero.svelte';
 	let data = $derived($page.data as App.PageData);
 
 	// ─── Forecast computation ───
@@ -50,6 +51,13 @@
 	incomeChange={data.incomeChange}
 	expenseChange={data.expenseChange}
 />
+
+<!-- Net worth teaser — same snapshot as /net-worth -->
+{#if data.netWorth}
+	<section class="charts-section nw-teaser">
+		<NetWorthHero snapshot={data.netWorth} variant="compact" />
+	</section>
+{/if}
 
 <SafeToSpendWidget
 	income={data.summary?.totalIncome ?? 0}
@@ -110,6 +118,10 @@
 
 	.charts-section {
 		margin-top: var(--space-lg);
+	}
+
+	.nw-teaser {
+		margin-bottom: var(--space-lg);
 	}
 
 	.cashflow-card {

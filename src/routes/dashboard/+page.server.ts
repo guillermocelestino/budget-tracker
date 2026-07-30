@@ -1,7 +1,8 @@
 import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
-import type { Transaction, CategoryReportItem } from '$lib/types';
+import type { Transaction, CategoryReportItem, NetWorthSnapshot } from '$lib/types';
 import { getCurrentMonth } from '$lib/utils/format';
+import { computeNetWorth } from '$lib/server/networth';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -79,6 +80,9 @@ export async function load({ locals }: { locals: App.Locals }) {
 		[userId, `${currentMonth.getFullYear() - 1}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-01`]
 	);
 
+	// Net worth for the dashboard teaser (same snapshot as /net-worth)
+	const netWorth = await computeNetWorth(userId);
+
 	return {
 		summary: {
 			totalIncome,
@@ -109,6 +113,7 @@ export async function load({ locals }: { locals: App.Locals }) {
 				- parseFloat(trendData[trendData.length - 2].expense))
 				/ parseFloat(trendData[trendData.length - 2].expense)) * 100
 			: 0,
+		netWorth,
 	};
 }
 

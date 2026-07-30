@@ -86,3 +86,49 @@ export interface Lending {
 	updated_at: string;
 	direction: 'lent' | 'borrowed';
 }
+
+/** A single leg of the net-worth composition. */
+export interface NetWorthLeg {
+	key: 'cash' | 'lent' | 'borrowed';
+	label: string;
+	amount: number;
+	tone: 'teal' | 'gold' | 'coral';
+	/** true = liability (subtracted from net, drawn left on the tipping bar) */
+	liability?: boolean;
+}
+
+/** Monthly cash cumulative band for the stacked-area chart. */
+export interface CashTrendPoint {
+	month: string; // YYYY-MM
+	cash: number;  // cumulative Σ(income−expense) up to this month
+}
+
+/** Per-leg monthly delta for the narrative insight. */
+export interface LegDelta {
+	key: string;
+	amount: number;
+	label: string;
+}
+
+export interface NetWorthSnapshot {
+	/** total net = cash + lent − borrowed */
+	net: number;
+	/** individual legs */
+	legs: NetWorthLeg[];
+	/** deltas vs last month (where computable) */
+	deltas: LegDelta[];
+	/** cumulative cash band by month — the HONEST historical band */
+	cashTrend: CashTrendPoint[];
+	/** today's lent and borrowed applied as labeled end-bands */
+	lentToday: number;
+	borrowedToday: number;
+	/** caption explaining the approximation */
+	caption: string;
+	/** optional projection */
+	projection?: {
+		text: string;
+		month: string; // projected month
+	};
+	/** largest mover for the narrative insight */
+	biggestMover: LegDelta | null;
+}

@@ -1,4 +1,4 @@
-import type { Transaction, Category, Lending, DashboardSummary, MonthlyReportItem, CategoryReportItem } from '$lib/types';
+import type { Transaction, Category, Lending, DashboardSummary, MonthlyReportItem, CategoryReportItem, NetWorthSnapshot } from '$lib/types';
 
 declare global {
 	namespace App {
@@ -39,6 +39,7 @@ declare global {
 			incomeData?: CategoryReportItem[];
 			year?: string;
 			month?: string;
+			netWorth?: NetWorthSnapshot;
 			yoyData?: {
 				prevYearMonth: string;
 				previousMonth: { income: number; expense: number; balance: number };

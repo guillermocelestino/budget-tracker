@@ -12,6 +12,7 @@
   const primaryNav = [
     { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
     { href: '/transactions', label: 'Transactions', icon: 'transactions' },
+    { href: '/net-worth', label: 'Net Worth', icon: 'net-worth' },
     { href: '/lending', label: 'Lending', icon: 'lending' },
     { href: '/borrowed', label: 'Borrowed', icon: 'borrowed' },
     { href: '/reports', label: 'Reports', icon: 'reports' },
@@ -86,6 +87,9 @@
     borrowed: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M3.58 19.42l7.65-7.65 2.12 2.12a1.5 1.5 0 0 0 2.12-2.12l-3.54-3.54a1.5 1.5 0 0 0-2.12 2.12L12 12"/>
       <path d="m15.42 8.58 3.54-3.54"/><path d="m8.58 15.42-3.54 3.54"/>
+    </svg>`,
+    'net-worth': `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
     </svg>`,
     reports: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>
