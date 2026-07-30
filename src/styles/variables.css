@@ -158,10 +158,10 @@
    DARK THEME — "Night Arcade"
    ═══════════════════════════════════════════════════ */
 [data-theme="dark"] {
-  --color-bg: #0C1F1E;
-  --color-surface: #12302E;
-  --color-surface-inset: #0E2725;
-  --color-surface-ribbon: #12302E;
+  --color-bg: #0A0E16;
+  --color-surface: #12161F;
+  --color-surface-inset: #0E121A;
+  --color-surface-ribbon: #12161F;
   --color-cream: var(--color-surface-inset);
   --color-teal: #3CC4BD;
   --color-teal-light: #57D6CF;
@@ -202,7 +202,7 @@
   --color-text-muted: #8FB3B0;
   --color-positive: #34D27E;
   --color-negative: #FF7A6B;
-  --color-hairline: rgba(234, 247, 245, 0.10);
+  --color-hairline: rgba(255, 255, 255, 0.08);
 
   --color-border: rgba(234, 247, 245, 0.15);
   --color-primary: var(--color-gold);

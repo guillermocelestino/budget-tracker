@@ -49,7 +49,7 @@ import SearchModal from '$lib/components/SearchModal.svelte';
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 		<meta name="theme-color" content="#2BA8A2" media="(prefers-color-scheme: light)" />
-		<meta name="theme-color" content="#0C1F1E" media="(prefers-color-scheme: dark)" />
+		<meta name="theme-color" content="#0A0E16" media="(prefers-color-scheme: dark)" />
 </svelte:head>
 
 <PwaUpdate />
