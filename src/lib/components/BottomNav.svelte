@@ -124,6 +124,19 @@
       </svg>
       Lending
     </a>
+    <a href="/borrowed" class="more-item" role="menuitem" class:active={isActive('/borrowed')} onclick={() => (moreOpen = false)}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3.58 19.42l7.65-7.65 2.12 2.12a1.5 1.5 0 0 0 2.12-2.12l-3.54-3.54a1.5 1.5 0 0 0-2.12 2.12L12 12"/>
+        <path d="m15.42 8.58 3.54-3.54"/><path d="m8.58 15.42-3.54 3.54"/>
+      </svg>
+      Borrowed
+    </a>
+    <a href="/net-worth" class="more-item" role="menuitem" class:active={isActive('/net-worth')} onclick={() => (moreOpen = false)}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+      </svg>
+      Net Worth
+    </a>
     <a href="/categories" class="more-item" role="menuitem" class:active={isActive('/categories')} onclick={() => (moreOpen = false)}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/>
