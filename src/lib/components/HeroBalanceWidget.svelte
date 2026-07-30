@@ -195,13 +195,8 @@
     margin-bottom: var(--space-lg);
     isolation: isolate;
 
-    /* LIGHT hero gradient */
-    background: linear-gradient(135deg, #2BA8A2 0%, #1E8C86 55%, #14655F 100%);
-  }
-
-  [data-theme="dark"] .hero-vault {
-    /* DARK hero gradient — deeper, no glare */
-    background: linear-gradient(135deg, #1E8C86 0%, #14655F 55%, #0C3F3B 100%);
+    /* Hero gradient — uses theme vars so dark mode works via CSS custom properties */
+    background: linear-gradient(135deg, var(--hero-start) 0%, var(--hero-mid) 55%, var(--hero-end) 100%);
   }
 
   /* ── Dot-grid texture ── */
