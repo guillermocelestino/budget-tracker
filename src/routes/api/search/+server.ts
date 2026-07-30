@@ -4,6 +4,7 @@ import type { Transaction, Lending } from '$lib/types';
 export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;
 	const q = url.searchParams.get('q')?.trim();
+	const direction = url.searchParams.get('direction');
 
 	if (!q || q.length < 2) {
 		return new Response(JSON.stringify({ transactions: [], lendings: [], categories: [] }), {
@@ -25,13 +26,17 @@ export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 	);
 
 	// Search lendings by borrower name
-	const lendings = await queryMany<Lending>(
-		`SELECT * FROM lendings
-		 WHERE user_id = $1 AND borrower_name ILIKE $2
-		 ORDER BY date_lent DESC
-		 LIMIT 5`,
-		[userId, pattern]
-	);
+	let lendingsSql = `SELECT * FROM lendings WHERE user_id = $1 AND borrower_name ILIKE $2`;
+	const lendingsParams: unknown[] = [userId, pattern];
+
+	if (direction && ['lent', 'borrowed'].includes(direction)) {
+		lendingsSql += ` AND direction = $3`;
+		lendingsParams.push(direction);
+	}
+
+	lendingsSql += ` ORDER BY date_lent DESC LIMIT 5`;
+
+	const lendings = await queryMany<Lending>(lendingsSql, lendingsParams);
 
 	// Search categories by name
 	const categories = await queryMany<{ id: number; name: string; icon: string; color: string; type: string }>(

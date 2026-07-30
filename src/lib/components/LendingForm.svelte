@@ -8,10 +8,12 @@
 		lendingRecord,
 		onCancel,
 		onSuccess,
+		direction = $bindable('lent')
 	}: {
 		lendingRecord?: Lending;
 		onCancel?: () => void;
 		onSuccess?: () => void;
+		direction?: 'lent' | 'borrowed';
 	} = $props();
 
 	let borrowerName = $state('');
@@ -20,6 +22,7 @@
 	let dateLent = $state('');
 	let dueDate = $state('');
 	let notes = $state('');
+	let recordAsTransaction = $state(true);
 
 	// Initialize state when lendingRecord is provided (edit mode)
 	$effect(() => {
@@ -30,10 +33,18 @@
 			dateLent = lendingRecord.date_lent;
 			dueDate = lendingRecord.due_date ?? '';
 			notes = lendingRecord.notes ?? '';
+			direction = lendingRecord.direction;
 		}
 	});
 
 	const displayAmount = $derived(rawAmount ? formatWithCommas(rawAmount) : '');
+	const directionLabel = $derived(direction === 'lent' ? 'Lent' : 'Borrowed');
+	const borrowerLabel = $derived(direction === 'lent' ? 'Borrower Name' : 'Lender Name');
+	const borrowerPlaceholder = $derived(direction === 'lent' ? 'Who borrowed the money?' : 'Who did you borrow from?');
+	const dateLabel = $derived(direction === 'lent' ? 'Date Lent' : 'Date Borrowed');
+	const submitLabel = $derived(lendingRecord ? 'Update Lending' : `Record ${directionLabel}`);
+	const transactionLabel = $derived(direction === 'lent' ? 'Record repayment as income transaction' : 'Record repayment as expense transaction');
+	const transactionDesc = $derived(direction === 'lent' ? 'Creates an income entry when marked paid' : 'Creates an expense entry when marked paid');
 
 	function onAmountInput(e: Event) {
 		const input = e.target as HTMLInputElement;
@@ -81,15 +92,35 @@
 		<input type="hidden" name="id" value={lendingRecord.id} />
 		<input type="hidden" name="status" value={lendingRecord.status} />
 	{/if}
+	<input type="hidden" name="direction" value={direction} />
+
+	<div class="direction-toggle">
+		<button
+			type="button"
+			class:active={direction === 'lent'}
+			onclick={() => direction = 'lent'}
+			aria-pressed={direction === 'lent'}
+		>
+			Lent
+		</button>
+		<button
+			type="button"
+			class:active={direction === 'borrowed'}
+			onclick={() => direction = 'borrowed'}
+			aria-pressed={direction === 'borrowed'}
+		>
+			Borrowed
+		</button>
+	</div>
 
 	<div class="form-group">
-		<label class="form-label" for="borrower_name">Borrower Name</label>
+		<label class="form-label" for="borrower_name">{borrowerLabel}</label>
 		<input
 			id="borrower_name"
 			name="borrower_name"
 			type="text"
 			required
-			placeholder="Who borrowed the money?"
+			placeholder={borrowerPlaceholder}
 			bind:value={borrowerName}
 		/>
 	</div>
@@ -130,7 +161,7 @@
 
 	<div class="form-row">
 		<div class="form-group">
-			<label class="form-label" for="date_lent">Date Lent</label>
+			<label class="form-label" for="date_lent">{dateLabel}</label>
 			<input
 				id="date_lent"
 				name="date_lent"
@@ -162,9 +193,20 @@
 		></textarea>
 	</div>
 
+	<div class="form-group checkbox-group">
+		<label class="checkbox-label">
+			<input type="checkbox" name="record_as_transaction" bind:checked={recordAsTransaction} />
+			<span class="checkbox-text">
+				<strong>{transactionLabel}</strong>
+				<br />
+				<span class="checkbox-desc">{transactionDesc}</span>
+			</span>
+		</label>
+	</div>
+
 	<div class="form-actions">
 		<button type="submit" class="btn btn-submit">
-			{lendingRecord ? 'Update Lending' : 'Record Lending'}
+			{submitLabel}
 		</button>
 		{#if onCancel}
 			<button type="button" class="btn btn-secondary" onclick={onCancel}>Cancel</button>
@@ -268,6 +310,86 @@
 	.amount-wrap input::placeholder {
 		color: var(--color-text-muted);
 		opacity: 0.5;
+	}
+
+	.direction-toggle {
+		display: flex;
+		gap: var(--space-xs);
+		margin-bottom: var(--space-md);
+		padding: 4px;
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+	}
+
+	.direction-toggle button {
+		flex: 1;
+		padding: var(--space-sm) var(--space-md);
+		border: none;
+		border-radius: var(--radius-sm);
+		background: transparent;
+		color: var(--color-text-secondary);
+		font-weight: 600;
+		font-size: var(--font-size-sm);
+		font-family: var(--font-body);
+		cursor: pointer;
+		min-height: 40px;
+		transition: all 200ms var(--bounce);
+	}
+
+	.direction-toggle button:hover {
+		background: var(--color-surface);
+		color: var(--color-text);
+	}
+
+	.direction-toggle button.active {
+		background: var(--color-primary);
+		color: white;
+		box-shadow: var(--shadow-sm);
+	}
+
+	.direction-toggle button:first-child.active {
+		background: var(--color-teal);
+	}
+
+	.direction-toggle button:last-child.active {
+		background: var(--color-coral);
+	}
+
+	.checkbox-group {
+		margin-top: var(--space-sm);
+	}
+
+	.checkbox-label {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--space-sm);
+		cursor: pointer;
+		padding: var(--space-sm);
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+	}
+
+	.checkbox-label input {
+		margin-top: 2px;
+		accent-color: var(--color-primary);
+		width: 18px;
+		height: 18px;
+		flex-shrink: 0;
+	}
+
+	.checkbox-text {
+		font-size: var(--font-size-sm);
+		color: var(--color-text);
+		line-height: 1.4;
+	}
+
+	.checkbox-desc {
+		font-weight: 400;
+		color: var(--color-text-secondary);
+		font-size: var(--font-size-xs);
+		margin-top: 2px;
 	}
 
 	.form-actions {

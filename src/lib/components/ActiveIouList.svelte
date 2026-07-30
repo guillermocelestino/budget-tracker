@@ -7,11 +7,13 @@
     onPay,
     onEdit,
     onDelete,
+    direction = 'lent'
   }: {
     ious: Lending[];
     onPay?: (id: number) => void;
     onEdit?: (id: number) => void;
     onDelete?: (id: number) => void;
+    direction?: 'lent' | 'borrowed';
   } = $props();
 
   function daysOverdue(dueDate: string | null): number {
@@ -21,24 +23,35 @@
     const diff = Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
     return diff > 0 ? diff : 0;
   }
+
+  const directionAccent = $derived(direction === 'lent' ? 'teal' : 'coral');
+  const amountPrefix = $derived(direction === 'lent' ? '+' : '−');
+  const amountColor = $derived(direction === 'lent' ? 'var(--color-teal)' : 'var(--color-coral)');
+  const dateLabel = $derived(direction === 'lent' ? 'Lent on' : 'Borrowed on');
+  const payButtonText = $derived(direction === 'lent' ? 'Mark Paid' : 'Mark Repaid');
 </script>
 
 {#if ious.length === 0}
   <div class="empty-state">
     <div class="empty-icon">
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/><path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
+        <path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
+        <path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
       </svg>
     </div>
-    <p class="empty-title">All settled up!</p>
-    <p class="empty-sub">No outstanding loans right now</p>
+    <p class="empty-title">
+      {direction === 'lent' ? 'All settled up!' : 'No debts — that\'s the best position to be in 🏆'}
+    </p>
+    <p class="empty-sub">
+      {direction === 'lent' ? 'No outstanding loans right now' : 'Add a borrowing to start tracking'}
+    </p>
   </div>
 {:else}
   <div class="iou-container">
     {#each ious as iou (iou.id)}
       {@const overdue = daysOverdue(iou.due_date)}
       <div class="iou-row" class:overdue={overdue > 0} class:paid={iou.status === 'paid'} data-iou-id={iou.id}>
-        <div class="iou-accent" class:teal={iou.status !== 'paid' && overdue === 0} class:coral={overdue > 0} class:sky={iou.status === 'paid'}></div>
+        <div class="iou-accent" class:teal={iou.status !== 'paid' && overdue === 0 && direction === 'lent'} class:coral={overdue > 0 || direction === 'borrowed'} class:sky={iou.status === 'paid'}></div>
 
         <!-- Direction icon -->
         <div class="iou-arrow">
@@ -58,7 +71,7 @@
         <div class="iou-info">
           <span class="iou-name" class:strikethrough={iou.status === 'paid'}>{iou.borrower_name}</span>
           <span class="iou-meta">
-            Lent on {formatDate(iou.date_lent)}
+            {dateLabel} {formatDate(iou.date_lent)}
             {#if iou.due_date} · Due {formatDate(iou.due_date)}{/if}
             {#if iou.interest_rate > 0} · {iou.interest_rate}% interest{/if}
             {#if iou.notes && iou.notes.length > 0} · {iou.notes}{/if}
@@ -70,7 +83,7 @@
 
         <!-- Right: amount + hover actions -->
         <div class="iou-right">
-          <span class="iou-amount" class:paid-amount={iou.status === 'paid'}>+{formatCurrency(iou.amount)}</span>
+          <span class="iou-amount" class:paid-amount={iou.status === 'paid'} style="color: {amountColor}">{amountPrefix}{formatCurrency(iou.amount)}</span>
           <div class="iou-actions">
             <button class="iou-btn iou-btn-edit" onclick={() => onEdit?.(iou.id)} type="button" title="Edit">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -79,7 +92,7 @@
             </button>
             {#if iou.status !== 'paid'}
               <button class="iou-btn iou-btn-pay" onclick={() => onPay?.(iou.id)} type="button">
-                Mark Paid
+                {payButtonText}
               </button>
             {:else}
               <span class="recovered-glow">Recovered</span>

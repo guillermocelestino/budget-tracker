@@ -55,9 +55,33 @@ export function formatDateInput(date: Date = new Date()): string {
 	return `${y}-${m}-${d}`;
 }
 
+/**
+ * Get current month as YYYY-MM string.
+ * In demo mode, uses DEMO_TODAY env var to pin "today" for consistent demo experience.
+ */
 export function getCurrentMonth(): string {
+	// Demo mode: pin to fixed date for consistent demo experience
+	if (typeof process !== 'undefined' && process.env?.DEMO_TODAY) {
+		const [y, m] = process.env.DEMO_TODAY.split('-').map(Number);
+		return `${y}-${String(m).padStart(2, '0')}`;
+	}
 	const now = new Date();
 	return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Get today's date as YYYY-MM-DD string.
+ * In demo mode, uses DEMO_TODAY env var to pin "today".
+ */
+export function getToday(): string {
+	if (typeof process !== 'undefined' && process.env?.DEMO_TODAY) {
+		return process.env.DEMO_TODAY;
+	}
+	const now = new Date();
+	const y = now.getFullYear();
+	const m = String(now.getMonth() + 1).padStart(2, '0');
+	const d = String(now.getDate()).padStart(2, '0');
+	return `${y}-${m}-${d}`;
 }
 
 export function getMonthLabel(monthStr: string): string {

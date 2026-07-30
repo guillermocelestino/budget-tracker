@@ -1,10 +1,11 @@
 import { queryMany, queryOne } from '$lib/database/query';
 import type { MonthlyReportItem, CategoryReportItem } from '$lib/types';
+import { getCurrentMonth } from '$lib/utils/format';
 
 export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;
 	const currentYear = String(new Date().getFullYear());
-	const currentMonth = `${currentYear}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+	const currentMonth = getCurrentMonth();
 
 	const year = url.searchParams.get('year') || currentYear;
 	const month = url.searchParams.get('month') || currentMonth;
@@ -106,7 +107,7 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 			COALESCE(SUM(amount), 0) as "totalLent",
 			COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as "totalRecovered"
 		 FROM lendings
-		 WHERE user_id = $1`,
+		 WHERE user_id = $1 AND direction = 'lent'`,
 		[userId]
 	);
 

@@ -33,8 +33,8 @@ export async function PUT({ params, request, locals }: { params: { id: string };
 	if (!type || !['income', 'expense'].includes(type)) {
 		return json({ error: 'Type must be "income" or "expense"' }, { status: 400 });
 	}
-	if (!amount || typeof amount !== 'number' || amount <= 0) {
-		return json({ error: 'Amount must be a positive number' }, { status: 400 });
+	if (amount === undefined || typeof amount !== 'number' || amount === 0) {
+		return json({ error: 'Amount must be a non-zero number' }, { status: 400 });
 	}
 	if (!description || typeof description !== 'string' || description.trim().length === 0) {
 		return json({ error: 'Description is required' }, { status: 400 });

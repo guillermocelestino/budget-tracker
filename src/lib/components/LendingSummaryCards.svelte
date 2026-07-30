@@ -5,50 +5,60 @@
 		totalLent = 0,
 		totalRecovered = 0,
 		outstanding = 0,
+		direction = 'lent'
 	}: {
 		totalLent?: number;
 		totalRecovered?: number;
 		outstanding?: number;
+		direction?: 'lent' | 'borrowed';
 	} = $props();
+
+	const isBorrowed = $derived(direction === 'borrowed');
+	const totalLabel = $derived(isBorrowed ? 'Total Borrowed' : 'Total Lent');
+	const recoveredLabel = $derived(isBorrowed ? 'Repaid' : 'Recovered');
+	const outstandingLabel = $derived(isBorrowed ? 'Still Owing' : 'Outstanding');
+	const totalAccentClass = $derived(isBorrowed ? 'borrowed' : 'lent');
+	const recoveredAccentClass = $derived(isBorrowed ? 'repaid' : 'recovered');
+	const outstandingAccentClass = $derived(isBorrowed ? 'owing' : 'outstanding');
 </script>
 
 <div class="lending-summary-grid">
 	<div class="summary-card">
-		<div class="card-accent lent"></div>
-		<div class="card-icon lent">
+		<div class="card-accent {totalAccentClass}"></div>
+		<div class="card-icon {totalAccentClass}">
 			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
 				<path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
 			</svg>
 		</div>
 		<div class="card-content">
-			<span class="card-label">Total Lent</span>
+			<span class="card-label">{totalLabel}</span>
 			<span class="card-value">{formatCurrency(totalLent)}</span>
 		</div>
 	</div>
 	<div class="summary-card">
-		<div class="card-accent recovered"></div>
-		<div class="card-icon recovered">
+		<div class="card-accent {recoveredAccentClass}"></div>
+		<div class="card-icon {recoveredAccentClass}">
 			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<line x1="12" x2="12" y1="2" y2="22"/>
 				<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
 			</svg>
 		</div>
 		<div class="card-content">
-			<span class="card-label">Recovered</span>
+			<span class="card-label">{recoveredLabel}</span>
 			<span class="card-value recovered">{formatCurrency(totalRecovered)}</span>
 		</div>
 	</div>
 	<div class="summary-card">
-		<div class="card-accent outstanding"></div>
-		<div class="card-icon outstanding">
+		<div class="card-accent {outstandingAccentClass}"></div>
+		<div class="card-icon {outstandingAccentClass}">
 			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<circle cx="12" cy="12" r="10"/>
 				<path d="M12 6v6l4 2"/>
 			</svg>
 		</div>
 		<div class="card-content">
-			<span class="card-label">Outstanding</span>
+			<span class="card-label">{outstandingLabel}</span>
 			<span class="card-value outstanding">{formatCurrency(outstanding)}</span>
 		</div>
 	</div>
@@ -95,6 +105,9 @@
 	.card-accent.lent { background: var(--color-teal); }
 	.card-accent.recovered { background: linear-gradient(180deg, var(--color-teal), var(--color-gold)); }
 	.card-accent.outstanding { background: var(--color-coral); }
+	.card-accent.borrowed { background: var(--color-coral); }
+	.card-accent.repaid { background: linear-gradient(180deg, var(--color-coral), var(--color-gold)); }
+	.card-accent.owing { background: var(--color-teal); }
 
 	.card-icon {
 		width: 44px;
@@ -122,6 +135,21 @@
 		color: var(--color-coral);
 	}
 
+	.card-icon.borrowed {
+		background: rgba(239, 108, 74, 0.10);
+		color: var(--color-coral);
+	}
+
+	.card-icon.repaid {
+		background: rgba(255, 210, 63, 0.15);
+		color: var(--color-gold-dark);
+	}
+
+	.card-icon.owing {
+		background: var(--color-teal-bg);
+		color: var(--color-teal);
+	}
+
 	.card-content {
 		display: flex;
 		flex-direction: column;
@@ -147,6 +175,14 @@
 	}
 
 	.card-value.outstanding {
+		color: var(--color-coral);
+	}
+
+	.card-value.repaid {
+		color: var(--color-teal);
+	}
+
+	.card-value.owing {
 		color: var(--color-coral);
 	}
 

@@ -40,7 +40,7 @@ export const actions = {
 
 		const errors: Record<string, string> = {};
 		if (!type || !['income', 'expense'].includes(type)) errors.type = 'Select a type';
-		if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0) errors.amount = 'Enter a valid amount';
+		if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) === 0) errors.amount = 'Enter a valid amount';
 		if (!description || description.trim().length === 0) errors.description = 'Enter a description';
 		if (!date) errors.date = 'Select a date';
 		if (!category_id || isNaN(parseInt(category_id))) errors.category_id = 'Select a category';

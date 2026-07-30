@@ -5,9 +5,11 @@
   let {
     totalOwedToMe = 0,
     totalIOwe = 0,
+    direction = 'lent'
   }: {
     totalOwedToMe?: number;
     totalIOwe?: number;
+    direction?: 'lent' | 'borrowed';
   } = $props();
 
   const netBalance = $derived(totalOwedToMe - totalIOwe);
@@ -33,10 +35,14 @@
         ? `${formatCurrency(totalOwedToMe)} owed to you · You owe ${formatCurrency(totalIOwe)}`
         : `You owe ${formatCurrency(totalIOwe)} · Owed to you ${formatCurrency(totalOwedToMe)}`
   );
+
+  const directionAccent = $derived(direction === 'lent' ? 'teal' : 'coral');
+  const directionLabel = $derived(direction === 'lent' ? 'Owed to you' : 'You owe');
+  const directionSubLabel = $derived(direction === 'lent' ? 'You owe' : 'Owed to you');
 </script>
 
-<div class="balance-hero" class:creditor={isNetCreditor} class:debtor={isNetDebtor} class:settled={isSettled}>
-  <div class="hero-ribbon"></div>
+<div class="balance-hero" class:creditor={isNetCreditor} class:debtor={isNetDebtor} class:settled={isSettled} class:lent={direction === 'lent'} class:borrowed={direction === 'borrowed'}>
+  <div class="hero-ribbon" class:lent={direction === 'lent'} class:borrowed={direction === 'borrowed'}></div>
 
   <!-- Label row -->
   <div class="hero-label-row">
@@ -72,12 +78,12 @@
   <div class="breakdown-row">
     <div class="breakdown-side teal-bar">
       <span class="breakdown-value owed">{formatCurrency(totalOwedToMe)}</span>
-      <span class="breakdown-label">Owed to you</span>
+      <span class="breakdown-label">{directionLabel}</span>
     </div>
     <div class="breakdown-divider"></div>
     <div class="breakdown-side coral-bar">
       <span class="breakdown-value owe">{formatCurrency(totalIOwe)}</span>
-      <span class="breakdown-label">You owe</span>
+      <span class="breakdown-label">{directionSubLabel}</span>
     </div>
   </div>
 </div>

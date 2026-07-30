@@ -84,4 +84,5 @@ export interface Lending {
 	notes: string | null;
 	created_at: string;
 	updated_at: string;
+	direction: 'lent' | 'borrowed';
 }

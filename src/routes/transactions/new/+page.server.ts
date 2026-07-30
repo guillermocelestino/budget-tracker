@@ -24,7 +24,7 @@ export const actions = {
 		if (!type || !['income', 'expense'].includes(type)) {
 			errors.type = 'Select a type';
 		}
-		if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0) {
+		if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) === 0) {
 			errors.amount = 'Enter a valid amount';
 		}
 		if (!description || description.trim().length === 0) {

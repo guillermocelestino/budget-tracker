@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS categories (
 CREATE TABLE IF NOT EXISTS transactions (
 	id SERIAL PRIMARY KEY,
 	user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-	amount NUMERIC(12,2) NOT NULL CHECK(amount > 0),
+	amount NUMERIC(12,2) NOT NULL,
 	description TEXT NOT NULL,
 	date DATE NOT NULL,
 	category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
@@ -32,14 +32,6 @@ CREATE TABLE IF NOT EXISTS transactions (
 	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-CREATE INDEX IF NOT EXISTS idx_categories_user_id ON categories(user_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date DESC);
-CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
-CREATE INDEX IF NOT EXISTS idx_lendings_user_id ON lendings(user_id);
-CREATE INDEX IF NOT EXISTS idx_lendings_status ON lendings(status);
 
 CREATE TABLE IF NOT EXISTS lendings (
 	id SERIAL PRIMARY KEY,
@@ -51,9 +43,18 @@ CREATE TABLE IF NOT EXISTS lendings (
 	due_date DATE,
 	status TEXT NOT NULL DEFAULT 'active',
 	notes TEXT,
+	direction TEXT NOT NULL DEFAULT 'lent' CHECK (direction IN ('lent', 'borrowed')),
 	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_categories_user_id ON categories(user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
+CREATE INDEX IF NOT EXISTS idx_lendings_user_id ON lendings(user_id);
+CREATE INDEX IF NOT EXISTS idx_lendings_status ON lendings(status);
 `;
 
 const SQLITE_SCHEMA_SQL = `
@@ -79,7 +80,7 @@ CREATE TABLE IF NOT EXISTS categories (
 CREATE TABLE IF NOT EXISTS transactions (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-	amount REAL NOT NULL CHECK(amount > 0),
+	amount REAL NOT NULL,
 	description TEXT NOT NULL,
 	date TEXT NOT NULL,
 	category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
@@ -87,14 +88,6 @@ CREATE TABLE IF NOT EXISTS transactions (
 	created_at TEXT NOT NULL DEFAULT (datetime('now')),
 	updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
-CREATE INDEX IF NOT EXISTS idx_categories_user_id ON categories(user_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date DESC);
-CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
-CREATE INDEX IF NOT EXISTS idx_lendings_user_id ON lendings(user_id);
-CREATE INDEX IF NOT EXISTS idx_lendings_status ON lendings(status);
 
 CREATE TABLE IF NOT EXISTS lendings (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -106,9 +99,18 @@ CREATE TABLE IF NOT EXISTS lendings (
 	due_date TEXT,
 	status TEXT NOT NULL DEFAULT 'active',
 	notes TEXT,
+	direction TEXT NOT NULL DEFAULT 'lent' CHECK (direction IN ('lent', 'borrowed')),
 	created_at TEXT NOT NULL DEFAULT (datetime('now')),
 	updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_categories_user_id ON categories(user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
+CREATE INDEX IF NOT EXISTS idx_lendings_user_id ON lendings(user_id);
+CREATE INDEX IF NOT EXISTS idx_lendings_status ON lendings(status);
 `;
 
 const DEFAULT_USERS = [
@@ -135,6 +137,22 @@ export async function initDb(): Promise<void> {
 		const client = await getPgPool().connect();
 		try {
 			await client.query(POSTGRES_SCHEMA_SQL);
+
+			// Idempotent migration: add direction column if missing (for existing DBs)
+			const colExists = await client.query(`
+				SELECT 1 FROM information_schema.columns
+				WHERE table_name = 'lendings' AND column_name = 'direction'
+			`);
+			if (colExists.rowCount === 0) {
+				await client.query(`
+					ALTER TABLE lendings ADD COLUMN direction TEXT NOT NULL DEFAULT 'lent'
+				`);
+				// Add CHECK constraint
+				await client.query(`
+					ALTER TABLE lendings ADD CONSTRAINT lendings_direction_check
+					CHECK (direction IN ('lent', 'borrowed'))
+				`);
+			}
 
 			const userCount = await client.query('SELECT COUNT(*)::int as count FROM users');
 			if (userCount.rows[0].count === 0) {
@@ -168,6 +186,15 @@ export async function initDb(): Promise<void> {
 
 		db.exec(SQLITE_SCHEMA_SQL);
 
+		// Idempotent migration: add direction column if missing (for existing SQLite DBs)
+		const columns = db.prepare("PRAGMA table_info(lendings)").all() as { name: string }[];
+		const hasDirection = columns.some(c => c.name === 'direction');
+		if (!hasDirection) {
+			db.exec("ALTER TABLE lendings ADD COLUMN direction TEXT NOT NULL DEFAULT 'lent'");
+			// SQLite enforces CHECK constraints, so add it
+			db.exec("CREATE INDEX IF NOT EXISTS idx_lendings_direction ON lendings(direction)");
+		}
+
 		const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
 		if (userCount.count === 0) {
 			const insertUser = db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)');
@@ -188,6 +215,39 @@ export async function initDb(): Promise<void> {
 					insertCat.run(user.id, cat.name, cat.color, cat.icon, cat.type, cat.budget_limit);
 				}
 			}
+		}
+	}
+
+	// Boot-time self-check: verify all four tables exist
+	const requiredTables = ['users', 'categories', 'transactions', 'lendings'];
+	if (usePostgres) {
+		const client = await getPgPool().connect();
+		try {
+			const missing: string[] = [];
+			for (const table of requiredTables) {
+				const res = await client.query(
+					`SELECT 1 FROM information_schema.tables WHERE table_name = $1`,
+					[table]
+				);
+				if (res.rowCount === 0) missing.push(table);
+			}
+			if (missing.length > 0) {
+				throw new Error(`Database schema incomplete: missing tables: ${missing.join(', ')}`);
+			}
+		} finally {
+			client.release();
+		}
+	} else {
+		const db = await getSQLiteDb();
+		const missing: string[] = [];
+		for (const table of requiredTables) {
+			const res = db.prepare(
+				"SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?"
+			).get(table);
+			if (!res) missing.push(table);
+		}
+		if (missing.length > 0) {
+			throw new Error(`Database schema incomplete: missing tables: ${missing.join(', ')}`);
 		}
 	}
 }

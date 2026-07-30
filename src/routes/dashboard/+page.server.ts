@@ -1,13 +1,15 @@
 import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
 import type { Transaction, CategoryReportItem } from '$lib/types';
+import { getCurrentMonth } from '$lib/utils/format';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;
-	const currentMonth = new Date();
-	const firstDay = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-01`;
+	const currentMonthStr = getCurrentMonth();
+	const currentMonth = new Date(currentMonthStr + '-01');
+	const firstDay = `${currentMonthStr}-01`;
 	const lastDayDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
-	const lastDay = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
+	const lastDay = `${currentMonthStr}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
 
 	const summary = await queryOne<{ totalincome: string; totalexpenses: string }>(
 		`SELECT
@@ -33,7 +35,7 @@ export async function load({ locals }: { locals: App.Locals }) {
 				COALESCE(SUM(amount), 0) as "totalLent",
 				COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as "totalRecovered"
 			 FROM lendings
-			 WHERE user_id = $1`,
+			 WHERE user_id = $1 AND direction = 'lent'`,
 			[userId]
 		);
 

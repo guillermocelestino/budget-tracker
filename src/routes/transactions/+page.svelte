@@ -11,6 +11,7 @@
   import ModalDialog from '$lib/components/ModalDialog.svelte';
   import { showSuccess, showError } from '$lib/stores/toast.svelte';
   import { generateTransactionPdf } from '$lib/utils/pdf';
+import { getCurrentMonth } from '$lib/utils/format';
 
   let data = $derived($page.data as App.PageData);
   let deleteId = $state<number | null>(null);
@@ -64,9 +65,9 @@
     customFrom?: string,
     customTo?: string
   ): { from: string; to: string } {
+    const currentMonthStr = getCurrentMonth();
+    const [y, m] = currentMonthStr.split('-').map(Number);
     const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
     const d = String(now.getDate()).padStart(2, '0');
 
     switch (filter) {
@@ -82,11 +83,11 @@
         };
       }
       case 'this-month':
-        return { from: `${y}-${m}-01`, to: `${y}-${m}-${d}` };
+        return { from: `${y}-${String(m).padStart(2, '0')}-01`, to: `${y}-${String(m).padStart(2, '0')}-${d}` };
       case 'last-3-months': {
         const d3 = new Date(now);
         d3.setMonth(now.getMonth() - 3);
-        return { from: d3.toISOString().slice(0, 10), to: `${y}-${m}-${d}` };
+        return { from: d3.toISOString().slice(0, 10), to: `${y}-${String(m).padStart(2, '0')}-${d}` };
       }
       case 'custom':
         return { from: customFrom || '', to: customTo || '' };
