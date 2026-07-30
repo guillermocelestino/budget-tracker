@@ -50,10 +50,22 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 		[...params, limit, offset]
 	);
 
+	// Fetch ALL transactions matching the current filter (no pagination) for running balance computation
+	// This ensures the running balance column is correct across pages
+	const allForBalance = await queryMany<Transaction>(
+		`SELECT t.*, c.name as category_name, c.color as category_color
+		 FROM transactions t
+		 LEFT JOIN categories c ON t.category_id = c.id
+		 ${where}
+		 ORDER BY t.date ASC, t.id ASC`,
+		params
+	);
+
 	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
 
 	return {
 		transactions,
+		allForBalance,
 		total: countRow?.total ?? 0,
 		page,
 		totalPages: Math.ceil((countRow?.total ?? 0) / limit),

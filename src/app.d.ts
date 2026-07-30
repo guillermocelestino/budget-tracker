@@ -12,6 +12,7 @@ declare global {
 			totalBudgeted?: number;
 			recentTransactions?: Transaction[];
 			transactions?: Transaction[];
+			allForBalance?: Transaction[];
 			total?: number;
 			page?: number;
 			totalPages?: number;

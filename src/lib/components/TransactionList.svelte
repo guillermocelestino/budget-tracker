@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatCurrency } from '$lib/utils/format';
+  import { formatCurrency, formatDate, getToday } from '$lib/utils/format';
   import type { Transaction } from '$lib/types';
 
   let {
@@ -8,12 +8,23 @@
     onEdit,
     showActions = true,
     loading = false,
+    // New props for bank register pattern
+    runningBalanceStart = 0,
+    allTransactionsForBalance = [],
+    showRunningBalance = true,
+    showClearedColumn = false,
+    categories = [],
   }: {
     transactions: Transaction[];
     onDelete?: (id: number) => void;
     onEdit?: (id: number) => void;
     showActions?: boolean;
     loading?: boolean;
+    runningBalanceStart?: number;
+    allTransactionsForBalance?: Transaction[];
+    showRunningBalance?: boolean;
+    showClearedColumn?: boolean;
+    categories?: { id: number; name: string; color: string; type: string }[];
   } = $props();
 
   let editingId = $state<number | null>(null);
@@ -21,6 +32,11 @@
   let swipeOffset = $state(0);
   let swipeStartX = $state(0);
   let isSwiping = $state(false);
+  let inlineEditingId = $state<number | null>(null);
+  let inlineEditField = $state<'amount' | 'category' | null>(null);
+  let inlineEditValue = $state('');
+  let showFlatView = $state(false);
+  let clearedStatesLocal = $state<Map<number, boolean>>(new Map());
 
   function handleSwipeStart(e: TouchEvent, txnId: number) {
     if (swipedRowId !== txnId && swipedRowId !== null) {
@@ -46,7 +62,6 @@
   function handleSwipeEnd(e: TouchEvent) {
     isSwiping = false;
     if (swipeOffset > 80) {
-      // Delete threshold reached
       if (swipedRowId !== null && onDelete) {
         onDelete(swipedRowId);
       }
@@ -55,22 +70,75 @@
     swipeOffset = 0;
   }
 
-  // Touch device check
   const isTouchDevice = typeof window !== 'undefined' && ('ontouch' in window || (navigator.maxTouchPoints > 0));
 
+  type TxnWithBalance = Transaction & { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean };
 
-  type DateGroup = { date: string; label: string; items: Transaction[] };
+  const transactionsWithBalance = $derived.by(() => {
+    const source = (allTransactionsForBalance && allTransactionsForBalance.length > 0)
+      ? allTransactionsForBalance
+      : transactions;
+
+    const sorted = [...source].sort((a, b) => {
+      const dateCmp = a.date.localeCompare(b.date);
+      if (dateCmp !== 0) return dateCmp;
+      return a.id - b.id;
+    });
+
+    let balance = runningBalanceStart;
+    const result: TxnWithBalance[] = [];
+
+    const dayTotals = new Map<string, number>();
+    for (const txn of sorted) {
+      const signed = txn.type === 'income' ? txn.amount : -txn.amount;
+      dayTotals.set(txn.date, (dayTotals.get(txn.date) ?? 0) + signed);
+    }
+
+    for (let i = 0; i < sorted.length; i++) {
+      const txn = sorted[i];
+      const signed = txn.type === 'income' ? txn.amount : -txn.amount;
+      balance += signed;
+
+      const isFirst = i === 0 || sorted[i - 1].date !== txn.date;
+      const isLast = i === sorted.length - 1 || sorted[i + 1].date !== txn.date;
+
+      result.push({
+        ...txn,
+        runningBalance: balance,
+        daySubtotal: dayTotals.get(txn.date) ?? 0,
+        isDayFirst: isFirst,
+        isDayLast: isLast,
+      });
+    }
+
+    const balanceMap = new Map<number, { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean }>();
+    for (const txn of result) {
+      balanceMap.set(txn.id, {
+        runningBalance: txn.runningBalance,
+        daySubtotal: txn.daySubtotal,
+        isDayFirst: txn.isDayFirst,
+        isDayLast: txn.isDayLast,
+      });
+    }
+
+    return transactions.map(txn => ({
+      ...txn,
+      ...balanceMap.get(txn.id)!,
+    }));
+  });
+
+  type DateGroup = { date: string; label: string; items: (Transaction & { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean })[]; subtotal: number; subtotalColor: string };
 
   const groups = $derived.by(() => {
-    const map = new Map<string, Transaction[]>();
-    for (const txn of transactions) {
+    const map = new Map<string, (Transaction & { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean })[]>();
+    for (const txn of transactionsWithBalance) {
       const key = txn.date;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(txn);
     }
     const sorted = [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getToday();
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 
     return sorted.map(([date, items]) => {
@@ -84,11 +152,11 @@
           day: 'numeric',
         });
       }
-      return { date, label, items };
+      const subtotal = items.reduce((sum, t) => sum + signedAmount(t), 0);
+      return { date, label, items, subtotal, subtotalColor: subtotal >= 0 ? 'var(--color-teal)' : 'var(--color-coral)' };
     });
   });
 
-  // ─── Refund detection (description-based, no schema change) ───
   function isRefund(txn: Transaction): boolean {
     return txn.description.startsWith('[REFUND]');
   }
@@ -102,49 +170,156 @@
     editingId = editingId === id ? null : id;
   }
 
-  /*
-   * ── INLINE EDIT STRATEGY (Monarch-style) ──
-   *
-   * Tapping a row toggles an inline edit panel. In a fuller implementation,
-   * an `$effect` would attach a document click listener when `editingId !== null`
-   * to close the panel if the user clicks outside any `[data-txn-id]` element:
-   *
-   *   $effect(() => {
-   *     if (editingId !== null) {
-   *       const onClickOutside = (e: MouseEvent) => {
-   *         const target = e.target as HTMLElement;
-   *         if (!target.closest('[data-txn-id]')) editingId = null;
-   *       };
-   *       document.addEventListener('click', onClickOutside);
-   *       return () => document.removeEventListener('click', onClickOutside);
-   *     }
-   *   });
-   *
-   * The inline panel itself would evolve into a mini TransactionForm
-   * (pre-populated with the row's data, using the same server action as
-   * /transactions/[id]/edit). Today the panel links to the full edit page.
-   */
+  function startInlineEdit(txnId: number, field: 'amount' | 'category', e: Event) {
+    e.stopPropagation();
+    inlineEditingId = txnId;
+    inlineEditField = field;
+    const txn = transactionsWithBalance.find(t => t.id === txnId);
+    if (txn) {
+      inlineEditValue = field === 'amount' ? String(txn.amount) : String(txn.category_id);
+    }
+  }
+
+  async function saveInlineEdit(txnId: number) {
+    if (!inlineEditField || !inlineEditValue.trim()) {
+      cancelInlineEdit();
+      return;
+    }
+
+    const txn = transactionsWithBalance.find(t => t.id === txnId);
+    if (!txn) return;
+
+    try {
+      const data: Record<string, unknown> = { id: txnId };
+      if (inlineEditField === 'amount') {
+        const amount = parseFloat(inlineEditValue.replace(/,/g, ''));
+        if (isNaN(amount) || amount <= 0) { alert('Invalid amount'); return; }
+        data.amount = amount;
+      } else if (inlineEditField === 'category') {
+        const categoryId = parseInt(inlineEditValue);
+        if (isNaN(categoryId)) { alert('Invalid category'); return; }
+        data.category_id = categoryId;
+        data.type = txn.type;
+        data.description = txn.description;
+        data.date = txn.date;
+        data.amount = txn.amount;
+      }
+
+      const response = await fetch(`/api/transactions/${txnId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to update');
+      }
+
+      cancelInlineEdit();
+    } catch (err) {
+      console.error('Inline edit failed:', err);
+      alert('Failed to update: ' + (err as Error).message);
+    }
+  }
+
+  function cancelInlineEdit() {
+    inlineEditingId = null;
+    inlineEditField = null;
+    inlineEditValue = '';
+  }
+
+  function handleInlineKeydown(e: KeyboardEvent, txnId: number) {
+    if (e.key === 'Enter') { e.preventDefault(); saveInlineEdit(txnId); }
+    else if (e.key === 'Escape') { cancelInlineEdit(); }
+  }
+
+  function toggleCleared(txnId: number, e: Event) {
+    e.stopPropagation();
+    const newState = !clearedStatesLocal.get(txnId);
+    clearedStatesLocal = new Map(clearedStatesLocal).set(txnId, newState);
+    try {
+      const stored = new Map(JSON.parse(localStorage.getItem('txn_cleared_states') || '[]'));
+      stored.set(txnId, newState);
+      localStorage.setItem('txn_cleared_states', JSON.stringify([...stored]));
+    } catch {}
+  }
+
+  // On mount, load cleared states from localStorage
+  $effect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('txn_cleared_states') || '[]');
+        clearedStatesLocal = new Map(stored);
+      } catch {}
+    }
+  });
+
+  // Action: auto-focus element on mount
+  function autofocus(node: HTMLInputElement | HTMLSelectElement) {
+    node.focus();
+    if ('select' in node) node.select();
+  }
+
+  function formatRunningBalance(balance: number): string {
+    const formatted = formatCurrency(Math.abs(balance));
+    return balance >= 0 ? `+${formatted}` : `−${formatted}`;
+  }
+
+  function runningBalanceColor(balance: number): string {
+    return balance >= 0 ? 'var(--color-teal)' : 'var(--color-coral)';
+  }
+
+  function signedAmount(txn: Transaction): number {
+    return txn.type === 'income' ? txn.amount : -txn.amount;
+  }
+
+  function categoryInitial(txn: Transaction): string {
+    return (txn.category_name || '?').charAt(0).toUpperCase();
+  }
 </script>
+
+<!-- ── VIEW TOGGLE ── -->
+<div class="register-header">
+  <div class="view-toggle">
+    <button class="toggle-btn" class:active={!showFlatView} onclick={() => showFlatView = false}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Grouped
+    </button>
+    <button class="toggle-btn" class:active={showFlatView} onclick={() => showFlatView = true}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+      Flat
+    </button>
+  </div>
+</div>
 
 <!-- ── SNIPPETS ── -->
 {#snippet dateHeader(group: DateGroup)}
   <div class="date-header" role="rowheader">
     <span class="date-label">{group.label}</span>
-    <span class="date-count">{group.items.length}</span>
+    <span class="date-count">{group.items.length} items</span>
+    <span
+      class="day-subtotal"
+      style="color: {group.subtotalColor}"
+    >
+      {group.subtotal >= 0 ? '+' : ''}{formatCurrency(group.subtotal)}
+    </span>
   </div>
 {/snippet}
 
-{#snippet transactionRow(txn: Transaction)}
+{#snippet bankRow(txn: Transaction & { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean })}
   {@const isIncome = txn.type === 'income'}
   {@const isExpanded = editingId === txn.id}
+  {@const isCleared = showClearedColumn && clearedStatesLocal.get(txn.id)}
+  {@const isInlineEditing = inlineEditingId === txn.id}
 
-  <!-- Main row -->
   <div
     class="txn-row"
     class:txn-income={isIncome}
     class:txn-expense={!isIncome}
     class:editing={isExpanded}
     class:swiped={swipedRowId === txn.id}
+    class:cleared={isCleared}
     data-txn-id={txn.id}
     role="button"
     tabindex="0"
@@ -160,48 +335,74 @@
       if (e.key === 'Escape') editingId = null;
     }}
   >
-    <!-- Direction dot -->
-    <div class="txn-dot" class:dot-income={isIncome} class:dot-expense={!isIncome}>
-      {#if isIncome}
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-      {:else}
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 14.5 10.5 9.5 15.5 1 6"/><polyline points="7 18 1 18 1 12"/></svg>
-      {/if}
+    <!-- Category color stripe + initial circle -->
+    <div class="cat-stripe" style="background: {txn.category_color || '#2BA8A2'}"></div>
+    <div class="cat-circle" style="background: {txn.category_color || '#2BA8A2'}20; color: {txn.category_color || '#2BA8A2'}">
+      {categoryInitial(txn)}
     </div>
 
     <!-- Left: description + category pill -->
     <div class="txn-info">
       <span class="txn-desc">
-            {#if isRefund(txn)}
-              <span class="refund-chip">↩ Refund</span>
-            {/if}
-            {cleanDescription(txn.description)}
-          </span>
+        {#if isRefund(txn)}
+          <span class="refund-chip">↩ Refund</span>
+        {/if}
+        {cleanDescription(txn.description)}
+      </span>
       <span
         class="cat-pill"
-        style="background:{(txn.category_color || '#6366f1')}18; color:{txn.category_color || '#6366f1'}"
+        style="background:{(txn.category_color || '#2BA8A2')}18; color:{txn.category_color || '#2BA8A2'}"
       >
         {txn.category_name || 'Uncategorized'}
       </span>
     </div>
 
-    <!-- Right: amount -->
+    <!-- Running balance column -->
+    {#if showRunningBalance}
+      <div class="balance-col">
+        <span class="balance-label">bal</span>
+        <span class="balance-value" style="color: {runningBalanceColor(txn.runningBalance)}; font-variant-numeric: tabular-nums;">
+          {formatRunningBalance(txn.runningBalance)}
+        </span>
+      </div>
+    {/if}
+
+    <!-- Amount column -->
     <div class="txn-amount-col">
       <span class="txn-amount" class:amount-income={isIncome} class:amount-expense={!isIncome}>
         {isIncome ? '+' : '−'}{formatCurrency(txn.amount)}
       </span>
     </div>
 
+    <!-- Cleared toggle -->
+    {#if showClearedColumn}
+      <div class="cleared-col">
+        <button
+          class="cleared-toggle"
+          class:cleared={isCleared}
+          onclick={(e) => toggleCleared(txn.id, e)}
+          title={isCleared ? 'Reconciled' : 'Uncleared'}
+          type="button"
+        >
+          {#if isCleared}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          {:else}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+          {/if}
+        </button>
+      </div>
+    {/if}
+
     <!-- Hover-only edit / delete icons -->
-    {#if showActions && !isExpanded}
+    {#if showActions && !isExpanded && !isInlineEditing}
       <div class="hover-actions">
         <button
           class="hover-btn"
-          title="Edit"
+          title="Edit amount"
           onclick={(e) => { e.stopPropagation(); onEdit?.(txn.id); }}
           type="button"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
         </button>
         <button
           class="hover-btn hover-delete"
@@ -209,7 +410,7 @@
           onclick={(e) => { e.stopPropagation(); onDelete?.(txn.id); }}
           type="button"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         </button>
       </div>
     {/if}
@@ -219,22 +420,53 @@
   {#if isExpanded}
     <div class="edit-panel" data-txn-id={txn.id}>
       <div class="edit-meta">
-        <span class="edit-date">{txn.date}</span>
+        <span class="edit-date">{formatDate(txn.date)}</span>
         <span class="edit-type-badge" class:badge-income={isIncome} class:badge-expense={!isIncome}>
           {isIncome ? 'Income' : 'Expense'}
         </span>
-        <span class="edit-cat-name">{txn.category_name}</span>
+      </div>
+      <div class="edit-inline-row">
+        <div class="edit-inline-field">
+          <label class="edit-inline-label">Amount</label>
+          {#if inlineEditingId === txn.id && inlineEditField === 'amount'}
+            <input
+              class="edit-inline-input"
+              type="text"
+              inputmode="decimal"
+              bind:value={inlineEditValue}
+              onkeydown={(e) => handleInlineKeydown(e, txn.id)}
+              onblur={() => saveInlineEdit(txn.id)}
+              use:autofocus
+            />
+          {:else}
+            <button class="edit-inline-value" onclick={(e) => startInlineEdit(txn.id, 'amount', e)}>
+              {formatCurrency(txn.amount)}
+            </button>
+          {/if}
+        </div>
+        <div class="edit-inline-field">
+          <label class="edit-inline-label">Category</label>
+          {#if inlineEditingId === txn.id && inlineEditField === 'category'}
+            <select
+              class="edit-inline-input"
+              bind:value={inlineEditValue}
+              onchange={() => saveInlineEdit(txn.id)}
+              onkeydown={(e) => handleInlineKeydown(e, txn.id)}
+            >
+              {#each categories as cat}
+                <option value={cat.id}>{cat.name}</option>
+              {/each}
+            </select>
+          {:else}
+            <button class="edit-inline-value" onclick={(e) => startInlineEdit(txn.id, 'category', e)}>
+              {txn.category_name || 'Uncategorized'}
+            </button>
+          {/if}
+        </div>
       </div>
       <div class="edit-buttons">
-        <a
-          href="/transactions/{txn.id}/edit"
-          class="edit-btn edit-btn-primary"
-          onclick={(e) => e.stopPropagation()}
-        > Edit </a>
-        <button
-          class="edit-btn edit-btn-danger"
-          onclick={(e) => { e.stopPropagation(); onDelete?.(txn.id); editingId = null; }}
-        > Delete </button>
+        <a href="/transactions/{txn.id}/edit" class="edit-btn edit-btn-primary" onclick={(e) => e.stopPropagation()}>Full Edit</a>
+        <button class="edit-btn edit-btn-danger" onclick={(e) => { e.stopPropagation(); onDelete?.(txn.id); editingId = null; }}>Delete</button>
       </div>
     </div>
   {/if}
@@ -257,23 +489,29 @@
         </div>
       {/each}
     </div>
-  {:else if groups.length === 0}
+  {:else if transactionsWithBalance.length === 0}
     <div class="empty-state">
       <div class="empty-icon">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" x2="12" y1="12" y2="18"/><line x1="9" x2="15" y1="15" y2="15"/>
-        </svg>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" x2="12" y1="12" y2="18"/><line x1="9" x2="15" y1="15" y2="15"/></svg>
       </div>
       <p class="empty-title">No transactions yet</p>
       <p class="empty-sub">Add your first transaction to start tracking</p>
       <a href="/transactions/new" class="empty-action">Add Transaction</a>
     </div>
+  {:else if showFlatView}
+    <!-- Flat register view -->
+    <div class="flat-register">
+      {#each transactionsWithBalance as txn (txn.id)}
+        {@render bankRow(txn)}
+      {/each}
+    </div>
   {:else}
+    <!-- Grouped register view (default) -->
     <div class="grouped-list">
       {#each groups as group (group.date)}
         {@render dateHeader(group)}
         {#each group.items as txn (txn.id)}
-          {@render transactionRow(txn)}
+          {@render bankRow(txn)}
         {/each}
       {/each}
     </div>
@@ -284,24 +522,68 @@
   /* ── Container ── */
   .txn-list { width: 100%; }
 
-  .grouped-list {
+  /* ── Register header (view toggle) ── */
+  .register-header {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: var(--space-sm);
+  }
+
+  .view-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--color-bg);
+    padding: 3px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-hairline);
+  }
+
+  .toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    font-family: var(--font-body);
+    transition: all var(--transition-fast);
+    min-height: 32px;
+  }
+
+  .toggle-btn.active {
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
+  }
+
+  .toggle-btn:hover:not(.active) {
+    background: var(--color-surface);
+    color: var(--color-ink);
+  }
+
+  .grouped-list, .flat-register {
     background: var(--color-surface);
     border: 1px solid var(--color-hairline);
     border-radius: var(--radius-xl);
     overflow: hidden;
   }
 
-  /* ── Date Header (Flip7: sentence-case, teal tint) ── */
+  /* ── Date Header (Flip7: sentence-case, teal tint, per-day subtotal) ── */
   .date-header {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: var(--space-sm);
     padding: var(--space-sm) var(--space-md);
     background: var(--color-teal-bg);
     border-bottom: 1px dashed var(--color-hairline);
     position: sticky;
     top: 0;
-    z-index: 2;
+    z-index: 3;
   }
 
   .date-label {
@@ -320,23 +602,33 @@
     opacity: 0.6;
   }
 
+  .day-subtotal {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
   /* ── Row with left accent bar ── */
   .txn-row {
     position: relative;
     display: flex;
     align-items: center;
-    gap: var(--space-md);
-    padding: 12px var(--space-md);
+    gap: var(--space-sm);
+    padding: 10px var(--space-md);
     border-bottom: 1px dashed var(--color-hairline);
     background: var(--color-surface);
     cursor: pointer;
     font-family: var(--font-body);
-    min-height: 56px;
+    min-height: 52px;
     transition: background 200ms var(--ease);
     overflow: hidden;
+    padding-left: calc(var(--space-md) + 4px);
   }
 
-  /* Left accent bar pseudo-element (slides in on hover) */
+  /* Left accent bar pseudo-element */
   .txn-row::before {
     content: '';
     position: absolute;
@@ -345,14 +637,13 @@
     bottom: 0;
     width: 0;
     border-radius: 0 2px 2px 0;
-    transition: width 200ms var(--ease);
+    transition: width 120ms var(--ease);
     pointer-events: none;
   }
 
   .txn-income::before { background: var(--color-teal); }
   .txn-expense::before { background: var(--color-coral); }
 
-  /* Hover: teal wash + left bar slide-in */
   .txn-row:hover {
     background: var(--color-teal-bg);
   }
@@ -361,7 +652,6 @@
     width: 4px;
   }
 
-  /* Editing state */
   .txn-row.editing {
     background: var(--color-teal-bg);
     border-bottom: none;
@@ -371,10 +661,13 @@
     width: 4px;
   }
 
-  /* Swipe-to-delete affordance */
   .txn-row.swiped {
     border-color: var(--color-coral-light);
     background: rgba(239, 108, 74, 0.06);
+  }
+
+  .txn-row.cleared {
+    opacity: 0.85;
   }
 
   .txn-row:focus-visible {
@@ -384,7 +677,32 @@
 
   .txn-row:last-child { border-bottom: none; }
 
-  /* Shimmer loading rows */
+  /* ── Category stripe + circle ── */
+  .cat-stripe {
+    position: absolute;
+    left: 0;
+    top: 4px;
+    bottom: 4px;
+    width: 3px;
+    border-radius: 0 2px 2px 0;
+    opacity: 0.7;
+  }
+
+  .cat-circle {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 800;
+    margin-right: var(--space-xs);
+  }
+
+  /* ── Shimmer loading rows ── */
   .shimmer-list {
     background: var(--color-surface);
     border: 1px solid var(--color-hairline);
@@ -398,41 +716,13 @@
     gap: var(--space-md);
     padding: 12px var(--space-md);
     border-bottom: 1px dashed var(--color-hairline);
-    min-height: 56px;
+    min-height: 52px;
   }
 
-  .shimmer-row:last-child {
-    border-bottom: none;
-  }
+  .shimmer-row:last-child { border-bottom: none; }
 
-  .shimmer-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .shimmer-amount {
-    flex-shrink: 0;
-    min-width: 70px;
-  }
-
-  .skeleton-icon {
-    flex-shrink: 0;
-    border-radius: var(--radius-md);
-  }
-
-  /* ── Direction dot (icon) ── */
-  .txn-dot {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-md);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .dot-income { background: var(--color-teal-bg); color: var(--color-teal); }
-  .dot-expense { background: rgba(239, 108, 74, 0.10); color: var(--color-coral); }
+  .shimmer-info { flex: 1; min-width: 0; }
+  .shimmer-amount { flex-shrink: 0; min-width: 70px; }
 
   /* ── Info block: description + category pill ── */
   .txn-info {
@@ -464,11 +754,38 @@
     font-family: var(--font-display);
   }
 
+  /* ── Running balance column ── */
+  .balance-col {
+    flex-shrink: 0;
+    text-align: right;
+    min-width: 90px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+  }
+
+  .balance-label {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.6;
+  }
+
+  .balance-value {
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    letter-spacing: -0.02em;
+  }
+
   /* ── Amount column: mono, right-aligned, colored by sign ── */
   .txn-amount-col {
     flex-shrink: 0;
     text-align: right;
-    min-width: 100px;
+    min-width: 90px;
   }
 
   .txn-amount {
@@ -482,14 +799,50 @@
   .amount-income { color: var(--color-teal); }
   .amount-expense { color: var(--color-coral); }
 
+  /* ── Cleared column ── */
+  .cleared-col {
+    flex-shrink: 0;
+    width: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .cleared-toggle {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-hairline);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+    font-size: 10px;
+  }
+
+  .cleared-toggle.cleared {
+    background: var(--color-teal-bg);
+    border-color: var(--color-teal);
+    color: var(--color-teal);
+  }
+
+  .cleared-toggle:hover {
+    border-color: var(--color-teal);
+    background: var(--color-teal-bg);
+  }
+
   /* ── Hover-reveal action buttons ── */
   .hover-actions {
     display: flex;
     gap: 2px;
     opacity: 0;
     transform: translateX(4px);
-    transition: opacity 150ms var(--ease), transform 150ms var(--ease);
+    transition: opacity 120ms var(--ease), transform 120ms var(--ease);
     pointer-events: none;
+    flex-shrink: 0;
   }
 
   .txn-row:hover .hover-actions {
@@ -499,8 +852,8 @@
   }
 
   .hover-btn {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -518,13 +871,13 @@
   /* ── Inline edit panel (Flip7) ── */
   .edit-panel {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: var(--space-sm);
     padding: 10px var(--space-md) 12px;
+    padding-left: calc(var(--space-md) + 4px);
     background: var(--color-teal-bg);
     border-bottom: 1px dashed var(--color-hairline);
     border-left: 4px solid var(--color-teal);
-    gap: var(--space-md);
   }
 
   .edit-meta {
@@ -551,16 +904,69 @@
   .badge-income { background: var(--color-teal-bg); color: var(--color-teal); }
   .badge-expense { background: rgba(239, 108, 74, 0.10); color: var(--color-coral); }
 
-  .edit-cat-name {
-    font-size: var(--font-size-xs);
+  .edit-inline-row {
+    display: flex;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+  }
+
+  .edit-inline-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 120px;
+  }
+
+  .edit-inline-label {
+    font-size: 10px;
+    font-weight: 600;
     color: var(--color-text-muted);
-    font-family: var(--font-body);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .edit-inline-value {
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    background: var(--color-cream);
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: all var(--transition-fast);
+    min-height: 34px;
+  }
+
+  .edit-inline-value:hover {
+    border-color: var(--color-teal);
+    box-shadow: var(--focus);
+  }
+
+  .edit-inline-input {
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-teal);
+    background: var(--color-cream);
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    box-shadow: var(--focus);
+    min-height: 34px;
+    width: 100%;
+  }
+
+  .edit-inline-input:focus {
+    outline: none;
   }
 
   .edit-buttons {
     display: flex;
     gap: var(--space-sm);
-    flex-shrink: 0;
+    margin-top: var(--space-xs);
   }
 
   .edit-btn {
@@ -654,21 +1060,17 @@
   .empty-action:hover { background: var(--color-teal-dark); text-decoration: none; }
 
   @media (prefers-reduced-motion: reduce) {
-    .txn-row {
-      transition: none;
-    }
-    .txn-row::before {
-      transition: none;
-    }
+    .txn-row { transition: none; }
+    .txn-row::before { transition: none; }
   }
 
   /* ── Mobile (< 640px) ── */
   @media (max-width: 640px) {
     .cat-pill { display: none; }
     .hover-actions { display: none; }
+    .cat-stripe { display: none; }
   }
 
-  /* ── Card layout (≤ 480px): cream surface + left bar + dashed dividers ── */
   .refund-chip {
     margin-right: 6px;
     padding: 1px 8px;
@@ -691,7 +1093,8 @@
     .txn-row {
       flex-wrap: wrap;
       padding: 10px var(--space-md);
-      min-height: 60px;
+      padding-left: calc(var(--space-md) + 4px);
+      min-height: 56px;
       gap: var(--space-xs);
       background: var(--color-cream);
       border: 1px dashed var(--color-hairline);
@@ -700,27 +1103,15 @@
       margin: 0 var(--space-sm) 6px;
     }
 
-    .txn-row::before {
-      display: none;
-    }
+    .txn-row::before { display: none; }
 
-    .txn-income {
-      border-left-color: var(--color-teal);
-    }
+    .txn-income { border-left-color: var(--color-teal); }
+    .txn-expense { border-left-color: var(--color-coral); }
 
-    .txn-expense {
-      border-left-color: var(--color-coral);
-    }
+    .txn-row:last-child { margin-bottom: 0; }
+    .txn-row.editing { border-bottom: 1px dashed var(--color-hairline); }
 
-    .txn-row:last-child {
-      margin-bottom: 0;
-    }
-
-    .txn-row.editing {
-      border-bottom: 1px dashed var(--color-hairline);
-    }
-
-    .grouped-list {
+    .grouped-list, .flat-register {
       background: transparent;
       border: none;
       overflow: visible;
@@ -732,22 +1123,26 @@
       padding: var(--space-xs) var(--space-md);
     }
 
-    .txn-dot {
-      width: 28px;
-      height: 28px;
-      margin-right: var(--space-xs);
-    }
+    .cat-circle { width: 24px; height: 24px; font-size: 10px; }
 
-    .txn-info {
-      flex: 1 1 calc(100% - 44px);
-      order: 1;
-    }
+    .txn-info { flex: 1 1 calc(100% - 44px); order: 1; }
+    .txn-amount-col { order: 2; min-width: auto; margin-left: auto; }
 
-    .txn-amount-col {
-      order: 2;
+    .balance-col {
+      order: 3;
+      width: 100%;
+      flex-direction: row;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 4px;
+      margin-top: 2px;
+      padding-top: 4px;
+      border-top: 1px dashed var(--color-hairline);
       min-width: auto;
-      margin-left: auto;
     }
+
+    .balance-label { font-size: 8px; }
+    .balance-value { font-size: 10px; }
 
     .edit-panel {
       flex-direction: column;

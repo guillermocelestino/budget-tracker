@@ -224,9 +224,13 @@ import { getCurrentMonth } from '$lib/utils/format';
   />
 </div>
 
-<!-- ═══ Transaction list ═══ -->
+<!-- ═══ Transaction list (Bank Register) ═══ -->
 <TransactionList
   transactions={data.transactions ?? []}
+  allTransactionsForBalance={data.allForBalance ?? []}
+  categories={data.categories ?? []}
+  showRunningBalance={true}
+  showClearedColumn={true}
   onEdit={(id) => goto(`/transactions/${id}/edit`)}
   onDelete={(id) => (deleteId = id)}
 />

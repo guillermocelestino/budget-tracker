@@ -1,7 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { enhance } from '$app/forms';
-  import { formatCurrency, formatDate } from '$lib/utils/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SlideOver from '$lib/components/SlideOver.svelte';
   import LendingForm from '$lib/components/LendingForm.svelte';
@@ -123,108 +122,14 @@
   </div>
 </div>
 
-<!-- ═══ Card View ═══ -->
-{#if viewMode === 'card'}
-  {#if showLendings.length === 0}
-    <div class="empty-state">
-      <div class="empty-illustration">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
-          <path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
-          <path d="M3 12h18v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7z"/>
-        </svg>
-      </div>
-      <h3>No {activeTab} borrowings</h3>
-      <p>{activeTab === 'active' ? 'Start tracking money you borrowed' : 'Repaid borrowings will appear here'}</p>
-      {#if activeTab === 'active'}
-        <button class="btn-gradient" onclick={openAdd}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" x2="12" y1="5" y2="19"/>
-            <line x1="5" x2="19" y1="12" y2="12"/>
-          </svg>
-          Add Your First Borrowing
-        </button>
-      {/if}
-    </div>
-  {:else}
-    <ActiveIouList
-      ious={showLendings}
-      onPay={(id) => markPaidId = id}
-      onEdit={(id) => { const l = showLendings.find(l => l.id === id); if (l) openEdit(l); }}
-      onDelete={(id) => deleteId = id}
-      direction="borrowed"
-    />
-  {/if}
-
-<!-- ═══ Table View ═══ -->
-{:else}
-  <div class="table-section">
-    <button class="btn-add-new" onclick={openAdd}>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="12" x2="12" y1="5" y2="19"/>
-        <line x1="5" x2="19" y1="12" y2="12"/>
-      </svg>
-      Add New Borrowing
-    </button>
-
-    {#if showLendings.length === 0}
-      <div class="empty-state">
-        <div class="empty-illustration">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
-            <path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
-            <path d="M3 12h18v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7z"/>
-          </svg>
-        </div>
-        <h3>No {activeTab} borrowings</h3>
-        <p>{activeTab === 'active' ? 'Start tracking money you borrowed' : 'Repaid borrowings will appear here'}</p>
-      </div>
-    {:else}
-      <div class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Lender</th>
-              <th class="text-right">Amount</th>
-              <th class="text-right">Interest</th>
-              <th>Date Borrowed</th>
-              <th>Due Date</th>
-              <th>Status</th>
-              <th class="text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each showLendings as lending (lending.id)}
-              <tr>
-                <td>
-                  <div class="borrower-cell">
-                    <div class="borrower-avatar">{lending.borrower_name.charAt(0).toUpperCase()}</div>
-                    {lending.borrower_name}
-                  </div>
-                </td>
-                <td class="text-right amount-cell">{formatCurrency(lending.amount)}</td>
-                <td class="text-right">{lending.interest_rate}%</td>
-                <td>{formatDate(lending.date_lent)}</td>
-                <td>{lending.due_date ? formatDate(lending.due_date) : '—'}</td>
-                <td>
-                  <span class="badge" class:active={lending.status === 'active'} class:paid={lending.status === 'paid'}>
-                    {lending.status === 'active' ? 'Active' : 'Repaid'}
-                  </span>
-                </td>
-                <td class="text-center">
-                  <div class="action-btns">
-                    <button class="action-btn edit" onclick={() => openEdit(lending)}>Edit</button>
-                    <button class="action-btn delete" onclick={() => deleteId = lending.id}>Delete</button>
-                  </div>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    {/if}
-  </div>
-{/if}
+<ActiveIouList
+  ious={showLendings}
+  onPay={(id) => markPaidId = id}
+  onEdit={(id) => { const l = showLendings.find(l => l.id === id); if (l) openEdit(l); }}
+  onDelete={(id) => deleteId = id}
+  direction="borrowed"
+  viewMode={viewMode}
+/>
 
 <!-- ═══ Mark as Paid Modal ═══ -->
 {#if markPaidId !== null}
