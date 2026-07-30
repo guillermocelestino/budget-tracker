@@ -23,6 +23,7 @@ declare global {
 					selectedMonth?: string;
 			transaction?: Transaction;
 			lendingSummary?: { totalLent: number; totalRecovered: number; outstanding: number };
+			borrowedSummary?: { totalBorrowed: number; totalRepaid: number; outstanding: number };
 			activeLendings?: Lending[];
 			paidLendings?: Lending[];
 			totals?: { totalLent: number; totalRecovered: number; outstanding: number };

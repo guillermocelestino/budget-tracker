@@ -43,6 +43,18 @@ export async function load({ locals }: { locals: App.Locals }) {
 	const totalLent = parseFloat(lendingSummary?.totalLent ?? '0');
 	const totalRecovered = parseFloat(lendingSummary?.totalRecovered ?? '0');
 
+	// Borrowed stats for mobile rail
+	const borrowedSummary = await queryOne<{ totalBorrowed: string; totalRepaid: string }>(
+		`SELECT
+			COALESCE(SUM(amount), 0) as "totalBorrowed",
+			COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as "totalRepaid"
+		 FROM lendings
+		 WHERE user_id = $1 AND direction = 'borrowed'`,
+		[userId]
+	);
+	const totalBorrowed = parseFloat(borrowedSummary?.totalBorrowed ?? '0');
+	const totalRepaid = parseFloat(borrowedSummary?.totalRepaid ?? '0');
+
 	const totalIncome = parseFloat(summary?.totalincome ?? '0');
 	const totalExpenses = parseFloat(summary?.totalexpenses ?? '0');
 	const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0;
@@ -96,6 +108,11 @@ export async function load({ locals }: { locals: App.Locals }) {
 			totalLent,
 			totalRecovered,
 			outstanding: totalLent - totalRecovered,
+		},
+		borrowedSummary: {
+			totalBorrowed,
+			totalRepaid,
+			outstanding: totalBorrowed - totalRepaid,
 		},
 		categoryLabels: categoryExpenses.map(c => c.category_name),
 		categoryData: categoryExpenses.map(c => c.total),

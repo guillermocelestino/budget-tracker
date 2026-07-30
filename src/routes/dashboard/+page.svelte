@@ -9,6 +9,7 @@
 	import CategoryBreakdownWidget from '$lib/components/CategoryBreakdownWidget.svelte';
 	import PageBackground from '$lib/components/PageBackground.svelte';
 	import NetWorthHero from '$lib/components/NetWorthHero.svelte';
+	import MobileSummaryRail from '$lib/components/MobileSummaryRail.svelte';
 	let data = $derived($page.data as App.PageData);
 
 	// ─── Forecast computation ───
@@ -50,6 +51,22 @@
 	lendingSummary={data.lendingSummary}
 	incomeChange={data.incomeChange}
 	expenseChange={data.expenseChange}
+/>
+
+<!-- Mobile summary rail — only visible ≤640px -->
+<MobileSummaryRail
+	income={data.summary?.totalIncome ?? 0}
+	incomeChange={data.incomeChange}
+	incomeTrend={data.trendIncome ?? []}
+	incomeLabels={data.trendLabels ?? []}
+	expenses={data.summary?.totalExpenses ?? 0}
+	expenseChange={data.expenseChange}
+	expenseTrend={data.trendExpenses ?? []}
+	expenseLabels={data.trendLabels ?? []}
+	lentOutstanding={data.lendingSummary?.outstanding ?? 0}
+	recovered={data.lendingSummary?.totalRecovered ?? 0}
+	borrowedOutstanding={data.borrowedSummary?.outstanding ?? 0}
+	repaid={data.borrowedSummary?.totalRepaid ?? 0}
 />
 
 <!-- Net worth teaser — same snapshot as /net-worth -->

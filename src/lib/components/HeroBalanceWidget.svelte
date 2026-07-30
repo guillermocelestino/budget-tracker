@@ -556,6 +556,16 @@
     }
   }
 
+  /* Mobile compact: hide inline tiles + lending strip (moved to rail) */
+  @media (max-width: 640px) {
+    .vault-metrics {
+      display: none;
+    }
+    .vault-lending {
+      display: none;
+    }
+  }
+
   @media (max-width: 480px) {
     .vault-hero {
       padding: var(--space-md) var(--space-sm) var(--space-xs);
@@ -568,11 +578,6 @@
 
     .vault-value {
       font-size: clamp(1.25rem, 6vw, 1.75rem);
-    }
-
-    .vault-metrics {
-      padding: 0 var(--space-sm) var(--space-sm);
-      gap: var(--space-xs);
     }
 
     .vault-pill {
