@@ -184,26 +184,26 @@
 
 <style>
   /* ═══════════════════════════════════════════════════
-     THE VAULT — Teal-gradient hero balance widget
+     THE VAULT — Token-driven hero widget
+     LIGHT = clean white instrument; DARK = glowing teal panel
      ═══════════════════════════════════════════════════ */
 
   .hero-vault {
     position: relative;
     border-radius: var(--radius-xl);
-    box-shadow: var(--glow-card), var(--shadow-card);
+    box-shadow: var(--hero-card-shadow);
+    border: var(--hero-card-border);
     overflow: hidden;
     margin-bottom: var(--space-lg);
     isolation: isolate;
-
-    /* Hero gradient — uses theme vars so dark mode works via CSS custom properties */
-    background: linear-gradient(135deg, var(--hero-start) 0%, var(--hero-mid) 55%, var(--hero-end) 100%);
+    background: var(--hero-bg);
   }
 
   /* ── Dot-grid texture ── */
   .vault-texture {
     position: absolute;
     inset: 0;
-    background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-image: radial-gradient(circle, var(--hero-texture) 1px, transparent 1px);
     background-size: 24px 24px;
     pointer-events: none;
     z-index: 1;
@@ -218,8 +218,8 @@
     background: linear-gradient(
       105deg,
       transparent 30%,
-      rgba(255,255,255,0.06) 45%,
-      rgba(255,255,255,0.06) 55%,
+      var(--hero-sheen) 45%,
+      var(--hero-sheen) 55%,
       transparent 70%
     );
     animation: sheen-sweep 1.2s var(--ease) forwards;
@@ -230,7 +230,7 @@
     100% { transform: translateX(100%); }
   }
 
-  /* ── Dark contrast pool behind the balance number ── */
+  /* ── Dark contrast pool (dark only — light uses transparent) ── */
   .vault-pool {
     position: absolute;
     top: 50%;
@@ -239,12 +239,12 @@
     width: 320px;
     height: 220px;
     border-radius: 50%;
-    background: radial-gradient(ellipse, rgba(0,0,0,0.20) 0%, rgba(0,0,0,0) 70%);
+    background: radial-gradient(ellipse, var(--hero-pool) 0%, transparent 70%);
     pointer-events: none;
     z-index: 1;
   }
 
-  /* ── Gold warm halo around the balance number ── */
+  /* ── Gold warm halo (dark only — light uses transparent) ── */
   .vault-glow {
     position: absolute;
     top: 50%;
@@ -253,7 +253,7 @@
     width: 300px;
     height: 200px;
     border-radius: 50%;
-    background: radial-gradient(ellipse, rgba(255, 210, 63, 0.25) 0%, transparent 65%);
+    background: radial-gradient(ellipse, var(--hero-halo) 0%, transparent 65%);
     pointer-events: none;
     z-index: 2;
     transition: opacity 400ms var(--ease);
@@ -276,7 +276,7 @@
     display: block;
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-bold);
-    color: rgba(255,255,255,0.82);
+    color: var(--hero-eyebrow);
     text-transform: uppercase;
     letter-spacing: 0.18em;
     margin-bottom: 6px;
@@ -291,19 +291,18 @@
     font-family: var(--font-display);
     letter-spacing: -0.03em;
     line-height: 1;
-    color: #FFFFFF;
+    color: var(--hero-fg);
     font-variant-numeric: tabular-nums;
     position: relative;
     z-index: 3;
-    text-shadow: 0 2px 18px rgba(0,0,0,0.25);
   }
 
   .vault-value.negative {
-    color: #FFB3A0;
+    color: var(--hero-neg);
   }
 
   .vault-currency {
-    color: #FFD23F;
+    color: var(--hero-currency);
   }
 
   /* ═══ Section 2: Cash Flow Metrics ═══ */
@@ -323,16 +322,10 @@
     align-items: flex-start;
     gap: var(--space-md);
     min-width: 140px;
-    background: rgba(255,255,255,0.12);
-    border: 1px solid rgba(255,255,255,0.35);
+    background: var(--hero-tile-bg);
+    border: 1px solid var(--hero-tile-border);
     border-radius: var(--radius-lg);
     padding: var(--space-sm) var(--space-md);
-    backdrop-filter: blur(4px);
-  }
-
-  [data-theme="dark"] .vault-tile {
-    background: rgba(255,255,255,0.08);
-    border-color: rgba(255,255,255,0.22);
   }
 
   .tile-icon {
@@ -347,13 +340,13 @@
   }
 
   .income-icon {
-    background: rgba(159,240,214,0.25);
-    color: #9FF0D6;
+    background: rgba(31,157,107,0.10);
+    color: var(--hero-pos);
   }
 
   .expense-icon {
-    background: rgba(255,179,160,0.25);
-    color: #FFB3A0;
+    background: rgba(192,73,63,0.10);
+    color: var(--hero-neg);
   }
 
   .tile-body {
@@ -365,18 +358,9 @@
   .tile-label {
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-bold);
-    color: #9FF0D6;
+    color: var(--hero-tile-label);
     text-transform: uppercase;
     letter-spacing: 0.06em;
-  }
-
-  .tile-icon.income-icon + .tile-body .tile-label {
-    color: #9FF0D6;
-  }
-
-  /* Second tile (expenses) label in coral */
-  .vault-tile:nth-of-type(2) .tile-label {
-    color: #FFB3A0;
   }
 
   .tile-value {
@@ -386,7 +370,7 @@
     font-variant-numeric: tabular-nums;
     letter-spacing: var(--letter-spacing-tight);
     line-height: 1.2;
-    color: #FFFFFF;
+    color: var(--hero-value);
   }
 
   .tile-trend {
@@ -395,17 +379,15 @@
     margin-top: 2px;
   }
 
-  /* Good = mint (income up, expense down) */
-  .tile-trend.trend-good { color: #9FF0D6; }
-  /* Bad = coral (income down, expense up) */
-  .tile-trend.trend-bad { color: #FFB3A0; }
-  /* Flat = muted white */
-  .tile-trend.trend-flat { color: rgba(255,255,255,0.55); }
+  .tile-trend.trend-good { color: var(--hero-pos); }
+  .tile-trend.trend-bad { color: var(--hero-neg); }
+  .tile-trend.trend-flat { color: var(--hero-tile-label); opacity: 0.6; }
 
   .tile-ratio {
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-medium);
-    color: rgba(255,255,255,0.5);
+    color: var(--hero-tile-label);
+    opacity: 0.6;
     margin-top: 2px;
   }
 
@@ -424,15 +406,15 @@
   }
 
   .vault-pill.pill-positive {
-    background: #FFD23F;
-    color: #14655F;
-    box-shadow: 0 2px 12px rgba(255, 210, 63, 0.30);
+    background: var(--hero-pill-bg);
+    color: var(--hero-pill-fg);
+    box-shadow: var(--hero-pill-shadow);
   }
 
   .vault-pill.pill-negative {
-    background: rgba(255,217,206,0.20);
-    color: #FFD9CE;
-    border: 1px solid rgba(255,217,206,0.30);
+    background: rgba(192,73,63,0.10);
+    color: var(--hero-neg);
+    border: 1px solid rgba(192,73,63,0.25);
   }
 
   .pill-value {
@@ -456,13 +438,9 @@
   .vault-lending {
     position: relative;
     z-index: 3;
-    border-top: 1px solid rgba(255,255,255,0.12);
-    background: rgba(0,0,0,0.12);
+    border-top: 1px solid var(--hero-tile-border);
+    background: var(--hero-lending-bg);
     padding: var(--space-md) var(--space-xl);
-  }
-
-  [data-theme="dark"] .vault-lending {
-    background: rgba(0,0,0,0.18);
   }
 
   .lending-strip {
@@ -470,7 +448,7 @@
     align-items: center;
     gap: var(--space-sm);
     font-size: var(--font-size-sm);
-    color: rgba(255,255,255,0.7);
+    color: var(--hero-lending-fg);
     min-height: 44px;
     flex-wrap: wrap;
   }
@@ -479,17 +457,19 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: rgba(255,255,255,0.5);
+    background: var(--hero-lending-fg);
+    opacity: 0.5;
     flex-shrink: 0;
   }
 
   .strip-dot.strip-positive {
-    background: #FFD23F;
+    background: var(--hero-lending-accent);
+    opacity: 1;
   }
 
   .strip-label {
     font-weight: var(--font-weight-semibold);
-    color: rgba(255,255,255,0.85);
+    color: var(--hero-value);
     text-transform: uppercase;
     font-size: var(--font-size-xs);
     letter-spacing: 0.05em;
@@ -503,23 +483,23 @@
   }
 
   .strip-values strong {
-    color: rgba(255,255,255,0.85);
+    color: var(--hero-value);
     font-weight: var(--font-weight-semibold);
     font-variant-numeric: tabular-nums;
   }
 
   .strip-sep {
-    opacity: 0.4;
+    opacity: 0.3;
   }
 
   .strip-outstanding {
     font-weight: var(--font-weight-semibold);
     font-variant-numeric: tabular-nums;
-    color: rgba(255,255,255,0.7);
+    color: var(--hero-lending-fg);
   }
 
   .strip-outstanding.strip-positive {
-    color: #FFD23F;
+    color: var(--hero-neg);
   }
 
   /* ═══════════════════════════════════════
