@@ -549,24 +549,57 @@
   /* ─── Responsive ─── */
   @media (max-width: 768px) {
     .filter-bar {
-      overflow-x: auto;
-      flex-wrap: nowrap;
-      -webkit-overflow-scrolling: touch;
-      padding-bottom: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .pill-wrap {
+      width: 100%;
     }
 
     .filter-pill {
-      flex-shrink: 0;
+      width: 100%;
+      justify-content: space-between;
     }
 
     .filter-popover {
       position: fixed;
-      top: auto;
+      top: 50%;
       left: var(--space-md);
       right: var(--space-md);
-      bottom: auto;
+      transform: translateY(-50%);
       min-width: 0;
       max-height: 60vh;
+      border-radius: var(--radius-xl);
+      margin: 0;
+      box-shadow: 0 8px 40px rgba(0, 0, 0, 0.18);
+      z-index: calc(var(--z-modal, 1000) + 1);
+      animation: popoverIn 200ms var(--bounce);
+      padding: var(--space-md);
+      overflow-y: auto;
+    }
+
+    .custom-inputs {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-sm);
+    }
+
+    .date-apply {
+      width: 100%;
+      justify-content: center;
+    }
+
+    @keyframes sheetUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
   }
 </style>

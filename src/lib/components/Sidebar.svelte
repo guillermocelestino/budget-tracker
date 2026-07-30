@@ -513,9 +513,6 @@
     transition: scale 140ms var(--bounce);
   }
 
-  .nav-item.active .nav-icon {
-    color: var(--color-teal);
-  }
 
   /* ─── Nav label — sequenced fade for collapse/expand ─── */
   .nav-label {
@@ -535,7 +532,6 @@
 
   /* Centered icons in collapsed mode */
   .collapsed .nav-item {
-    justify-content: center;
     padding: 10px;
     margin: 0 auto;
     width: 44px;

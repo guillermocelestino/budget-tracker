@@ -705,7 +705,7 @@
 
 	.btn-submit {
 		background: linear-gradient(135deg, var(--color-gold), var(--color-gold-light));
-		color: var(--color-ink);
+		color: #14302E;
 		box-shadow: var(--glow-gold);
 	}
 
