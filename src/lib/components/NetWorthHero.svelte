@@ -24,7 +24,7 @@
   const rightSidePct = $derived((rightTotalMag / maxMag) * 50);
 
   type Segment = { key: string; label: string; amount: number; tone: string; width: number; side: 'left' | 'right' };
-  const leftSegments = $derived<Segment[]>(() => {
+  const leftSegments = $derived.by<Segment[]>(() => {
     const segs: Segment[] = [];
     for (const leg of snapshot.legs) {
       if (!leg.liability) continue;
@@ -33,7 +33,7 @@
     }
     return segs;
   });
-  const rightSegments = $derived<Segment[]>(() => {
+  const rightSegments = $derived.by<Segment[]>(() => {
     const segs: Segment[] = [];
     for (const leg of snapshot.legs) {
       if (leg.liability) continue;
@@ -137,13 +137,6 @@
 
     <!-- Large tipping bar (center-out) -->
     <div class="nw-tip-bar">
-      <div class="tip-labels">
-        {#each leftSegments as seg}
-          <span class="tip-label" style="--tip-color: var(--color-{seg.tone})">
-            <span class="tip-dot"></span>{seg.label} ({formatCurrency(seg.amount)})
-          </span>
-        {/each}
-      </div>
       <div class="tip-track">
         <div class="tip-left-wrap" style="width: {leftSidePct * 2}%;">
           {#each leftSegments as seg}
@@ -160,6 +153,11 @@
         </div>
       </div>
       <div class="tip-labels">
+        {#each leftSegments as seg}
+          <span class="tip-label" style="--tip-color: var(--color-{seg.tone})">
+            <span class="tip-dot"></span>{seg.label} ({formatCurrency(seg.amount)})
+          </span>
+        {/each}
         {#each rightSegments as seg}
           <span class="tip-label" style="--tip-color: var(--color-{seg.tone})">
             <span class="tip-dot"></span>{seg.label} ({formatCurrency(seg.amount)})
