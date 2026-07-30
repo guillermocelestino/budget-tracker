@@ -462,20 +462,20 @@
 
   /* Active — teal left accent + pill bg + gold dot */
   .nav-item.active {
-    background: var(--color-teal-bg);
-    color: var(--color-teal);
+    background: #2BA8A2;
+    color: #FFFFFF;
     font-weight: var(--font-weight-semibold);
     border-left: 4px solid var(--color-teal);
     box-shadow: var(--glow-card);
   }
 
   [data-theme="dark"] .nav-item.active {
-    background: rgba(43, 168, 162, 0.15);
+    background: #2BA8A2;
     border-left-color: var(--color-teal-light);
   }
 
   .nav-item.active .nav-icon {
-    color: var(--color-teal);
+    color: #FFFFFF;
   }
 
   /* Gold dot prefix on active label */
