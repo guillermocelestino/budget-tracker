@@ -44,19 +44,6 @@
     return () => { c1(); c2(); c3(); c4(); };
   });
 
-  // ─── Edge fade scroll state ──────────────────────────────────
-  let railEl = $state<HTMLDivElement | null>(null);
-  let scrolled = $state(false);
-
-  $effect(() => {
-    const el = railEl;
-    if (!el) return;
-    const onScroll = () => {
-      scrolled = el.scrollLeft > 8;
-    };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
-  });
 
   // ─── Good/bad helpers ────────────────────────────────────────
   function deltaColor(change: number, invert: boolean): string {
@@ -83,9 +70,7 @@
 
 <div class="rail-outer">
   <div
-    bind:this={railEl}
     class="rail-inner"
-    class:scrolled
   >
     <!-- ═══ Card 1: Income ═══ -->
     <a href="/transactions?type=income" class="kpi-card">
@@ -160,7 +145,7 @@
 </div>
 
 <style>
-  /* ─── Rail outer — constrains width, does NOT clip touch scroll ─── */
+  /* ─── Rail outer — constrains width, shows at ≤640px ─── */
   .rail-outer {
     width: 100%;
     max-width: 100%;
@@ -169,44 +154,21 @@
     display: none;
   }
 
-  /* ─── Rail inner — snap-scroll container ─── */
+  /* ─── Rail inner — canonical horizontal scroll recipe ─── */
   .rail-inner {
     display: flex;
-    gap: var(--space-md);
+    flex-wrap: nowrap;
     overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    scroll-padding-inline: var(--space-md);
     -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    gap: var(--space-md);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding-inline: var(--space-md);
+    touch-action: pan-x pan-y;
     scrollbar-width: none;
-    padding: 0 var(--space-md);
-    /* Edge fade */
-    mask-image: linear-gradient(
-      to right,
-      transparent 0px,
-      #000 20px calc(100% - 20px),
-      transparent 100%
-    );
-    -webkit-mask-image: linear-gradient(
-      to right,
-      transparent 0px,
-      #000 20px calc(100% - 20px),
-      transparent 100%
-    );
-  }
-
-  .rail-inner.scrolled {
-    mask-image: linear-gradient(
-      to right,
-      #000 0px,
-      #000 calc(100% - 20px),
-      transparent 100%
-    );
-    -webkit-mask-image: linear-gradient(
-      to right,
-      #000 0px,
-      #000 calc(100% - 20px),
-      transparent 100%
-    );
   }
 
   .rail-inner::-webkit-scrollbar {
@@ -217,6 +179,7 @@
   .kpi-card {
     flex: 0 0 auto;
     width: min(78vw, 280px);
+    min-width: 0;
     scroll-snap-align: start;
     position: relative;
     background: var(--color-surface);
@@ -317,7 +280,8 @@
 
   @media (max-width: 640px) {
     .rail-outer {
-      display: block;
+      display: flex;
+      flex-direction: column;
     }
   }
 </style>
