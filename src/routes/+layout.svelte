@@ -49,7 +49,7 @@ import SearchModal from '$lib/components/SearchModal.svelte';
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 		<meta name="theme-color" content="#2BA8A2" media="(prefers-color-scheme: light)" />
-		<meta name="theme-color" content="#0A0E16" media="(prefers-color-scheme: dark)" />
+		<meta name="theme-color" content="#0B110F" media="(prefers-color-scheme: dark)" />
 </svelte:head>
 
 <PwaUpdate />
@@ -196,6 +196,12 @@ import SearchModal from '$lib/components/SearchModal.svelte';
 				radial-gradient(ellipse 90% 60% at 10% -10%, rgba(43, 168, 162, 0.06) 0%, transparent 40%),
 				radial-gradient(ellipse 70% 40% at 90% 110%, rgba(255, 210, 63, 0.06) 0%, transparent 40%);
 		}
+	}
+
+	/* PageBackground owns the dark ambient blooms — keep this light-only layer
+	   from double-lighting the dark theme. */
+	[data-theme="dark"] .app-shell::before {
+		opacity: 0;
 	}
 
 	/* ── Touch gesture affordance ── */

@@ -53,7 +53,7 @@
 
 <div class="summary-row">
   <!-- INCOME CARD — teal accent -->
-  <article class="card accent-teal">
+  <article class="card accent-teal flip7-card">
     <div class="card-icon-ring income-ring">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
@@ -68,7 +68,7 @@
   </article>
 
   <!-- EXPENSE CARD — coral accent -->
-  <article class="card accent-coral">
+  <article class="card accent-coral flip7-card">
     <div class="card-icon-ring expense-ring">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="23 18 14.5 10.5 9.5 15.5 1 6" />
@@ -83,8 +83,15 @@
   </article>
 
   <!-- BALANCE CARD (HERO — Copilot-style big number) — gold accent -->
-  <article class="card hero" class:negative={displayedBalance < 0}>
+  <article class="card hero flip7-card" class:negative={displayedBalance < 0}>
     <div class="hero-glow"></div>
+    <div class="flip7-watermark" aria-hidden="true">
+      <svg width="120" height="72" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="6" width="20" height="12" rx="2"/>
+        <circle cx="12" cy="12" r="2.5"/>
+        <path d="M6 12h.01M18 12h.01"/>
+      </svg>
+    </div>
     <div class="hero-body">
       <span class="label">Balance</span>
       <span class="hero-value">{balanceSign}{displayBalance}</span>
@@ -98,7 +105,7 @@
   </article>
 
   <!-- SAVINGS CARD — sky accent -->
-  <article class="card accent-sky" class:negative={displayedSavingsRate < 0}>
+  <article class="card accent-sky flip7-card" class:negative={displayedSavingsRate < 0}>
     <div class="savings-donut">
       <svg viewBox="0 0 44 44" width="44" height="44">
         <circle cx="22" cy="22" r="18" fill="none" stroke="var(--color-border)" stroke-width="4" />
@@ -160,6 +167,31 @@
 
   .card.accent-sky {
     border-left-color: var(--color-sky);
+  }
+
+  /* ── Dark signature: the Flip7 ::before accent replaces the light border-left ── */
+  [data-theme="dark"] .card {
+    border-left-width: 0;
+  }
+
+  [data-theme="dark"] .card.accent-teal.flip7-card::before {
+    background: var(--color-teal);
+    box-shadow: var(--glow-card);
+  }
+
+  [data-theme="dark"] .card.accent-coral.flip7-card::before {
+    background: var(--color-coral);
+    box-shadow: var(--glow-coral);
+  }
+
+  [data-theme="dark"] .card.accent-sky.flip7-card::before {
+    background: var(--color-sky);
+    box-shadow: var(--glow-sky);
+  }
+
+  [data-theme="dark"] .card.hero.flip7-card::before {
+    background: var(--color-gold);
+    box-shadow: var(--glow-gold);
   }
 
   /* —— Icon ring — small muted ring, not large filled block —— */
@@ -268,6 +300,11 @@
 
   .hero.negative .hero-value {
     color: var(--color-coral);
+  }
+
+  .hero-body {
+    position: relative;
+    z-index: 1;
   }
 
   .hero-ring {

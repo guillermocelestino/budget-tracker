@@ -685,7 +685,8 @@
 
   .iou-btn-pay {
     background: var(--color-gold);
-    color: var(--color-ink);
+    /* Dark text on gold in BOTH themes — ink flips light in dark mode. */
+    color: var(--color-on-gold);
   }
 
   .iou-btn-pay:hover {
@@ -899,7 +900,8 @@
 
   .action-btn.pay {
     background: var(--color-gold);
-    color: var(--color-ink);
+    /* Dark text on gold in BOTH themes — ink flips light in dark mode. */
+    color: var(--color-on-gold);
   }
 
   .action-btn.pay:hover {

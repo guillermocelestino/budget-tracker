@@ -221,6 +221,11 @@
     background: var(--color-teal-bg);
   }
 
+  /* Dark: the active item reads as a glowing teal pill */
+  [data-theme="dark"] .bn-item.active {
+    box-shadow: var(--glow-card);
+  }
+
   .bn-item:hover {
     color: var(--color-teal);
     text-decoration: none;

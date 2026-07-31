@@ -21,8 +21,10 @@
   <!-- L1: Dark vignette — edges darken, upper-center lifts -->
   <div class="bg-vignette-dark"></div>
 
-  <!-- L2: Brand-tinted ambient glow, slow-drift -->
+  <!-- L2: Brand-tinted ambient glows, slow-drift — teal low-left, gold top-right, coral breath -->
   <div class="bg-ambient-dark"></div>
+  <div class="bg-ambient-gold-dark"></div>
+  <div class="bg-ambient-coral-dark"></div>
 
   <!-- L3: Starfield pinpricks -->
   <div class="bg-starfield-dark"></div>
@@ -131,13 +133,36 @@
     pointer-events: none;
   }
 
-  /* L2: Brand-tinted teal ambient glow, slow-drift */
+  /* L0: Base — vertical depth gradient over the deep green-teal ink */
+  [data-theme="dark"] .page-background {
+    background: linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-deep) 100%);
+  }
+
+  /* L2: Mint/teal ambient bloom — low-left, single hue at low alpha */
   [data-theme="dark"] .bg-ambient-dark {
     position: absolute;
     inset: 0;
-    background: radial-gradient(60% 50% at 50% 0%, rgba(43,168,162,0.08) 0%, transparent 70%);
+    background: radial-gradient(55% 45% at 18% 88%, var(--ambient-teal) 0%, transparent 70%);
     pointer-events: none;
     animation: dark-glow-drift 45s ease-in-out infinite;
+  }
+
+  /* L2: Faint warm-gold ambient bloom — top-right */
+  [data-theme="dark"] .bg-ambient-gold-dark {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(45% 40% at 85% 6%, var(--ambient-gold) 0%, transparent 70%);
+    pointer-events: none;
+    animation: dark-glow-drift 55s ease-in-out infinite alternate;
+  }
+
+  /* L2: Coral breath near the alert zone — bottom-right, very low */
+  [data-theme="dark"] .bg-ambient-coral-dark {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(35% 30% at 96% 92%, var(--ambient-coral) 0%, transparent 70%);
+    pointer-events: none;
+    animation: coral-breath 12s ease-in-out infinite;
   }
 
   @keyframes dark-glow-drift {
@@ -146,6 +171,11 @@
     50%  { transform: translate(-15px, 10px) scale(0.98); opacity: 1; }
     75%  { transform: translate(10px, -10px) scale(1.02); opacity: 0.92; }
     100% { transform: translate(0, 0) scale(1); opacity: 1; }
+  }
+
+  @keyframes coral-breath {
+    0%, 100% { opacity: 0.55; }
+    50%      { opacity: 1; }
   }
 
   /* L3: Starfield pinpricks — fine white dots */
@@ -161,13 +191,19 @@
     .page-background { left: 0; }
     .bg-glow-top, .bg-glow-bottom { animation: none; }
     .bg-teal-wash { opacity: 0.6; }
-    [data-theme="dark"] .bg-ambient-dark { animation: none; }
+    [data-theme="dark"] .bg-ambient-dark,
+    [data-theme="dark"] .bg-ambient-gold-dark,
+    [data-theme="dark"] .bg-ambient-coral-dark {
+      animation: none;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .bg-glow-top,
     .bg-glow-bottom,
-    [data-theme="dark"] .bg-ambient-dark {
+    [data-theme="dark"] .bg-ambient-dark,
+    [data-theme="dark"] .bg-ambient-gold-dark,
+    [data-theme="dark"] .bg-ambient-coral-dark {
       animation: none;
     }
   }

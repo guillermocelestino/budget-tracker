@@ -81,7 +81,7 @@
 <div class="summary-cards">
   <!-- ─── Income Card ─── -->
   <button
-    class="card"
+    class="card flip7-card"
     class:active={activeType === 'income'}
     class:dimmed={activeType !== '' && activeType !== 'income'}
     onclick={() => handleCardClick('income')}
@@ -109,7 +109,7 @@
 
   <!-- ─── Expenses Card ─── -->
   <button
-    class="card"
+    class="card flip7-card"
     class:active={activeType === 'expense'}
     class:dimmed={activeType !== '' && activeType !== 'expense'}
     onclick={() => handleCardClick('expense')}
@@ -137,7 +137,7 @@
 
   <!-- ─── Net Balance Card ─── -->
   <button
-    class="card hero-card"
+    class="card hero-card flip7-card"
     class:active={activeType === 'net'}
     class:dimmed={activeType !== '' && activeType !== 'net'}
     class:negative={netBalance < 0}
@@ -244,6 +244,12 @@
   .hero-card.negative .net-accent {
     background: var(--color-coral);
     box-shadow: var(--glow-coral);
+  }
+
+  /* ── Dark: the accent divs already carry the glowing left bar, so the
+     Flip7 ::before would double it — suppress it here. ── */
+  [data-theme="dark"] .card.flip7-card::before {
+    content: none;
   }
 
   /* ─── Icon ─── */

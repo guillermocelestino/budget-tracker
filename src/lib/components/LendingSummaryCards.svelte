@@ -23,8 +23,15 @@
 </script>
 
 <div class="lending-summary-grid">
-	<div class="summary-card">
+	<div class="summary-card flip7-card">
 		<div class="card-accent {totalAccentClass}"></div>
+		<div class="flip7-watermark" aria-hidden="true">
+			<svg width="96" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+				<rect x="2" y="6" width="20" height="12" rx="2"/>
+				<circle cx="12" cy="12" r="2.5"/>
+				<path d="M6 12h.01M18 12h.01"/>
+			</svg>
+		</div>
 		<div class="card-icon {totalAccentClass}">
 			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
@@ -36,7 +43,7 @@
 			<span class="card-value">{formatCurrency(totalLent)}</span>
 		</div>
 	</div>
-	<div class="summary-card">
+	<div class="summary-card flip7-card">
 		<div class="card-accent {recoveredAccentClass}"></div>
 		<div class="card-icon {recoveredAccentClass}">
 			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -49,7 +56,7 @@
 			<span class="card-value recovered">{formatCurrency(totalRecovered)}</span>
 		</div>
 	</div>
-	<div class="summary-card">
+	<div class="summary-card flip7-card">
 		<div class="card-accent {outstandingAccentClass}"></div>
 		<div class="card-icon {outstandingAccentClass}">
 			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -109,6 +116,16 @@
 	.card-accent.repaid { background: linear-gradient(180deg, var(--color-coral), var(--color-gold)); }
 	.card-accent.owing { background: var(--color-teal); }
 
+	/* ── Dark signature: the Flip7 ::before replaces the accent div ── */
+	[data-theme="dark"] .card-accent { display: none; }
+
+	[data-theme="dark"] .summary-card:has(.card-accent.lent)::before { background: var(--color-teal); box-shadow: var(--glow-card); }
+	[data-theme="dark"] .summary-card:has(.card-accent.recovered)::before { background: linear-gradient(180deg, var(--color-teal), var(--color-gold)); box-shadow: var(--glow-card); }
+	[data-theme="dark"] .summary-card:has(.card-accent.outstanding)::before { background: var(--color-coral); box-shadow: var(--glow-coral); }
+	[data-theme="dark"] .summary-card:has(.card-accent.borrowed)::before { background: var(--color-coral); box-shadow: var(--glow-coral); }
+	[data-theme="dark"] .summary-card:has(.card-accent.repaid)::before { background: linear-gradient(180deg, var(--color-coral), var(--color-gold)); box-shadow: var(--glow-coral); }
+	[data-theme="dark"] .summary-card:has(.card-accent.owing)::before { background: var(--color-teal); box-shadow: var(--glow-card); }
+
 	.card-icon {
 		width: 44px;
 		height: 44px;
@@ -151,6 +168,7 @@
 	}
 
 	.card-content {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		z-index: 1;

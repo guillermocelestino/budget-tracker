@@ -98,6 +98,15 @@
   <!-- ═══ Gold warm halo around the balance number ═══ -->
   <div class="vault-glow"></div>
 
+  <!-- ═══ Ghosted banknote watermark (dark only, behind the value) ═══ -->
+  <div class="flip7-watermark" aria-hidden="true">
+    <svg width="180" height="110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="6" width="20" height="12" rx="2"/>
+      <circle cx="12" cy="12" r="2.5"/>
+      <path d="M6 12h.01M18 12h.01"/>
+    </svg>
+  </div>
+
   <!-- ═══ Section 1: Hero Balance ═══ -->
   <div class="vault-hero">
     <span class="vault-eyebrow">Total Balance</span>
@@ -514,7 +523,7 @@
     }
 
     .vault-hero {
-      padding: var(--space-lg) var(--space-md) var(--space-sm);
+      padding: var(--space-lg) var(--space-md) var(--space-md);
     }
 
     .vault-glow {
@@ -568,7 +577,7 @@
 
   @media (max-width: 480px) {
     .vault-hero {
-      padding: var(--space-md) var(--space-sm) var(--space-xs);
+      padding: var(--space-md) var(--space-sm) var(--space-md) var(--space-md);
     }
 
     .vault-glow {
