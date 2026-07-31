@@ -116,7 +116,7 @@ import SearchModal from '$lib/components/SearchModal.svelte';
 	:global(body) {
 		padding-top: var(--safe-top);
 		padding-bottom: var(--safe-bottom);
-		overflow-x: hidden;
+		overflow-x: clip;
 		-webkit-tap-highlight-color: transparent;
 	}
 
@@ -151,7 +151,7 @@ import SearchModal from '$lib/components/SearchModal.svelte';
 	:global(body),
 	:global(html) {
 		scroll-behavior: smooth;
-		overflow-x: hidden;
+		overflow-x: clip;
 	}
 
 	/* ── Offline banner ── */
@@ -221,6 +221,7 @@ import SearchModal from '$lib/components/SearchModal.svelte';
 
 		.main-area {
 			flex: 1;
+			min-width: 0;
 			margin-left: var(--sidebar-width);
 			min-height: 100vh;
 		}
