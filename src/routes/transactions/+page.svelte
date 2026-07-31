@@ -5,6 +5,7 @@
   import PageHeader from '$lib/components/PageHeader.svelte';
   import PageBackground from '$lib/components/PageBackground.svelte';
   import Button from '$lib/components/Button.svelte';
+  import ConfettiBurst from '$lib/components/ConfettiBurst.svelte';
   import TransactionSummary from '$lib/components/TransactionSummary.svelte';
   import TransactionFilters from '$lib/components/TransactionFilters.svelte';
   import TransactionList from '$lib/components/TransactionList.svelte';
@@ -131,22 +132,6 @@
   let importResult = $state<{ imported?: number; total?: number; skippedDuplicates?: number; skippedInvalid?: number } | null>(null);
   let importError = $state('');
   let importSubmitting = $state(false);
-
-  // Confetti pieces for the earned success moment — fired only when N>0 rows
-  // were actually inserted. Deterministic layout, brand palette, CSS keyframes.
-  const CONFETTI_COLORS = ['var(--color-teal)', 'var(--color-gold)', 'var(--color-coral)', 'var(--color-sky)'];
-  const confettiPieces = $derived(
-    importResult && (importResult.imported ?? 0) > 0
-      ? Array.from({ length: 28 }, (_, i) => ({
-          left: (i * 37 + 13) % 100,
-          delay: (i % 10) * 0.06,
-          duration: 0.9 + (i % 5) * 0.18,
-          color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-          size: 6 + (i % 4) * 3,
-          rot: (i % 360) * 2,
-        }))
-      : []
-  );
 
   // ─── Handle file upload ───
 
@@ -515,16 +500,7 @@
 
 		{#if importStep === 'done' && importResult}
 			<div class="import-done">
-				{#if confettiPieces.length > 0}
-					<div class="confetti" aria-hidden="true">
-						{#each confettiPieces as piece, i}
-							<span
-								class="confetti-piece"
-								style="left: {piece.left}%; width: {piece.size}px; height: {piece.size}px; background: {piece.color}; animation-delay: {piece.delay}s; animation-duration: {piece.duration}s; transform: rotate({piece.rot}deg);"
-							></span>
-						{/each}
-					</div>
-				{/if}
+				<ConfettiBurst active={(importResult.imported ?? 0) > 0} />
 				<div class="done-icon">
 					<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
@@ -820,22 +796,6 @@
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-card);
     animation: bounce-in 500ms var(--bounce) both;
-  }
-
-  .confetti {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    overflow: hidden;
-    border-radius: inherit;
-  }
-
-  .confetti-piece {
-    position: absolute;
-    top: -12px;
-    border-radius: 2px;
-    opacity: 0;
-    animation: confetti-fall 1.2s var(--ease) forwards;
   }
 
   .done-icon {

@@ -1,33 +1,67 @@
 <script lang="ts">
 	import { formatCurrency } from '$lib/utils/format';
-	import type { MappedTransaction } from '$lib/utils/importValidation';
+	import type { ImportRow, ImportPreviewColumn, ImportValidationResult } from '$lib/utils/importValidation';
+
+	/** Default transactions columns — reproduces the original table exactly. */
+	const DEFAULT_COLUMNS: ImportPreviewColumn[] = [
+		{ header: 'Status', key: '_status', kind: 'status' },
+		{ header: 'Date', key: 'date', kind: 'date' },
+		{ header: 'Description', key: 'description', kind: 'text', cls: 'cell-desc' },
+		{ header: 'Category', key: 'category_name', kind: 'text', cls: 'cell-cat' },
+		{ header: 'Type', key: 'type', kind: 'type' },
+		{ header: 'Amount', key: 'amount', kind: 'amount', align: 'right' },
+	];
 
 	let {
 		rows = [],
-		validation = { validRows: [], invalidRows: [], unknownCategories: [] },
+		validation = { validRows: [], invalidRows: [], unknownCategories: [] } as ImportValidationResult,
 		onConfirm,
 		onCancel,
+		columns = DEFAULT_COLUMNS,
+		confirmLabel = 'Import {n} Transactions',
+		summaryHint = 'Invalid rows will be skipped. Fix your CSV or add missing categories to import them.',
+		unknownTitle = 'Unknown categories:',
+		unknownHint = 'Add these in <a href="/categories" target="_blank">Categories</a> or fix the CSV, then re-import.',
+		newNamesTitle = '',
+		newNamesHint = '',
 	}: {
-		rows: MappedTransaction[];
-		validation: {
-			validRows: MappedTransaction[];
-			invalidRows: { row: MappedTransaction; errors: string[]; warnings: string[] }[];
-			unknownCategories: string[];
-		};
+		rows: ImportRow[];
+		validation: ImportValidationResult;
 		onConfirm?: () => void;
 		onCancel?: () => void;
+		columns?: ImportPreviewColumn[];
+		confirmLabel?: string;
+		summaryHint?: string;
+		unknownTitle?: string;
+		unknownHint?: string;
+		newNamesTitle?: string;
+		newNamesHint?: string;
 	} = $props();
 
 	const validCount = $derived(validation.validRows.length);
 	const invalidCount = $derived(validation.invalidRows.length);
 	const totalCount = $derived(rows.length);
-	const validTotal = $derived(validation.validRows.reduce((s, r) => s + r.amount, 0));
+	const validTotal = $derived(
+		validation.validRows.reduce((s, r) => s + (Number(r.amount) || 0), 0)
+	);
+	const confirmText = $derived(confirmLabel.replace('{n}', String(validCount)));
 
-	// Combine valid and invalid rows for display
-	const displayRows = $derived([
-		...validation.validRows.map((r, i) => ({ ...r, _status: 'valid' as const, _index: i, _originalIndex: rows.indexOf(r) })),
-		...validation.invalidRows.map(({ row }, i) => ({ ...row, _status: 'invalid' as const, _index: i, _errors: validation.invalidRows[i].errors, _warnings: validation.invalidRows[i].warnings, _originalIndex: rows.indexOf(row) })),
-	]);
+	// Combine valid and invalid rows for display (keep the spread of row fields
+	// plus status metadata on the same object).
+	type DisplayRow = ImportRow & {
+		_status: 'valid' | 'invalid';
+		_index: number;
+		_originalIndex: number;
+		_errors?: string[];
+		_warnings?: string[];
+	};
+
+	const displayRows = $derived<DisplayRow[]>(
+		[
+			...validation.validRows.map((r, i) => ({ ...r, _status: 'valid' as const, _index: i, _originalIndex: rows.indexOf(r) })),
+			...validation.invalidRows.map(({ row }, i) => ({ ...row, _status: 'invalid' as const, _index: i, _errors: validation.invalidRows[i].errors, _warnings: validation.invalidRows[i].warnings, _originalIndex: rows.indexOf(row) })),
+		]
+	);
 </script>
 
 <div class="import-preview">
@@ -68,9 +102,22 @@
 				<line x1="12" x2="12.01" y1="17" y2="17"/>
 			</svg>
 			<span>
-				<strong>Unknown categories:</strong> {validation.unknownCategories.join(', ')}
+				<strong>{unknownTitle}</strong> {validation.unknownCategories.join(', ')}
 				<br>
-				<small>Add these in <a href="/categories" target="_blank">Categories</a> or fix the CSV, then re-import.</small>
+				<small>{@html unknownHint}</small>
+			</span>
+		</div>
+	{/if}
+
+	{#if (validation.newNames ?? []).length > 0}
+		<div class="new-names-banner">
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+				<circle cx="12" cy="7" r="4"/>
+			</svg>
+			<span>
+				<strong>{newNamesTitle}</strong> {(validation.newNames ?? []).join(', ')}
+				{#if newNamesHint}<br><small>{newNamesHint}</small>{/if}
 			</span>
 		</div>
 	{/if}
@@ -79,41 +126,47 @@
 		<table class="preview-table">
 			<thead>
 				<tr>
-					<th>Status</th>
-					<th>Date</th>
-					<th>Description</th>
-					<th>Category</th>
-					<th>Type</th>
-					<th class="text-right">Amount</th>
+					{#each columns as col}
+						<th class:text-right={col.align === 'right'}>{col.header}</th>
+					{/each}
 				</tr>
 			</thead>
 			<tbody>
 				{#each displayRows as row, i}
 					<tr class={row._status === 'valid' ? 'row-valid' : 'row-invalid'}>
-						<td class="status-cell">
-							{#if row._status === 'valid'}
-								<div class="status-dot status-valid" title="Valid"></div>
+						{#each columns as col}
+							{#if col.kind === 'status'}
+								<td class="status-cell">
+									{#if row._status === 'valid'}
+										<div class="status-dot status-valid" title="Valid"></div>
+									{:else}
+										<div class="status-dot status-invalid" title="Invalid"></div>
+									{/if}
+								</td>
+							{:else if col.kind === 'amount'}
+								<td class="cell-amount" class:text-right={col.align === 'right'} class:amount-income={row.type === 'income'} class:amount-expense={row.type === 'expense'}>
+									{formatCurrency(Number(row[col.key]))}
+								</td>
+							{:else if col.kind === 'type'}
+								<td>
+									{#if row.type}
+										<span class="type-chip" class:income={row.type === 'income'} class:expense={row.type !== 'income'}>
+											{row.type}
+										</span>
+									{:else}—{/if}
+								</td>
+							{:else if col.kind === 'date'}
+								<td class="cell-date">{String(row[col.key] ?? '')}</td>
 							{:else}
-								<div class="status-dot status-invalid" title="Invalid"></div>
+								<td class:cell-desc={col.cls === 'cell-desc'} class:cell-cat={col.cls === 'cell-cat'}>{String(row[col.key] ?? '')}</td>
 							{/if}
-						</td>
-						<td class="cell-date">{row.date}</td>
-						<td class="cell-desc">{row.description}</td>
-						<td class="cell-cat">{row.category_name}</td>
-						<td>
-							<span class="type-chip" class:income={row.type === 'income'} class:expense={row.type !== 'income'}>
-								{row.type}
-							</span>
-						</td>
-						<td class="cell-amount text-right" class:amount-income={row.type === 'income'} class:amount-expense={row.type !== 'income'}>
-							{formatCurrency(row.amount)}
-						</td>
+						{/each}
 					</tr>
 					{#if row._status === 'invalid'}
 						<tr class="error-row">
-							<td colspan="6">
+							<td colspan={columns.length}>
 								<div class="error-detail">
-									{#each row._errors as err}
+									{#each row._errors ?? [] as err}
 										<div class="error-item">
 											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/>
@@ -121,7 +174,7 @@
 											{err}
 										</div>
 									{/each}
-									{#each row._warnings as warn}
+									{#each row._warnings ?? [] as warn}
 										<div class="warning-item">
 											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -146,7 +199,7 @@
 			<span class="summary-sub">Total: {formatCurrency(validTotal)}</span>
 		</div>
 		<div class="summary-hint">
-			Invalid rows will be skipped. Fix your CSV or add missing categories to import them.
+			{summaryHint}
 		</div>
 	</div>
 
@@ -160,7 +213,7 @@
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 				<polyline points="20 6 9 17 4 12"/>
 			</svg>
-			Import {validCount} Transactions
+			{confirmText}
 		</button>
 		<button class="btn-cancel" onclick={onCancel} type="button">Cancel</button>
 	</div>
@@ -256,6 +309,27 @@
 	}
 
 	.unknown-categories-banner small {
+		color: var(--color-text-muted);
+	}
+
+	.new-names-banner {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--space-sm);
+		padding: var(--space-md) var(--space-lg);
+		background: var(--color-teal-bg);
+		border-bottom: 1px solid var(--color-teal);
+		color: var(--color-teal);
+		font-size: var(--font-size-sm);
+		line-height: 1.5;
+	}
+
+	.new-names-banner svg {
+		flex-shrink: 0;
+		margin-top: 2px;
+	}
+
+	.new-names-banner small {
 		color: var(--color-text-muted);
 	}
 

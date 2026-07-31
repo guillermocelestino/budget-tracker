@@ -1,15 +1,62 @@
-export interface MappedTransaction {
+// Type alias (not interface) so it gains an implicit index signature and is
+// assignable to ImportRow (Record<string, unknown>) for the schema-driven
+// preview components.
+export type MappedTransaction = {
 	date: string;
 	description: string;
 	amount: number;
 	type: 'income' | 'expense';
 	category_name: string;
-}
+};
 
 export interface ValidationResult {
 	valid: boolean;
 	errors: string[];
 	warnings: string[];
+}
+
+/**
+ * Generic imported row. Domain rows (MappedTransaction, MappedLendingRow) are
+ * assignable to this — the schema-driven components render by field key.
+ */
+export type ImportRow = Record<string, unknown>;
+
+/**
+ * A mapping-target definition for the schema-driven ImportMapping/ImportPreview
+ * components. `key` is the row field name, `label` its display text, `required`
+ * means the column must be mapped before the preview/Confirm enables.
+ * `aliases` feed autoMap() when this field's CSV headers are guessed.
+ */
+export interface ImportFieldDef {
+	key: string;
+	label: string;
+	required?: boolean;
+	aliases?: string[];
+}
+
+/**
+ * A preview table column: `key` reads `row[key]`; `kind` decides rendering
+ * (status dot / date / amount via formatCurrency / plain text / type chip).
+ */
+export interface ImportPreviewColumn {
+	header: string;
+	key: string;
+	kind: 'status' | 'date' | 'amount' | 'text' | 'type';
+	align?: 'left' | 'right';
+	/** optional extra td class (e.g. 'cell-desc' for truncation) */
+	cls?: string;
+}
+
+/**
+ * Generic validation batch result. `unknownCategories` drives the coral banner
+ * (transactions); `newNames` drives the teal "will be created" banner (lending
+ * people, which are auto-created on confirm).
+ */
+export interface ImportValidationResult<T = ImportRow> {
+	validRows: T[];
+	invalidRows: { row: T; errors: string[]; warnings: string[] }[];
+	unknownCategories: string[];
+	newNames?: string[];
 }
 
 /**
@@ -23,12 +70,19 @@ export interface ImportMappingConfig {
 }
 
 /**
- * Single shared normalizer for category names — used by BOTH the client preview
- * and the server store so their verdicts can never disagree. Trim + lowercase
- * on both the allow-list entries and the CSV value.
+ * Canonical shared name normalizer — trim + lowercase. Used for category names
+ * AND lending person names, by BOTH the client preview and the server store so
+ * their verdicts can never disagree.
+ */
+export function normName(s: string): string {
+	return (s ?? '').trim().toLowerCase();
+}
+
+/**
+ * Back-compat alias — categories resolve with the same normalization.
  */
 export function normCategoryName(s: string): string {
-	return (s ?? '').trim().toLowerCase();
+	return normName(s);
 }
 
 /**
@@ -505,24 +559,31 @@ export function parseCSV(text: string): { headers: string[]; rows: string[][] } 
 }
 
 /**
- * Auto-map CSV header names to import fields using common synonyms.
- * Returns a Record<header, field>; unmapped headers are left out (→ "skip").
+ * The default transactions field definitions — the exact mapping targets and
+ * synonym table the transactions import has always used. Used as the default
+ * by ImportMapping and autoMap, so the transactions behavior is unchanged.
  */
-export function autoMap(cols: string[]): Record<string, string> {
+export const DEFAULT_IMPORT_FIELDS: ImportFieldDef[] = [
+	{ key: 'date', label: '📅 Date', required: true, aliases: ['date', 'transaction date', 'posting date', 'fecha', 'datum', 'data', 'valor', 'booking date'] },
+	{ key: 'description', label: '📝 Description', aliases: ['description', 'desc', 'description', 'name', 'notes', 'note', 'memo', 'payee', 'merchant', 'details', 'narrative', 'transaction'] },
+	{ key: 'amount', label: '💰 Amount', required: true, aliases: ['amount', 'amt', 'value', 'sum', 'total', 'price', 'cost', 'number', 'num', 'transaction amount', 'withdrawal amount', 'deposit amount'] },
+	{ key: 'type', label: '🔀 Type (income/expense)', aliases: ['type', 'kind', 'category type', 'transaction type', 'class', 'transaction type'] },
+	{ key: 'category_name', label: '📁 Category Name', aliases: ['category', 'cat', 'category name', 'group', 'label', 'tags', 'category label'] },
+];
+
+/**
+ * Auto-map CSV header names to import fields using each field def's synonyms.
+ * Returns a Record<header, field>; unmapped headers are left out (→ "skip").
+ * Passing a defs list (e.g. the lending field defs) maps those headers; the
+ * default reproduces the original transactions synonym table exactly.
+ */
+export function autoMap(cols: string[], defs: ImportFieldDef[] = DEFAULT_IMPORT_FIELDS): Record<string, string> {
 	const map: Record<string, string> = {};
 	const lower = cols.map(c => c.toLowerCase().replace(/[\s_]+/g, ' ').trim());
-	const known: [string, string[]][] = [
-		['date', ['date', 'transaction date', 'posting date', 'fecha', 'datum', 'data', 'valor', 'booking date']],
-		['description', ['description', 'desc', 'description', 'name', 'notes', 'note', 'memo', 'payee', 'merchant', 'details', 'narrative', 'transaction']],
-		['amount', ['amount', 'amt', 'value', 'sum', 'total', 'price', 'cost', 'number', 'num', 'transaction amount', 'withdrawal amount', 'deposit amount']],
-		['type', ['type', 'kind', 'category type', 'transaction type', 'class', 'transaction type']],
-		['category_name', ['category', 'cat', 'category name', 'group', 'label', 'tags', 'category label']],
-	];
-
-	for (const [field, aliases] of known) {
+	for (const def of defs) {
 		for (let i = 0; i < lower.length; i++) {
-			if (aliases.includes(lower[i]) && cols[i] && !Object.values(map).includes(field)) {
-				map[cols[i]] = field;
+			if (def.aliases?.includes(lower[i]) && cols[i] && !Object.values(map).includes(def.key)) {
+				map[cols[i]] = def.key;
 				break;
 			}
 		}

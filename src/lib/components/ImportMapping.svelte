@@ -1,5 +1,9 @@
 <script lang="ts">
-	import type { ImportMappingConfig } from '$lib/utils/importValidation';
+	import {
+		DEFAULT_IMPORT_FIELDS,
+		type ImportMappingConfig,
+		type ImportFieldDef,
+	} from '$lib/utils/importValidation';
 
 	let {
 		columns = [],
@@ -7,24 +11,29 @@
 		onChange,
 		config = { dateFormat: 'YYYY-MM-DD', typeRule: 'sign' } as ImportMappingConfig,
 		onConfigChange,
+		fields = DEFAULT_IMPORT_FIELDS,
+		showTypeRule = true,
 	}: {
 		columns: string[];
 		mapping?: Record<string, string>;
 		onChange?: (col: string, field: string) => void;
 		config?: ImportMappingConfig;
 		onConfigChange?: (key: keyof ImportMappingConfig, value: string) => void;
+		fields?: ImportFieldDef[];
+		showTypeRule?: boolean;
 	} = $props();
 
-	const fieldOptions = [
+	// Schema-driven mapping targets — default reproduces the original
+	// transactions field list exactly.
+	const fieldOptions = $derived([
 		{ value: 'skip', label: '— Skip column —' },
-		{ value: 'date', label: '📅 Date' },
-		{ value: 'description', label: '📝 Description' },
-		{ value: 'amount', label: '💰 Amount' },
-		{ value: 'type', label: '🔀 Type (income/expense)' },
-		{ value: 'category_name', label: '📁 Category Name' },
-	];
+		...fields.map(f => ({ value: f.key, label: f.label })),
+	]);
 
-	const requiredFields = ['amount', 'date'];
+	const requiredFields = $derived(fields.filter(f => f.required).map(f => f.key));
+	const requiredPlain = $derived(
+		fields.filter(f => f.required).map(f => f.label.replace(/^\S+\s+/, ''))
+	);
 	const mappedValues = $derived(Object.values(mapping));
 	const hasRequired = $derived(requiredFields.every(f => mappedValues.includes(f)));
 
@@ -96,17 +105,19 @@
 			<p class="option-hint">How dates are formatted in your CSV</p>
 		</fieldset>
 
-		<fieldset class="option-group">
-			<legend>Type Rule</legend>
-			<div class="select-wrap">
-				<select value={config.typeRule} onchange={(e) => onConfigChange?.('typeRule', (e.target as HTMLSelectElement).value)}>
-					{#each typeRules as rule}
-						<option value={rule.value} selected={config.typeRule === rule.value}>{rule.label}</option>
-					{/each}
-				</select>
-			</div>
-			<p class="option-hint">How to determine income vs expense from the amount</p>
-		</fieldset>
+		{#if showTypeRule}
+			<fieldset class="option-group">
+				<legend>Type Rule</legend>
+				<div class="select-wrap">
+					<select value={config.typeRule} onchange={(e) => onConfigChange?.('typeRule', (e.target as HTMLSelectElement).value)}>
+						{#each typeRules as rule}
+							<option value={rule.value} selected={config.typeRule === rule.value}>{rule.label}</option>
+						{/each}
+					</select>
+				</div>
+				<p class="option-hint">How to determine income vs expense from the amount</p>
+			</fieldset>
+		{/if}
 	</div>
 
 	{#if !hasRequired}
@@ -116,7 +127,7 @@
 				<line x1="12" x2="12" y1="9" y2="13"/>
 				<line x1="12" x2="12.01" y1="17" y2="17"/>
 			</svg>
-			Map the <strong>Amount</strong> and <strong>Date</strong> columns to continue
+			Map the <strong>{requiredPlain.join(' and ')}</strong> columns to continue
 		</p>
 	{/if}
 </div>

@@ -2,9 +2,13 @@
 	let {
 		onFiles,
 		onDownloadSample,
+		sampleHref = '/sample-transactions.csv',
+		sampleFilename = 'sample-transactions.csv',
 	}: {
 		onFiles?: (file: File) => void;
 		onDownloadSample?: () => void;
+		sampleHref?: string;
+		sampleFilename?: string;
 	} = $props();
 
 	let isDragging = $state(false);
@@ -82,7 +86,7 @@
 			Browse Files
 		</button>
 		{#if onDownloadSample}
-			<a href="/sample-transactions.csv" download="sample-transactions.csv" class="drop-sample-link">
+			<a href={sampleHref} download={sampleFilename} class="drop-sample-link">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
 					<polyline points="7 10 12 15 17 10"/>

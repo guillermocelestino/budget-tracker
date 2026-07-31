@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { queryMany, queryOne, execute } from '$lib/database/query';
 import type { Lending } from '$lib/types';
+import { importLendingsForUser } from '$lib/server/lendingImport';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -162,5 +163,15 @@ export const actions = {
 
 		await execute('DELETE FROM lendings WHERE user_id = $1 AND id = $2', [userId, id]);
 		return { success: true };
+	},
+
+	import: async ({ request, locals }) => {
+		const data = await request.formData();
+		return importLendingsForUser(
+			locals.user!.userId,
+			data.get('rows') as string,
+			data.get('config') as string,
+			'borrowed'
+		);
 	},
 };

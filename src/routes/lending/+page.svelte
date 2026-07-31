@@ -8,6 +8,8 @@
   import PageBackground from '$lib/components/PageBackground.svelte';
   import LendingBalanceHeader from '$lib/components/LendingBalanceHeader.svelte';
   import ActiveIouList from '$lib/components/ActiveIouList.svelte';
+  import Button from '$lib/components/Button.svelte';
+  import LendingImport from '$lib/components/LendingImport.svelte';
   import { showSuccess, showError } from '$lib/stores/toast.svelte';
   import type { Lending } from '$lib/types';
 
@@ -20,10 +22,14 @@
   let markPaidId = $state<number | null>(null);
   let recordAsIncome = $state(true);
   let deleteId = $state<number | null>(null);
+  let importSlideOpen = $state(false);
 
   const activeLendings = $derived(data.activeLendings ?? []);
   const paidLendings = $derived(data.paidLendings ?? []);
   const totals = $derived(data.totals ?? { totalLent: 0, totalRecovered: 0, outstanding: 0 });
+  const existingPeople = $derived(
+    Array.from(new Set([...activeLendings, ...paidLendings].map(l => l.borrower_name)))
+  );
 
   const showLendings: Lending[] = $derived(activeTab === 'active' ? activeLendings : paidLendings);
 
@@ -49,13 +55,23 @@
 
 <PageHeader title="Lending">
   {#snippet action()}
-    <button class="btn-add" onclick={openAdd}>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="12" x2="12" y1="5" y2="19"/>
-        <line x1="5" x2="19" y1="12" y2="12"/>
-      </svg>
-      New Lending
-    </button>
+    <div class="header-actions">
+      <button class="btn-add" onclick={openAdd}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" x2="12" y1="5" y2="19"/>
+          <line x1="5" x2="19" y1="12" y2="12"/>
+        </svg>
+        New Lending
+      </button>
+      <Button variant="ghost" onclick={() => (importSlideOpen = true)}>
+        <svg class="btn-lead" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Import CSV
+      </Button>
+    </div>
   {/snippet}
 </PageHeader>
 
@@ -80,6 +96,15 @@
     />
   {/snippet}
 </SlideOver>
+
+<!-- ═══ CSV Import wizard ═══ -->
+<LendingImport
+  open={importSlideOpen}
+  onClose={() => (importSlideOpen = false)}
+  existingPeople={existingPeople}
+  noun="Lendings"
+  title="Import Lendings"
+/>
 
 <!-- ═══ Tabs + View Toggle ═══ -->
 <div class="tabs-row">
@@ -192,6 +217,24 @@
 {/if}
 
 <style>
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .btn-lead {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    font-weight: var(--font-weight-extrabold);
+  }
+
   .btn-add {
     display: inline-flex;
     align-items: center;

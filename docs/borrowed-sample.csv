@@ -1,0 +1,9 @@
+Lender,Amount,Interest Rate,Date Borrowed,Due Date,Notes
+Tita Beth,3000,2,2026-06-15,2026-09-15,Borrowed for market day
+Kuya Jon,15000,0,2026-06-20,,School fee advance
+Carlo,2500,5,2026-06-25,2026-07-25,Gadget installment
+New Lender,1000,1,2026-07-12,2026-08-12,Unknown lender auto-created
+Jessa,0,0,2026-06-30,,Zero amount
+Mark,-500,0,2026-07-05,,Negative amount
+Aling Rosa,2000,0,2026-07-32,2026-08-15,Bad date borrowed
+Tita Beth,3000,2,2026-06-15,2026-09-15,Duplicate of row 1
