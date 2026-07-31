@@ -1,8 +1,10 @@
 <script lang="ts">
 	let {
 		onFiles,
+		onDownloadSample,
 	}: {
 		onFiles?: (file: File) => void;
+		onDownloadSample?: () => void;
 	} = $props();
 
 	let isDragging = $state(false);
@@ -34,6 +36,13 @@
 		}
 		input.value = '';
 	}
+
+	function handleKeyDown(e: KeyboardEvent) {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			document.getElementById('import-file-input')?.click();
+		}
+	}
 </script>
 
 <div
@@ -45,7 +54,7 @@
 	ondragover={handleDragOver}
 	ondragleave={handleDragLeave}
 	ondrop={handleDrop}
-	onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') document.getElementById('import-file-input')?.click(); }}
+	onkeydown={handleKeyDown}
 >
 	<div class="drop-content">
 		<div class="drop-icon">
@@ -72,6 +81,16 @@
 		>
 			Browse Files
 		</button>
+		{#if onDownloadSample}
+			<a href="/sample-transactions.csv" download="sample-transactions.csv" class="drop-sample-link">
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+					<polyline points="7 10 12 15 17 10"/>
+					<line x1="12" y1="15" x2="12" y2="3"/>
+				</svg>
+				Download sample CSV
+			</a>
+		{/if}
 	</div>
 </div>
 
@@ -85,7 +104,7 @@
 		cursor: pointer;
 		transition: all 250ms var(--bounce);
 		outline: none;
-		min-height: 200px;
+		min-height: 240px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -172,5 +191,38 @@
 
 	.drop-btn:active {
 		transform: scale(0.96);
+	}
+
+	.drop-sample-link {
+		pointer-events: auto;
+		margin-top: var(--space-md);
+		padding: var(--space-xs) var(--space-md);
+		background: var(--color-surface);
+		color: var(--color-teal);
+		border: 1px dashed var(--color-teal);
+		border-radius: var(--radius-pill);
+		font-family: var(--font-body);
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		text-decoration: none;
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-xs);
+		transition: all 150ms var(--ease);
+	}
+
+	.drop-sample-link:hover {
+		background: var(--color-teal-bg);
+		border-style: solid;
+		text-decoration: none;
+		color: var(--color-teal-dark);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.drop-zone,
+		.drop-btn,
+		.drop-sample-link {
+			transition: none;
+		}
 	}
 </style>

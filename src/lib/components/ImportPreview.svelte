@@ -1,30 +1,85 @@
 <script lang="ts">
 	import { formatCurrency } from '$lib/utils/format';
+	import type { MappedTransaction } from '$lib/utils/importValidation';
 
 	let {
 		rows = [],
+		validation = { validRows: [], invalidRows: [], unknownCategories: [] },
 		onConfirm,
 		onCancel,
 	}: {
-		rows: { date: string; description: string; amount: number; type: string; category_name: string }[];
+		rows: MappedTransaction[];
+		validation: {
+			validRows: MappedTransaction[];
+			invalidRows: { row: MappedTransaction; errors: string[]; warnings: string[] }[];
+			unknownCategories: string[];
+		};
 		onConfirm?: () => void;
 		onCancel?: () => void;
 	} = $props();
 
-	const totalAmount = $derived(rows.reduce((s, r) => s + r.amount, 0));
-	const count = $derived(rows.length);
+	const validCount = $derived(validation.validRows.length);
+	const invalidCount = $derived(validation.invalidRows.length);
+	const totalCount = $derived(rows.length);
+	const validTotal = $derived(validation.validRows.reduce((s, r) => s + r.amount, 0));
+
+	// Combine valid and invalid rows for display
+	const displayRows = $derived([
+		...validation.validRows.map((r, i) => ({ ...r, _status: 'valid' as const, _index: i, _originalIndex: rows.indexOf(r) })),
+		...validation.invalidRows.map(({ row }, i) => ({ ...row, _status: 'invalid' as const, _index: i, _errors: validation.invalidRows[i].errors, _warnings: validation.invalidRows[i].warnings, _originalIndex: rows.indexOf(row) })),
+	]);
 </script>
 
 <div class="import-preview">
 	<div class="preview-header">
-		<h3>Preview Import</h3>
-		<span class="preview-count">{count} transactions · {formatCurrency(totalAmount)} total</span>
+		<div class="preview-title">
+			<h3>
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<rect x="2" y="3" width="20" height="14" rx="2" />
+					<path d="M8 21h8" />
+					<path d="M12 17v4" />
+				</svg>
+				Preview Import
+			</h3>
+		</div>
+		<div class="preview-chips">
+			<span class="chip chip-teal">
+				<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+					<polyline points="20 6 9 17 4 12"/>
+				</svg>
+				{validCount} valid
+			</span>
+			{#if invalidCount > 0}
+				<span class="chip chip-coral">
+					<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/>
+					</svg>
+					{invalidCount} invalid
+				</span>
+			{/if}
+		</div>
 	</div>
+
+	{#if validation.unknownCategories.length > 0}
+		<div class="unknown-categories-banner">
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+				<line x1="12" x2="12" y1="9" y2="13"/>
+				<line x1="12" x2="12.01" y1="17" y2="17"/>
+			</svg>
+			<span>
+				<strong>Unknown categories:</strong> {validation.unknownCategories.join(', ')}
+				<br>
+				<small>Add these in <a href="/categories" target="_blank">Categories</a> or fix the CSV, then re-import.</small>
+			</span>
+		</div>
+	{/if}
 
 	<div class="preview-table-wrap">
 		<table class="preview-table">
 			<thead>
 				<tr>
+					<th>Status</th>
 					<th>Date</th>
 					<th>Description</th>
 					<th>Category</th>
@@ -33,8 +88,15 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each rows.slice(0, 20) as row, i}
-					<tr>
+				{#each displayRows as row, i}
+					<tr class={row._status === 'valid' ? 'row-valid' : 'row-invalid'}>
+						<td class="status-cell">
+							{#if row._status === 'valid'}
+								<div class="status-dot status-valid" title="Valid"></div>
+							{:else}
+								<div class="status-dot status-invalid" title="Invalid"></div>
+							{/if}
+						</td>
 						<td class="cell-date">{row.date}</td>
 						<td class="cell-desc">{row.description}</td>
 						<td class="cell-cat">{row.category_name}</td>
@@ -43,24 +105,62 @@
 								{row.type}
 							</span>
 						</td>
-						<td class="cell-amount" class:amount-income={row.type === 'income'} class:amount-expense={row.type !== 'income'}>
+						<td class="cell-amount text-right" class:amount-income={row.type === 'income'} class:amount-expense={row.type !== 'income'}>
 							{formatCurrency(row.amount)}
 						</td>
 					</tr>
+					{#if row._status === 'invalid'}
+						<tr class="error-row">
+							<td colspan="6">
+								<div class="error-detail">
+									{#each row._errors as err}
+										<div class="error-item">
+											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+												<circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/>
+											</svg>
+											{err}
+										</div>
+									{/each}
+									{#each row._warnings as warn}
+										<div class="warning-item">
+											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+												<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+												<line x1="12" x2="12" y1="9" y2="13"/>
+												<line x1="12" x2="12.01" y1="17" y2="17"/>
+											</svg>
+											{warn}
+										</div>
+									{/each}
+								</div>
+							</td>
+						</tr>
+					{/if}
 				{/each}
 			</tbody>
 		</table>
-		{#if rows.length > 20}
-			<div class="more-hint">...and {rows.length - 20} more rows</div>
-		{/if}
+	</div>
+
+	<div class="preview-summary">
+		<div class="summary-main">
+			<strong>{validCount}</strong> of <strong>{totalCount}</strong> rows ready to import
+			<span class="summary-sub">Total: {formatCurrency(validTotal)}</span>
+		</div>
+		<div class="summary-hint">
+			Invalid rows will be skipped. Fix your CSV or add missing categories to import them.
+		</div>
 	</div>
 
 	<div class="preview-actions">
-		<button class="btn-confirm" onclick={onConfirm} type="button">
+		<button
+			class="btn-confirm"
+			onclick={onConfirm}
+			disabled={validCount === 0}
+			type="submit"
+		>
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 				<polyline points="20 6 9 17 4 12"/>
 			</svg>
-			Import {count} Transactions
+			Import {validCount} Transactions
 		</button>
 		<button class="btn-cancel" onclick={onCancel} type="button">Cancel</button>
 	</div>
@@ -81,27 +181,87 @@
 		justify-content: space-between;
 		padding: var(--space-md) var(--space-lg);
 		border-bottom: 1px dashed var(--color-hairline);
+		flex-wrap: wrap;
+		gap: var(--space-sm);
 	}
 
-	.preview-header h3 {
+	.preview-title h3 {
 		font-family: var(--font-display);
 		font-size: var(--font-size-base);
 		font-weight: var(--font-weight-bold);
 		color: var(--color-ink);
 		margin: 0;
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
 	}
 
-	.preview-count {
+	.preview-chips {
+		display: flex;
+		gap: var(--space-sm);
+		flex-wrap: wrap;
+	}
+
+	.chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 4px 10px;
+		border-radius: var(--radius-pill);
 		font-size: var(--font-size-xs);
-		color: var(--color-teal);
-		font-family: var(--font-mono);
-		font-weight: 600;
+		font-weight: 700;
+		font-family: var(--font-display);
 		font-variant-numeric: tabular-nums;
+	}
+
+	.chip-teal {
+		background: var(--color-teal-bg);
+		color: var(--color-teal);
+		border: 1px solid rgba(43, 168, 162, 0.2);
+	}
+
+	.chip-coral {
+		background: rgba(239, 108, 74, 0.08);
+		color: var(--color-coral);
+		border: 1px solid rgba(239, 108, 74, 0.2);
+	}
+
+	.chip-sky {
+		background: rgba(93, 173, 226, 0.08);
+		color: var(--color-sky);
+		border: 1px solid rgba(93, 173, 226, 0.2);
+	}
+
+	.unknown-categories-banner {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--space-sm);
+		padding: var(--space-md) var(--space-lg);
+		background: rgba(239, 108, 74, 0.06);
+		border-bottom: 1px solid rgba(239, 108, 74, 0.12);
+		color: var(--color-coral);
+		font-size: var(--font-size-sm);
+		line-height: 1.5;
+	}
+
+	.unknown-categories-banner svg {
+		flex-shrink: 0;
+		margin-top: 2px;
+	}
+
+	.unknown-categories-banner a {
+		color: var(--color-coral);
+		text-decoration: underline;
+		font-weight: 600;
+	}
+
+	.unknown-categories-banner small {
+		color: var(--color-text-muted);
 	}
 
 	.preview-table-wrap {
 		overflow-x: auto;
-		max-height: 320px;
+		max-height: 480px;
 		overflow-y: auto;
 	}
 
@@ -120,7 +280,7 @@
 		border-bottom: 1px solid var(--color-hairline);
 		position: sticky;
 		top: 0;
-		background: var(--color-cream);
+		background: var(--color-surface-inset);
 		z-index: 1;
 	}
 
@@ -130,8 +290,38 @@
 		vertical-align: middle;
 	}
 
-	.text-right {
-		text-align: right;
+	.preview-table tr:last-child td {
+		border-bottom: none;
+	}
+
+	.status-cell {
+		width: 36px;
+		text-align: center;
+	}
+
+	.status-dot {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		margin: 0 auto;
+	}
+
+	.status-valid {
+		background: var(--color-teal);
+		box-shadow: 0 0 8px var(--color-teal);
+	}
+
+	.status-invalid {
+		background: var(--color-coral);
+		box-shadow: 0 0 8px var(--color-coral);
+	}
+
+	.row-valid {
+		background: var(--color-surface);
+	}
+
+	.row-invalid {
+		background: rgba(239, 108, 74, 0.03);
 	}
 
 	.cell-date {
@@ -144,7 +334,7 @@
 	.cell-desc {
 		color: var(--color-ink);
 		font-weight: 500;
-		max-width: 200px;
+		max-width: 220px;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -160,6 +350,7 @@
 		font-size: 10px;
 		font-weight: 700;
 		font-family: var(--font-display);
+		display: inline-block;
 	}
 
 	.type-chip.income {
@@ -177,19 +368,76 @@
 		font-weight: 700;
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
-		text-align: right;
 	}
 
 	.amount-income { color: var(--color-teal); }
 	.amount-expense { color: var(--color-coral); }
 
-	.more-hint {
+	.error-row {
+		background: rgba(239, 108, 74, 0.05);
+	}
+
+	.error-detail {
 		padding: var(--space-sm) var(--space-md);
-		text-align: center;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.error-item, .warning-item {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--space-xs);
+		font-size: var(--font-size-xs);
+		line-height: 1.4;
+	}
+
+	.error-item {
+		color: var(--color-coral);
+	}
+
+	.warning-item {
+		color: var(--color-gold);
+	}
+
+	.error-item svg, .warning-item svg {
+		flex-shrink: 0;
+		margin-top: 1px;
+	}
+
+	.preview-summary {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: var(--space-md) var(--space-lg);
+		border-top: 1px dashed var(--color-hairline);
+		background: var(--color-surface-inset);
+	}
+
+	.summary-main {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.summary-main strong {
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: var(--font-size-base);
+		color: var(--color-ink);
+	}
+
+	.summary-sub {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+	}
+
+	.summary-hint {
 		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
 		font-style: italic;
-		background: var(--color-cream);
+		text-align: right;
+		max-width: 300px;
 	}
 
 	.preview-actions {
@@ -197,7 +445,7 @@
 		gap: var(--space-sm);
 		padding: var(--space-md) var(--space-lg);
 		border-top: 1px solid var(--color-hairline);
-		background: var(--color-cream);
+		background: var(--color-surface-inset);
 	}
 
 	.btn-confirm {
@@ -220,13 +468,20 @@
 		transition: all 200ms var(--bounce);
 	}
 
-	.btn-confirm:hover {
+	.btn-confirm:hover:not(:disabled) {
 		transform: translateY(-1px);
 		box-shadow: 0 6px 24px rgba(255, 210, 63, 0.55);
 	}
 
-	.btn-confirm:active {
+	.btn-confirm:active:not(:disabled) {
 		transform: scale(0.97);
+	}
+
+	.btn-confirm:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+		box-shadow: none;
+		transform: none;
 	}
 
 	.btn-cancel {
@@ -247,5 +502,24 @@
 		background: var(--color-teal-bg);
 		border-color: var(--color-teal);
 		color: var(--color-teal);
+	}
+
+	@media (max-width: 640px) {
+		.preview-table th:nth-child(2),
+		.preview-table td:nth-child(2) {
+			display: none;
+		}
+		.preview-summary {
+			flex-direction: column;
+			align-items: flex-start;
+			gap: var(--space-xs);
+		}
+		.summary-hint {
+			text-align: left;
+			max-width: none;
+		}
+		.preview-actions {
+			flex-direction: column;
+		}
 	}
 </style>

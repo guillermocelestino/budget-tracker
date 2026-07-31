@@ -1,12 +1,18 @@
 <script lang="ts">
+	import type { ImportMappingConfig } from '$lib/utils/importValidation';
+
 	let {
 		columns = [],
 		mapping = {} as Record<string, string>,
 		onChange,
+		config = { dateFormat: 'YYYY-MM-DD', typeRule: 'sign' } as ImportMappingConfig,
+		onConfigChange,
 	}: {
 		columns: string[];
 		mapping?: Record<string, string>;
 		onChange?: (col: string, field: string) => void;
+		config?: ImportMappingConfig;
+		onConfigChange?: (key: keyof ImportMappingConfig, value: string) => void;
 	} = $props();
 
 	const fieldOptions = [
@@ -21,6 +27,22 @@
 	const requiredFields = ['amount', 'date'];
 	const mappedValues = $derived(Object.values(mapping));
 	const hasRequired = $derived(requiredFields.every(f => mappedValues.includes(f)));
+
+	const dateFormats = [
+		{ value: 'YYYY-MM-DD', label: 'YYYY-MM-DD (2026-07-15)' },
+		{ value: 'DD/MM/YYYY', label: 'DD/MM/YYYY (15/07/2026)' },
+		{ value: 'MM/DD/YYYY', label: 'MM/DD/YYYY (07/15/2026)' },
+		{ value: 'DD-MM-YYYY', label: 'DD-MM-YYYY (15-07-2026)' },
+		{ value: 'MMM DD, YYYY', label: 'MMM DD, YYYY (Jul 15, 2026)' },
+		{ value: 'DD MMM YYYY', label: 'DD MMM YYYY (15 Jul 2026)' },
+		{ value: 'YYYY/MM/DD', label: 'YYYY/MM/DD (2026/07/15)' },
+	];
+
+	const typeRules = [
+		{ value: 'sign', label: 'Amount sign: negative = expense, positive = income (default)' },
+		{ value: 'column', label: 'Use the mapped Type column (income/credit/+ → income)' },
+		{ value: 'debit_credit', label: 'Bank debit/credit columns (credit → income)' },
+	];
 </script>
 
 <div class="import-mapping">
@@ -59,6 +81,32 @@
 				</span>
 			</div>
 		{/each}
+	</div>
+
+	<div class="mapping-options">
+		<fieldset class="option-group">
+			<legend>Date Format</legend>
+			<div class="select-wrap">
+				<select value={config.dateFormat} onchange={(e) => onConfigChange?.('dateFormat', (e.target as HTMLSelectElement).value)}>
+					{#each dateFormats as fmt}
+						<option value={fmt.value} selected={config.dateFormat === fmt.value}>{fmt.label}</option>
+					{/each}
+				</select>
+			</div>
+			<p class="option-hint">How dates are formatted in your CSV</p>
+		</fieldset>
+
+		<fieldset class="option-group">
+			<legend>Type Rule</legend>
+			<div class="select-wrap">
+				<select value={config.typeRule} onchange={(e) => onConfigChange?.('typeRule', (e.target as HTMLSelectElement).value)}>
+					{#each typeRules as rule}
+						<option value={rule.value} selected={config.typeRule === rule.value}>{rule.label}</option>
+					{/each}
+				</select>
+			</div>
+			<p class="option-hint">How to determine income vs expense from the amount</p>
+		</fieldset>
 	</div>
 
 	{#if !hasRequired}
@@ -135,7 +183,7 @@
 	.col-chip {
 		display: inline-block;
 		padding: 2px 10px;
-		background: var(--color-cream);
+		background: var(--color-surface-inset);
 		border: 1px solid var(--color-hairline);
 		border-radius: var(--radius-pill);
 		font-family: var(--font-mono);
@@ -150,16 +198,18 @@
 		font-style: italic;
 	}
 
-	.select-wrap-sm {
+	.select-wrap-sm,
+	.select-wrap {
 		position: relative;
 	}
 
-	.select-wrap-sm select {
+	.select-wrap-sm select,
+	.select-wrap select {
 		width: 100%;
 		padding: 6px 28px 6px 10px;
 		border: 1px solid var(--color-hairline);
 		border-radius: var(--radius-md);
-		background: var(--color-cream);
+		background: var(--color-surface-inset);
 		color: var(--color-ink);
 		font-family: var(--font-body);
 		font-size: var(--font-size-xs);
@@ -171,13 +221,21 @@
 		transition: border-color 150ms var(--ease);
 	}
 
-	.select-wrap-sm select:focus {
+	.select-wrap select {
+		font-size: var(--font-size-sm);
+		padding: 8px 32px 8px 12px;
+		min-height: 44px;
+	}
+
+	.select-wrap-sm select:focus,
+	.select-wrap select:focus {
 		outline: none;
 		border-color: var(--color-teal);
 		box-shadow: var(--focus);
 	}
 
-	.select-wrap-sm::after {
+	.select-wrap-sm::after,
+	.select-wrap::after {
 		content: '';
 		position: absolute;
 		right: 10px;
@@ -189,6 +247,37 @@
 		border-right: 4px solid transparent;
 		border-top: 4px solid var(--color-text-muted);
 		pointer-events: none;
+	}
+
+	.mapping-options {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: var(--space-md);
+		margin-top: var(--space-lg);
+		padding-top: var(--space-lg);
+		border-top: 1px dashed var(--color-hairline);
+	}
+
+	.option-group {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-xs);
+	}
+
+	.option-group legend {
+		font-size: var(--font-size-xs);
+		font-weight: 700;
+		color: var(--color-text-muted);
+		font-family: var(--font-display);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin-bottom: 2px;
+	}
+
+	.option-hint {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		margin: 0;
 	}
 
 	.mapping-warning {
@@ -221,6 +310,10 @@
 
 		.header-row {
 			display: none;
+		}
+
+		.mapping-options {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>

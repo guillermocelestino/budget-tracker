@@ -1,0 +1,11 @@
+Date,Description,Amount,Type,Category Name
+2026-07-01,Salary deposit,50000.00,income,Salary
+2026-07-02,Groceries at SM Supermarket,-2500.50,expense,Food & Dining
+2026-07-03,Freelance payment,"₱15,000.00",income,Freelance
+2026-07-04,Gas station refill,"(1,200.00)",expense,Transportation
+2026-07-05,Online shopping - electronics,-8999.99,expense,Shopping
+2026-07-06,FOOD & DINING refund (case insensitive test),-500.00,expense,Food & Dining
+2026-07-32,Invalid date test,100.00,expense,Food & Dining
+2026-07-07,Unknown category test,250.00,expense,Nonexistent Category
+2026-07-08,Netflix subscription,-549.00,expense,Entertainment
+2026-07-09,Electric bill (Meralco),"(3,500.00)",expense,Bills & Utilities

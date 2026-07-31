@@ -66,6 +66,11 @@
 		transition: transform 120ms var(--bounce);
 	}
 
+	.btn:focus-visible {
+		outline: none;
+		box-shadow: var(--focus);
+	}
+
 	.btn-sm {
 		padding: var(--space-sm) var(--space-md);
 		font-size: var(--font-size-sm);
@@ -77,26 +82,50 @@
 		font-size: var(--font-size-base);
 	}
 
-	/* ═══ Primary = Gold gloss pill CTA ═══ */
+	/* ═══ Primary = Gold gloss pill CTA ═══
+	     One loud action per screen: saturated gold fill + glow + gloss.
+	     Text is fixed dark ink (#14302E) so it stays legible on gold in BOTH
+	     themes (matches the hero pill's on-gold fg). */
 	.btn-primary {
 		background: linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%);
-		color: var(--color-ink);
+		color: #14302E;
 		box-shadow: var(--glow-gold);
-		font-weight: var(--font-weight-bold);
+		font-family: var(--font-display);
+		font-weight: var(--font-weight-extrabold);
+		letter-spacing: var(--letter-spacing-wide);
 	}
 
+	/* Static top gloss (rounded to the pill) */
 	.btn-primary::before {
 		content: '';
 		position: absolute;
 		inset: 0;
-		background: linear-gradient(180deg, rgba(255,255,255,0.25) 0%, transparent 50%);
+		background: linear-gradient(180deg, rgba(255,255,255,0.28) 0%, transparent 55%);
 		border-radius: var(--radius-pill);
+		pointer-events: none;
+	}
+
+	/* Sheen sweep across the gloss on hover (≤400ms, --ease) */
+	.btn-primary::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: -60%;
+		width: 40%;
+		background: linear-gradient(105deg, transparent, rgba(255,255,255,0.45), transparent);
+		transform: skewX(-20deg);
+		transition: left 400ms var(--ease);
 		pointer-events: none;
 	}
 
 	.btn-primary:hover {
 		box-shadow: 0 6px 28px rgba(255, 210, 63, 0.55);
 		transform: translateY(-1px);
+	}
+
+	.btn-primary:hover::after {
+		left: 120%;
 	}
 
 	.btn-primary:active {
@@ -121,15 +150,25 @@
 		transform: scale(0.95);
 	}
 
-	/* ═══ Ghost = Teal outline pill ═══ */
+	/* ═══ Ghost = Teal outline pill (quiet secondary) ═══
+	     No glow at rest — the secondary stays quieter than the gold primary;
+	     a faint teal glow appears only on hover. */
 	.btn-ghost {
 		background: transparent;
 		color: var(--color-teal);
 		border: 1px solid var(--color-teal);
+		font-weight: var(--font-weight-semibold);
 	}
 
 	.btn-ghost:hover {
 		background: var(--color-teal-bg);
+		border-color: var(--color-teal-dark);
+		box-shadow: var(--glow-card);
+		transform: translateY(-1px);
+	}
+
+	.btn-ghost:hover svg {
+		transform: translateY(1px);
 	}
 
 	.btn-ghost:active {

@@ -21,8 +21,10 @@
 <style>
 	.page-header {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		justify-content: space-between;
+		gap: var(--space-sm) var(--space-lg);
 		margin-bottom: var(--space-lg);
 		padding: var(--space-md) var(--space-lg);
 		background: var(--color-cream);
@@ -39,6 +41,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
+		min-width: 0;
 	}
 
 	.page-subtitle {
@@ -60,7 +63,10 @@
 
 	.page-actions {
 		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
 		gap: var(--space-sm);
+		min-width: 0;
 	}
 
 	@media (max-width: 768px) {
