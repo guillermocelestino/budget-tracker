@@ -40,6 +40,17 @@
     showPanel = true;
   }
 
+  // Open the New Lending panel when arriving via the global FAB (?add=1)
+  $effect(() => {
+    const params = new URLSearchParams($page.url.searchParams);
+    if (params.get('add') === '1') {
+      params.delete('add');
+      const qs = params.toString();
+      history.replaceState(history.state, '', `${$page.url.pathname}${qs ? '?' + qs : ''}`);
+      openAdd();
+    }
+  });
+
   function openEdit(lending: Lending) {
     editingLending = lending;
     showPanel = true;

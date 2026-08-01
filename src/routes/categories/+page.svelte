@@ -18,6 +18,18 @@
   // ─── Month selector ───
   let selectedMonth = $state(data.selectedMonth ?? getCurrentMonth());
 
+  // Open the Add Category panel when arriving via the global FAB (?add=1).
+  // Declared before the month-sync effect so the param is stripped first.
+  $effect(() => {
+    const params = new URLSearchParams($page.url.searchParams);
+    if (params.get('add') === '1') {
+      params.delete('add');
+      const qs = params.toString();
+      history.replaceState(history.state, '', `${$page.url.pathname}${qs ? '?' + qs : ''}`);
+      openAdd();
+    }
+  });
+
   $effect(() => {
     const params = new URLSearchParams($page.url.searchParams);
     const current = params.get('month') || getCurrentMonth();

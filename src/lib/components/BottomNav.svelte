@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { fly } from 'svelte/transition';
+  import SpeedDial from './SpeedDial.svelte';
 
   let moreOpen = $state(false);
   let moreBtnEl = $state<HTMLButtonElement | null>(null);
@@ -65,18 +66,9 @@
     <span class="bn-label">Activity</span>
   </a>
 
-  <!-- ═══ Floating Action Button (centered, prominent) ═══ -->
+  <!-- ═══ Speed Dial FAB (centered, expandable) ═══ -->
   <div class="bn-fab-wrap">
-    <a
-      href="/transactions/new"
-      class="bn-fab"
-      aria-label="Add transaction"
-    >
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="12" x2="12" y1="5" y2="19"/>
-        <line x1="5" x2="19" y1="12" y2="12"/>
-      </svg>
-    </a>
+    <SpeedDial />
   </div>
 
   <!-- Reports -->
@@ -287,51 +279,6 @@
     width: 56px;
   }
 
-  .bn-fab {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 54px;
-    height: 54px;
-    border-radius: var(--radius-pill);
-    background: linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%);
-    color: var(--color-ink);
-    box-shadow: var(--glow-gold);
-    transition: all var(--transition-fast);
-    text-decoration: none;
-    position: relative;
-    overflow: hidden;
-    -webkit-tap-highlight-color: transparent;
-    animation: fab-spring-in 600ms var(--bounce) both;
-  }
-
-  /* Gloss sheen on FAB */
-  .bn-fab::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg, rgba(255,255,255,0.30) 0%, transparent 50%);
-    border-radius: var(--radius-pill);
-    pointer-events: none;
-  }
-
-  @keyframes fab-spring-in {
-    0% { transform: scale(0); opacity: 0; }
-    60% { transform: scale(1.12); }
-    100% { transform: scale(1); opacity: 1; }
-  }
-
-  .bn-fab:hover {
-    transform: translateY(-2px) scale(1.04);
-    box-shadow: 0 6px 24px rgba(255, 210, 63, 0.55);
-    text-decoration: none;
-  }
-
-  .bn-fab:active {
-    transform: scale(0.95);
-    box-shadow: var(--glow-gold);
-  }
-
   /* ─── More popup panel ─── */
 
   .more-panel {
@@ -406,15 +353,10 @@
     .bn-fab-wrap {
       width: 48px;
     }
-    .bn-fab {
-      width: 48px;
-      height: 48px;
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .bn-item,
-    .bn-fab {
+    .bn-item {
       transition: none;
     }
   }

@@ -208,7 +208,7 @@
 		border: 1px solid;
 		border-radius: var(--radius-pill);
 		margin-bottom: var(--space-md);
-		width: fit-content;
+		width: 100%;
 	}
 
 	.preview-icon { font-size: 1.25rem; }

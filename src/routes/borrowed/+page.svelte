@@ -41,6 +41,17 @@
     showPanel = true;
   }
 
+  // Open the New Borrowing panel when arriving via the global FAB (?add=1)
+  $effect(() => {
+    const params = new URLSearchParams($page.url.searchParams);
+    if (params.get('add') === '1') {
+      params.delete('add');
+      const qs = params.toString();
+      history.replaceState(history.state, '', `${$page.url.pathname}${qs ? '?' + qs : ''}`);
+      openAdd();
+    }
+  });
+
   function openEdit(lending: Lending) {
     editingLending = lending;
     showPanel = true;
@@ -159,21 +170,6 @@
   direction="borrowed"
   viewMode={viewMode}
 />
-
-<!-- ═══ Mobile add FAB (≤768px; hidden while any slide-over is open) ═══ -->
-<button
-  class="fab mobile-only"
-  class:hidden={showPanel || importSlideOpen}
-  onclick={openAdd}
-  aria-label="New Borrowing"
-  title="New Borrowing"
-  type="button"
->
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-    <line x1="12" x2="12" y1="5" y2="19"/>
-    <line x1="5" x2="19" y1="12" y2="12"/>
-  </svg>
-</button>
 
 <!-- ═══ Mark as Paid Modal ═══ -->
 {#if markPaidId !== null}
@@ -399,51 +395,6 @@
     background: var(--color-danger-hover);
   }
 
-  /* ─── Mobile add FAB (gold, BottomNav idiom; ≤768px only) ─── */
-  .fab {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    position: fixed;
-    right: var(--space-lg);
-    bottom: calc(64px + var(--space-xl) + var(--safe-bottom, 0px));
-    width: 54px;
-    height: 54px;
-    border: none;
-    border-radius: var(--radius-pill);
-    background: linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%);
-    color: var(--color-on-gold);
-    box-shadow: var(--glow-gold);
-    transition: all var(--transition-fast);
-    cursor: pointer;
-    overflow: hidden;
-    z-index: 900;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .fab::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.30) 0%, transparent 50%);
-    border-radius: var(--radius-pill);
-    pointer-events: none;
-  }
-
-  .fab:hover {
-    transform: translateY(-2px) scale(1.04);
-    box-shadow: 0 6px 24px rgba(255, 210, 63, 0.55);
-  }
-
-  .fab:active {
-    transform: scale(0.95);
-    box-shadow: var(--glow-gold);
-  }
-
-  .fab.hidden {
-    opacity: 0;
-    pointer-events: none;
-  }
 
   @media (max-width: 768px) {
     .desktop-only {
@@ -453,10 +404,6 @@
     .mobile-only {
       display: flex;
       align-items: center;
-    }
-
-    .fab {
-      display: flex;
     }
   }
 </style>

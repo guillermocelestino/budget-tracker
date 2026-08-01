@@ -219,7 +219,7 @@
 	@media (max-width: 640px) {
 		.slide-over {
 			width: 100vw;
-			max-height: 92vh;
+			max-height: 100vh;
 			animation: slideUp 350ms var(--bounce);
 			border-left: none;
 			border-radius: var(--radius-xl) var(--radius-xl) 0 0;

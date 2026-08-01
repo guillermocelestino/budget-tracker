@@ -325,10 +325,12 @@
   {/snippet}
   {#snippet action()}
     <div class="header-actions">
-      <Button variant="primary" href="/transactions/new">
-        <span class="btn-lead" aria-hidden="true">+</span>
-        Add Transaction
-      </Button>
+      <span class="desktop-only">
+        <Button variant="primary" href="/transactions/new">
+          <span class="btn-lead" aria-hidden="true">+</span>
+          Add Transaction
+        </Button>
+      </span>
       <span class="desktop-only">
         <Button variant="ghost" onclick={() => (importSlideOpen = true)}>
           <svg class="btn-lead" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
