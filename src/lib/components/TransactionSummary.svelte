@@ -89,7 +89,7 @@
   >
     <div class="card-accent income-accent"></div>
     <div class="card-icon income-icon">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
         <polyline points="17 6 23 6 23 12"/>
       </svg>
@@ -117,7 +117,7 @@
   >
     <div class="card-accent expense-accent"></div>
     <div class="card-icon expense-icon">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="23 18 14.5 10.5 9.5 15.5 1 6"/>
         <polyline points="7 18 1 18 1 12"/>
       </svg>
@@ -146,7 +146,7 @@
   >
     <div class="card-accent net-accent"></div>
     <div class="card-icon net-icon">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="9"/>
         <path d="M8 12h8 M12 8v8"/>
       </svg>
@@ -181,12 +181,15 @@
   }
 
   /* ─── Card base ─── */
+  /* On the Transactions working surface these KPI tiles orient rather than
+     dominate: height/padding/icon trimmed ~10-15% vs the dashboard variant.
+     Typography (label/value) intentionally unchanged. */
   .card {
     position: relative;
     display: flex;
     align-items: flex-start;
     gap: var(--space-md);
-    padding: var(--space-md);
+    padding: calc(var(--space-md) - 2px) var(--space-md);
     background: var(--color-surface);
     border: 1px solid var(--color-hairline);
     border-radius: var(--radius-xl);
@@ -194,7 +197,7 @@
     font-family: var(--font-body);
     text-align: left;
     overflow: hidden;
-    min-height: 84px;
+    min-height: 72px;
     transition: all 200ms var(--ease);
     -webkit-tap-highlight-color: transparent;
   }
@@ -254,8 +257,8 @@
 
   /* ─── Icon ─── */
   .card-icon {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -403,15 +406,32 @@
   }
 
   @media (max-width: 768px) {
+    /* Horizontal scroll rail — mirrors the dashboard's .rail-inner recipe:
+       cards no longer stack, they scroll on one row with snap points. */
     .summary-cards {
-      grid-template-columns: 1fr;
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x proximity;
+      touch-action: pan-x pan-y;
       gap: var(--space-sm);
+      max-width: 100%;
+      min-width: 0;
+      scrollbar-width: none;
+    }
+
+    .summary-cards::-webkit-scrollbar {
+      display: none;
     }
 
     .card {
+      flex: 0 0 auto;
+      width: min(72vw, 260px);
       min-height: auto;
       padding: var(--space-md);
       align-items: center;
+      scroll-snap-align: start;
     }
 
     .card-value {
@@ -425,8 +445,8 @@
 
   @media (max-width: 480px) {
     .card-icon {
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 28px;
     }
   }
 </style>

@@ -20,7 +20,7 @@
 
   let showPanel = $state(false);
   let editingLending = $state<Lending | null>(null);
-  let activeTab = $state<'active' | 'paid'>('active');
+  let activeTab = $state<'all' | 'active' | 'paid'>('active');
   let viewMode = $state<'card' | 'table'>('card');
   let markPaidId = $state<number | null>(null);
   let recordAsTransaction = $state(true);
@@ -34,7 +34,13 @@
     Array.from(new Set([...activeLendings, ...paidLendings].map(l => l.borrower_name)))
   );
 
-  const showLendings: Lending[] = $derived(activeTab === 'active' ? activeLendings : paidLendings);
+  const showLendings: Lending[] = $derived(
+    activeTab === 'all'
+      ? [...activeLendings, ...paidLendings]
+      : activeTab === 'active'
+        ? activeLendings
+        : paidLendings
+  );
 
   function openAdd() {
     editingLending = null;
@@ -143,11 +149,12 @@
 <div class="toolbar">
   <ViewToggle
     options={[
+      { value: 'all', label: 'All', count: activeLendings.length + paidLendings.length },
       { value: 'active', label: 'Active', count: activeLendings.length },
       { value: 'paid', label: 'Repaid', count: paidLendings.length },
     ]}
     value={activeTab}
-    onSelect={(v) => (activeTab = v as 'active' | 'paid')}
+    onSelect={(v) => (activeTab = v as 'all' | 'active' | 'paid')}
     ariaLabel="Borrowing status filter"
   />
   <ViewToggle

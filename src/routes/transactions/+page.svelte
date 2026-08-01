@@ -403,6 +403,19 @@
   {#snippet subtitle()}
     <span class="context-subline">{contextSubline}</span>
   {/snippet}
+  {#snippet action()}
+    <span class="header-actions desktop-only">
+      <OverflowMenu
+        onImportCsv={() => (importSlideOpen = true)}
+        onExportCsv={() => handleExport('csv')}
+        onExportPdf={() => handleExport('pdf')}
+      />
+      <Button variant="primary" href="/transactions/new">
+        <span class="btn-lead" aria-hidden="true">+</span>
+        Add Transaction
+      </Button>
+    </span>
+  {/snippet}
 </PageHeader>
 
 <!-- ═══ Mobile full-width primary action ═══ -->
@@ -413,7 +426,14 @@
   </Button>
 </div>
 
-<!-- ═══ Toolbar: search + filters + view toggle + actions ═══ -->
+<!-- ═══ Interactive summary cards ═══ -->
+<TransactionSummary
+  transactions={[...(data.allForBalance ?? [])].reverse()}
+  {activeType}
+  onCardClick={handleCardClick}
+/>
+
+<!-- ═══ Toolbar: filtering group (left) + view preference (right) ═══ -->
 <div class="txn-toolbar">
   <div class="toolbar-left">
     <div class="toolbar-search">
@@ -428,7 +448,7 @@
         bind:value={searchInput}
       />
     </div>
-    <span class="desktop-only">
+    <span class="desktop-only toolbar-filters">
       <TransactionFilters
         categories={data.categories ?? []}
         activeFilters={{
@@ -453,26 +473,15 @@
       </button>
     </span>
     <ViewToggle {showFlatView} onChange={(flat) => showFlatView = flat} />
-    <span class="desktop-only">
-      <Button variant="primary" href="/transactions/new">
-        <span class="btn-lead" aria-hidden="true">+</span>
-        Add Transaction
-      </Button>
+    <span class="mobile-only toolbar-overflow">
+      <OverflowMenu
+        onImportCsv={() => (importSlideOpen = true)}
+        onExportCsv={() => handleExport('csv')}
+        onExportPdf={() => handleExport('pdf')}
+      />
     </span>
-    <OverflowMenu
-      onImportCsv={() => (importSlideOpen = true)}
-      onExportCsv={() => handleExport('csv')}
-      onExportPdf={() => handleExport('pdf')}
-    />
   </div>
 </div>
-
-<!-- ═══ Interactive summary cards ═══ -->
-<TransactionSummary
-  transactions={[...(data.allForBalance ?? [])].reverse()}
-  {activeType}
-  onCardClick={handleCardClick}
-/>
 
 <!-- ═══ Transaction list (Bank Register) ═══ -->
 <TransactionList
@@ -689,7 +698,12 @@
 
 <style>
   /* ─── 8-point section rhythm: Header → Toolbar ─── */
+  /* Raise the header's stacking context so the OverflowMenu dropdown
+     (trapped inside the header's backdrop-filter context) paints above
+     the toolbar and summary cards that follow it in the DOM. */
   :global(.page-header) {
+    position: relative;
+    z-index: 30;
     margin-bottom: var(--space-2xl);
   }
 
@@ -718,19 +732,30 @@
   }
 
   /* ─── Toolbar ─── */
+  /* Working controls for the list: sits below the KPI cards and hugs the
+     register beneath it (tight bottom gap) so it reads as one unit. */
   .txn-toolbar {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: var(--space-lg);
-    margin-bottom: var(--space-2xl);
+    margin-bottom: var(--space-md);
   }
 
   .toolbar-left {
     flex: 1;
     min-width: 0;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  /* Header actions: overflow + add transaction, right side of header */
+  .header-actions {
+    display: flex;
+    align-items: center;
     gap: var(--space-sm);
   }
 
@@ -869,7 +894,7 @@
       justify-content: space-between;
     }
 
-    .toolbar-right .mobile-only {
+    .toolbar-right .mobile-only:first-child {
       flex: 1;
       min-width: 0;
     }
