@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { enhance } from '$app/forms';
@@ -51,10 +52,15 @@
   let searchInput = $state(filters.search);
   let filtersOpen = $state(false);
 
-  // Sync the input from the URL on navigation (back/forward)
+  // Sync the input from the URL on navigation (back/forward).
+  // untrack the searchInput read so this effect depends only on the URL —
+  // otherwise it re-runs on every keystroke and resets the input before the
+  // debounced URL update lands, wiping what the user just typed.
   $effect(() => {
     const urlSearch = $page.url.searchParams.get('search') ?? '';
-    if (urlSearch !== searchInput) searchInput = urlSearch;
+    untrack(() => {
+      if (urlSearch !== searchInput) searchInput = urlSearch;
+    });
   });
 
   // Debounce writing the typed value into the filter state
@@ -285,7 +291,6 @@
   // ─── Transaction count info ───────────────────────────────────────
 
   const totalCount = $derived(data.total ?? 0);
-  const showingCount = $derived(data.transactions?.length ?? 0);
 
   const activeFilterCount = $derived([filters.type, filters.category, filters.date].filter(Boolean).length);
   const hasActiveFilters = $derived(filters.type || filters.category || filters.date || filters.search);
@@ -468,13 +473,6 @@
   {activeType}
   onCardClick={handleCardClick}
 />
-
-<!-- ═══ List caption ═══ -->
-<div class="list-header">
-  <span class="list-caption">
-    showing {showingCount}{showingCount !== totalCount ? ` of ${totalCount}` : ''} transactions
-  </span>
-</div>
 
 <!-- ═══ Transaction list (Bank Register) ═══ -->
 <TransactionList
@@ -724,7 +722,7 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: var(--space-md);
+    gap: var(--space-lg);
     margin-bottom: var(--space-2xl);
   }
 
@@ -745,10 +743,10 @@
   .toolbar-search {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
-    max-width: 320px;
+    gap: 10px;
+    max-width: 270px;
     height: 44px;
-    padding: 0 var(--space-md);
+    padding: 0 var(--space-md) 0 var(--space-lg);
     border: 1px solid var(--color-hairline);
     border-radius: var(--radius-pill);
     background: var(--color-surface);
@@ -787,7 +785,7 @@
   .toolbar-right {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
+    gap: var(--space-md);
     flex-shrink: 0;
   }
 
@@ -834,23 +832,6 @@
     font-size: var(--font-size-xs);
     font-weight: 700;
     font-family: var(--font-mono);
-  }
-
-  /* ─── List caption + mobile view toggle ─── */
-  .list-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--space-sm);
-    min-height: 40px;
-  }
-
-  .list-caption {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-muted);
-    font-weight: 500;
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
   }
 
   /* ─── Mobile / Desktop visibility ─── */

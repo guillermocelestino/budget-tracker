@@ -194,7 +194,7 @@
     font-family: var(--font-body);
     text-align: left;
     overflow: hidden;
-    min-height: 88px;
+    min-height: 84px;
     transition: all 200ms var(--ease);
     -webkit-tap-highlight-color: transparent;
   }
@@ -254,8 +254,8 @@
 
   /* ─── Icon ─── */
   .card-icon {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -425,8 +425,8 @@
 
   @media (max-width: 480px) {
     .card-icon {
-      width: 36px;
-      height: 36px;
+      width: 32px;
+      height: 32px;
     }
   }
 </style>

@@ -284,18 +284,60 @@
     return txn.type === 'income' ? txn.amount : -txn.amount;
   }
 
-  function categoryInitial(txn: Transaction): string {
-    return (txn.category_name || '?').charAt(0).toUpperCase();
+  // Map a category name to an icon key via keyword match (case-insensitive).
+  function categoryIconKey(name?: string): string {
+    const n = (name || '').toLowerCase();
+    if (/salary|payroll|wage/.test(n)) return 'salary';
+    if (/freelance|contract|gig|side/.test(n)) return 'freelance';
+    if (/invest|dividend|stock|crypto|interest/.test(n)) return 'investment';
+    if (/income|refund|deposit|revenue/.test(n)) return 'income';
+    if (/food|grocer|restaurant|dining|cafe|coffee|meal/.test(n)) return 'food';
+    if (/transport|travel|fuel|gas|car|uber|taxi|transit|flight/.test(n)) return 'transport';
+    if (/shop|cloth|retail|store|amazon|purchase/.test(n)) return 'shopping';
+    if (/entertain|movie|game|music|stream|fun|hobby/.test(n)) return 'entertainment';
+    if (/bill|utilit|rent|mortgage|electric|water|internet|phone|subscription/.test(n)) return 'bills';
+    if (/health|medical|doctor|pharma|fitness|gym|insurance/.test(n)) return 'health';
+    if (/educat|school|tuition|course|book|learn/.test(n)) return 'education';
+    return 'default';
   }
 </script>
 
 
 
 <!-- ── SNIPPETS ── -->
+{#snippet catIcon(key: string)}
+  {#if key === 'salary'}
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+  {:else if key === 'freelance'}
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+  {:else if key === 'investment'}
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+  {:else if key === 'income'}
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+  {:else if key === 'food'}
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h0a2 2 0 0 0 2-2V2M5 2v20M13 2v20c3 0 6-1 6-8V2c-3 0-6 3-6 8z"/></svg>
+  {:else if key === 'transport'}
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3V6a1 1 0 0 1 1-1h11v12M14 17h5v-5l-3-5H14M7 17h5"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="17.5" cy="17.5" r="1.5"/></svg>
+  {:else if key === 'shopping'}
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+  {:else if key === 'entertainment'}
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+  {:else if key === 'bills'}
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+  {:else if key === 'health'}
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg>
+  {:else if key === 'education'}
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1 2 3 6 3s6-2 6-3v-5"/></svg>
+  {:else}
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>
+  {/if}
+{/snippet}
+
 {#snippet dateHeader(group: DateGroup)}
   <div class="date-header" role="rowheader">
     <span class="date-label">{group.label}</span>
-    <span class="date-count">{group.items.length} items</span>
+    <span class="date-dot" aria-hidden="true">·</span>
+    <span class="date-count">{group.items.length} {group.items.length === 1 ? 'Transaction' : 'Transactions'}</span>
     <span
       class="day-subtotal"
       style="color: {group.subtotalColor}"
@@ -336,7 +378,7 @@
     <!-- Category color stripe + initial circle -->
     <div class="cat-stripe" style="background: {txn.category_color || '#2BA8A2'}"></div>
     <div class="cat-circle" style="background: {txn.category_color || '#2BA8A2'}20; color: {txn.category_color || '#2BA8A2'}">
-      {categoryInitial(txn)}
+      {@render catIcon(categoryIconKey(txn.category_name))}
     </div>
 
     <!-- Left: description + category pill -->
@@ -611,18 +653,23 @@
     letter-spacing: 0.02em;
   }
 
+  .date-dot {
+    font-size: 11px;
+    color: var(--color-teal);
+    opacity: 0.5;
+  }
+
   .date-count {
     font-family: var(--font-mono);
-    font-size: 10px;
-    color: var(--color-teal);
-    opacity: 0.6;
+    font-size: 11px;
+    color: var(--color-text-muted);
   }
 
   .day-subtotal {
     margin-left: auto;
     font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-    font-weight: 700;
+    font-size: var(--font-size-base);
+    font-weight: 800;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
   }
@@ -655,10 +702,76 @@
   }
 
   .fh-desc { flex: 1; min-width: 0; }
-  .fh-date { min-width: 76px; text-align: right; flex-shrink: 0; }
+  .fh-date { min-width: 76px; text-align: left; flex-shrink: 0; }
   .fh-balance { min-width: 90px; text-align: right; flex-shrink: 0; }
   .fh-amount { min-width: 90px; text-align: right; flex-shrink: 0; }
   .fh-cleared { width: 28px; text-align: center; flex-shrink: 0; }
+
+  /* ══ Flat view shared column grid (desktop ≥641px) ═══════════════════
+     The flat header and every flat row share ONE grid template so all
+     values align perfectly beneath their headers. Columns are fixed-width
+     (content-independent) for strict financial-table alignment. Mobile
+     (≤640px) keeps the existing card layout — this grid does not apply. */
+  @media (min-width: 641px) {
+    .flat-register .flat-header,
+    .flat-register .txn-row {
+      display: grid;
+      grid-template-columns:
+        28px            /* category circle  */
+        minmax(0, 1fr)  /* description      */
+        84px            /* date             */
+        96px            /* balance          */
+        108px           /* amount           */
+        32px;           /* status           */
+      align-items: center;
+      column-gap: var(--space-sm);
+    }
+
+    /* Header cells: reset flex sizing, let the grid tracks drive width */
+    .flat-register .flat-header .fh-circle,
+    .flat-register .flat-header .fh-desc,
+    .flat-register .flat-header .fh-date,
+    .flat-register .flat-header .fh-balance,
+    .flat-register .flat-header .fh-amount,
+    .flat-register .flat-header .fh-cleared {
+      min-width: 0;
+      width: auto;
+      margin: 0;
+    }
+
+    /* Neutralize the circle's flex margin so it sits flush in its track */
+    .flat-register .txn-row .cat-circle { margin-right: 0; }
+
+    /* Column alignment — dates left, money right, status centered */
+    .flat-register .fh-date,
+    .flat-register .txn-date-col { text-align: left; justify-self: stretch; }
+    .flat-register .fh-balance,
+    .flat-register .balance-col { justify-self: stretch; }
+    .flat-register .fh-amount,
+    .flat-register .txn-amount-col { justify-self: stretch; }
+    .flat-register .fh-cleared,
+    .flat-register .cleared-col { justify-self: stretch; }
+
+    .flat-register .txn-date-col,
+    .flat-register .balance-col,
+    .flat-register .txn-amount-col { min-width: 0; }
+
+    /* Hover actions leave the column flow — overlay at the row's right edge
+       so they never shift the numeric columns out of alignment. */
+    .flat-register .txn-row .hover-actions {
+      position: absolute;
+      right: var(--space-lg);
+      top: 50%;
+      transform: translate(4px, -50%);
+      padding-left: var(--space-md);
+      background: linear-gradient(90deg, transparent, var(--color-teal-bg) 24%);
+      z-index: 2;
+    }
+
+    .flat-register .txn-row:hover .hover-actions {
+      transform: translate(0, -50%);
+    }
+  }
 
   /* ── Row with left accent bar ── */
   .txn-row {
@@ -832,18 +945,19 @@
 
   .balance-label {
     font-size: 9px;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    opacity: 0.6;
+    opacity: 0.5;
   }
 
   .balance-value {
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 500;
     font-family: var(--font-mono);
     letter-spacing: -0.02em;
+    opacity: 0.75;
   }
 
   /* ── Amount column: mono, right-aligned, colored by sign ── */
