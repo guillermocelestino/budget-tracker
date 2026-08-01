@@ -343,17 +343,9 @@
 	}
 
 	.direction-toggle button.active {
-		background: var(--color-primary);
+		background: var(--color-teal);
 		color: white;
 		box-shadow: var(--shadow-sm);
-	}
-
-	.direction-toggle button:first-child.active {
-		background: var(--color-teal);
-	}
-
-	.direction-toggle button:last-child.active {
-		background: var(--color-coral);
 	}
 
 	.checkbox-group {
