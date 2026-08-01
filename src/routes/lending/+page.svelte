@@ -9,10 +9,11 @@
   import LendingBalanceHeader from '$lib/components/LendingBalanceHeader.svelte';
   import ActiveIouList from '$lib/components/ActiveIouList.svelte';
   import Button from '$lib/components/Button.svelte';
-  import MoreMenu from '$lib/components/MoreMenu.svelte';
+  import OverflowMenu from '$lib/components/OverflowMenu.svelte';
   import ViewToggle from '$lib/components/ViewToggle.svelte';
   import LendingImport from '$lib/components/LendingImport.svelte';
   import { showSuccess, showError } from '$lib/stores/toast.svelte';
+  import { downloadCsv, lendingsToCSV } from '$lib/utils/csv';
   import type { Lending } from '$lib/types';
 
   let data = $derived($page.data as App.PageData);
@@ -66,6 +67,11 @@
     showPanel = false;
     editingLending = null;
   }
+
+  function handleExportCsv() {
+    const csv = lendingsToCSV(showLendings, 'lent');
+    downloadCsv(csv, `lending-${new Date().toISOString().split('T')[0]}.csv`);
+  }
 </script>
 
 <svelte:head>
@@ -79,22 +85,19 @@
   {#snippet action()}
     <div class="header-actions">
       <span class="desktop-only">
+        <OverflowMenu
+          onImportCsv={() => (importSlideOpen = true)}
+          onExportCsv={handleExportCsv}
+        />
         <Button variant="primary" onclick={openAdd}>
           <span class="btn-lead" aria-hidden="true">+</span>
           New Lending
         </Button>
-        <Button variant="ghost" onclick={() => (importSlideOpen = true)} ariaLabel="Import CSV" title="Import CSV">
-          <svg class="btn-lead" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          Import
-        </Button>
       </span>
       <span class="mobile-only">
-        <MoreMenu
-          items={[{ label: 'Import CSV', icon: 'import', onClick: () => (importSlideOpen = true) }]}
+        <OverflowMenu
+          onImportCsv={() => (importSlideOpen = true)}
+          onExportCsv={handleExportCsv}
         />
       </span>
     </div>
@@ -236,6 +239,14 @@
 {/if}
 
 <style>
+  /* Raise the header's stacking context so the OverflowMenu dropdown
+     (trapped inside the header's backdrop-filter context) paints above
+     the content that follows it. Matches /transactions. */
+  :global(.page-header) {
+    position: relative;
+    z-index: 30;
+  }
+
   .header-actions {
     display: flex;
     align-items: center;

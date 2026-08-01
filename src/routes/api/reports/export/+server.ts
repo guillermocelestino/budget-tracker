@@ -1,5 +1,5 @@
 import { queryMany } from '$lib/database/query';
-import { transactionsToCSV } from '$lib/utils/format';
+import { transactionsToCSV } from '$lib/utils/csv';
 import type { Transaction } from '$lib/types';
 
 export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {

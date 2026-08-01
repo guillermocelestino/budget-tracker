@@ -182,29 +182,3 @@ export function countUp(
 	return () => cancelAnimationFrame(rafId);
 }
 
-/**
- * Convert an array of transactions to CSV format.
- * Handles escaping of commas and quotes in descriptions.
- */
-export function transactionsToCSV(transactions: Array<{
-	date: string;
-	type: string;
-	category_name?: string | null;
-	description: string;
-	amount: number;
-}>): string {
-	const escape = (val: string | number | null | undefined): string => {
-		const str = String(val ?? '');
-		if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-			return `"${str.replace(/"/g, '""')}"`;
-		}
-		return str;
-	};
-
-	const header = 'Date,Type,Category,Description,Amount';
-	const rows = transactions.map(t =>
-		[escape(t.date), escape(t.type), escape(t.category_name), escape(t.description), escape(`₱${t.amount.toFixed(2)}`)].join(',')
-	);
-
-	return [header, ...rows].join('\n');
-}
