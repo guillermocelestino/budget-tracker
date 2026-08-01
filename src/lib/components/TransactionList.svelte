@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { formatCurrency, formatDate, getToday } from '$lib/utils/format';
+  import { formatCurrency, formatDate, formatDateShort, getToday } from '$lib/utils/format';
+  import RowActionsMenu from '$lib/components/RowActionsMenu.svelte';
   import type { Transaction } from '$lib/types';
 
   let {
     transactions = [],
     onDelete,
     onEdit,
+    onDuplicate,
     showActions = true,
     loading = false,
     // New props for bank register pattern
@@ -16,10 +18,12 @@
     categories = [],
     showFlatView = false,
     onViewChange,
+    emptyState,
   }: {
     transactions: Transaction[];
     onDelete?: (id: number) => void;
     onEdit?: (id: number) => void;
+    onDuplicate?: (id: number) => void;
     showActions?: boolean;
     loading?: boolean;
     runningBalanceStart?: number;
@@ -29,6 +33,7 @@
     categories?: { id: number; name: string; color: string; type: string }[];
     showFlatView?: boolean;
     onViewChange?: (flat: boolean) => void;
+    emptyState?: import('svelte').Snippet;
   } = $props();
 
   let editingId = $state<number | null>(null);
@@ -39,6 +44,7 @@
   let inlineEditingId = $state<number | null>(null);
   let inlineEditField = $state<'amount' | 'category' | null>(null);
   let inlineEditValue = $state('');
+  let menuTxn = $state<Transaction | null>(null);
 
   let clearedStatesLocal = $state<Map<number, boolean>>(new Map());
 
@@ -349,6 +355,13 @@
       </span>
     </div>
 
+    <!-- Per-row date column (flat view only; grouped view uses headers) -->
+    {#if showFlatView}
+      <div class="txn-date-col">
+        <span class="txn-date-label">{formatDateShort(txn.date)}</span>
+      </div>
+    {/if}
+
     <!-- Running balance column -->
     {#if showRunningBalance}
       <div class="balance-col">
@@ -385,7 +398,7 @@
       </div>
     {/if}
 
-    <!-- Hover-only edit / delete icons -->
+    <!-- Hover-only edit / duplicate / delete icons -->
     {#if showActions && !isExpanded && !isInlineEditing}
       <div class="hover-actions">
         <button
@@ -397,6 +410,14 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
         </button>
         <button
+          class="hover-btn"
+          title="Duplicate"
+          onclick={(e) => { e.stopPropagation(); onDuplicate?.(txn.id); }}
+          type="button"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+        <button
           class="hover-btn hover-delete"
           title="Delete"
           onclick={(e) => { e.stopPropagation(); onDelete?.(txn.id); }}
@@ -405,6 +426,22 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         </button>
       </div>
+    {/if}
+
+    <!-- Mobile-only row overflow trigger -->
+    {#if showActions && !isExpanded}
+      <button
+        class="row-menu-btn"
+        aria-label="Actions for {cleanDescription(txn.description)}"
+        onclick={(e) => { e.stopPropagation(); menuTxn = txn; }}
+        type="button"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="1"/>
+          <circle cx="19" cy="12" r="1"/>
+          <circle cx="5" cy="12" r="1"/>
+        </svg>
+      </button>
     {/if}
   </div>
 
@@ -458,6 +495,9 @@
       </div>
       <div class="edit-buttons">
         <a href="/transactions/{txn.id}/edit" class="edit-btn edit-btn-primary" onclick={(e) => e.stopPropagation()}>Full Edit</a>
+        {#if onDuplicate}
+          <button class="edit-btn edit-btn-ghost" onclick={(e) => { e.stopPropagation(); onDuplicate?.(txn.id); }} type="button">Duplicate</button>
+        {/if}
         <button class="edit-btn edit-btn-danger" onclick={(e) => { e.stopPropagation(); onDelete?.(txn.id); editingId = null; }}>Delete</button>
       </div>
     </div>
@@ -482,17 +522,33 @@
       {/each}
     </div>
   {:else if transactionsWithBalance.length === 0}
-    <div class="empty-state">
-      <div class="empty-icon">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" x2="12" y1="12" y2="18"/><line x1="9" x2="15" y1="15" y2="15"/></svg>
+    {#if emptyState}
+      {@render emptyState()}
+    {:else}
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" x2="12" y1="12" y2="18"/><line x1="9" x2="15" y1="15" y2="15"/></svg>
+        </div>
+        <p class="empty-title">No transactions yet</p>
+        <p class="empty-sub">Add your first transaction to start tracking</p>
+        <a href="/transactions/new" class="empty-action">Add Transaction</a>
       </div>
-      <p class="empty-title">No transactions yet</p>
-      <p class="empty-sub">Add your first transaction to start tracking</p>
-      <a href="/transactions/new" class="empty-action">Add Transaction</a>
-    </div>
+    {/if}
   {:else if showFlatView}
     <!-- Flat register view -->
     <div class="flat-register">
+      <div class="flat-header" role="rowheader">
+        <span class="fh-circle" aria-hidden="true"></span>
+        <span class="fh-desc">Description</span>
+        <span class="fh-date">Date</span>
+        {#if showRunningBalance}
+          <span class="fh-balance">Balance</span>
+        {/if}
+        <span class="fh-amount">Amount</span>
+        {#if showClearedColumn}
+          <span class="fh-cleared">✓</span>
+        {/if}
+      </div>
       {#each transactionsWithBalance as txn (txn.id)}
         {@render bankRow(txn)}
       {/each}
@@ -509,6 +565,16 @@
     </div>
   {/if}
 </div>
+
+{#if menuTxn}
+  <RowActionsMenu
+    txn={menuTxn}
+    onClose={() => (menuTxn = null)}
+    onEdit={(id) => { menuTxn = null; onEdit?.(id); }}
+    onDuplicate={(id) => { menuTxn = null; onDuplicate?.(id); }}
+    onDelete={(id) => { menuTxn = null; onDelete?.(id); }}
+  />
+{/if}
 
 <style>
   /* ── Container ── */
@@ -561,19 +627,52 @@
     letter-spacing: -0.02em;
   }
 
+  /* ── Flat view column header (sticky) ── */
+  .flat-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-lg);
+    padding-left: calc(var(--space-md) + 4px);
+    background: var(--color-surface-inset);
+    border-bottom: 1px solid var(--color-hairline);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+  }
+
+  .fh-circle {
+    width: 28px;
+    height: 28px;
+    margin-right: var(--space-xs);
+    flex-shrink: 0;
+  }
+
+  .fh-desc { flex: 1; min-width: 0; }
+  .fh-date { min-width: 76px; text-align: right; flex-shrink: 0; }
+  .fh-balance { min-width: 90px; text-align: right; flex-shrink: 0; }
+  .fh-amount { min-width: 90px; text-align: right; flex-shrink: 0; }
+  .fh-cleared { width: 28px; text-align: center; flex-shrink: 0; }
+
   /* ── Row with left accent bar ── */
   .txn-row {
     position: relative;
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    padding: 10px var(--space-md);
+    padding: var(--space-sm) var(--space-lg);
     border-bottom: 1px dashed var(--color-hairline);
     background: var(--color-surface);
     cursor: pointer;
     font-family: var(--font-body);
-    min-height: 52px;
-    transition: background 200ms var(--ease);
+    min-height: 56px;
+    transition: background 180ms var(--ease);
     overflow: hidden;
     padding-left: calc(var(--space-md) + 4px);
   }
@@ -605,6 +704,7 @@
   .txn-row.editing {
     background: var(--color-teal-bg);
     border-bottom: none;
+    box-shadow: inset 0 0 0 2px var(--color-teal);
   }
 
   .txn-row.editing::before {
@@ -664,9 +764,9 @@
     display: flex;
     align-items: center;
     gap: var(--space-md);
-    padding: 12px var(--space-md);
+    padding: 12px var(--space-lg);
     border-bottom: 1px dashed var(--color-hairline);
-    min-height: 52px;
+    min-height: 56px;
   }
 
   .shimmer-row:last-child { border-bottom: none; }
@@ -702,6 +802,21 @@
     letter-spacing: 0.02em;
     flex-shrink: 0;
     font-family: var(--font-display);
+  }
+
+  /* ── Per-row date column (flat view) ── */
+  .txn-date-col {
+    flex-shrink: 0;
+    min-width: 76px;
+    text-align: right;
+  }
+
+  .txn-date-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
   }
 
   /* ── Running balance column ── */
@@ -817,6 +932,33 @@
 
   .hover-btn:hover { background: var(--color-teal-bg); color: var(--color-teal); }
   .hover-delete:hover { background: rgba(239, 108, 74, 0.10); color: var(--color-coral); }
+
+  /* ── Mobile row overflow trigger (⋮) ── */
+  .row-menu-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    margin-right: -6px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: background 180ms var(--ease), color 180ms var(--ease);
+  }
+
+  .row-menu-btn:active {
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
+  }
+
+  .row-menu-btn:focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: -2px;
+  }
 
   /* ── Inline edit panel (Flip7) ── */
   .edit-panel {
@@ -952,6 +1094,16 @@
     border-color: var(--color-coral);
   }
 
+  .edit-btn-ghost {
+    background: transparent;
+    color: var(--color-teal);
+    border: 1px solid var(--color-hairline);
+  }
+  .edit-btn-ghost:hover {
+    background: var(--color-teal-bg);
+    border-color: var(--color-teal);
+  }
+
   /* ── Empty state ── */
   .empty-state {
     display: flex;
@@ -1019,6 +1171,9 @@
     .cat-pill { display: none; }
     .hover-actions { display: none; }
     .cat-stripe { display: none; }
+    .row-menu-btn { display: inline-flex; }
+    .flat-header { display: none; }
+    .txn-date-col { display: none; }
   }
 
   .refund-chip {
@@ -1077,6 +1232,7 @@
 
     .txn-info { flex: 1 1 calc(100% - 44px); order: 1; }
     .txn-amount-col { order: 2; min-width: auto; margin-left: auto; }
+    .row-menu-btn { order: 2; margin-left: var(--space-xs); margin-right: 0; }
 
     .balance-col {
       order: 3;

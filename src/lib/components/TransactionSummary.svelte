@@ -99,7 +99,7 @@
       <span class="card-value">{formatCurrency(totalIncome)}</span>
       <span class="card-trend {trendColor(incomeTrend)}" class:inverse={false}>
         {#if incomeTrend !== null}
-          {trendIcon(incomeTrend)} {Math.abs(incomeTrend)}% vs prior
+          {trendIcon(incomeTrend)} {Math.abs(incomeTrend)}%
         {:else if totalIncome > 0}
           Current period
         {/if}
@@ -127,7 +127,7 @@
       <span class="card-value">{formatCurrency(totalExpenses)}</span>
       <span class="card-trend {trendColor(expenseTrend, true)}" class:inverse={true}>
         {#if expenseTrend !== null}
-          {trendIcon(expenseTrend)} {Math.abs(expenseTrend)}% vs prior
+          {trendIcon(expenseTrend)} {Math.abs(expenseTrend)}%
         {:else if totalExpenses > 0}
           Current period
         {/if}
@@ -156,7 +156,7 @@
       <span class="card-value hero-value">{formatCurrency(netBalance)}</span>
       <span class="card-trend {trendColor(netTrend)}">
         {#if netTrend !== null}
-          {trendIcon(netTrend)} {Math.abs(netTrend)}% vs prior
+          {trendIcon(netTrend)} {Math.abs(netTrend)}%
         {:else if transactions.length > 0}
           Current period
         {:else}
@@ -177,7 +177,7 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: var(--space-md);
-    margin-bottom: var(--space-lg);
+    margin-bottom: var(--space-2xl);
   }
 
   /* ─── Card base ─── */
@@ -186,7 +186,7 @@
     display: flex;
     align-items: flex-start;
     gap: var(--space-md);
-    padding: var(--space-lg);
+    padding: var(--space-md);
     background: var(--color-surface);
     border: 1px solid var(--color-hairline);
     border-radius: var(--radius-xl);
@@ -194,8 +194,8 @@
     font-family: var(--font-body);
     text-align: left;
     overflow: hidden;
-    min-height: 120px;
-    transition: all 250ms var(--bounce);
+    min-height: 88px;
+    transition: all 200ms var(--ease);
     -webkit-tap-highlight-color: transparent;
   }
 
@@ -254,8 +254,8 @@
 
   /* ─── Icon ─── */
   .card-icon {
-    width: 44px;
-    height: 44px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -288,7 +288,7 @@
   .card-content {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
     z-index: 1;
     min-width: 0;
   }
@@ -300,36 +300,37 @@
     color: var(--color-text-muted);
     text-transform: none;
     letter-spacing: 0.02em;
-    margin-bottom: 2px;
+    margin-bottom: 0;
   }
 
   .card-value {
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 700;
     color: var(--color-text);
-    line-height: 1.2;
+    line-height: 1.15;
     font-family: var(--font-display);
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
   }
 
   .hero-value {
-    font-size: 26px;
+    font-size: 22px;
     font-weight: 800;
   }
 
   /* ─── Trend chip ─── */
   .card-trend {
     display: inline-block;
-    margin-top: 6px;
-    font-size: 11px;
+    margin-top: 2px;
+    font-size: 10px;
     font-weight: 600;
-    padding: 2px 10px;
+    padding: 1px 8px;
     border-radius: var(--radius-pill);
     width: fit-content;
     background: var(--color-bg);
     color: var(--color-text-muted);
     font-family: var(--font-display);
+    white-space: nowrap;
   }
 
   .card-trend.positive {
@@ -391,6 +392,16 @@
   }
 
   /* ─── Responsive ─── */
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .summary-cards {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .hero-card {
+      grid-column: 1 / -1;
+    }
+  }
+
   @media (max-width: 768px) {
     .summary-cards {
       grid-template-columns: 1fr;
@@ -414,8 +425,8 @@
 
   @media (max-width: 480px) {
     .card-icon {
-      width: 40px;
-      height: 40px;
+      width: 36px;
+      height: 36px;
     }
   }
 </style>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatCurrency } from '$lib/utils/format';
+  import Button from '$lib/components/Button.svelte';
   import type { Category } from '$lib/types';
 
   // ─── Props ────────────────────────────────────────────────────────
@@ -8,10 +8,14 @@
     categories = [] as Category[],
     activeFilters = { date: '', category: '', type: '' },
     onFilterChange,
+    mode = 'popover',
+    onApply,
   }: {
     categories?: Category[];
     activeFilters?: { date: string; category: string; type: string };
     onFilterChange?: (filters: { date: string; category: string; type: string; customFrom?: string; customTo?: string }) => void;
+    mode?: 'popover' | 'sheet';
+    onApply?: () => void;
   } = $props();
 
   // ─── State ────────────────────────────────────────────────────────
@@ -92,6 +96,7 @@
 
   $effect(() => {
     if (!activePopover) return;
+    if (mode !== 'popover') return;
 
     let attached = false;
     let handler: ((e: MouseEvent) => void) | null = null;
@@ -116,7 +121,7 @@
   });
 </script>
 
-<div class="filter-bar">
+<div class="filter-bar" class:sheet={mode === 'sheet'}>
   <!-- ═══ Date Pill ═══ -->
   <div class="pill-wrap">
     <button
@@ -267,6 +272,14 @@
         <span class="clear-count">({activeFilterCount})</span>
       {/if}
     </button>
+  {/if}
+
+  <!-- ═══ Sheet footer (mobile bottom-sheet mode only) ═══ -->
+  {#if mode === 'sheet'}
+    <div class="sheet-footer">
+      <Button variant="ghost" fullWidth onclick={clearFilters}>Reset Filters</Button>
+      <Button variant="primary" fullWidth onclick={onApply}>Apply Filters</Button>
+    </div>
   {/if}
 </div>
 
@@ -546,10 +559,61 @@
     transform: scale(0.96);
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     SHEET MODE — bottom-sheet accordion (inside FiltersSheet)
+     ═══════════════════════════════════════════════════════════════════ */
+
+  .filter-bar.sheet {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-xs);
+    margin-bottom: 0;
+  }
+
+  .filter-bar.sheet .pill-wrap {
+    width: 100%;
+  }
+
+  .filter-bar.sheet .filter-pill {
+    width: 100%;
+    justify-content: space-between;
+    min-height: 48px;
+    border-radius: var(--radius-lg);
+    font-size: var(--font-size-sm);
+  }
+
+  .filter-bar.sheet .clear-pill {
+    display: none;
+  }
+
+  .filter-bar.sheet .filter-popover {
+    position: static;
+    min-width: 0;
+    max-height: none;
+    transform: none;
+    box-shadow: none;
+    border-radius: var(--radius-lg);
+    margin: 0 0 var(--space-xs);
+    animation: none;
+    overflow: visible;
+  }
+
+  .filter-bar.sheet .sheet-footer {
+    position: sticky;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-md);
+    padding: var(--space-lg) 0 var(--space-xs);
+    margin-top: var(--space-sm);
+    border-top: 1px dashed var(--color-hairline);
+    background: var(--color-surface);
+  }
+
   /* ─── Responsive ─── */
   @media (max-width: 768px) {
 
-    .filter-popover {
+    .filter-bar:not(.sheet) .filter-popover {
       position: fixed;
       top: 50%;
       left: var(--space-md);

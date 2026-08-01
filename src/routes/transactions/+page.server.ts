@@ -20,6 +20,7 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const category_id = url.searchParams.get('category_id');
 	const date_from = url.searchParams.get('date_from');
 	const date_to = url.searchParams.get('date_to');
+	const search = url.searchParams.get('search');
 
 	const conditions: string[] = ['t.user_id = $1'];
 	const params: (string | number)[] = [userId];
@@ -40,11 +41,19 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 		conditions.push('t.date <= $' + (params.length + 1));
 		params.push(date_to);
 	}
+	if (search && search.trim()) {
+		const like = `%${search.trim()}%`;
+		conditions.push(`(t.description ILIKE $${params.length + 1} OR c.name ILIKE $${params.length + 2})`);
+		params.push(like, like);
+	}
 
 	const where = 'WHERE ' + conditions.join(' AND ');
 
 	const countRow = await queryOne<{ total: number }>(
-		`SELECT COUNT(*)::int as total FROM transactions t ${where}`,
+		`SELECT COUNT(*)::int as total
+		 FROM transactions t
+		 LEFT JOIN categories c ON t.category_id = c.id
+		 ${where}`,
 		params
 	);
 

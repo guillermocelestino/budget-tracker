@@ -9,9 +9,10 @@
   import TransactionSummary from '$lib/components/TransactionSummary.svelte';
   import TransactionFilters from '$lib/components/TransactionFilters.svelte';
   import TransactionList from '$lib/components/TransactionList.svelte';
-  import ExportDropdown from '$lib/components/ExportDropdown.svelte';
+  import OverflowMenu from '$lib/components/OverflowMenu.svelte';
+  import FiltersSheet from '$lib/components/FiltersSheet.svelte';
+  import EmptyState from '$lib/components/EmptyState.svelte';
   import ViewToggle from '$lib/components/ViewToggle.svelte';
-  import MoreMenu from '$lib/components/MoreMenu.svelte';
   import ModalDialog from '$lib/components/ModalDialog.svelte';
   import SlideOver from '$lib/components/SlideOver.svelte';
   import ImportDropZone from '$lib/components/ImportDropZone.svelte';
@@ -42,6 +43,31 @@
     type: $page.url.searchParams.get('type') || '',
     customFrom: $page.url.searchParams.get('from') || '',
     customTo: $page.url.searchParams.get('to') || '',
+    search: $page.url.searchParams.get('search') || '',
+  });
+
+  // ─── Search input (debounced) + URL-synced ──────────────────────────
+
+  let searchInput = $state(filters.search);
+  let filtersOpen = $state(false);
+
+  // Sync the input from the URL on navigation (back/forward)
+  $effect(() => {
+    const urlSearch = $page.url.searchParams.get('search') ?? '';
+    if (urlSearch !== searchInput) searchInput = urlSearch;
+  });
+
+  // Debounce writing the typed value into the filter state
+  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    const value = searchInput;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      if (filters.search !== value) filters.search = value;
+    }, 300);
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
   });
 
   // ─── Sync filters → URL (auto-navigates, triggers server load) ──
@@ -62,6 +88,8 @@
       if (range.from) params.set('date_from', range.from);
       if (range.to) params.set('date_to', range.to);
     }
+
+    if (filters.search) params.set('search', filters.search);
 
     const newQs = params.toString();
     const currentQs = $page.url.search.replace(/^\?/, '');
@@ -231,11 +259,17 @@
       type: newFilters.type,
       customFrom: newFilters.customFrom || '',
       customTo: newFilters.customTo || '',
+      search: filters.search,
     };
   }
 
   function handleCardClick(type: string) {
     filters = { ...filters, type };
+  }
+
+  function clearAllFilters() {
+    filters = { date: '', category: '', type: '', customFrom: '', customTo: '', search: '' };
+    searchInput = '';
   }
 
   function goToPage(p: number) {
@@ -253,15 +287,27 @@
   const totalCount = $derived(data.total ?? 0);
   const showingCount = $derived(data.transactions?.length ?? 0);
 
-  const filterSummary = $derived(
-    [filters.type, filters.category, filters.date].filter(Boolean).join(', ')
-  );
+  const activeFilterCount = $derived([filters.type, filters.category, filters.date].filter(Boolean).length);
+  const hasActiveFilters = $derived(filters.type || filters.category || filters.date || filters.search);
 
-  // ─── Context subline ──────────────────────────────────────────────
+  // ─── Context subline: month label + total filtered count ──────────
 
   const contextSubline = $derived.by(() => {
-    const month = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
-    return `${month} · ${showingCount} transaction${showingCount !== 1 ? 's' : ''}`;
+    const monthLabel = (() => {
+      if (!filters.date || filters.date === 'this-month') {
+        const [y, m] = getCurrentMonth().split('-').map(Number);
+        return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date(y, m - 1));
+      }
+      const range = dateRangeFromFilter(filters.date, filters.customFrom, filters.customTo);
+      if (range.from) {
+        const [y, m] = range.from.split('-').map(Number);
+        const label = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date(y, m - 1));
+        if (range.to && range.from.slice(0, 7) === range.to.slice(0, 7)) return label;
+        return `From ${label}`;
+      }
+      return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
+    })();
+    return `${monthLabel} · ${totalCount} transaction${totalCount !== 1 ? 's' : ''}`;
   });
 
   // ─── Lifted view toggle state ─────────────────────────────────────
@@ -311,6 +357,35 @@
       showError('Failed to generate PDF');
     }
   }
+
+  // ─── Duplicate a transaction ─────────────────────────────────────
+
+  async function handleDuplicate(id: number) {
+    const src =
+      (data.allForBalance ?? []).find((t) => t.id === id) ??
+      (data.transactions ?? []).find((t) => t.id === id);
+    if (!src) return;
+
+    try {
+      const res = await fetch('/api/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: src.type,
+          amount: src.amount,
+          description: src.description,
+          date: src.date,
+          category_id: src.category_id,
+        }),
+      });
+      if (!res.ok) throw new Error(((await res.json()).error) || 'Duplicate failed');
+      showSuccess('Transaction duplicated');
+      const qs = $page.url.search;
+      await goto(`/transactions${qs ? '?' + qs : ''}`, { keepFocus: true, noScroll: true });
+    } catch (e) {
+      showError((e as Error).message || 'Failed to duplicate transaction');
+    }
+  }
 </script>
 
 <svelte:head>
@@ -323,71 +398,81 @@
   {#snippet subtitle()}
     <span class="context-subline">{contextSubline}</span>
   {/snippet}
-  {#snippet action()}
-    <div class="header-actions">
-      <span class="desktop-only">
-        <Button variant="primary" href="/transactions/new">
-          <span class="btn-lead" aria-hidden="true">+</span>
-          Add Transaction
-        </Button>
-      </span>
-      <span class="desktop-only">
-        <Button variant="ghost" onclick={() => (importSlideOpen = true)}>
-          <svg class="btn-lead" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          Import
-        </Button>
-      </span>
-      <span class="mobile-only">
-        <MoreMenu
-          onImportClick={() => (importSlideOpen = true)}
-          onExport={handleExport}
-        />
-      </span>
-    </div>
-  {/snippet}
 </PageHeader>
 
-<!-- ═══ Unified toolbar: filters left, Export + ViewToggle right ═══ -->
+<!-- ═══ Mobile full-width primary action ═══ -->
+<div class="mobile-only mobile-add-row">
+  <Button variant="primary" href="/transactions/new" fullWidth>
+    <span class="btn-lead" aria-hidden="true">+</span>
+    Add Transaction
+  </Button>
+</div>
+
+<!-- ═══ Toolbar: search + filters + view toggle + actions ═══ -->
 <div class="txn-toolbar">
   <div class="toolbar-left">
-    <TransactionFilters
-      categories={data.categories ?? []}
-      activeFilters={{
-        date: filters.date,
-        category: filters.category,
-        type: filters.type,
-      }}
-      onFilterChange={handleFilterChange}
-    />
+    <div class="toolbar-search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input
+        type="search"
+        placeholder="Search transactions…"
+        aria-label="Search transactions"
+        bind:value={searchInput}
+      />
+    </div>
+    <span class="desktop-only">
+      <TransactionFilters
+        categories={data.categories ?? []}
+        activeFilters={{
+          date: filters.date,
+          category: filters.category,
+          type: filters.type,
+        }}
+        onFilterChange={handleFilterChange}
+      />
+    </span>
   </div>
-  <div class="toolbar-right desktop-only">
-    <ExportDropdown
-      totalFilteredCount={showingCount}
-      filterSummary={filterSummary}
-      onExport={handleExport}
-    />
+  <div class="toolbar-right">
+    <span class="mobile-only">
+      <button class="filters-btn" onclick={() => (filtersOpen = true)} aria-haspopup="dialog" aria-expanded={filtersOpen} type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+        </svg>
+        Filters
+        {#if activeFilterCount > 0}
+          <span class="filters-badge">{activeFilterCount}</span>
+        {/if}
+      </button>
+    </span>
     <ViewToggle {showFlatView} onChange={(flat) => showFlatView = flat} />
+    <span class="desktop-only">
+      <Button variant="primary" href="/transactions/new">
+        <span class="btn-lead" aria-hidden="true">+</span>
+        Add Transaction
+      </Button>
+    </span>
+    <OverflowMenu
+      onImportCsv={() => (importSlideOpen = true)}
+      onExportCsv={() => handleExport('csv')}
+      onExportPdf={() => handleExport('pdf')}
+    />
   </div>
 </div>
 
 <!-- ═══ Interactive summary cards ═══ -->
 <TransactionSummary
-  transactions={data.transactions ?? []}
+  transactions={[...(data.allForBalance ?? [])].reverse()}
   {activeType}
   onCardClick={handleCardClick}
 />
 
-<!-- ═══ List caption + mobile view toggle ═══ -->
+<!-- ═══ List caption ═══ -->
 <div class="list-header">
   <span class="list-caption">
     showing {showingCount}{showingCount !== totalCount ? ` of ${totalCount}` : ''} transactions
-  </span>
-  <span class="mobile-only">
-    <ViewToggle {showFlatView} onChange={(flat) => showFlatView = flat} />
   </span>
 </div>
 
@@ -401,7 +486,30 @@
   {showFlatView}
   onEdit={(id) => goto(`/transactions/${id}/edit`)}
   onDelete={(id) => (deleteId = id)}
-/>
+  onDuplicate={handleDuplicate}
+>
+  {#snippet emptyState()}
+    {#if hasActiveFilters}
+      <EmptyState
+        icon="🔍"
+        title="No results"
+        description="No transactions match your search or filters."
+        actionLabel="Clear All Filters"
+        onAction={clearAllFilters}
+      />
+    {:else}
+      <EmptyState
+        icon="💰"
+        title="No transactions yet"
+        description="Start by adding your first transaction or importing a CSV."
+        actionLabel="Add Transaction"
+        actionHref="/transactions/new"
+        secondaryLabel="Import CSV"
+        onSecondaryAction={() => (importSlideOpen = true)}
+      />
+    {/if}
+  {/snippet}
+</TransactionList>
 
 <!-- ═══ Pagination ═══ -->
 {#if (data.totalPages ?? 0) > 1}
@@ -419,6 +527,19 @@
     >Next →</button>
   </div>
 {/if}
+
+<!-- ═══ Mobile filters bottom sheet ═══ -->
+<FiltersSheet
+  open={filtersOpen}
+  onClose={() => (filtersOpen = false)}
+  categories={data.categories ?? []}
+  activeFilters={{
+    date: filters.date,
+    category: filters.category,
+    type: filters.type,
+  }}
+  onFilterChange={handleFilterChange}
+/>
 
 <!-- ═══ Delete confirmation modal ═══ -->
 {#if deleteId !== null}
@@ -447,8 +568,8 @@
     >
       <input type="hidden" name="id" value={deleteId} />
       <div class="modal-actions">
-        <button type="submit" class="btn btn-danger">Delete</button>
-        <button type="button" class="btn btn-secondary" onclick={() => (deleteId = null)}>Cancel</button>
+        <Button variant="danger" type="submit">Delete</Button>
+        <Button variant="ghost" type="button" onclick={() => (deleteId = null)}>Cancel</Button>
       </div>
     </form>
   </ModalDialog>
@@ -496,15 +617,15 @@
 				</div>
 			{/if}
 			<div class="step-actions">
-				<button
-					class="btn-next"
+				<Button
+					variant="primary"
 					onclick={goToPreview}
 					disabled={!Object.values(importMapping).includes('amount') || !Object.values(importMapping).includes('date')}
 					type="button"
 				>
 					Preview Transactions →
-				</button>
-				<button class="btn-back" onclick={() => (importStep = 'upload')} type="button">← Back</button>
+				</Button>
+				<Button variant="ghost" onclick={() => (importStep = 'upload')} type="button">← Back</Button>
 			</div>
 		{/if}
 
@@ -555,12 +676,12 @@
 					{/if}
 				</p>
 				<div class="done-actions">
-					<button class="btn-primary" onclick={() => { importSlideOpen = false; importStep = 'upload'; importError = ''; importResult = null; }} type="button">
+					<Button variant="primary" onclick={() => { importSlideOpen = false; importStep = 'upload'; importError = ''; importResult = null; }} type="button">
 						Done
-					</button>
-					<button class="btn-secondary" onclick={() => { importStep = 'upload'; importError = ''; importResult = null; }} type="button">
+					</Button>
+					<Button variant="ghost" onclick={() => { importStep = 'upload'; importError = ''; importResult = null; }} type="button">
 						Import Another File
-					</button>
+					</Button>
 							</div>
 				</div>
 			{/if}
@@ -569,15 +690,12 @@
 {/if}
 
 <style>
-  /* ─── Header button pair (primary + ghost via Button component) ─── */
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    flex-wrap: wrap;
-    min-width: 0;
+  /* ─── 8-point section rhythm: Header → Toolbar ─── */
+  :global(.page-header) {
+    margin-bottom: var(--space-2xl);
   }
 
+  /* ─── Primary button lead glyph ─── */
   .btn-lead {
     display: inline-flex;
     align-items: center;
@@ -596,18 +714,26 @@
     letter-spacing: 0.02em;
   }
 
-  /* ─── Unified toolbar ─── */
+  /* ─── Mobile full-width primary action ─── */
+  .mobile-add-row {
+    margin-bottom: var(--space-md);
+  }
+
+  /* ─── Toolbar ─── */
   .txn-toolbar {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: var(--space-md);
-    margin-bottom: var(--space-lg);
+    margin-bottom: var(--space-2xl);
   }
 
   .toolbar-left {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
   }
 
   /* Remove default margin from TransactionFilters when embedded in toolbar */
@@ -615,11 +741,99 @@
     margin-bottom: 0;
   }
 
+  /* ─── Search field ─── */
+  .toolbar-search {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    max-width: 320px;
+    height: 44px;
+    padding: 0 var(--space-md);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    transition: border-color 180ms var(--ease), box-shadow 180ms var(--ease);
+  }
+
+  .toolbar-search:focus-within {
+    border-color: var(--color-teal);
+    box-shadow: var(--focus);
+  }
+
+  .toolbar-search svg {
+    flex-shrink: 0;
+  }
+
+  .toolbar-search input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: var(--font-body);
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+  }
+
+  .toolbar-search input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .toolbar-search input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+  }
+
   .toolbar-right {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
     flex-shrink: 0;
+  }
+
+  /* ─── Mobile Filters button ─── */
+  .filters-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 var(--space-lg);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    font-family: var(--font-body);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 180ms var(--ease);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .filters-btn:hover {
+    border-color: var(--color-teal);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
+  }
+
+  .filters-btn:focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: 2px;
+  }
+
+  .filters-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: var(--radius-pill);
+    background: var(--color-coral);
+    color: #fff;
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    font-family: var(--font-mono);
   }
 
   /* ─── List caption + mobile view toggle ─── */
@@ -662,27 +876,26 @@
 
     .txn-toolbar {
       flex-direction: column;
-      gap: var(--space-sm);
+      gap: var(--space-md);
     }
 
-    .toolbar-left :global(.filter-bar) {
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
+    .toolbar-search {
+      max-width: 100%;
     }
 
-    .toolbar-left :global(.filter-bar::-webkit-scrollbar) {
-      display: none;
+    .toolbar-right {
+      width: 100%;
+      justify-content: space-between;
     }
 
-    .toolbar-left :global(.pill-wrap) {
-      flex-shrink: 0;
-      width: auto;
+    .toolbar-right .mobile-only {
+      flex: 1;
+      min-width: 0;
     }
 
-    .toolbar-left :global(.filter-pill) {
-      width: auto;
+    .filters-btn {
+      width: 100%;
+      justify-content: center;
     }
   }
 
@@ -692,7 +905,7 @@
     align-items: center;
     justify-content: center;
     gap: var(--space-md);
-    margin-top: var(--space-lg);
+    margin-top: var(--space-xl);
   }
 
   .page-btn {
@@ -735,35 +948,8 @@
     margin-top: var(--space-md);
   }
 
-  .btn {
+  .modal-actions :global(.btn) {
     flex: 1;
-    padding: var(--space-sm) var(--space-lg);
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-base);
-    font-weight: 600;
-    cursor: pointer;
-    border: none;
-    min-height: 44px;
-    transition: all var(--transition-fast);
-  }
-
-  .btn-danger {
-    background: var(--color-expense);
-    color: white;
-  }
-
-  .btn-danger:hover {
-    background: var(--color-danger-hover);
-  }
-
-  .btn-secondary {
-    background: var(--color-bg);
-    color: var(--color-text);
-    border: 1px solid var(--color-border);
-  }
-
-  .btn-secondary:hover {
-    background: var(--color-border);
   }
 
   /* ─── Responsive ─── */
@@ -810,57 +996,6 @@
     display: flex;
     gap: var(--space-sm);
     margin-top: var(--space-lg);
-  }
-
-  .btn-next {
-    flex: 1;
-    padding: var(--space-sm) var(--space-lg);
-    background: linear-gradient(135deg, var(--color-gold), var(--color-gold-light));
-    color: var(--color-ink);
-    border: none;
-    border-radius: var(--radius-pill);
-    font-family: var(--font-display);
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-bold);
-    cursor: pointer;
-    min-height: 48px;
-    box-shadow: var(--glow-gold);
-    transition: all 200ms var(--bounce);
-  }
-
-  .btn-next:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 24px rgba(255, 210, 63, 0.55);
-  }
-
-  .btn-next:active:not(:disabled) {
-    transform: scale(0.97);
-  }
-
-  .btn-next:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    box-shadow: none;
-  }
-
-  .btn-back {
-    padding: var(--space-sm) var(--space-xl);
-    background: var(--color-bg);
-    color: var(--color-text-muted);
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--radius-pill);
-    font-family: var(--font-body);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    cursor: pointer;
-    min-height: 48px;
-    transition: all 150ms var(--ease);
-  }
-
-  .btn-back:hover {
-    background: var(--color-teal-bg);
-    border-color: var(--color-teal);
-    color: var(--color-teal);
   }
 
   .import-error {
@@ -933,48 +1068,8 @@
     gap: var(--space-md);
   }
 
-  .btn-primary {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--space-sm) var(--space-xl);
-    background: linear-gradient(135deg, var(--color-gold), var(--color-gold-light));
-    color: var(--color-ink);
-    border: none;
-    border-radius: var(--radius-pill);
-    font-family: var(--font-display);
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-bold);
-    cursor: pointer;
-    text-decoration: none;
-    min-height: 48px;
-    box-shadow: var(--glow-gold);
-    transition: all 200ms var(--bounce);
-  }
-
-  .btn-primary:hover {
-    transform: translateY(-1px);
-    text-decoration: none;
-    color: var(--color-ink);
-  }
-
-  .btn-secondary {
-    padding: var(--space-sm) var(--space-xl);
-    background: var(--color-bg);
-    color: var(--color-text-muted);
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--radius-pill);
-    font-family: var(--font-body);
-    font-size: var(--font-size-base);
-    font-weight: 600;
-    cursor: pointer;
-    min-height: 48px;
-    transition: all 150ms var(--ease);
-  }
-
-  .btn-secondary:hover {
-    background: var(--color-teal-bg);
-    border-color: var(--color-teal);
-    color: var(--color-teal);
+  .done-actions :global(.btn) {
+    flex: 1;
   }
 
   @media (max-width: 640px) {
