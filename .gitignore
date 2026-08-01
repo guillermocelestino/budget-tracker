@@ -27,3 +27,4 @@ vite.config.ts.timestamp-*
 
 .claude
 /graphify-out
+test-results/

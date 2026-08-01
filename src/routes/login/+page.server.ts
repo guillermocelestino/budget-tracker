@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { queryOne } from '$lib/database/query';
-import { verifyPassword, createToken } from '$lib/auth';
+import { createToken } from '$lib/auth';
+import { validateLoginInput, verifyUserCredentials } from '$lib/utils/loginValidation';
 
 export function load({ locals }: { locals: App.Locals }) {
 	if (locals.user) {
@@ -9,26 +10,25 @@ export function load({ locals }: { locals: App.Locals }) {
 }
 
 export const actions = {
-	default: async ({ request, cookies }) => {
+	default: async ({ request, cookies }: { request: Request; cookies: import('@sveltejs/kit').Cookies }) => {
 		const data = await request.formData();
 
-		const username = (data.get('username') as string)?.trim();
-		const password = data.get('password') as string;
-
-		if (!username || !password) {
-			return fail(400, { error: 'Username and password are required' });
+		const inputResult = validateLoginInput(data.get('username'), data.get('password'));
+		if (!inputResult.valid) {
+			return fail(400, { error: inputResult.error });
 		}
 
 		const user = await queryOne<{ id: number; username: string; password_hash: string }>(
 			'SELECT id, username, password_hash FROM users WHERE username = $1',
-			[username]
+			[inputResult.username]
 		);
 
-		if (!user || !verifyPassword(password, user.password_hash)) {
-			return fail(401, { error: 'Invalid username or password' });
+		const credResult = verifyUserCredentials(user, inputResult.password);
+		if (!credResult.valid) {
+			return fail(401, { error: credResult.error });
 		}
 
-		const token = createToken(user.id, user.username);
+		const token = createToken(credResult.user.id, credResult.user.username);
 
 		cookies.set('session', token, {
 			path: '/',
