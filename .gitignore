@@ -29,7 +29,9 @@ vite.config.ts.timestamp-*
 /graphify-out
 test-results/
 
-./claude
+# Claude (fixed)
+/claude
 
+# Generated reports and screenshots
 reports
 screenshots
