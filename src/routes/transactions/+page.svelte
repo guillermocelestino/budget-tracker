@@ -319,7 +319,7 @@
 
 <PageBackground />
 
-<PageHeader title="Transactions">
+<PageHeader title="Transactions" flush>
   {#snippet subtitle()}
     <span class="context-subline">{contextSubline}</span>
   {/snippet}

@@ -9,6 +9,8 @@
   import LendingBalanceHeader from '$lib/components/LendingBalanceHeader.svelte';
   import ActiveIouList from '$lib/components/ActiveIouList.svelte';
   import Button from '$lib/components/Button.svelte';
+  import MoreMenu from '$lib/components/MoreMenu.svelte';
+  import ViewToggle from '$lib/components/ViewToggle.svelte';
   import LendingImport from '$lib/components/LendingImport.svelte';
   import { showSuccess, showError } from '$lib/stores/toast.svelte';
   import type { Lending } from '$lib/types';
@@ -53,24 +55,31 @@
   <title>Lending — Finance Tracker</title>
 </svelte:head>
 
-<PageHeader title="Lending">
+<PageHeader title="Lending" flush>
+  {#snippet subtitle()}
+    <span class="context-subline">{activeLendings.length} active · {paidLendings.length} paid</span>
+  {/snippet}
   {#snippet action()}
     <div class="header-actions">
-      <button class="btn-add" onclick={openAdd}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" x2="12" y1="5" y2="19"/>
-          <line x1="5" x2="19" y1="12" y2="12"/>
-        </svg>
-        New Lending
-      </button>
-      <Button variant="ghost" onclick={() => (importSlideOpen = true)}>
-        <svg class="btn-lead" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        Import CSV
-      </Button>
+      <span class="desktop-only">
+        <Button variant="primary" onclick={openAdd}>
+          <span class="btn-lead" aria-hidden="true">+</span>
+          New Lending
+        </Button>
+        <Button variant="ghost" onclick={() => (importSlideOpen = true)} ariaLabel="Import CSV" title="Import CSV">
+          <svg class="btn-lead" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Import
+        </Button>
+      </span>
+      <span class="mobile-only">
+        <MoreMenu
+          items={[{ label: 'Import CSV', icon: 'import', onClick: () => (importSlideOpen = true) }]}
+        />
+      </span>
     </div>
   {/snippet}
 </PageHeader>
@@ -106,35 +115,27 @@
   title="Import Lendings"
 />
 
-<!-- ═══ Tabs + View Toggle ═══ -->
-<div class="tabs-row">
-  <div class="tabs">
-    <button class="tab" class:active={activeTab === 'active'} onclick={() => activeTab = 'active'}>
-      Active ({activeLendings.length})
-    </button>
-    <button class="tab" class:active={activeTab === 'paid'} onclick={() => activeTab = 'paid'}>
-      Paid ({paidLendings.length})
-    </button>
-  </div>
-  <div class="view-toggle">
-    <button class="toggle-btn" class:active={viewMode === 'card'} onclick={() => viewMode = 'card'} title="Card View">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="7" height="7" rx="1"/>
-        <rect x="14" y="3" width="7" height="7" rx="1"/>
-        <rect x="3" y="14" width="7" height="7" rx="1"/>
-        <rect x="14" y="14" width="7" height="7" rx="1"/>
-      </svg>
-    </button>
-    <button class="toggle-btn" class:active={viewMode === 'table'} onclick={() => viewMode = 'table'} title="Table View">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2"/>
-        <line x1="3" y1="9" x2="21" y2="9"/>
-        <line x1="3" y1="15" x2="21" y2="15"/>
-        <line x1="9" y1="3" x2="9" y2="21"/>
-        <line x1="15" y1="3" x2="15" y2="21"/>
-      </svg>
-    </button>
-  </div>
+<!-- ═══ Toolbar: status tab left, view toggle right ═══ -->
+<div class="toolbar">
+  <ViewToggle
+    options={[
+      { value: 'active', label: 'Active', count: activeLendings.length },
+      { value: 'paid', label: 'Paid', count: paidLendings.length },
+    ]}
+    value={activeTab}
+    onSelect={(v) => (activeTab = v as 'active' | 'paid')}
+    ariaLabel="Lending status filter"
+  />
+  <ViewToggle
+    options={[
+      { value: 'card', icon: 'grid', ariaLabel: 'Card view' },
+      { value: 'table', icon: 'table', ariaLabel: 'Table view' },
+    ]}
+    value={viewMode}
+    onSelect={(v) => (viewMode = v as 'card' | 'table')}
+    iconOnly
+    ariaLabel="Lending list view"
+  />
 </div>
 
 <ActiveIouList
@@ -235,301 +236,32 @@
     font-weight: var(--font-weight-extrabold);
   }
 
-  .btn-add {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-xs);
-    padding: var(--space-sm) var(--space-md);
-    background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
-    color: white;
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    cursor: pointer;
-    min-height: 44px;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-    transition: all var(--transition-fast);
-  }
-
-  .btn-add:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
-  }
-
-  .tabs-row {
+  /* ─── Unified toolbar: status tab left, view toggle right ─── */
+  .toolbar {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
     margin-bottom: var(--space-lg);
   }
 
-  .tabs {
-    display: flex;
-    gap: var(--space-sm);
-    background: var(--color-bg);
-    padding: 4px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border);
-    width: fit-content;
-  }
-
-  .tab {
-    padding: var(--space-sm) var(--space-lg);
-    border: none;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    font-family: inherit;
-    background: transparent;
-    color: var(--color-text-secondary);
-    transition: all var(--transition-fast);
-    min-height: 40px;
-  }
-
-  .tab.active {
-    background: var(--color-primary);
-    color: white;
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
-  }
-
-  .tab:not(.active):hover {
-    background: var(--color-surface);
-    color: var(--color-text);
-  }
-
-  .view-toggle {
-    display: flex;
-    gap: 2px;
-    background: var(--color-bg);
-    padding: 4px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border);
-  }
-
-  .toggle-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 8px 12px;
-    border: none;
-    background: transparent;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    color: var(--color-text-secondary);
-    transition: all var(--transition-fast);
-    min-height: 36px;
-  }
-
-  .toggle-btn.active {
-    background: var(--color-primary);
-    color: white;
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
-  }
-
-  .toggle-btn:hover:not(.active) {
-    background: var(--color-surface);
-    color: var(--color-text);
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: var(--space-2xl);
-    background: var(--color-surface);
-    border: 1px dashed var(--color-border);
-    border-radius: var(--radius-xl);
-    animation: fadeSlideIn 0.5s ease-out;
-  }
-
-  .empty-illustration {
-    width: 80px;
-    height: 80px;
-    margin: 0 auto var(--space-md);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, var(--color-primary-light) 0%, rgba(99, 102, 241, 0.1) 100%);
-    color: var(--color-primary);
-    border-radius: var(--radius-lg);
-  }
-
-  .empty-state h3 {
-    margin: 0 0 var(--space-xs);
-    font-size: var(--font-size-lg);
-  }
-
-  .empty-state p {
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-    margin: 0 0 var(--space-lg);
-  }
-
-  .btn-gradient {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-xs);
-    padding: var(--space-sm) var(--space-lg);
-    background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
-    color: white;
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    cursor: pointer;
-    min-height: 44px;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-    transition: all var(--transition-fast);
-  }
-
-  .btn-gradient:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
-  }
-
-  .table-section {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-xl);
-    padding: var(--space-lg);
-    animation: fadeSlideIn 0.4s ease-out;
-  }
-
-  .btn-add-new {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-xs);
-    padding: var(--space-sm) var(--space-md);
-    background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
-    color: white;
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    cursor: pointer;
-    min-height: 40px;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-    transition: all var(--transition-fast);
-    margin-bottom: var(--space-md);
-  }
-
-  .btn-add-new:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
-  }
-
-  .table-container {
-    overflow-x: auto;
-  }
-
-  .data-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--font-size-sm);
-  }
-
-  .data-table th {
-    text-align: left;
-    padding: var(--space-sm) var(--space-md);
-    color: var(--color-text-secondary);
-    font-weight: 600;
-    border-bottom: 2px solid var(--color-border);
-    white-space: nowrap;
-  }
-
-  .data-table td {
-    padding: var(--space-sm) var(--space-md);
-    border-bottom: 1px solid var(--color-border);
-    vertical-align: middle;
-  }
-
-  .data-table tr:hover {
-    background: var(--color-bg);
-  }
-
-  .text-right { text-align: right; }
-  .text-center { text-align: center; }
-
-  .borrower-cell {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    font-weight: 600;
-  }
-
-  .borrower-avatar {
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, var(--color-primary-light) 0%, rgba(99, 102, 241, 0.2) 100%);
-    color: var(--color-primary);
-    border-radius: var(--radius-md);
-    font-weight: 700;
-    font-size: var(--font-size-sm);
-    flex-shrink: 0;
-  }
-
-  .amount-cell {
-    font-weight: 600;
+  /* ─── Context subline (header) ─── */
+  .context-subline {
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-  }
-
-  .badge {
-    padding: 3px 12px;
-    border-radius: 999px;
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-  }
-
-  .badge.active {
-    background: linear-gradient(135deg, #fef3c7, #fde68a);
-    color: #92400e;
-    border: 1px solid rgba(245, 158, 11, 0.3);
-  }
-
-  .badge.paid {
-    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-    color: #065f46;
-    border: 1px solid rgba(16, 185, 129, 0.3);
-  }
-
-  .action-btns {
-    display: flex;
-    gap: var(--space-xs);
-    justify-content: center;
-  }
-
-  .action-btn {
-    padding: 4px 10px;
-    border: none;
-    border-radius: var(--radius-sm);
     font-size: var(--font-size-xs);
-    font-weight: 600;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    min-height: 32px;
+    letter-spacing: 0.02em;
   }
 
-  .action-btn.edit {
-    background: var(--color-primary-light);
-    color: var(--color-primary);
+  /* ─── Mobile / Desktop visibility (matches /transactions) ─── */
+  .desktop-only {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
   }
 
-  .action-btn.edit:hover {
-    background: var(--color-primary);
-    color: white;
-  }
-
-  .action-btn.delete {
-    background: var(--color-expense-light);
-    color: var(--color-expense);
-  }
-
-  .action-btn.delete:hover {
-    background: var(--color-expense);
-    color: white;
+  .mobile-only {
+    display: none;
   }
 
   .modal-icon-wrap {
@@ -643,8 +375,13 @@
   }
 
   @media (max-width: 768px) {
-    .tabs-row { flex-direction: column; align-items: stretch; gap: var(--space-sm); }
-    .view-toggle { width: fit-content; }
-    .data-table { display: block; overflow-x: auto; }
+    .desktop-only {
+      display: none !important;
+    }
+
+    .mobile-only {
+      display: flex;
+      align-items: center;
+    }
   }
 </style>

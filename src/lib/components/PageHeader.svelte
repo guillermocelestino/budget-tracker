@@ -1,8 +1,8 @@
 <script lang="ts">
-	let { title, subtitle, action }: { title: string; subtitle?: import('svelte').Snippet; action?: import('svelte').Snippet } = $props();
+	let { title, subtitle, action, flush = false }: { title: string; subtitle?: import('svelte').Snippet; action?: import('svelte').Snippet; flush?: boolean } = $props();
 </script>
 
-<div class="page-header">
+<div class="page-header" class:flush={flush}>
 	<div class="page-title-group">
 		<h1 class="page-title">{title}</h1>
 		{#if subtitle}
@@ -69,6 +69,12 @@
 		min-width: 0;
 	}
 
+	/* flush = align header content to the content rail (no extra horizontal inset) */
+	.page-header.flush {
+		padding-left: 0;
+		padding-right: 0;
+	}
+
 	@media (max-width: 768px) {
 		.page-header {
 			position: sticky;
@@ -78,6 +84,11 @@
 			margin-left: calc(-1 * var(--space-md));
 			margin-right: calc(-1 * var(--space-md));
 			margin-bottom: var(--space-md);
+		}
+
+		.page-header.flush {
+			padding-left: var(--space-md);
+			padding-right: var(--space-md);
 		}
 
 		.page-title {

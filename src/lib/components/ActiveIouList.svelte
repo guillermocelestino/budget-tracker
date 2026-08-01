@@ -437,12 +437,13 @@
     gap: var(--space-sm);
   }
 
-  /* Group header (sticky) */
+  /* Group header (sticky). Right padding is 0 so the count chip snaps to the
+     content right rail (matches header actions + toolbar + hero). */
   .group-header {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    padding: var(--space-sm) var(--space-md);
+    padding: var(--space-sm) 0 var(--space-sm) var(--space-md);
     border-bottom: 3px dashed var(--color-teal);
     background: var(--color-cream);
     position: sticky;

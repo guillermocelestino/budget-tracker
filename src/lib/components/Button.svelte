@@ -8,6 +8,8 @@
 		fullWidth = false,
 		onclick,
 		children,
+		ariaLabel = '',
+		title = '',
 	}: {
 		variant?: 'primary' | 'danger' | 'ghost' | 'link';
 		size?: 'sm' | 'md';
@@ -17,6 +19,8 @@
 		fullWidth?: boolean;
 		onclick?: (e: MouseEvent) => void;
 		children?: import('svelte').Snippet;
+		ariaLabel?: string;
+		title?: string;
 	} = $props();
 </script>
 
@@ -25,6 +29,8 @@
 		href={href}
 		class="btn btn-{variant} btn-{size}"
 		class:full-width={fullWidth}
+		aria-label={ariaLabel || undefined}
+		title={title || undefined}
 	>
 		{@render children?.()}
 	</a>
@@ -35,6 +41,8 @@
 		class="btn btn-{variant} btn-{size}"
 		class:full-width={fullWidth}
 		onclick={onclick}
+		aria-label={ariaLabel || undefined}
+		title={title || undefined}
 	>
 		{@render children?.()}
 	</button>

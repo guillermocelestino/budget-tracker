@@ -1,10 +1,18 @@
 <script lang="ts">
+  type MenuItem = {
+    label: string;
+    icon?: 'import' | 'export' | 'pdf';
+    onClick?: () => void;
+  };
+
   let {
     onImportClick,
     onExport,
+    items,
   }: {
     onImportClick?: () => void;
     onExport?: (format: 'csv' | 'pdf') => void;
+    items?: MenuItem[];
   } = $props();
 
   let isOpen = $state(false);
@@ -27,6 +35,11 @@
 
   function handleExport(format: 'csv' | 'pdf') {
     onExport?.(format);
+    close();
+  }
+
+  function handleItem(item: MenuItem) {
+    item.onClick?.();
     close();
   }
 
@@ -86,34 +99,61 @@
   {#if isOpen}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div bind:this={menuEl} class="more-dropdown" role="menu" aria-label="More actions">
-      <button class="more-option" onclick={handleImport} role="menuitem" type="button">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        <span>Import CSV</span>
-      </button>
+      {#if items}
+        {#each items as item (item.label)}
+          <button class="more-option" onclick={() => handleItem(item)} role="menuitem" type="button">
+            {#if item.icon === 'import'}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+            {:else if item.icon === 'export'}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <line x1="3" y1="9" x2="21" y2="9"/>
+                <line x1="9" y1="3" x2="9" y2="21"/>
+              </svg>
+            {:else if item.icon === 'pdf'}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="8" y1="13" x2="16" y2="13"/>
+              </svg>
+            {/if}
+            <span>{item.label}</span>
+          </button>
+        {/each}
+      {:else}
+        <button class="more-option" onclick={handleImport} role="menuitem" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>Import CSV</span>
+        </button>
 
-      <div class="more-divider"></div>
+        <div class="more-divider"></div>
 
-      <button class="more-option" onclick={() => handleExport('csv')} role="menuitem" type="button">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2"/>
-          <line x1="3" y1="9" x2="21" y2="9"/>
-          <line x1="9" y1="3" x2="9" y2="21"/>
-        </svg>
-        <span>Export CSV</span>
-      </button>
+        <button class="more-option" onclick={() => handleExport('csv')} role="menuitem" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <line x1="3" y1="9" x2="21" y2="9"/>
+            <line x1="9" y1="3" x2="9" y2="21"/>
+          </svg>
+          <span>Export CSV</span>
+        </button>
 
-      <button class="more-option" onclick={() => handleExport('pdf')} role="menuitem" type="button">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="8" y1="13" x2="16" y2="13"/>
-        </svg>
-        <span>Export PDF</span>
-      </button>
+        <button class="more-option" onclick={() => handleExport('pdf')} role="menuitem" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="8" y1="13" x2="16" y2="13"/>
+          </svg>
+          <span>Export PDF</span>
+        </button>
+      {/if}
     </div>
   {/if}
 </div>
