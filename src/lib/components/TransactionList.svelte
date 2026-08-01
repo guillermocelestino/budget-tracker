@@ -14,6 +14,8 @@
     showRunningBalance = true,
     showClearedColumn = false,
     categories = [],
+    showFlatView = false,
+    onViewChange,
   }: {
     transactions: Transaction[];
     onDelete?: (id: number) => void;
@@ -25,6 +27,8 @@
     showRunningBalance?: boolean;
     showClearedColumn?: boolean;
     categories?: { id: number; name: string; color: string; type: string }[];
+    showFlatView?: boolean;
+    onViewChange?: (flat: boolean) => void;
   } = $props();
 
   let editingId = $state<number | null>(null);
@@ -35,7 +39,7 @@
   let inlineEditingId = $state<number | null>(null);
   let inlineEditField = $state<'amount' | 'category' | null>(null);
   let inlineEditValue = $state('');
-  let showFlatView = $state(false);
+
   let clearedStatesLocal = $state<Map<number, boolean>>(new Map());
 
   function handleSwipeStart(e: TouchEvent, txnId: number) {
@@ -279,19 +283,7 @@
   }
 </script>
 
-<!-- ── VIEW TOGGLE ── -->
-<div class="register-header">
-  <div class="view-toggle">
-    <button class="toggle-btn" class:active={!showFlatView} onclick={() => showFlatView = false}>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-      Grouped
-    </button>
-    <button class="toggle-btn" class:active={showFlatView} onclick={() => showFlatView = true}>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-      Flat
-    </button>
-  </div>
-</div>
+
 
 <!-- ── SNIPPETS ── -->
 {#snippet dateHeader(group: DateGroup)}
@@ -522,49 +514,7 @@
   /* ── Container ── */
   .txn-list { width: 100%; }
 
-  /* ── Register header (view toggle) ── */
-  .register-header {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    margin-bottom: var(--space-sm);
-  }
 
-  .view-toggle {
-    display: flex;
-    gap: 2px;
-    background: var(--color-bg);
-    padding: 3px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-hairline);
-  }
-
-  .toggle-btn {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 12px;
-    border: none;
-    background: transparent;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    color: var(--color-text-muted);
-    font-size: var(--font-size-xs);
-    font-weight: 600;
-    font-family: var(--font-body);
-    transition: all var(--transition-fast);
-    min-height: 32px;
-  }
-
-  .toggle-btn.active {
-    background: var(--color-teal-bg);
-    color: var(--color-teal);
-  }
-
-  .toggle-btn:hover:not(.active) {
-    background: var(--color-surface);
-    color: var(--color-ink);
-  }
 
   .grouped-list, .flat-register {
     background: var(--color-surface);

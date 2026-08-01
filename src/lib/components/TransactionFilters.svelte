@@ -342,12 +342,12 @@
   /* ─── Clear pill ─── */
   .clear-pill {
     color: var(--color-coral);
-    border-color: rgba(239, 108, 74, 0.20);
+    border-color: var(--color-coral-bg);
     background: transparent;
   }
 
   .clear-pill:hover {
-    background: rgba(239, 108, 74, 0.10);
+    background: var(--color-coral-bg);
     border-color: var(--color-coral);
     color: var(--color-coral);
   }
@@ -526,7 +526,7 @@
     border: none;
     border-radius: var(--radius-pill);
     background: var(--color-teal);
-    color: white;
+    color: var(--color-ink-inverse);
     font-family: var(--font-display);
     font-size: var(--font-size-xs);
     font-weight: 700;
@@ -548,20 +548,6 @@
 
   /* ─── Responsive ─── */
   @media (max-width: 768px) {
-    .filter-bar {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-sm);
-    }
-
-    .pill-wrap {
-      width: 100%;
-    }
-
-    .filter-pill {
-      width: 100%;
-      justify-content: space-between;
-    }
 
     .filter-popover {
       position: fixed;

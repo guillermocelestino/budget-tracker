@@ -10,6 +10,8 @@
   import TransactionFilters from '$lib/components/TransactionFilters.svelte';
   import TransactionList from '$lib/components/TransactionList.svelte';
   import ExportDropdown from '$lib/components/ExportDropdown.svelte';
+  import ViewToggle from '$lib/components/ViewToggle.svelte';
+  import MoreMenu from '$lib/components/MoreMenu.svelte';
   import ModalDialog from '$lib/components/ModalDialog.svelte';
   import SlideOver from '$lib/components/SlideOver.svelte';
   import ImportDropZone from '$lib/components/ImportDropZone.svelte';
@@ -255,6 +257,17 @@
     [filters.type, filters.category, filters.date].filter(Boolean).join(', ')
   );
 
+  // ─── Context subline ──────────────────────────────────────────────
+
+  const contextSubline = $derived.by(() => {
+    const month = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
+    return `${month} · ${showingCount} transaction${showingCount !== 1 ? 's' : ''}`;
+  });
+
+  // ─── Lifted view toggle state ─────────────────────────────────────
+
+  let showFlatView = $state(false);
+
   async function handleExport(format: 'csv' | 'pdf') {
     const params = $page.url.searchParams.toString();
 
@@ -307,34 +320,57 @@
 <PageBackground />
 
 <PageHeader title="Transactions">
+  {#snippet subtitle()}
+    <span class="context-subline">{contextSubline}</span>
+  {/snippet}
   {#snippet action()}
     <div class="header-actions">
       <Button variant="primary" href="/transactions/new">
         <span class="btn-lead" aria-hidden="true">+</span>
         Add Transaction
       </Button>
-      <Button variant="ghost" onclick={() => (importSlideOpen = true)}>
-        <svg class="btn-lead" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        Import CSV
-      </Button>
+      <span class="desktop-only">
+        <Button variant="ghost" onclick={() => (importSlideOpen = true)}>
+          <svg class="btn-lead" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Import
+        </Button>
+      </span>
+      <span class="mobile-only">
+        <MoreMenu
+          onImportClick={() => (importSlideOpen = true)}
+          onExport={handleExport}
+        />
+      </span>
     </div>
   {/snippet}
 </PageHeader>
 
-<!-- ═══ Filter pills ═══ -->
-<TransactionFilters
-  categories={data.categories ?? []}
-  activeFilters={{
-    date: filters.date,
-    category: filters.category,
-    type: filters.type,
-  }}
-  onFilterChange={handleFilterChange}
-/>
+<!-- ═══ Unified toolbar: filters left, Export + ViewToggle right ═══ -->
+<div class="txn-toolbar">
+  <div class="toolbar-left">
+    <TransactionFilters
+      categories={data.categories ?? []}
+      activeFilters={{
+        date: filters.date,
+        category: filters.category,
+        type: filters.type,
+      }}
+      onFilterChange={handleFilterChange}
+    />
+  </div>
+  <div class="toolbar-right desktop-only">
+    <ExportDropdown
+      totalFilteredCount={showingCount}
+      filterSummary={filterSummary}
+      onExport={handleExport}
+    />
+    <ViewToggle {showFlatView} onChange={(flat) => showFlatView = flat} />
+  </div>
+</div>
 
 <!-- ═══ Interactive summary cards ═══ -->
 <TransactionSummary
@@ -343,16 +379,14 @@
   onCardClick={handleCardClick}
 />
 
-<!-- ═══ Result count + export ═══ -->
-<div class="result-meta">
-  <span class="result-count">
+<!-- ═══ List caption + mobile view toggle ═══ -->
+<div class="list-header">
+  <span class="list-caption">
     showing {showingCount}{showingCount !== totalCount ? ` of ${totalCount}` : ''} transactions
   </span>
-  <ExportDropdown
-    totalFilteredCount={showingCount}
-    filterSummary={filterSummary}
-    onExport={handleExport}
-  />
+  <span class="mobile-only">
+    <ViewToggle {showFlatView} onChange={(flat) => showFlatView = flat} />
+  </span>
 </div>
 
 <!-- ═══ Transaction list (Bank Register) ═══ -->
@@ -362,6 +396,7 @@
   categories={data.categories ?? []}
   showRunningBalance={true}
   showClearedColumn={true}
+  {showFlatView}
   onEdit={(id) => goto(`/transactions/${id}/edit`)}
   onDelete={(id) => (deleteId = id)}
 />
@@ -551,43 +586,102 @@
     font-weight: var(--font-weight-extrabold);
   }
 
-  /* ─── Result count ─── */
-  .result-meta {
+  /* ─── Context subline ─── */
+  .context-subline {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.02em;
+  }
+
+  /* ─── Unified toolbar ─── */
+  .txn-toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+  }
+
+  .toolbar-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Remove default margin from TransactionFilters when embedded in toolbar */
+  .toolbar-left :global(.filter-bar) {
+    margin-bottom: 0;
+  }
+
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-shrink: 0;
+  }
+
+  /* ─── List caption + mobile view toggle ─── */
+  .list-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--space-md);
-  }
-
-  .result-count {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
-    font-weight: 500;
-  }
-
-  .btn-export {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: var(--space-sm) var(--space-md);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    cursor: pointer;
-    text-decoration: none;
+    margin-bottom: var(--space-sm);
     min-height: 40px;
-    transition: all var(--transition-fast);
-    white-space: nowrap;
   }
 
-  .btn-export:hover {
-    background: var(--color-primary-light);
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-    text-decoration: none;
+  .list-caption {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-weight: 500;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ─── Mobile / Desktop visibility ─── */
+  .desktop-only {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .mobile-only {
+    display: none;
+  }
+
+  @media (max-width: 768px) {
+    .desktop-only {
+      display: none !important;
+    }
+
+    .mobile-only {
+      display: flex;
+      align-items: center;
+    }
+
+    .txn-toolbar {
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .toolbar-left :global(.filter-bar) {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .toolbar-left :global(.filter-bar::-webkit-scrollbar) {
+      display: none;
+    }
+
+    .toolbar-left :global(.pill-wrap) {
+      flex-shrink: 0;
+      width: auto;
+    }
+
+    .toolbar-left :global(.filter-pill) {
+      width: auto;
+    }
   }
 
   /* ─── Pagination ─── */

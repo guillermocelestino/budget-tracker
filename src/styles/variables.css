@@ -39,14 +39,17 @@
   --color-gold: #FFD23F;
   --color-gold-light: #FFE47A;
   --color-gold-dark: #E6B800;
+  --color-gold-bg: rgba(255, 210, 63, 0.15);
   /* Text on gold stays dark in BOTH themes (gold is gold in both). */
   --color-on-gold: #14302E;
   --color-coral: #EF6C4A;
   --color-coral-light: #FF8A6A;
   --color-coral-dark: #D45233;
+  --color-coral-bg: rgba(239, 108, 74, 0.15);
   --color-sky: #5DADE2;
   --color-sky-light: #7FC0EB;
   --color-ink: #14302E;
+  --color-ink-inverse: #FFFFFF;
   --color-text-muted: #5C7A78;
   --color-positive: #27AE60;
   --color-negative: #E74C3C;
@@ -204,12 +207,15 @@
   --color-gold: #FFD23F;
   --color-gold-light: #FFE47A;
   --color-gold-dark: #E6B800;
+  --color-gold-bg: rgba(255, 210, 63, 0.15);
   --color-coral: #FF8A6A;
   --color-coral-light: #FFA489;
   --color-coral-dark: #EF6C4A;
+  --color-coral-bg: rgba(255, 138, 106, 0.15);
   --color-sky: #6FC0F0;
   --color-sky-light: #8CCDF4;
   --color-ink: #EAF7F5;
+  --color-ink-inverse: #14302E;
   --color-text-muted: #8FB3B0;
   --color-positive: #34D27E;
   --color-negative: #FF7A6B;

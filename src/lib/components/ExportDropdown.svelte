@@ -258,7 +258,7 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     background: var(--color-teal);
-    color: white;
+    color: var(--color-ink-inverse);
   }
 
   .ex-muted {
@@ -321,7 +321,7 @@
   }
 
   .pdf-icon {
-    background: rgba(255, 210, 63, 0.15);
+    background: var(--color-gold-bg);
     color: var(--color-gold-dark);
   }
 
