@@ -166,7 +166,7 @@
         <line x1="9" y1="3" x2="9" y2="21"/>
         <line x1="15" y1="3" x2="15" y2="21"/>
       </svg>
-      <span>Flat</span>
+      <span>Table</span>
     </button>
   </div>
 {/if}

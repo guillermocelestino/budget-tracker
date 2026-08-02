@@ -346,77 +346,104 @@
   {/if}
 
 <!-- ════════════════════════════════════════
-     TABLE VIEW (Compact, with lifecycle columns)
+     REGISTER VIEW (Table) — Flip7 register, mirrors /transactions flat view
      ════════════════════════════════════════ -->
 {:else}
   {#if ious.length === 0}
-    <div class="empty-state table-empty">
-      <p>No records to show</p>
+    <div class="iou-register">
+      <div class="empty-state table-empty">
+        <p>No records to show</p>
+      </div>
     </div>
   {:else}
-    <div class="table-scroll">
-      <table class="lifecycle-table">
-        <thead>
-          <tr>
-            <th>{direction === 'lent' ? 'Borrower' : 'Lender'}</th>
-            <th class="num">Amount</th>
-            <th class="num">Progress</th>
-            <th>State</th>
-            <th>Countdown</th>
-            <th class="num">Interest</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each ious as iou (iou.id)}
-            {@const state = computeState(iou)}
-            {@const cd = countdownLabel(iou)}
-            {@const progressPct = iou.status === 'paid' ? 100 : 0}
-            <tr class:overdue={state === 'overdue'} class:paid={iou.status === 'paid'}>
-              <td>
-                <div class="borrower-cell">
-                  <div class="borrower-avatar" style="background: {stateBgColor(state)}; color: {stateTextColor(state)};">
-                    {iou.borrower_name.charAt(0).toUpperCase()}
-                  </div>
-                  {iou.borrower_name}
-                </div>
-              </td>
-              <td class="num amount-cell">{formatCurrency(iou.amount)}</td>
-              <td class="num">
-                <div class="table-progress-wrap">
-                  <div class="table-progress-track">
-                    <div class="table-progress-fill reveal-on-scroll" style="width: {progressPct}%; background: {stateAccentColor(state)};"></div>
-                  </div>
-                  <span class="table-progress-label">{progressPct}%</span>
-                </div>
-              </td>
-              <td>
-                <span class="state-chip" style="background: {stateBgColor(state)}; color: {stateTextColor(state)};">
-                  {stateLabel(state)}
-                </span>
-              </td>
-              <td>
-                {#if cd}
-                  <span class="cd-text" style="color: {cd.color};">{cd.text}</span>
-                {:else}
-                  <span class="cd-text muted">—</span>
-                {/if}
-              </td>
-              <td class="num">{iou.interest_rate}%</td>
-              <td>
-                <div class="action-btns">
-                  {#if iou.status !== 'paid'}
-                    <button class="action-btn pay" onclick={() => onPay?.(iou.id)} type="button">{direction === 'lent' ? 'Paid' : 'Repay'}</button>
-                  {/if}
-                  <button class="action-btn edit" onclick={() => onEdit?.(iou.id)} type="button">Edit</button>
-                  <button class="action-btn dup" onclick={() => onDuplicate?.(iou.id)} type="button">Copy</button>
-                  <button class="action-btn delete" onclick={() => onDelete?.(iou.id)} type="button">Del</button>
-                </div>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+    <div class="iou-register">
+      <!-- Sticky column header (mono uppercase, like the transactions register) -->
+      <div class="register-header" role="rowheader">
+        <span class="rh-circle" aria-hidden="true"></span>
+        <span class="rh-name">{direction === 'lent' ? 'Borrower' : 'Lender'}</span>
+        <span class="rh-due">Due</span>
+        <span class="rh-progress">Progress</span>
+        <span class="rh-amount">Amount</span>
+      </div>
+
+      {#each ious as iou (iou.id)}
+        {@const state = computeState(iou)}
+        {@const cd = countdownLabel(iou)}
+        {@const progressPct = iou.status === 'paid' ? 100 : 0}
+        {@const accent = stateAccentColor(state)}
+        {@const bg = stateBgColor(state)}
+        {@const fg = stateTextColor(state)}
+        {@const init = iou.borrower_name.charAt(0).toUpperCase()}
+        <div
+          class="iou-row"
+          class:overdue={state === 'overdue'}
+          class:paid={iou.status === 'paid'}
+          style="--row-accent: {accent};"
+        >
+          <!-- Leading state-tinted ring -->
+          <span class="row-circle" style="background: {bg}; color: {fg};">{init}</span>
+
+          <!-- Identity: name + state chip + meta -->
+          <div class="row-main">
+            <div class="row-line1">
+              <span class="row-name" class:strikethrough={iou.status === 'paid'}>{iou.borrower_name}</span>
+              <span class="row-state-chip" style="background: {bg}; color: {fg};">{stateLabel(state)}</span>
+            </div>
+            <div class="row-meta">
+              {direction === 'lent' ? 'Lent' : 'Borrowed'} {formatDate(iou.date_lent)}
+              {#if iou.interest_rate > 0} · {iou.interest_rate}% interest{/if}
+              {#if iou.notes} · {iou.notes}{/if}
+            </div>
+          </div>
+
+          <!-- Due: countdown + date -->
+          <div class="row-due" data-label="Due">
+            <span class="row-due-group">
+              {#if cd}
+                <span class="cd-text" style="color: {cd.color};">{cd.text}</span>
+              {:else}
+                <span class="cd-text muted">—</span>
+              {/if}
+              {#if iou.due_date}
+                <span class="due-date">{formatDate(iou.due_date)}</span>
+              {/if}
+            </span>
+          </div>
+
+          <!-- Progress -->
+          <div class="row-progress" data-label="Progress">
+            <span class="row-progress-group">
+              <span class="row-progress-track">
+                <span class="row-progress-fill" style="width: {progressPct}%; background: {accent};"></span>
+              </span>
+              <span class="row-progress-label">{progressPct}%</span>
+            </span>
+          </div>
+
+          <!-- Amount (headline money column) -->
+          <div class="row-amount">
+            <span class="amount-num" class:struck={iou.status === 'paid'}>{formatCurrency(iou.amount)}</span>
+          </div>
+
+          <!-- Hover-reveal actions (overlay, never shift columns) -->
+          <div class="row-actions">
+            {#if iou.status !== 'paid'}
+              <button class="row-pay" onclick={() => onPay?.(iou.id)} type="button">
+                {direction === 'lent' ? 'Paid' : 'Repay'}
+              </button>
+            {/if}
+            <button class="row-icon" onclick={() => onEdit?.(iou.id)} type="button" title="Edit" aria-label="Edit {iou.borrower_name}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+            </button>
+            <button class="row-icon" onclick={() => onDuplicate?.(iou.id)} type="button" title="Duplicate" aria-label="Duplicate {iou.borrower_name}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button class="row-icon row-icon-del" onclick={() => onDelete?.(iou.id)} type="button" title="Delete" aria-label="Delete {iou.borrower_name}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </div>
+      {/each}
     </div>
   {/if}
 {/if}
@@ -464,6 +491,12 @@
   }
 
   .table-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-2xl) var(--space-md);
+    text-align: center;
     background: var(--color-surface);
   }
 
@@ -471,6 +504,7 @@
     margin: 0;
     color: var(--color-text-muted);
     font-style: italic;
+    font-size: var(--font-size-sm);
   }
 
   /* ═══════════════════════════════════════════════════════
@@ -571,8 +605,7 @@
   /* ═══════════════════════════════════════════════════════
      Progress fill animation on reveal
      ═══════════════════════════════════════════════════════ */
-  .iou-card.revealed .progress-fill,
-  .iou-card.revealed .table-progress-fill {
+  .iou-card.revealed .progress-fill {
     animation: fillProgress 600ms var(--ease) both;
   }
 
@@ -836,143 +869,185 @@
   }
 
   /* ═══════════════════════════════════════════════════════
-     TABLE VIEW
+     REGISTER VIEW (Table) — Flip7 register, mirrors /transactions
      ═══════════════════════════════════════════════════════ */
-  .table-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
 
-  .lifecycle-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--font-size-sm);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .lifecycle-table thead th {
-    text-align: left;
-    padding: 10px 12px;
-    font-weight: 600;
-    color: var(--color-text-muted);
-    font-size: 11px;
-    text-transform: lowercase;
-    letter-spacing: 0.02em;
-    background: var(--color-cream);
-    border-bottom: 3px dashed var(--color-teal);
-    white-space: nowrap;
-    font-family: var(--font-display);
-  }
-
-  .lifecycle-table thead th.num {
-    text-align: right;
-  }
-
-  .lifecycle-table tbody td {
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--color-hairline);
-    vertical-align: middle;
-    white-space: nowrap;
-    transition: background 120ms ease;
-  }
-
-  .lifecycle-table tbody tr:hover td {
-    background: var(--color-teal-bg);
-  }
-
-  .lifecycle-table tbody tr:hover td:first-child {
-    box-shadow: inset 3px 0 0 0 var(--color-teal);
-  }
-
-  .lifecycle-table tbody tr.overdue td {
-    background: rgba(239, 108, 74, 0.03);
-  }
-
-  .lifecycle-table tbody tr.overdue:hover td {
-    background: rgba(239, 108, 74, 0.06);
-  }
-
-  .lifecycle-table tbody tr.paid td {
-    opacity: 0.6;
-  }
-
-  .lifecycle-table tbody tr:last-child td {
-    border-bottom: 1px solid var(--color-hairline);
-  }
-
-  .num {
-    text-align: right;
-    font-weight: 600;
-    font-family: var(--font-mono);
-  }
-
-  .amount-cell {
-    font-weight: 700;
-  }
-
-  .borrower-cell {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    font-weight: 600;
-  }
-
-  .borrower-avatar {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-full);
-    font-weight: 700;
-    font-size: var(--font-size-sm);
-    font-family: var(--font-display);
-    flex-shrink: 0;
-  }
-
-  /* Table progress */
-  .table-progress-wrap {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 80px;
-    justify-content: flex-end;
-  }
-
-  .table-progress-track {
-    width: 50px;
-    height: 4px;
-    background: var(--color-hairline);
-    border-radius: var(--radius-pill);
+  /* Card shell — identical to the transactions flat register */
+  .iou-register {
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-xl);
     overflow: hidden;
   }
 
-  .table-progress-fill {
-    height: 100%;
-    border-radius: var(--radius-pill);
-    transition: width 400ms var(--ease);
-  }
-
-  .table-progress-label {
-    font-size: 10px;
+  /* ── Column header (sticky, mono uppercase) ── */
+  .register-header {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px;
+    align-items: center;
+    column-gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-lg);
+    background: var(--color-surface-inset);
+    border-bottom: 1px solid var(--color-hairline);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: var(--color-text-muted);
-    width: 30px;
-    text-align: right;
   }
 
-  /* State chip */
-  .state-chip {
-    padding: 2px 10px;
+  .rh-circle {
+    width: 28px;
+    height: 28px;
+  }
+
+  .rh-name { min-width: 0; }
+  .rh-due { min-width: 0; }
+  .rh-progress { text-align: right; }
+  .rh-amount { text-align: right; }
+
+  /* ── Rows ── */
+  .iou-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px;
+    align-items: center;
+    column-gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-lg);
+    border-bottom: 1px dashed var(--color-hairline);
+    background: var(--color-surface);
+    min-height: 56px;
+    transition: background 180ms var(--ease);
+    overflow: hidden;
+  }
+
+  /* Left accent bar — state-colored (coral=overdue, gold=due, teal=track, sky=paid),
+     revealed on hover, the lifecycle signature over the register shell. */
+  .iou-row::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    border-radius: 0 2px 2px 0;
+    background: var(--row-accent, var(--color-teal));
+    transition: width 120ms var(--ease);
+    pointer-events: none;
+  }
+
+  .iou-row:hover {
+    background: var(--color-teal-bg);
+  }
+
+  .iou-row:hover::before {
+    width: 4px;
+  }
+
+  .iou-row:focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: -2px;
+  }
+
+  .iou-row:last-child {
+    border-bottom: none;
+  }
+
+  .iou-row.overdue {
+    background: rgba(239, 108, 74, 0.03);
+  }
+
+  .iou-row.overdue:hover {
+    background: rgba(239, 108, 74, 0.06);
+  }
+
+  .iou-row.paid {
+    opacity: 0.62;
+  }
+
+  /* Leading state ring */
+  .row-circle {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  /* Identity */
+  .row-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .row-line1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .row-name {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .row-name.strikethrough {
+    text-decoration: line-through;
+    color: var(--color-text-muted);
+  }
+
+  .row-state-chip {
+    padding: 1px 8px;
     border-radius: var(--radius-pill);
+    font-family: var(--font-display);
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.03em;
     white-space: nowrap;
-    font-family: var(--font-display);
+    flex-shrink: 0;
   }
 
-  /* Countdown text */
+  .row-meta {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Due: countdown + date */
+  .row-due {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+  }
+
+  .row-due-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    min-width: 0;
+  }
+
   .cd-text {
     font-family: var(--font-mono);
     font-size: 10px;
@@ -984,63 +1059,135 @@
     color: var(--color-text-muted);
   }
 
-  /* Action buttons */
-  .action-btns {
-    display: flex;
-    gap: 4px;
+  .due-date {
+    font-size: 10px;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
   }
 
-  .action-btn {
-    padding: 3px 8px;
-    border: none;
-    border-radius: var(--radius-sm);
+  /* Progress */
+  .row-progress {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .row-progress-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .row-progress-track {
+    width: 48px;
+    height: 4px;
+    background: var(--color-hairline);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+  }
+
+  .row-progress-fill {
+    height: 100%;
+    border-radius: var(--radius-pill);
+    transition: width 400ms var(--ease);
+  }
+
+  .row-progress-label {
+    font-family: var(--font-mono);
     font-size: 10px;
     font-weight: 600;
-    cursor: pointer;
-    transition: all 120ms ease;
-    font-family: inherit;
-    min-height: 28px;
+    color: var(--color-text-muted);
+    width: 28px;
+    text-align: right;
   }
 
-  .action-btn.pay {
+  /* Amount — headline money column */
+  .row-amount {
+    min-width: 0;
+    text-align: right;
+  }
+
+  .amount-num {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  .amount-num.struck {
+    text-decoration: line-through;
+    color: var(--color-text-muted) !important;
+  }
+
+  /* ── Hover-reveal actions (overlay, never shift columns) ── */
+  .row-actions {
+    position: absolute;
+    right: var(--space-lg);
+    top: 50%;
+    transform: translate(4px, -50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0;
+    padding-left: var(--space-md);
+    background: linear-gradient(90deg, transparent, var(--color-teal-bg) 24%);
+    z-index: 2;
+    transition: opacity 120ms var(--ease), transform 120ms var(--ease);
+    pointer-events: none;
+  }
+
+  .iou-row:hover .row-actions {
+    opacity: 1;
+    transform: translate(0, -50%);
+    pointer-events: auto;
+  }
+
+  .row-pay {
+    padding: 4px 12px;
+    border: none;
+    border-radius: var(--radius-pill);
     background: var(--color-gold);
-    /* Dark text on gold in BOTH themes — ink flips light in dark mode. */
     color: var(--color-on-gold);
+    font-family: var(--font-display);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    min-height: 30px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 120ms ease;
   }
 
-  .action-btn.pay:hover {
+  .row-pay:hover {
     background: var(--color-gold-light);
     box-shadow: var(--glow-gold);
   }
 
-  .action-btn.edit {
+  .row-icon {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: all 120ms ease;
+  }
+
+  .row-icon:hover {
     background: var(--color-teal-bg);
     color: var(--color-teal);
   }
 
-  .action-btn.edit:hover {
-    background: var(--color-teal);
-    color: white;
-  }
-
-  .action-btn.dup {
-    background: var(--color-teal-bg);
-    color: var(--color-teal);
-  }
-
-  .action-btn.dup:hover {
-    background: var(--color-teal);
-    color: white;
-  }
-
-  .action-btn.delete {
+  .row-icon-del:hover {
     background: rgba(239, 108, 74, 0.10);
     color: var(--color-coral);
-  }
-
-  .action-btn.delete:hover {
-    background: var(--color-coral);
-    color: white;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1052,7 +1199,10 @@
       transform: none !important;
       transition: none !important;
     }
-    .table-progress-fill { transition: none; animation: none !important; }
+    .iou-row { transition: none; }
+    .iou-row::before { transition: none; }
+    .row-actions { transition: none; }
+    .row-progress-fill { transition: none; }
   }
 
   /* ═══════════════════════════════════════════════════════
@@ -1087,15 +1237,157 @@
       margin-top: 4px;
     }
     .iou-actions { opacity: 1; pointer-events: auto; padding-top: 2px; }
+  }
 
-    .lifecycle-table { font-size: 11px; }
-    .lifecycle-table thead th,
-    .lifecycle-table tbody td {
-      padding: 8px 6px;
+  /* ═══════════════════════════════════════════════════════
+     RESPONSIVE: Register collapses to labeled cards (≤640px)
+     Mirrors the /transactions register mobile pattern. The Card/Table toggle
+     stays meaningful on mobile: Card mode = triage cards, Table mode = these
+     labeled cards (one per row).
+     ═══════════════════════════════════════════════════════ */
+  @media (max-width: 640px) {
+    .iou-register {
+      background: transparent;
+      border: none;
+      overflow: visible;
     }
-    .lifecycle-table tbody td:nth-child(5),
-    .lifecycle-table thead th:nth-child(5) {
+
+    .register-header {
       display: none;
+    }
+
+    .iou-row {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      column-gap: var(--space-sm);
+      row-gap: 4px;
+      padding: var(--space-sm) var(--space-md);
+      margin: 0 var(--space-sm) 6px;
+      background: var(--color-surface);
+      border: 1px dashed var(--color-hairline);
+      border-radius: var(--radius-lg);
+      min-height: 0;
+    }
+
+    .iou-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .iou-row::before {
+      display: none;
+    }
+
+    .iou-row:hover {
+      background: var(--color-surface);
+    }
+
+    .iou-row.overdue {
+      background: rgba(239, 108, 74, 0.04);
+    }
+
+    .iou-row.overdue:hover {
+      background: rgba(239, 108, 74, 0.04);
+    }
+
+    .iou-row.paid {
+      opacity: 0.7;
+    }
+
+    /* Line 1: circle + name/chip left, amount right */
+    .row-circle {
+      grid-column: 1;
+      grid-row: 1;
+      align-self: start;
+      margin-top: 2px;
+    }
+
+    .row-main {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .row-amount {
+      grid-column: 3;
+      grid-row: 1;
+      align-self: start;
+      margin-top: 2px;
+    }
+
+    .row-meta {
+      white-space: normal;
+    }
+
+    /* Labeled rows: label (::before) left, value group right */
+    .row-due,
+    .row-progress {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-sm);
+      padding-top: 4px;
+      border-top: 1px dashed var(--color-hairline);
+    }
+
+    .row-due {
+      grid-row: 2;
+      flex-direction: row;
+    }
+
+    .row-progress {
+      grid-row: 3;
+      flex-direction: row;
+    }
+
+    .row-due::before,
+    .row-progress::before {
+      content: attr(data-label);
+      font-family: var(--font-display);
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      color: var(--color-text-muted);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .row-due-group {
+      flex-direction: row;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Actions: full-width button bar */
+    .row-actions {
+      position: static;
+      grid-column: 1 / -1;
+      grid-row: 4;
+      display: flex;
+      width: 100%;
+      gap: 6px;
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
+      background: none;
+      padding: 6px 0 0;
+      margin-top: 2px;
+      border-top: 1px dashed var(--color-hairline);
+    }
+
+    .row-pay {
+      flex: 1.2;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 36px;
+      padding: 6px 8px;
+    }
+
+    .row-icon {
+      flex: 1;
+      width: auto;
+      min-height: 36px;
+      background: var(--color-cream);
     }
   }
 </style>
