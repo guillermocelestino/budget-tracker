@@ -11,6 +11,9 @@
   import Button from '$lib/components/Button.svelte';
   import OverflowMenu from '$lib/components/OverflowMenu.svelte';
   import ViewToggle from '$lib/components/ViewToggle.svelte';
+  import ListToolbar from '$lib/components/ListToolbar.svelte';
+  import SearchFilterPill from '$lib/components/SearchFilterPill.svelte';
+  import LendingFilters from '$lib/components/LendingFilters.svelte';
   import LendingImport from '$lib/components/LendingImport.svelte';
   import { showSuccess, showError } from '$lib/stores/toast.svelte';
   import { downloadCsv, lendingsToCSV } from '$lib/utils/csv';
@@ -26,6 +29,23 @@
   let recordAsIncome = $state(true);
   let deleteId = $state<number | null>(null);
   let importSlideOpen = $state(false);
+  let searchInput = $state('');
+  let filtersOpen = $state(false);
+
+  // Debounced search term — the SearchFilterPill binds the raw input; we
+  // push it into `searchTerm` after a 250ms idle window (same as the old
+  // LendingSearch debounce, so search behavior is unchanged).
+  let searchTerm = $state('');
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      if (searchTerm !== searchInput) searchTerm = searchInput;
+    }, 250);
+    return () => {
+      if (searchTimer) clearTimeout(searchTimer);
+    };
+  });
 
   const activeLendings = $derived(data.activeLendings ?? []);
   const paidLendings = $derived(data.paidLendings ?? []);
@@ -34,13 +54,31 @@
     Array.from(new Set([...activeLendings, ...paidLendings].map(l => l.borrower_name)))
   );
 
-  const showLendings: Lending[] = $derived(
+  // Status is the only filter; 'active' is the default view, so the Filter
+  // badge lights up only when the user changes away from the default.
+  const activeFilterCount = $derived(activeTab !== 'active' ? 1 : 0);
+
+  // Stage 1 — tab selection (status filter, untouched by search).
+  const tabLendings: Lending[] = $derived(
     activeTab === 'all'
       ? [...activeLendings, ...paidLendings]
       : activeTab === 'active'
         ? activeLendings
         : paidLendings
   );
+
+  // Stage 2 — client-side search narrowing against borrower_name + notes.
+  // The hero (totals) reads from `data.totals`, NOT showLendings, so search
+  // can never change the headline balance — it only narrows the visible list.
+  const showLendings: Lending[] = $derived.by(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return tabLendings;
+    return tabLendings.filter(
+      (l) =>
+        l.borrower_name.toLowerCase().includes(term) ||
+        (l.notes ?? '').toLowerCase().includes(term)
+    );
+  });
 
   function openAdd() {
     editingLending = null;
@@ -135,29 +173,46 @@
   title="Import Lendings"
 />
 
-<!-- ═══ Toolbar: status tab left, view toggle right ═══ -->
-<div class="toolbar">
-  <ViewToggle
-    options={[
-      { value: 'all', label: 'All', count: activeLendings.length + paidLendings.length },
-      { value: 'active', label: 'Active', count: activeLendings.length },
-      { value: 'paid', label: 'Paid', count: paidLendings.length },
-    ]}
-    value={activeTab}
-    onSelect={(v) => (activeTab = v as 'all' | 'active' | 'paid')}
-    ariaLabel="Lending status filter"
-  />
-  <ViewToggle
-    options={[
-      { value: 'card', icon: 'grid', ariaLabel: 'Card view' },
-      { value: 'table', icon: 'table', ariaLabel: 'Table view' },
-    ]}
-    value={viewMode}
-    onSelect={(v) => (viewMode = v as 'card' | 'table')}
-    iconOnly
-    ariaLabel="Lending list view"
-  />
-</div>
+<!-- ═══ ListToolbar: unified Search|Filter pill (left), view mode (right) ═══ -->
+<ListToolbar>
+  {#snippet filters()}
+    <SearchFilterPill
+      bind:value={searchInput}
+      bind:open={filtersOpen}
+      activeFilterCount={activeFilterCount}
+      placeholder="Search borrower, lender, notes…"
+      ariaLabel="Search lendings"
+      filterAriaLabel="Filter lendings"
+    >
+      {#snippet panel(mode, close)}
+        <LendingFilters
+          status={activeTab}
+          onStatusChange={(s) => (activeTab = s)}
+          counts={{
+            all: activeLendings.length + paidLendings.length,
+            active: activeLendings.length,
+            paid: paidLendings.length,
+          }}
+          {mode}
+          onApply={close}
+        />
+      {/snippet}
+    </SearchFilterPill>
+  {/snippet}
+  {#snippet views()}
+    <ViewToggle
+      options={[
+        { value: 'card', icon: 'grid', ariaLabel: 'Card view' },
+        { value: 'table', icon: 'table', ariaLabel: 'Table view' },
+      ]}
+      value={viewMode}
+      onSelect={(v) => (viewMode = v as 'card' | 'table')}
+      iconOnly
+      ariaLabel="Lending list view"
+      slidingThumb
+    />
+  {/snippet}
+</ListToolbar>
 
 <ActiveIouList
   ious={showLendings}
@@ -263,15 +318,6 @@
     width: 18px;
     height: 18px;
     font-weight: var(--font-weight-extrabold);
-  }
-
-  /* ─── Unified toolbar: status tab left, view toggle right ─── */
-  .toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-md);
-    margin-bottom: var(--space-lg);
   }
 
   /* ─── Context subline (header) ─── */

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { formatCurrency, formatDate, getToday } from '$lib/utils/format';
   import type { Lending } from '$lib/types';
 
@@ -21,6 +22,50 @@
   // ─── Compute today from app helper (respects DEMO_TODAY) ───
   const todayStr = getToday();
   const today = new Date(todayStr + 'T00:00:00');
+
+  // ─── Scroll reveal state ───
+  let reducedMotion = $state(false);
+
+  // Detect reduced motion preference
+  onMount(() => {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    reducedMotion = mediaQuery.matches;
+    const handler = (e: MediaQueryListEvent) => { reducedMotion = e.matches; };
+    mediaQuery.addEventListener?.('change', handler);
+    return () => mediaQuery.removeEventListener?.('change', handler);
+  });
+
+  // ─── Scroll reveal observer
+  onMount(() => {
+    if (reducedMotion) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('revealed');
+        }
+      }
+    }, { rootMargin: '0px 0px -10% 0px', threshold: 0.1 });
+
+    // Find all revealable elements - use requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+      const root = document.querySelector('.iou-container');
+      if (root) {
+        const headers = root.querySelectorAll('.group-header.reveal-on-scroll');
+        const cards = root.querySelectorAll('.iou-card.reveal-on-scroll');
+        for (const el of headers) {
+          el.classList.add('will-reveal');
+          observer.observe(el);
+        }
+        for (const el of cards) {
+          el.classList.add('will-reveal');
+          observer.observe(el);
+        }
+      }
+    });
+
+    return () => observer.disconnect();
+  });
 
   // ─── Triage bucket helpers ───
   type State = 'overdue' | 'due-this-week' | 'later' | 'paid' | 'on-track';
@@ -204,7 +249,7 @@
       {#each triageGroups as group (group.id)}
         <div class="triage-group" data-group={group.id}>
           <!-- Sticky group header -->
-          <div class="group-header" style="border-bottom-color: {stateAccentColor(group.state)};">
+          <div class="group-header reveal-on-scroll" style="border-bottom-color: {stateAccentColor(group.state)};">
             <span class="group-emoji">{group.emoji}</span>
             <span class="group-label">{group.label}</span>
             <span class="group-count">{group.count}</span>
@@ -216,7 +261,7 @@
             {@const progressPct = iou.status === 'paid' ? 100 : 0}
             {@const init = iou.borrower_name.charAt(0).toUpperCase()}
             <div
-              class="iou-card"
+              class="iou-card reveal-on-scroll"
               class:paid={iou.status === 'paid'}
               class:overdue={state === 'overdue'}
               style="border-color: {stateAccentColor(state)}40;"
@@ -335,7 +380,7 @@
               <td class="num">
                 <div class="table-progress-wrap">
                   <div class="table-progress-track">
-                    <div class="table-progress-fill" style="width: {progressPct}%; background: {stateAccentColor(state)};"></div>
+                    <div class="table-progress-fill reveal-on-scroll" style="width: {progressPct}%; background: {stateAccentColor(state)};"></div>
                   </div>
                   <span class="table-progress-label">{progressPct}%</span>
                 </div>
@@ -371,9 +416,9 @@
 {/if}
 
 <style>
-  /* ══════════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════
      Shared
-     ══════════════════════════════════════════════════════ */
+     ═══════════════════════════════════════════════════════ */
   .empty-state {
     display: flex;
     flex-direction: column;
@@ -422,9 +467,9 @@
     font-style: italic;
   }
 
-  /* ══════════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════
      CARD VIEW
-     ══════════════════════════════════════════════════════ */
+     ═══════════════════════════════════════════════════════ */
   .iou-container {
     display: flex;
     flex-direction: column;
@@ -510,9 +555,48 @@
     background: var(--color-cream);
   }
 
+  /* ═══════════════════════════════════════════════════════
+     Overdue slow breathing pulse (cards)
+     ═══════════════════════════════════════════════════════ */
   .iou-card.overdue {
-    animation: boom-pulse 2s ease-in-out infinite;
+    animation: boom-pulse 3s ease-in-out infinite;
   }
+
+  /* ═══════════════════════════════════════════════════════
+     Progress fill animation on reveal
+     ═══════════════════════════════════════════════════════ */
+  .iou-card.revealed .progress-fill,
+  .iou-card.revealed .table-progress-fill {
+    animation: fillProgress 600ms var(--ease) both;
+  }
+
+  @keyframes fillProgress {
+    from { width: 0%; }
+    to { width: var(--progress-target, 100%); }
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     Scroll Reveal Animations
+     ═══════════════════════════════════════════════════════ */
+  .reveal-on-scroll.will-reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 400ms var(--ease), transform 400ms var(--ease);
+  }
+
+  .reveal-on-scroll.will-reveal.revealed {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Staggered reveal for group headers */
+  .triage-group:first-child .group-header.reveal-on-scroll.will-reveal { transition-delay: 0ms; }
+  .triage-group:nth-child(2) .group-header.reveal-on-scroll.will-reveal { transition-delay: 60ms; }
+  .triage-group:nth-child(3) .group-header.reveal-on-scroll.will-reveal { transition-delay: 120ms; }
+  .triage-group:nth-child(4) .group-header.reveal-on-scroll.will-reveal { transition-delay: 180ms; }
+
+  /* Cards reveal after their group header */
+  .triage-group .iou-card.reveal-on-scroll.will-reveal { transition-delay: 100ms; }
 
   /* Left accent bar (STATE-colored) */
   .iou-accent {
@@ -701,7 +785,7 @@
     color: var(--color-text-muted);
     width: 30px;
     padding: 0;
-    justify-content: center;
+    justify_content: center;
   }
 
   .iou-btn-delete:hover {
@@ -732,9 +816,9 @@
     box-shadow: var(--glow-sky);
   }
 
-  /* ══════════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════
      TABLE VIEW
-     ══════════════════════════════════════════════════════ */
+     ═══════════════════════════════════════════════════════ */
   .table-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -930,15 +1014,21 @@
     color: white;
   }
 
-  /* ══════════════════════════════════════════════════════
-     Responsive
-     ══════════════════════════════════════════════════════ */
   @media (prefers-reduced-motion: reduce) {
     .iou-card { transition: none; }
     .iou-card.overdue { animation: none; }
-    .progress-fill { transition: none; }
+    .progress-fill { transition: none; animation: none !important; }
+    .reveal-on-scroll.will-reveal {
+      opacity: 1 !important;
+      transform: none !important;
+      transition: none !important;
+    }
+    .table-progress-fill { transition: none; animation: none !important; }
   }
 
+  /* ═══════════════════════════════════════════════════════
+     Responsive
+     ═══════════════════════════════════════════════════════ */
   @media (max-width: 640px) {
     .iou-card { flex-wrap: wrap; gap: var(--space-sm); }
     .iou-meta { display: none; }

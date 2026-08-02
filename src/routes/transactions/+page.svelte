@@ -11,8 +11,8 @@
   import TransactionFilters from '$lib/components/TransactionFilters.svelte';
   import TransactionList from '$lib/components/TransactionList.svelte';
   import OverflowMenu from '$lib/components/OverflowMenu.svelte';
-  import FiltersSheet from '$lib/components/FiltersSheet.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
+  import SearchFilterPill from '$lib/components/SearchFilterPill.svelte';
   import ViewToggle from '$lib/components/ViewToggle.svelte';
   import ModalDialog from '$lib/components/ModalDialog.svelte';
   import SlideOver from '$lib/components/SlideOver.svelte';
@@ -51,6 +51,9 @@
 
   let searchInput = $state(filters.search);
   let filtersOpen = $state(false);
+
+  // ─── Filter control: SearchFilterPill owns the popover (desktop) and
+  // the FiltersSheet bottom sheet (mobile) via its `open` binding. ──────
 
   // Sync the input from the URL on navigation (back/forward).
   // untrack the searchInput read so this effect depends only on the URL —
@@ -134,6 +137,12 @@
       }
       case 'this-month':
         return { from: `${y}-${String(m).padStart(2, '0')}-01`, to: `${y}-${String(m).padStart(2, '0')}-${d}` };
+      case 'today': {
+        const today = `${y}-${String(m).padStart(2, '0')}-${d}`;
+        return { from: today, to: today };
+      }
+      case 'this-year':
+        return { from: `${y}-01-01`, to: `${y}-12-31` };
       case 'last-3-months': {
         const d3 = new Date(now);
         d3.setMonth(now.getMonth() - 3);
@@ -415,16 +424,17 @@
         Add Transaction
       </Button>
     </span>
+    <!-- Mobile: the SpeedDial FAB in the bottom nav is the Add CTA; the
+         header keeps only the Import/Export overflow, always in thumb-reach. -->
+    <span class="header-actions mobile-only">
+      <OverflowMenu
+        onImportCsv={() => (importSlideOpen = true)}
+        onExportCsv={() => handleExport('csv')}
+        onExportPdf={() => handleExport('pdf')}
+      />
+    </span>
   {/snippet}
 </PageHeader>
-
-<!-- ═══ Mobile full-width primary action ═══ -->
-<div class="mobile-only mobile-add-row">
-  <Button variant="primary" href="/transactions/new" fullWidth>
-    <span class="btn-lead" aria-hidden="true">+</span>
-    Add Transaction
-  </Button>
-</div>
 
 <!-- ═══ Interactive summary cards ═══ -->
 <TransactionSummary
@@ -433,53 +443,34 @@
   onCardClick={handleCardClick}
 />
 
-<!-- ═══ Toolbar: filtering group (left) + view preference (right) ═══ -->
+<!-- ═══ Toolbar: unified search+filter pill (left) + view preference (right) ═══ -->
 <div class="txn-toolbar">
   <div class="toolbar-left">
-    <div class="toolbar-search">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8"/>
-        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      <input
-        type="search"
-        placeholder="Search transactions…"
-        aria-label="Search transactions"
-        bind:value={searchInput}
-      />
-    </div>
-    <span class="desktop-only toolbar-filters">
-      <TransactionFilters
-        categories={data.categories ?? []}
-        activeFilters={{
-          date: filters.date,
-          category: filters.category,
-          type: filters.type,
-        }}
-        onFilterChange={handleFilterChange}
-      />
-    </span>
+    <SearchFilterPill
+      bind:value={searchInput}
+      bind:open={filtersOpen}
+      {activeFilterCount}
+      placeholder="Search transactions"
+      ariaLabel="Search transactions"
+      filterAriaLabel="Filter transactions"
+    >
+      {#snippet panel(_mode, close)}
+        <TransactionFilters
+          mode="sheet"
+          categories={data.categories ?? []}
+          activeFilters={{
+            date: filters.date,
+            category: filters.category,
+            type: filters.type,
+          }}
+          onFilterChange={handleFilterChange}
+          onApply={close}
+        />
+      {/snippet}
+    </SearchFilterPill>
   </div>
   <div class="toolbar-right">
-    <span class="mobile-only">
-      <button class="filters-btn" onclick={() => (filtersOpen = true)} aria-haspopup="dialog" aria-expanded={filtersOpen} type="button">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-        </svg>
-        Filters
-        {#if activeFilterCount > 0}
-          <span class="filters-badge">{activeFilterCount}</span>
-        {/if}
-      </button>
-    </span>
     <ViewToggle {showFlatView} onChange={(flat) => showFlatView = flat} />
-    <span class="mobile-only toolbar-overflow">
-      <OverflowMenu
-        onImportCsv={() => (importSlideOpen = true)}
-        onExportCsv={() => handleExport('csv')}
-        onExportPdf={() => handleExport('pdf')}
-      />
-    </span>
   </div>
 </div>
 
@@ -535,18 +526,8 @@
   </div>
 {/if}
 
-<!-- ═══ Mobile filters bottom sheet ═══ -->
-<FiltersSheet
-  open={filtersOpen}
-  onClose={() => (filtersOpen = false)}
-  categories={data.categories ?? []}
-  activeFilters={{
-    date: filters.date,
-    category: filters.category,
-    type: filters.type,
-  }}
-  onFilterChange={handleFilterChange}
-/>
+<!-- ═══ Mobile filters bottom sheet ═══
+     Rendered by SearchFilterPill (mobile) — no page-level sheet. -->
 
 <!-- ═══ Delete confirmation modal ═══ -->
 {#if deleteId !== null}
@@ -700,11 +681,12 @@
   /* ─── 8-point section rhythm: Header → Toolbar ─── */
   /* Raise the header's stacking context so the OverflowMenu dropdown
      (trapped inside the header's backdrop-filter context) paints above
-     the toolbar and summary cards that follow it in the DOM. */
+     the toolbar and summary cards that follow it in the DOM.
+     The header→content gap is owned by PageHeader's scoped margin; we
+     normalize it per breakpoint lower down. */
   :global(.page-header) {
     position: relative;
     z-index: 30;
-    margin-bottom: var(--space-2xl);
   }
 
   /* ─── Primary button lead glyph ─── */
@@ -726,28 +708,25 @@
     letter-spacing: 0.02em;
   }
 
-  /* ─── Mobile full-width primary action ─── */
-  .mobile-add-row {
-    margin-bottom: var(--space-md);
-  }
-
   /* ─── Toolbar ─── */
   /* Working controls for the list: sits below the KPI cards and hugs the
-     register beneath it (tight bottom gap) so it reads as one unit. */
+     register beneath it (tight bottom gap) so it reads as one unit.
+     The grid mirrors .summary-cards' template at every breakpoint so the
+     search pill (toolbar-left) is exactly as wide as the first KPI card,
+     while the view toggle (toolbar-right) floats to the right edge of the
+     register — no max-width cap, no dead whitespace. */
   .txn-toolbar {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-md);
     align-items: center;
-    justify-content: space-between;
-    gap: var(--space-lg);
     margin-bottom: var(--space-md);
   }
 
   .toolbar-left {
-    flex: 1;
+    grid-column: 1;
     min-width: 0;
     display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
     align-items: center;
     gap: var(--space-sm);
   }
@@ -759,104 +738,16 @@
     gap: var(--space-sm);
   }
 
-  /* Remove default margin from TransactionFilters when embedded in toolbar */
-  .toolbar-left :global(.filter-bar) {
-    margin-bottom: 0;
-  }
-
-  /* ─── Search field ─── */
-  .toolbar-search {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    max-width: 270px;
-    height: 44px;
-    padding: 0 var(--space-md) 0 var(--space-lg);
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--radius-pill);
-    background: var(--color-surface);
-    color: var(--color-text-muted);
-    transition: border-color 180ms var(--ease), box-shadow 180ms var(--ease);
-  }
-
-  .toolbar-search:focus-within {
-    border-color: var(--color-teal);
-    box-shadow: var(--focus);
-  }
-
-  .toolbar-search svg {
-    flex-shrink: 0;
-  }
-
-  .toolbar-search input {
-    flex: 1;
-    min-width: 0;
-    border: none;
-    outline: none;
-    background: transparent;
-    font-family: var(--font-body);
-    font-size: var(--font-size-sm);
-    color: var(--color-text);
-  }
-
-  .toolbar-search input::placeholder {
-    color: var(--color-text-muted);
-  }
-
-  .toolbar-search input::-webkit-search-cancel-button {
-    -webkit-appearance: none;
-  }
+  /* ─── Search + Filter pill (`.search-filter-pill`) now lives in the
+     shared SearchFilterPill component; this page only sizes its host
+     column. ─── */
 
   .toolbar-right {
+    grid-column: 3;
+    justify-self: end;
     display: flex;
     align-items: center;
     gap: var(--space-md);
-    flex-shrink: 0;
-  }
-
-  /* ─── Mobile Filters button ─── */
-  .filters-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 44px;
-    padding: 0 var(--space-lg);
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--radius-pill);
-    background: var(--color-surface);
-    color: var(--color-text-muted);
-    font-family: var(--font-body);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 180ms var(--ease);
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .filters-btn:hover {
-    border-color: var(--color-teal);
-    background: var(--color-teal-bg);
-    color: var(--color-teal);
-  }
-
-  .filters-btn:focus-visible {
-    outline: 2px solid var(--color-teal);
-    outline-offset: 2px;
-  }
-
-  .filters-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 6px;
-    border-radius: var(--radius-pill);
-    background: var(--color-coral);
-    color: #fff;
-    font-size: var(--font-size-xs);
-    font-weight: 700;
-    font-family: var(--font-mono);
   }
 
   /* ─── Mobile / Desktop visibility ─── */
@@ -870,6 +761,18 @@
     display: none;
   }
 
+  /* Mirror the summary-cards grid at the tablet breakpoint: 2 columns,
+     toolbar-right pinned to the right edge of the second. */
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .txn-toolbar {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .toolbar-right {
+      grid-column: 2;
+    }
+  }
+
   @media (max-width: 768px) {
     .desktop-only {
       display: none !important;
@@ -880,28 +783,105 @@
       align-items: center;
     }
 
+    /* One 44px search+filter pill; the view toggle follows on a slim row. */
     .txn-toolbar {
-      flex-direction: column;
-      gap: var(--space-md);
+      grid-template-columns: 1fr;
+      gap: var(--space-sm);
     }
 
-    .toolbar-search {
-      max-width: 100%;
+    .toolbar-left {
+      grid-column: 1;
+      width: 100%;
     }
 
     .toolbar-right {
+      grid-column: 1;
+      justify-self: stretch;
       width: 100%;
-      justify-content: space-between;
+      justify-content: flex-start;
+    }
+  }
+
+  /* ≤480px: the transaction rows become inset cards (8px gutters). Pull the
+     summary rail and toolbar in to share the same starting column, so
+     summary → search → list all read on one vertical rhythm. */
+  @media (max-width: 480px) {
+    :global(.search-filter-pill) {
+      margin: 0 var(--space-sm);
     }
 
-    .toolbar-right .mobile-only:first-child {
+    .toolbar-right {
+      margin: 0 var(--space-sm);
+    }
+
+    :global(main.main-content .summary-cards) {
+      margin: 0 var(--space-sm) var(--space-md);
+    }
+  }
+
+  /* ─── Mobile header compression (page-scoped; PageHeader untouched) ───
+     PageHeader's scoped rule owns the shared header look; these overrides
+     only tighten this page's header on small screens so the register starts
+     higher. Selectors are anchored to `main.main-content` (0-2-1) so they
+     beat the component's scoped rule (0-2-0) regardless of style-injection
+     order. The context subline moves inline with the title (compact app-bar
+     read) and truncates on narrow screens. */
+  @media (max-width: 768px) {
+    :global(main.main-content .page-header) {
+      padding: 6px 12px;
+      margin-bottom: var(--space-sm);
+    }
+
+    :global(main.main-content .page-header .page-title-group) {
+      flex-direction: row;
+      align-items: baseline;
+      gap: 6px;
       flex: 1;
       min-width: 0;
     }
 
-    .filters-btn {
-      width: 100%;
-      justify-content: center;
+    :global(main.main-content .page-header .page-title) {
+      flex-shrink: 0;
+    }
+
+    :global(main.main-content .page-header .page-subtitle) {
+      font-size: var(--font-size-xs);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+  }
+
+  /* ─── Compact summary strip (mobile only; TransactionSummary untouched) ───
+     Same `main.main-content` anchoring as the header override so these win
+     against TransactionSummary's scoped rules regardless of injection order. */
+  @media (max-width: 768px) {
+    :global(main.main-content .summary-cards) {
+      margin-bottom: var(--space-md);
+    }
+
+    :global(main.main-content .summary-cards .card) {
+      padding: var(--space-sm) var(--space-md);
+    }
+
+    :global(main.main-content .summary-cards .card-icon) {
+      width: 24px;
+      height: 24px;
+    }
+
+    :global(main.main-content .summary-cards .card-value) {
+      font-size: 18px;
+    }
+
+    :global(main.main-content .summary-cards .hero-value) {
+      font-size: 20px;
+    }
+
+    :global(main.main-content .summary-cards .card-trend) {
+      font-size: 9px;
+      padding: 0 6px;
+      margin-top: 1px;
     }
   }
 

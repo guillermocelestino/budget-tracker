@@ -1,20 +1,15 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import TransactionFilters from '$lib/components/TransactionFilters.svelte';
-  import type { Category } from '$lib/types';
+  import type { Snippet } from 'svelte';
 
   let {
-    open = false,
+    open = $bindable(false),
     onClose = () => {},
-    categories = [] as Category[],
-    activeFilters = { date: '', category: '', type: '' },
-    onFilterChange,
+    children,
   }: {
     open?: boolean;
     onClose?: () => void;
-    categories?: Category[];
-    activeFilters?: { date: string; category: string; type: string };
-    onFilterChange?: (filters: { date: string; category: string; type: string; customFrom?: string; customTo?: string }) => void;
+    children?: Snippet;
   } = $props();
 
   let panelEl = $state<HTMLDivElement | null>(null);
@@ -48,7 +43,7 @@
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="filters-backdrop" onclick={onClose} role="presentation"></div>
-  <div class="filters-sheet" bind:this={panelEl} role="dialog" aria-modal="true" aria-label="Filters">
+  <div class="filters-sheet" id="filters-panel" bind:this={panelEl} role="dialog" aria-modal="true" aria-label="Filters">
     <div class="filters-handle" aria-hidden="true"></div>
     <div class="filters-header">
       <h3 class="filters-title">
@@ -65,13 +60,7 @@
       </button>
     </div>
     <div class="filters-body">
-      <TransactionFilters
-        mode="sheet"
-        {categories}
-        {activeFilters}
-        {onFilterChange}
-        onApply={onClose}
-      />
+      {@render children?.()}
     </div>
   </div>
 {/if}

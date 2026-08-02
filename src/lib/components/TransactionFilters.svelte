@@ -26,11 +26,19 @@
 
   // ─── Derived filter labels ───────────────────────────────────────
 
+  const DATE_PRESET_LABELS: Record<string, string> = {
+    today: 'Today',
+    'this-week': 'This Week',
+    'this-month': 'This Month',
+    'this-year': 'This Year',
+    'last-3-months': 'Last 3 Months',
+  };
+
   const dateLabel = $derived.by(() => {
     if (!activeFilters.date) return 'Date';
     return activeFilters.date === 'custom' && customFrom && customTo
       ? `Date: ${customFrom} → ${customTo}`
-      : `Date: ${activeFilters.date}`;
+      : `Date: ${DATE_PRESET_LABELS[activeFilters.date] ?? activeFilters.date}`;
   });
 
   const categoryLabel = $derived(
@@ -139,6 +147,14 @@
       <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
       <div class="filter-popover" onclick={(e) => e.stopPropagation()} role="listbox" aria-label="Date filter">
         <div class="popover-section">
+          <button class="popover-option" class:active={!activeFilters.date} onclick={() => setDateFilter('')} role="option" aria-selected={!activeFilters.date}>
+            <span class="popover-dot"></span>
+            <span>Any Date</span>
+          </button>
+          <button class="popover-option" class:active={activeFilters.date === 'today'} onclick={() => setDateFilter('today')} role="option" aria-selected={activeFilters.date === 'today'}>
+            <span class="popover-dot"></span>
+            <span>Today</span>
+          </button>
           <button class="popover-option" class:active={activeFilters.date === 'this-week'} onclick={() => setDateFilter('this-week')} role="option" aria-selected={activeFilters.date === 'this-week'}>
             <span class="popover-dot"></span>
             <span>This Week</span>
@@ -146,6 +162,10 @@
           <button class="popover-option" class:active={activeFilters.date === 'this-month'} onclick={() => setDateFilter('this-month')} role="option" aria-selected={activeFilters.date === 'this-month'}>
             <span class="popover-dot"></span>
             <span>This Month</span>
+          </button>
+          <button class="popover-option" class:active={activeFilters.date === 'this-year'} onclick={() => setDateFilter('this-year')} role="option" aria-selected={activeFilters.date === 'this-year'}>
+            <span class="popover-dot"></span>
+            <span>This Year</span>
           </button>
           <button class="popover-option" class:active={activeFilters.date === 'last-3-months'} onclick={() => setDateFilter('last-3-months')} role="option" aria-selected={activeFilters.date === 'last-3-months'}>
             <span class="popover-dot"></span>

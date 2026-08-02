@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+
   type SegOption = {
     value: string;
     label?: string;
@@ -15,6 +17,7 @@
     onSelect,
     iconOnly = false,
     ariaLabel = 'Transaction View Mode',
+    slidingThumb = false,
   }: {
     showFlatView?: boolean;
     onChange?: (flat: boolean) => void;
@@ -23,12 +26,70 @@
     onSelect?: (value: string) => void;
     iconOnly?: boolean;
     ariaLabel?: string;
+    slidingThumb?: boolean;
   } = $props();
+
+  // Derived active index for sliding thumb
+  const activeIndex = $derived.by(() => {
+    if (!options) return showFlatView ? 1 : 0;
+    return options.findIndex(opt => opt.value === value) ?? 0;
+  });
+
+  // Thumb positioning state
+  let thumbStyle = $state('');
+
+  // The component's own container — bound below. Scoping the measurement to
+  // this element (instead of document.querySelector) matters because pages
+  // render multiple sliding-thumb toggles (lending/borrowed each have two);
+  // a global query would make every thumb measure against the first one.
+  let containerEl = $state<HTMLDivElement | null>(null);
+
+  // Update thumb position when active index changes or layout shifts
+  function updateThumbPosition() {
+    if (!slidingThumb) return;
+
+    const container = containerEl;
+    const activeBtn = container?.querySelector('.toggle-btn.active') as HTMLElement;
+
+    if (container && activeBtn) {
+      const containerRect = container.getBoundingClientRect();
+      const btnRect = activeBtn.getBoundingClientRect();
+
+      const left = btnRect.left - containerRect.left;
+      const width = btnRect.width;
+
+      thumbStyle = `transform: translateX(${left}px); width: ${width}px;`;
+    }
+  }
+
+  // Update on value change
+  $effect(() => {
+    if (slidingThumb) {
+      // Defer to next tick to let DOM update
+      // Read reactive values to track them as dependencies
+      activeIndex;
+      value;
+      showFlatView;
+      requestAnimationFrame(updateThumbPosition);
+    }
+  });
+
+  // Update on mount and resize
+  onMount(() => {
+    if (slidingThumb) {
+      updateThumbPosition();
+      window.addEventListener('resize', updateThumbPosition);
+      return () => window.removeEventListener('resize', updateThumbPosition);
+    }
+  });
 </script>
 
 {#if options}
-  <div class="view-toggle" role="radiogroup" aria-label={ariaLabel}>
-    {#each options as opt (opt.value)}
+  <div class="view-toggle" role="radiogroup" aria-label={ariaLabel} bind:this={containerEl}>
+    {#if slidingThumb}
+      <div class="thumb" aria-hidden="true" style={thumbStyle}></div>
+    {/if}
+    {#each options as opt, i (opt.value)}
       <button
         class="toggle-btn"
         class:active={opt.value === value}
@@ -38,6 +99,7 @@
         aria-checked={opt.value === value}
         aria-label={opt.ariaLabel ?? opt.label}
         type="button"
+        style:--seg-index={i}
       >
         {#if opt.icon === 'grid'}
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -65,7 +127,10 @@
     {/each}
   </div>
 {:else}
-  <div class="view-toggle" role="radiogroup" aria-label="Transaction View Mode">
+  <div class="view-toggle" role="radiogroup" aria-label="Transaction View Mode" bind:this={containerEl}>
+    {#if slidingThumb}
+      <div class="thumb" aria-hidden="true" style={thumbStyle}></div>
+    {/if}
     <button
       class="toggle-btn"
       class:active={!showFlatView}
@@ -73,6 +138,7 @@
       role="radio"
       aria-checked={!showFlatView}
       type="button"
+      style:--seg-index={0}
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="3" y="3" width="7" height="7" rx="1"/>
@@ -89,6 +155,7 @@
       role="radio"
       aria-checked={showFlatView}
       type="button"
+      style:--seg-index={1}
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -112,6 +179,29 @@
     border-radius: var(--radius-pill);
     border: 1px solid var(--color-hairline);
     min-height: 40px;
+    position: relative;
+  }
+
+  /* Sliding thumb — only rendered when slidingThumb=true */
+  .thumb {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    border-radius: var(--radius-pill);
+    background: var(--color-teal-bg);
+    box-shadow: var(--glow-card);
+    z-index: 0;
+    pointer-events: none;
+    transition: transform 200ms var(--ease), width 200ms var(--ease);
+    /* Width set by JS based on active segment */
+  }
+
+  /* When sliding thumb is active, segments don't have their own background */
+  .view-toggle:has(.thumb) .toggle-btn {
+    background: transparent !important;
+    box-shadow: none !important;
+    position: relative;
+    z-index: 1;
   }
 
   .toggle-btn {
@@ -131,13 +221,16 @@
     min-height: 32px;
     white-space: nowrap;
     -webkit-tap-highlight-color: transparent;
+    position: relative;
+    z-index: 1;
   }
 
   .toggle-btn:hover:not(.active) {
-    background: var(--color-surface);
-    color: var(--color-ink);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
   }
 
+  /* Static active state (when slidingThumb=false) */
   .toggle-btn.active {
     background: var(--color-teal-bg);
     color: var(--color-teal);
@@ -148,6 +241,17 @@
     background: var(--color-teal-bg);
     color: var(--color-teal);
     box-shadow: var(--glow-card);
+  }
+
+  /* Active segment styling when sliding thumb is enabled */
+  .view-toggle:has(.thumb) .toggle-btn.active {
+    background: transparent;
+    color: var(--color-teal);
+    font-weight: 700;
+  }
+
+  [data-theme="dark"] .view-toggle:has(.thumb) .toggle-btn.active {
+    box-shadow: none;
   }
 
   .toggle-btn.icon-only {
@@ -161,9 +265,26 @@
     opacity: 0.8;
   }
 
+  /* Mount stagger for segments */
+  .view-toggle:has(.thumb) .toggle-btn {
+    animation: fadeSlideIn 300ms var(--ease) both;
+    animation-delay: calc((var(--seg-index, 0)) * 60ms);
+  }
+
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .toggle-btn {
       transition: none;
+    }
+    .thumb {
+      transition: none;
+    }
+    .view-toggle .toggle-btn {
+      animation: none !important;
     }
   }
 </style>
