@@ -33,16 +33,16 @@ export async function POST({ request, locals }: { request: Request; locals: App.
 	const userId = locals.user!.userId;
 	const body = await request.json();
 
-	const { borrower_name, amount, interest_rate, date_lent, due_date, notes, direction } = body;
+	const { borrower_name, amount, interest_rate, date_lent, due_date, notes, direction, status } = body;
 
 	if (!borrower_name || !amount || !date_lent) {
 		return json({ error: 'Borrower name, amount, and date are required' }, { status: 400 });
 	}
 
 	await execute(
-		`INSERT INTO lendings (user_id, borrower_name, amount, interest_rate, date_lent, due_date, notes, direction)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		[userId, borrower_name, amount, interest_rate || 0, date_lent, due_date || null, notes || null, direction || 'lent']
+		`INSERT INTO lendings (user_id, borrower_name, amount, interest_rate, date_lent, due_date, notes, direction, status)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		[userId, borrower_name, amount, interest_rate || 0, date_lent, due_date || null, notes || null, direction || 'lent', status || 'active']
 	);
 
 	const lending = await queryOne<Lending>('SELECT * FROM lendings WHERE user_id = $1 ORDER BY id DESC LIMIT 1', [userId]);

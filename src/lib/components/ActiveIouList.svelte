@@ -8,6 +8,7 @@
     onPay,
     onEdit,
     onDelete,
+    onDuplicate,
     direction = 'lent',
     viewMode = 'card',
   }: {
@@ -15,6 +16,7 @@
     onPay?: (id: number) => void;
     onEdit?: (id: number) => void;
     onDelete?: (id: number) => void;
+    onDuplicate?: (id: number) => void;
     direction?: 'lent' | 'borrowed';
     viewMode?: 'card' | 'table';
   } = $props();
@@ -321,6 +323,9 @@
                   <button class="iou-btn iou-btn-edit" onclick={() => onEdit?.(iou.id)} type="button" title="Edit">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                   </button>
+                  <button class="iou-btn iou-btn-dup" onclick={() => onDuplicate?.(iou.id)} type="button" title="Duplicate">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  </button>
                   {#if iou.status !== 'paid'}
                     <button class="iou-btn iou-btn-pay" onclick={() => onPay?.(iou.id)} type="button">
                       {direction === 'lent' ? 'Mark Paid' : 'Repay'}
@@ -404,6 +409,7 @@
                     <button class="action-btn pay" onclick={() => onPay?.(iou.id)} type="button">{direction === 'lent' ? 'Paid' : 'Repay'}</button>
                   {/if}
                   <button class="action-btn edit" onclick={() => onEdit?.(iou.id)} type="button">Edit</button>
+                  <button class="action-btn dup" onclick={() => onDuplicate?.(iou.id)} type="button">Copy</button>
                   <button class="action-btn delete" onclick={() => onDelete?.(iou.id)} type="button">Del</button>
                 </div>
               </td>
@@ -806,6 +812,19 @@
     color: var(--color-teal);
   }
 
+  .iou-btn-dup {
+    background: transparent;
+    color: var(--color-text-muted);
+    width: 30px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .iou-btn-dup:hover {
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
+  }
+
   .recovered-glow {
     font-size: var(--font-size-xs);
     font-weight: 600;
@@ -1000,6 +1019,16 @@
   }
 
   .action-btn.edit:hover {
+    background: var(--color-teal);
+    color: white;
+  }
+
+  .action-btn.dup {
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
+  }
+
+  .action-btn.dup:hover {
     background: var(--color-teal);
     color: white;
   }

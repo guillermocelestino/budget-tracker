@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { enhance } from '$app/forms';
+  import { invalidateAll } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SlideOver from '$lib/components/SlideOver.svelte';
   import LendingForm from '$lib/components/LendingForm.svelte';
@@ -110,6 +111,35 @@
   function handleExportCsv() {
     const csv = lendingsToCSV(showLendings, 'borrowed');
     downloadCsv(csv, `borrowed-${new Date().toISOString().split('T')[0]}.csv`);
+  }
+
+  // Duplicate an entry: POST a copy of the source to the API, then re-run the
+  // page load so the new row appears immediately (same UX as Transactions).
+  // Status is preserved so the copy lands in the same tab the user is on.
+  async function handleDuplicate(id: number) {
+    const src = showLendings.find((l) => l.id === id);
+    if (!src) return;
+    try {
+      const res = await fetch('/api/lendings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          borrower_name: src.borrower_name,
+          amount: src.amount,
+          interest_rate: src.interest_rate,
+          date_lent: src.date_lent,
+          due_date: src.due_date,
+          notes: src.notes,
+          direction: src.direction,
+          status: src.status,
+        }),
+      });
+      if (!res.ok) throw new Error(((await res.json()).error) || 'Duplicate failed');
+      showSuccess('Borrowing duplicated');
+      await invalidateAll();
+    } catch (e) {
+      showError((e as Error).message || 'Failed to duplicate borrowing');
+    }
   }
 </script>
 
@@ -233,6 +263,7 @@
   onPay={(id) => markPaidId = id}
   onEdit={(id) => { const l = showLendings.find(l => l.id === id); if (l) openEdit(l); }}
   onDelete={(id) => deleteId = id}
+  onDuplicate={handleDuplicate}
   direction="borrowed"
   viewMode={viewMode}
 />
