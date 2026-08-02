@@ -246,14 +246,14 @@
   {#snippet views()}
     <ViewToggle
       options={[
-        { value: 'card', icon: 'grid', ariaLabel: 'Card view' },
-        { value: 'table', icon: 'table', ariaLabel: 'Table view' },
+        { value: 'card', icon: 'grid', label: 'Grouped', ariaLabel: 'Card view' },
+        { value: 'table', icon: 'table', label: 'Table', ariaLabel: 'Table view' },
       ]}
       value={viewMode}
       onSelect={(v) => (viewMode = v as 'card' | 'table')}
-      iconOnly
       ariaLabel="Borrowing list view"
       slidingThumb
+      stretch
     />
   {/snippet}
 </ListToolbar>
@@ -500,6 +500,19 @@
     .mobile-only {
       display: flex;
       align-items: center;
+    }
+  }
+
+  /* ─── Mobile toolbar rhythm — match /transactions (≤767px) ───
+     One compact band: unified Search|Filter pill, then the single ViewToggle
+     left-anchored below it, directly above the list. */
+  @media (max-width: 767px) {
+    :global(main.main-content .list-toolbar) {
+      margin-top: var(--space-md);
+    }
+
+    :global(main.main-content .list-toolbar .toolbar-views) {
+      justify-content: flex-start;
     }
   }
 </style>

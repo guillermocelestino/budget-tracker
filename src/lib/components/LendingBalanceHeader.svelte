@@ -74,7 +74,7 @@
   <!-- Sub line -->
   <p class="hero-sub">{subText}</p>
 
-  <!-- Two-column breakdown: owed / owe -->
+  <!-- Two-column breakdown: owed / owe (desktop) -->
   <div class="breakdown-row">
     <div class="breakdown-side teal-bar">
       <span class="breakdown-value owed">{formatCurrency(totalOwedToMe)}</span>
@@ -85,6 +85,19 @@
       <span class="breakdown-value owe">{formatCurrency(totalIOwe)}</span>
       <span class="breakdown-label">{directionSubLabel}</span>
     </div>
+  </div>
+
+  <!-- Compact inline breakdown (mobile) — one quiet line under the amount -->
+  <div class="hero-breakdown-line">
+    <span class="hbl-item">
+      <span class="hbl-label">{directionLabel}</span>
+      <span class="hbl-value owed">{formatCurrency(totalOwedToMe)}</span>
+    </span>
+    <span class="hbl-divider" aria-hidden="true">·</span>
+    <span class="hbl-item">
+      <span class="hbl-label">{directionSubLabel}</span>
+      <span class="hbl-value owe">{formatCurrency(totalIOwe)}</span>
+    </span>
   </div>
 </div>
 
@@ -245,6 +258,67 @@
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
     font-weight: 500;
+  }
+
+  /* Compact inline breakdown (mobile) — desktop keeps the two-column card */
+  .hero-breakdown-line {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: var(--space-xs);
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+    z-index: 1;
+    color: var(--color-text-muted);
+  }
+
+  .hbl-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  .hbl-value {
+    font-weight: 700;
+  }
+
+  .hbl-value.owed { color: var(--color-teal); }
+  .hbl-value.owe { color: var(--color-coral); }
+
+  .hbl-divider {
+    opacity: 0.6;
+  }
+
+  /* ─── Mobile compaction (≤768px) — ~30% shorter, amount stays dominant ─── */
+  @media (max-width: 768px) {
+    .balance-hero {
+      padding: 18px var(--space-lg) 14px;
+      padding-top: 21px;
+      margin-bottom: var(--space-md);
+    }
+
+    .hero-value {
+      font-size: var(--font-size-2xl);
+    }
+
+    .hero-icon {
+      width: 32px;
+      height: 32px;
+    }
+
+    .hero-value-row {
+      margin: var(--space-xs) 0;
+    }
+
+    .hero-sub,
+    .breakdown-row {
+      display: none;
+    }
+
+    .hero-breakdown-line {
+      display: flex;
+    }
   }
 
   @media (max-width: 480px) {

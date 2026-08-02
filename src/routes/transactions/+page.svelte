@@ -822,40 +822,6 @@
     }
   }
 
-  /* ─── Mobile header compression (page-scoped; PageHeader untouched) ───
-     PageHeader's scoped rule owns the shared header look; these overrides
-     only tighten this page's header on small screens so the register starts
-     higher. Selectors are anchored to `main.main-content` (0-2-1) so they
-     beat the component's scoped rule (0-2-0) regardless of style-injection
-     order. The context subline moves inline with the title (compact app-bar
-     read) and truncates on narrow screens. */
-  @media (max-width: 768px) {
-    :global(main.main-content .page-header) {
-      padding: 6px 12px;
-      margin-bottom: var(--space-sm);
-    }
-
-    :global(main.main-content .page-header .page-title-group) {
-      flex-direction: row;
-      align-items: baseline;
-      gap: 6px;
-      flex: 1;
-      min-width: 0;
-    }
-
-    :global(main.main-content .page-header .page-title) {
-      flex-shrink: 0;
-    }
-
-    :global(main.main-content .page-header .page-subtitle) {
-      font-size: var(--font-size-xs);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      min-width: 0;
-    }
-  }
-
   /* ─── Compact summary strip (mobile only; TransactionSummary untouched) ───
      Same `main.main-content` anchoring as the header override so these win
      against TransactionSummary's scoped rules regardless of injection order. */

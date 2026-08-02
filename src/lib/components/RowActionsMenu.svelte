@@ -1,26 +1,32 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { formatCurrency } from '$lib/utils/format';
-  import type { Transaction } from '$lib/types';
 
+  /**
+   * RowActionsMenu — the per-record overflow bottom sheet (Edit / Duplicate /
+   * Delete + Cancel). Content-neutral: hosts pass a title + pre-formatted
+   * amount string, so the same sheet serves Transaction rows and Lending cards.
+   */
   let {
-    txn,
+    title,
+    amount,
+    tone = 'neutral',
+    ariaLabel = 'Actions',
     onClose = () => {},
     onEdit,
     onDuplicate,
     onDelete,
   }: {
-    txn: Transaction;
+    title: string;
+    amount: string;
+    tone?: 'income' | 'expense' | 'neutral';
+    ariaLabel?: string;
     onClose?: () => void;
-    onEdit?: (id: number) => void;
-    onDuplicate?: (id: number) => void;
-    onDelete?: (id: number) => void;
+    onEdit?: () => void;
+    onDuplicate?: () => void;
+    onDelete?: () => void;
   } = $props();
 
   let panelEl = $state<HTMLDivElement | null>(null);
-
-  const isIncome = $derived(txn.type === 'income');
-  const signed = $derived(isIncome ? `+${formatCurrency(txn.amount)}` : `-${formatCurrency(txn.amount)}`);
 
   // Lock body scroll while open
   $effect(() => {
@@ -46,28 +52,28 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div class="row-backdrop" onclick={onClose} role="presentation"></div>
-<div class="row-sheet" bind:this={panelEl} role="menu" aria-label="Transaction actions">
+<div class="row-sheet" bind:this={panelEl} role="menu" aria-label={ariaLabel}>
   <div class="row-handle" aria-hidden="true"></div>
   <div class="row-head">
-    <span class="row-desc">{txn.description || 'Transaction'}</span>
-    <span class="row-amount" class:income={isIncome}>{signed}</span>
+    <span class="row-desc">{title}</span>
+    <span class="row-amount" class:income={tone === 'income'} class:expense={tone === 'expense'} class:neutral={tone === 'neutral'}>{amount}</span>
   </div>
   <div class="row-actions">
-    <button class="row-action" onclick={() => onEdit?.(txn.id)} role="menuitem" type="button">
+    <button class="row-action" onclick={() => onEdit?.()} role="menuitem" type="button">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
       </svg>
       <span>Edit</span>
     </button>
-    <button class="row-action" onclick={() => onDuplicate?.(txn.id)} role="menuitem" type="button">
+    <button class="row-action" onclick={() => onDuplicate?.()} role="menuitem" type="button">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="9" y="9" width="13" height="13" rx="2"/>
         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
       </svg>
       <span>Duplicate</span>
     </button>
-    <button class="row-action danger" onclick={() => onDelete?.(txn.id)} role="menuitem" type="button">
+    <button class="row-action danger" onclick={() => onDelete?.()} role="menuitem" type="button">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="3 6 5 6 21 6"/>
         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -149,8 +155,12 @@
     color: var(--color-teal);
   }
 
-  .row-amount:not(.income) {
+  .row-amount.expense {
     color: var(--color-coral);
+  }
+
+  .row-amount.neutral {
+    color: var(--color-ink);
   }
 
   .row-actions {

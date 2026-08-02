@@ -205,8 +205,30 @@
 	}
 
 	@media (max-width: 768px) {
+		/* 2-per-row keeps readability + touch targets; the 3rd card spans
+		   full width so nothing is squeezed into a cramped 3-across row. */
 		.lending-summary-grid {
-			grid-template-columns: 1fr;
+			grid-template-columns: repeat(2, 1fr);
+			gap: var(--space-sm);
+		}
+
+		.summary-card:nth-child(3) {
+			grid-column: 1 / -1;
+		}
+
+		.summary-card {
+			padding: var(--space-sm);
+			padding-left: calc(var(--space-sm) + 4px);
+		}
+
+		.card-icon {
+			width: 24px;
+			height: 24px;
+			border-radius: var(--radius-md);
+		}
+
+		.card-value {
+			font-size: var(--font-size-base);
 		}
 	}
 </style>

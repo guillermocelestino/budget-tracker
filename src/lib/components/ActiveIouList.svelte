@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { formatCurrency, formatDate, getToday } from '$lib/utils/format';
+  import RowActionsMenu from '$lib/components/RowActionsMenu.svelte';
   import type { Lending } from '$lib/types';
 
   let {
@@ -175,6 +176,9 @@
 
   const hasActiveItems = $derived(triageGroups.some(g => g.id !== 'paid' && g.items.length > 0));
 
+  // ─── Per-card overflow menu (mobile) ───
+  let menuIou = $state<Lending | null>(null);
+
   // ─── State styling helpers ───
   function stateAccentColor(state: State): string {
     switch (state) {
@@ -254,7 +258,7 @@
           <div class="group-header reveal-on-scroll" style="border-bottom-color: {stateAccentColor(group.state)};">
             <span class="group-emoji">{group.emoji}</span>
             <span class="group-label">{group.label}</span>
-            <span class="group-count">{group.count}</span>
+            <span class="group-count">• {group.count} loan{group.count === 1 ? '' : 's'}</span>
           </div>
 
           {#each group.items as iou (iou.id)}
@@ -276,7 +280,7 @@
                 <span class="iou-initial" style="color: {stateTextColor(state)};">{init}</span>
               </div>
 
-              <!-- Center: name + metadata + progress -->
+              <!-- Center: name + meta + progress -->
               <div class="iou-info">
                 <span class="iou-name" class:strikethrough={iou.status === 'paid'}>{iou.borrower_name}</span>
                 <span class="iou-meta">
@@ -286,8 +290,19 @@
                   {#if iou.notes && iou.notes.length > 0} · {iou.notes}{/if}
                 </span>
 
+                <!-- Due-first meta for mobile (urgency first) -->
+                <span class="iou-meta-mobile">
+                  {#if iou.due_date}Due {formatDate(iou.due_date)}{/if}
+                  {#if iou.notes && iou.notes.length > 0}
+                    {#if iou.due_date} · {/if}{iou.notes}
+                  {:else if !iou.due_date && iou.interest_rate > 0}
+                    {iou.interest_rate}% interest
+                  {/if}
+                </span>
+
                 <!-- Progress bar -->
                 <div class="iou-progress">
+                  <span class="progress-caption">Collected</span>
                   <div class="progress-track">
                     <div
                       class="progress-fill"
@@ -297,10 +312,11 @@
                   <span class="progress-label" style="color: {stateTextColor(state)};">
                     {formatCurrency(recoveredAmount(iou))} / {formatCurrency(iou.amount)}
                   </span>
+                  <span class="progress-pct" style="color: {stateTextColor(state)};">{progressPct}%</span>
                 </div>
               </div>
 
-              <!-- Right: amount + action -->
+              <!-- Right: amount + countdown + overflow (mobile) + hover actions (desktop) -->
               <div class="iou-right">
                 <span class="iou-amount" class:paid-amount={iou.status === 'paid'} style="color: {stateTextColor(state)};">
                   {formatCurrency(iou.amount)}
@@ -318,7 +334,12 @@
                   {stateLabel(state)}
                 </span>
 
-                <!-- Hover actions -->
+                <!-- Overflow trigger (mobile) -->
+                <button class="iou-overflow" onclick={() => (menuIou = iou)} type="button" aria-label="More actions for {iou.borrower_name}" aria-haspopup="menu" aria-expanded={menuIou?.id === iou.id}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                </button>
+
+                <!-- Hover actions (desktop) -->
                 <div class="iou-actions">
                   <button class="iou-btn iou-btn-edit" onclick={() => onEdit?.(iou.id)} type="button" title="Edit">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
@@ -337,6 +358,17 @@
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                   </button>
                 </div>
+              </div>
+
+              <!-- Single primary CTA (mobile) -->
+              <div class="iou-mobile-actions">
+                {#if iou.status === 'paid'}
+                  <span class="recovered-glow">Recovered</span>
+                {:else}
+                  <button class="iou-btn iou-btn-pay" onclick={() => onPay?.(iou.id)} type="button">
+                    {direction === 'lent' ? 'Mark Paid' : 'Repay'}
+                  </button>
+                {/if}
               </div>
             </div>
           {/each}
@@ -446,6 +478,21 @@
       {/each}
     </div>
   {/if}
+{/if}
+
+<!-- ═══ Per-card overflow menu (mobile) ═══ -->
+{#if menuIou}
+  {@const menuIouId = menuIou.id}
+  <RowActionsMenu
+    title={menuIou.borrower_name}
+    amount={formatCurrency(menuIou.amount)}
+    tone="neutral"
+    ariaLabel="Lending actions"
+    onClose={() => (menuIou = null)}
+    onEdit={() => { menuIou = null; onEdit?.(menuIouId); }}
+    onDuplicate={() => { menuIou = null; onDuplicate?.(menuIouId); }}
+    onDelete={() => { menuIou = null; onDelete?.(menuIouId); }}
+  />
 {/if}
 
 <style>
@@ -559,14 +606,11 @@
   }
 
   .group-count {
-    margin-left: auto;
     font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 700;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
     color: var(--color-text-muted);
-    padding: 2px 10px;
-    background: var(--color-surface);
-    border-radius: var(--radius-pill);
+    white-space: nowrap;
   }
 
   /* Card */
@@ -696,6 +740,14 @@
     text-overflow: ellipsis;
   }
 
+  /* Due-first meta for mobile — hidden on desktop (replaces .iou-meta) */
+  .iou-meta-mobile {
+    display: none;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    white-space: normal;
+  }
+
   /* Progress bar */
   .iou-progress {
     display: flex;
@@ -721,6 +773,24 @@
   }
 
   .progress-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* "Collected" caption + percentage — shown on mobile only */
+  .progress-caption {
+    display: none;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+  }
+
+  .progress-pct {
+    display: none;
     font-family: var(--font-mono);
     font-size: 9px;
     font-weight: 600;
@@ -866,6 +936,33 @@
     border-radius: var(--radius-pill);
     background: rgba(93, 173, 226, 0.10);
     box-shadow: var(--glow-sky);
+  }
+
+  /* Overflow trigger (⋯) — mobile only */
+  .iou-overflow {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin-top: 2px;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-inset);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: all 120ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .iou-overflow:hover {
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
+  }
+
+  /* Single primary CTA — mobile only */
+  .iou-mobile-actions {
+    display: none;
   }
 
   /* ═══════════════════════════════════════════════════════
@@ -1209,10 +1306,99 @@
      Responsive
      ═══════════════════════════════════════════════════════ */
   @media (max-width: 640px) {
-    .iou-card { flex-wrap: wrap; gap: var(--space-sm); }
+    /* Card reflows to a compact grid: avatar | name+amount | then meta,
+       progress, then the single CTA row. Desktop keeps the flex row above. */
+    .iou-card {
+      display: grid;
+      grid-template-columns: 40px 1fr auto;
+      grid-template-areas:
+        'avatar info right'
+        'actions actions actions';
+      column-gap: 10px;
+      row-gap: 4px;
+      align-items: start;
+      padding: 10px 12px;
+      min-height: 0;
+    }
+
+    .iou-initial-ring {
+      grid-area: avatar;
+      width: 40px;
+      height: 40px;
+      margin-top: 2px;
+    }
+
+    .iou-info { grid-area: info; min-width: 0; }
+
+    .iou-right {
+      grid-area: right;
+      align-items: flex-end;
+      gap: 4px;
+      min-width: 0;
+    }
+
     .iou-meta { display: none; }
-    .iou-progress { max-width: 120px; }
-    .state-pill { display: inline; }
+
+    .iou-meta-mobile {
+      display: block;
+    }
+
+    .iou-amount {
+      font-size: var(--font-size-lg);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .iou-overflow {
+      display: inline-flex;
+    }
+
+    .state-pill { display: none; }
+
+    .iou-actions { display: none; }
+
+    .iou-mobile-actions {
+      grid-area: actions;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--space-sm);
+      padding-top: 6px;
+      margin-top: 2px;
+      border-top: 1px dashed var(--color-hairline);
+    }
+
+    .iou-mobile-actions .iou-btn-pay {
+      min-height: 36px;
+      padding: 6px 16px;
+      font-size: var(--font-size-sm);
+    }
+
+    .iou-mobile-actions .recovered-glow {
+      padding: 6px 16px;
+    }
+
+    .iou-progress {
+      width: 100%;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .progress-track {
+      flex: 1;
+      max-width: none;
+      height: 6px;
+    }
+
+    .progress-caption {
+      display: inline;
+      font-size: var(--font-size-xs);
+    }
+
+    .progress-pct {
+      display: inline;
+      font-size: var(--font-size-xs);
+    }
   }
 
   @media (max-width: 480px) {
@@ -1220,23 +1406,7 @@
       background: var(--color-cream);
     }
 
-    .iou-initial-ring {
-      width: 32px;
-      height: 32px;
-    }
     .iou-initial { font-size: 13px; }
-    .iou-amount { font-size: var(--font-size-sm); }
-    .iou-right {
-      flex-direction: row;
-      flex-wrap: wrap;
-      width: 100%;
-      justify-content: space-between;
-      align-items: center;
-      padding-top: 4px;
-      border-top: 1px dashed var(--color-hairline);
-      margin-top: 4px;
-    }
-    .iou-actions { opacity: 1; pointer-events: auto; padding-top: 2px; }
   }
 
   /* ═══════════════════════════════════════════════════════

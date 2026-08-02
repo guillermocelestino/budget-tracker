@@ -560,12 +560,15 @@
 </div>
 
 {#if menuTxn}
+  {@const menuId = menuTxn.id}
   <RowActionsMenu
-    txn={menuTxn}
+    title={menuTxn.description || 'Transaction'}
+    amount={menuTxn.type === 'income' ? `+${formatCurrency(menuTxn.amount)}` : `-${formatCurrency(menuTxn.amount)}`}
+    tone={menuTxn.type === 'income' ? 'income' : 'expense'}
     onClose={() => (menuTxn = null)}
-    onEdit={(id) => { menuTxn = null; onEdit?.(id); }}
-    onDuplicate={(id) => { menuTxn = null; onDuplicate?.(id); }}
-    onDelete={(id) => { menuTxn = null; onDelete?.(id); }}
+    onEdit={() => { menuTxn = null; onEdit?.(menuId); }}
+    onDuplicate={() => { menuTxn = null; onDuplicate?.(menuId); }}
+    onDelete={() => { menuTxn = null; onDelete?.(menuId); }}
   />
 {/if}
 

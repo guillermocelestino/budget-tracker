@@ -10,6 +10,8 @@
 	import PageBackground from '$lib/components/PageBackground.svelte';
 	import NetWorthHero from '$lib/components/NetWorthHero.svelte';
 	import MobileSummaryRail from '$lib/components/MobileSummaryRail.svelte';
+	import Button from '$lib/components/Button.svelte';
+	import { getCurrentMonth, getMonthLabel } from '$lib/utils/format';
 	let data = $derived($page.data as App.PageData);
 
 	// ─── Forecast computation ───
@@ -29,15 +31,30 @@
 			color: (data.categoryColors ?? [])[i] || '#6366f1',
 		}))
 	);
+
+	// Context subline — mirrors /transactions and /lending header format
+	const contextSubline = $derived.by(() => {
+		const monthLabel = getMonthLabel(getCurrentMonth());
+		const rate = Math.round(data.summary?.savingsRate ?? 0);
+		return `${monthLabel} · Savings rate ${rate}%`;
+	});
 </script>
 
 <svelte:head>
 	<title>Dashboard — Finance Tracker</title>
 </svelte:head>
 
-<PageHeader title="Dashboard">
+<PageHeader title="Dashboard" flush>
 	{#snippet subtitle()}
-		<span class="header-subtitle">Track your financial overview</span>
+		<span class="context-subline">{contextSubline}</span>
+	{/snippet}
+	{#snippet action()}
+		<span class="header-actions desktop-only">
+			<Button variant="primary" href="/transactions/new">
+				<span class="btn-lead" aria-hidden="true">+</span>
+				Add Transaction
+			</Button>
+		</span>
 	{/snippet}
 </PageHeader>
 
@@ -120,10 +137,51 @@
 		</section>
 
 <style>
-	.header-subtitle {
-		font-size: var(--font-size-sm);
-		color: var(--color-text-secondary);
-		font-weight: 400;
+	/* ─── Page header (matches /transactions + /lending) ─── */
+	/* Raise the header's stacking context so menus/buttons paint above the
+	   hero widgets that follow it in the DOM. */
+	:global(.page-header) {
+		position: relative;
+		z-index: 30;
+	}
+
+	/* ─── Context subline (header) ─── */
+	.context-subline {
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: var(--font-size-xs);
+		letter-spacing: 0.02em;
+	}
+
+	.header-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		flex-wrap: wrap;
+		min-width: 0;
+	}
+
+	.btn-lead {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		width: 18px;
+		height: 18px;
+		font-weight: var(--font-weight-extrabold);
+	}
+
+	/* ─── Mobile / Desktop visibility (matches /transactions) ─── */
+	.desktop-only {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+	}
+
+	@media (max-width: 768px) {
+		.desktop-only {
+			display: none !important;
+		}
 	}
 
 	.section-title {
