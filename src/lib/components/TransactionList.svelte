@@ -14,7 +14,6 @@
     runningBalanceStart = 0,
     allTransactionsForBalance = [],
     showRunningBalance = true,
-    showClearedColumn = false,
     categories = [],
     showFlatView = false,
     onViewChange,
@@ -29,7 +28,6 @@
     runningBalanceStart?: number;
     allTransactionsForBalance?: Transaction[];
     showRunningBalance?: boolean;
-    showClearedColumn?: boolean;
     categories?: { id: number; name: string; color: string; type: string }[];
     showFlatView?: boolean;
     onViewChange?: (flat: boolean) => void;
@@ -45,8 +43,6 @@
   let inlineEditField = $state<'amount' | 'category' | null>(null);
   let inlineEditValue = $state('');
   let menuTxn = $state<Transaction | null>(null);
-
-  let clearedStatesLocal = $state<Map<number, boolean>>(new Map());
 
   function handleSwipeStart(e: TouchEvent, txnId: number) {
     if (swipedRowId !== txnId && swipedRowId !== null) {
@@ -244,27 +240,6 @@
     else if (e.key === 'Escape') { cancelInlineEdit(); }
   }
 
-  function toggleCleared(txnId: number, e: Event) {
-    e.stopPropagation();
-    const newState = !clearedStatesLocal.get(txnId);
-    clearedStatesLocal = new Map(clearedStatesLocal).set(txnId, newState);
-    try {
-      const stored = new Map(JSON.parse(localStorage.getItem('txn_cleared_states') || '[]'));
-      stored.set(txnId, newState);
-      localStorage.setItem('txn_cleared_states', JSON.stringify([...stored]));
-    } catch {}
-  }
-
-  // On mount, load cleared states from localStorage
-  $effect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = JSON.parse(localStorage.getItem('txn_cleared_states') || '[]');
-        clearedStatesLocal = new Map(stored);
-      } catch {}
-    }
-  });
-
   // Action: auto-focus element on mount
   function autofocus(node: HTMLInputElement | HTMLSelectElement) {
     node.focus();
@@ -350,7 +325,6 @@
 {#snippet bankRow(txn: Transaction & { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean })}
   {@const isIncome = txn.type === 'income'}
   {@const isExpanded = editingId === txn.id}
-  {@const isCleared = showClearedColumn && clearedStatesLocal.get(txn.id)}
   {@const isInlineEditing = inlineEditingId === txn.id}
 
   <div
@@ -359,7 +333,6 @@
     class:txn-expense={!isIncome}
     class:editing={isExpanded}
     class:swiped={swipedRowId === txn.id}
-    class:cleared={isCleared}
     data-txn-id={txn.id}
     role="button"
     tabindex="0"
@@ -420,25 +393,6 @@
         {isIncome ? '+' : '−'}{formatCurrency(txn.amount)}
       </span>
     </div>
-
-    <!-- Cleared toggle -->
-    {#if showClearedColumn}
-      <div class="cleared-col">
-        <button
-          class="cleared-toggle"
-          class:cleared={isCleared}
-          onclick={(e) => toggleCleared(txn.id, e)}
-          title={isCleared ? 'Reconciled' : 'Uncleared'}
-          type="button"
-        >
-          {#if isCleared}
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-          {:else}
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
-          {/if}
-        </button>
-      </div>
-    {/if}
 
     <!-- Hover-only edit / duplicate / delete icons -->
     {#if showActions && !isExpanded && !isInlineEditing}
@@ -587,9 +541,6 @@
           <span class="fh-balance">Balance</span>
         {/if}
         <span class="fh-amount">Amount</span>
-        {#if showClearedColumn}
-          <span class="fh-cleared">✓</span>
-        {/if}
       </div>
       {#each transactionsWithBalance as txn (txn.id)}
         {@render bankRow(txn)}
@@ -705,7 +656,6 @@
   .fh-date { min-width: 76px; text-align: left; flex-shrink: 0; }
   .fh-balance { min-width: 90px; text-align: right; flex-shrink: 0; }
   .fh-amount { min-width: 90px; text-align: right; flex-shrink: 0; }
-  .fh-cleared { width: 28px; text-align: center; flex-shrink: 0; }
 
   /* ══ Flat view shared column grid (desktop ≥641px) ═══════════════════
      The flat header and every flat row share ONE grid template so all
@@ -721,8 +671,7 @@
         minmax(0, 1fr)  /* description      */
         84px            /* date             */
         96px            /* balance          */
-        108px           /* amount           */
-        32px;           /* status           */
+        108px;          /* amount           */
       align-items: center;
       column-gap: var(--space-sm);
     }
@@ -732,8 +681,7 @@
     .flat-register .flat-header .fh-desc,
     .flat-register .flat-header .fh-date,
     .flat-register .flat-header .fh-balance,
-    .flat-register .flat-header .fh-amount,
-    .flat-register .flat-header .fh-cleared {
+    .flat-register .flat-header .fh-amount {
       min-width: 0;
       width: auto;
       margin: 0;
@@ -749,8 +697,6 @@
     .flat-register .balance-col { justify-self: stretch; }
     .flat-register .fh-amount,
     .flat-register .txn-amount-col { justify-self: stretch; }
-    .flat-register .fh-cleared,
-    .flat-register .cleared-col { justify-self: stretch; }
 
     .flat-register .txn-date-col,
     .flat-register .balance-col,
@@ -827,10 +773,6 @@
   .txn-row.swiped {
     border-color: var(--color-coral-light);
     background: rgba(239, 108, 74, 0.06);
-  }
-
-  .txn-row.cleared {
-    opacity: 0.85;
   }
 
   .txn-row:focus-visible {
@@ -977,41 +919,6 @@
 
   .amount-income { color: var(--color-teal); }
   .amount-expense { color: var(--color-coral); }
-
-  /* ── Cleared column ── */
-  .cleared-col {
-    flex-shrink: 0;
-    width: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .cleared-toggle {
-    width: 24px;
-    height: 24px;
-    border-radius: var(--radius-full);
-    border: 1px solid var(--color-hairline);
-    background: transparent;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all var(--transition-fast);
-    font-size: 10px;
-  }
-
-  .cleared-toggle.cleared {
-    background: var(--color-teal-bg);
-    border-color: var(--color-teal);
-    color: var(--color-teal);
-  }
-
-  .cleared-toggle:hover {
-    border-color: var(--color-teal);
-    background: var(--color-teal-bg);
-  }
 
   /* ── Hover-reveal action buttons ── */
   .hover-actions {
@@ -1311,11 +1218,11 @@
   @media (max-width: 480px) {
     .txn-row {
       flex-wrap: wrap;
-      padding: 10px var(--space-md);
+      padding: 5px var(--space-md);
       padding-left: calc(var(--space-md) + 4px);
-      min-height: 56px;
-      gap: var(--space-xs);
-      background: var(--color-cream);
+      min-height: 44px;
+      gap: 2px;
+      background: var(--color-surface);
       border: 1px dashed var(--color-hairline);
       border-left: 4px solid transparent;
       border-radius: var(--radius-lg);
@@ -1344,8 +1251,8 @@
 
     .cat-circle { width: 24px; height: 24px; font-size: 10px; }
 
-    .txn-info { flex: 1 1 calc(100% - 44px); order: 1; }
-    .txn-amount-col { order: 2; min-width: auto; margin-left: auto; }
+    .txn-info { flex: 1 1 auto; min-width: 0; order: 1; }
+    .txn-amount-col { order: 2; min-width: auto; margin-left: auto; flex-shrink: 0; }
     .row-menu-btn { order: 2; margin-left: var(--space-xs); margin-right: 0; }
 
     .balance-col {
@@ -1355,8 +1262,8 @@
       justify-content: flex-end;
       align-items: center;
       gap: 4px;
-      margin-top: 2px;
-      padding-top: 4px;
+      margin-top: 0;
+      padding-top: 2px;
       border-top: 1px dashed var(--color-hairline);
       min-width: auto;
     }

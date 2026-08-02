@@ -740,6 +740,10 @@
 			width: 100%;
 		}
 
+		.refund-label {
+			width: 100%;
+		}
+
 		.category-chips {
 			grid-template-columns: 1fr;
 		}

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
+  import { goto, invalidateAll } from '$app/navigation';
   import { enhance } from '$app/forms';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import PageBackground from '$lib/components/PageBackground.svelte';
@@ -394,8 +394,10 @@
       });
       if (!res.ok) throw new Error(((await res.json()).error) || 'Duplicate failed');
       showSuccess('Transaction duplicated');
-      const qs = $page.url.search;
-      await goto(`/transactions${qs ? '?' + qs : ''}`, { keepFocus: true, noScroll: true });
+      // Re-run the page's load in place so the new row appears immediately.
+      // A `goto` to the identical URL is a no-op (SvelteKit won't re-fetch);
+      // invalidateAll re-fetches while preserving the current filters.
+      await invalidateAll();
     } catch (e) {
       showError((e as Error).message || 'Failed to duplicate transaction');
     }
@@ -470,7 +472,7 @@
     </SearchFilterPill>
   </div>
   <div class="toolbar-right">
-    <ViewToggle {showFlatView} onChange={(flat) => showFlatView = flat} />
+    <ViewToggle {showFlatView} onChange={(flat) => showFlatView = flat} stretch />
   </div>
 </div>
 
@@ -480,7 +482,6 @@
   allTransactionsForBalance={data.allForBalance ?? []}
   categories={data.categories ?? []}
   showRunningBalance={true}
-  showClearedColumn={true}
   {showFlatView}
   onEdit={(id) => goto(`/transactions/${id}/edit`)}
   onDelete={(id) => (deleteId = id)}
@@ -783,10 +784,13 @@
       align-items: center;
     }
 
-    /* One 44px search+filter pill; the view toggle follows on a slim row. */
+    /* One 44px search+filter pill; the view toggle follows on a slim row.
+       The toggle row sits flush against the register below so it reads as
+       the list's own header control. */
     .txn-toolbar {
       grid-template-columns: 1fr;
       gap: var(--space-sm);
+      margin-bottom: var(--space-xs);
     }
 
     .toolbar-left {
@@ -797,7 +801,6 @@
     .toolbar-right {
       grid-column: 1;
       justify-self: stretch;
-      width: 100%;
       justify-content: flex-start;
     }
   }

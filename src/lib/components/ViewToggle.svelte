@@ -18,6 +18,7 @@
     iconOnly = false,
     ariaLabel = 'Transaction View Mode',
     slidingThumb = false,
+    stretch = false,
   }: {
     showFlatView?: boolean;
     onChange?: (flat: boolean) => void;
@@ -27,6 +28,7 @@
     iconOnly?: boolean;
     ariaLabel?: string;
     slidingThumb?: boolean;
+    stretch?: boolean;
   } = $props();
 
   // Derived active index for sliding thumb
@@ -85,7 +87,7 @@
 </script>
 
 {#if options}
-  <div class="view-toggle" role="radiogroup" aria-label={ariaLabel} bind:this={containerEl}>
+  <div class="view-toggle" class:stretch role="radiogroup" aria-label={ariaLabel} bind:this={containerEl}>
     {#if slidingThumb}
       <div class="thumb" aria-hidden="true" style={thumbStyle}></div>
     {/if}
@@ -127,7 +129,7 @@
     {/each}
   </div>
 {:else}
-  <div class="view-toggle" role="radiogroup" aria-label="Transaction View Mode" bind:this={containerEl}>
+  <div class="view-toggle" class:stretch role="radiogroup" aria-label="Transaction View Mode" bind:this={containerEl}>
     {#if slidingThumb}
       <div class="thumb" aria-hidden="true" style={thumbStyle}></div>
     {/if}
@@ -263,6 +265,24 @@
     font-size: 10px;
     font-weight: 700;
     opacity: 0.8;
+  }
+
+  /* ── Full-width 50/50 segmented control (mobile) ──
+     Enabled via the `stretch` prop: the control fills its container and
+     each segment takes half the width for oversized tap targets. Scoped to
+     ≤768px so desktop (and the options-mode toggles on lending/borrowed)
+     keep the compact content-width pill. */
+  @media (max-width: 768px) {
+    .view-toggle.stretch {
+      width: 100%;
+      min-height: 44px;
+    }
+
+    .view-toggle.stretch .toggle-btn {
+      flex: 1;
+      justify-content: center;
+      min-height: 38px;
+    }
   }
 
   /* Mount stagger for segments */
