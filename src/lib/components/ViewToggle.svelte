@@ -180,7 +180,7 @@
     padding: 3px;
     border-radius: var(--radius-pill);
     border: 1px solid var(--color-hairline);
-    min-height: 40px;
+    min-height: 44px;
     position: relative;
   }
 
@@ -220,7 +220,7 @@
     font-weight: 600;
     font-family: var(--font-body);
     transition: all var(--transition-fast);
-    min-height: 32px;
+    min-height: 38px;
     white-space: nowrap;
     -webkit-tap-highlight-color: transparent;
     position: relative;

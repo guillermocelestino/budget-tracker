@@ -329,11 +329,6 @@
                   </span>
                 {/if}
 
-                <!-- State pill badge (tablet-on-card) -->
-                <span class="state-pill" style="background: {stateBgColor(state)}; color: {stateTextColor(state)};">
-                  {stateLabel(state)}
-                </span>
-
                 <!-- Overflow trigger (mobile) -->
                 <button class="iou-overflow" onclick={() => (menuIou = iou)} type="button" aria-label="More actions for {iou.borrower_name}" aria-haspopup="menu" aria-expanded={menuIou?.id === iou.id}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
@@ -352,7 +347,9 @@
                       {direction === 'lent' ? 'Mark Paid' : 'Repay'}
                     </button>
                   {:else}
-                    <span class="recovered-glow">Recovered</span>
+                    <span class="recovered-glow">
+                      {direction === 'lent' ? 'Recovered' : 'Repaid'}
+                    </span>
                   {/if}
                   <button class="iou-btn iou-btn-delete" onclick={() => onDelete?.(iou.id)} type="button" title="Delete">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -363,7 +360,9 @@
               <!-- Single primary CTA (mobile) -->
               <div class="iou-mobile-actions">
                 {#if iou.status === 'paid'}
-                  <span class="recovered-glow">Recovered</span>
+                  <span class="recovered-glow">
+                    {direction === 'lent' ? 'Recovered' : 'Repaid'}
+                  </span>
                 {:else}
                   <button class="iou-btn iou-btn-pay" onclick={() => onPay?.(iou.id)} type="button">
                     {direction === 'lent' ? 'Mark Paid' : 'Repay'}
@@ -461,7 +460,7 @@
           <div class="row-actions">
             {#if iou.status !== 'paid'}
               <button class="row-pay" onclick={() => onPay?.(iou.id)} type="button">
-                {direction === 'lent' ? 'Paid' : 'Repay'}
+                {direction === 'lent' ? 'Mark Paid' : 'Repay'}
               </button>
             {/if}
             <button class="row-icon" onclick={() => onEdit?.(iou.id)} type="button" title="Edit" aria-label="Edit {iou.borrower_name}">
@@ -830,21 +829,6 @@
     font-family: var(--font-mono);
     letter-spacing: -0.01em;
     white-space: nowrap;
-  }
-
-  /* State badge */
-  .state-pill {
-    font-size: 9px;
-    font-weight: 700;
-    padding: 1px 8px;
-    border-radius: var(--radius-pill);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    display: none; /* Shown on hover */
-  }
-
-  .iou-card:hover .state-pill {
-    display: inline;
   }
 
   /* Hover actions */
@@ -1225,7 +1209,7 @@
     position: absolute;
     right: var(--space-lg);
     top: 50%;
-    transform: translate(4px, -50%);
+    transform: translateY(-50%);
     display: flex;
     align-items: center;
     gap: 4px;
@@ -1233,13 +1217,12 @@
     padding-left: var(--space-md);
     background: linear-gradient(90deg, transparent, var(--color-teal-bg) 24%);
     z-index: 2;
-    transition: opacity 120ms var(--ease), transform 120ms var(--ease);
+    transition: opacity 120ms var(--ease);
     pointer-events: none;
   }
 
   .iou-row:hover .row-actions {
     opacity: 1;
-    transform: translate(0, -50%);
     pointer-events: auto;
   }
 
