@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import { queryMany, queryOne, execute } from '$lib/database/query';
 import type { Lending } from '$lib/types';
 import { importLendingsForUser } from '$lib/server/lendingImport';
+import { recordLendingTransaction } from '$lib/server/recordLendingTransaction';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -51,6 +52,7 @@ export const actions = {
 		const due_date = data.get('due_date') as string;
 		const notes = (data.get('notes') as string)?.trim() || null;
 		const direction = data.get('direction') as string || 'borrowed';
+		const recordAsTransaction = data.get('record_as_transaction') === 'on';
 
 		if (!borrower_name) return fail(400, { error: 'Lender name is required' });
 		if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0) {
@@ -63,6 +65,16 @@ export const actions = {
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 			[userId, borrower_name, parseFloat(amountStr), interest_rate, date_lent, due_date || null, notes, direction]
 		);
+
+		if (recordAsTransaction) {
+			await recordLendingTransaction(userId, {
+				event: 'create',
+				direction: direction as 'lent' | 'borrowed',
+				amount: parseFloat(amountStr),
+				partyName: borrower_name,
+				date: date_lent
+			});
+		}
 
 		return { success: true };
 	},
@@ -113,43 +125,13 @@ export const actions = {
 		);
 
 		if (recordAsTransaction) {
-			// Direction determines transaction type:
-			// 'lent' (asset) → repayment is INCOME
-			// 'borrowed' (liability) → repayment is EXPENSE
-			const transactionType = lending.direction === 'lent' ? 'income' : 'expense';
-			const categoryName = lending.direction === 'lent' ? 'Lending Recovery' : 'Debt Repayment';
-			const categoryColor = lending.direction === 'lent' ? '#8b5cf6' : '#ef4444';
-			const categoryIcon = lending.direction === 'lent' ? '💳' : '💸';
-			const descriptionPrefix = lending.direction === 'lent' ? 'Repayment from' : 'Repaid to';
-
-			// Find or create category
-			const repaymentCategory = await queryOne<{ id: number }>(
-				'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
-				[userId, categoryName]
-			);
-
-			let categoryId: number;
-			if (repaymentCategory) {
-				categoryId = repaymentCategory.id;
-			} else {
-				await execute(
-					'INSERT INTO categories (user_id, name, color, icon, type) VALUES ($1, $2, $3, $4, $5)',
-					[userId, categoryName, categoryColor, categoryIcon, transactionType]
-				);
-				const newCat = await queryOne<{ id: number }>(
-					'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
-					[userId, categoryName]
-				);
-				categoryId = newCat!.id;
-			}
-
-			const today = new Date();
-			const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-			await execute(
-				'INSERT INTO transactions (user_id, amount, description, date, category_id, type) VALUES ($1, $2, $3, $4, $5, $6)',
-				[userId, lending.amount, `${descriptionPrefix} ${lending.borrower_name}`, dateStr, categoryId, transactionType]
-			);
+			await recordLendingTransaction(userId, {
+				event: 'repayment',
+				direction: lending.direction,
+				amount: lending.amount,
+				partyName: lending.borrower_name,
+				date: new Date().toISOString().split('T')[0]
+			});
 		}
 
 		return { success: true };

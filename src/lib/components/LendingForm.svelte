@@ -22,7 +22,7 @@
 	let dateLent = $state('');
 	let dueDate = $state('');
 	let notes = $state('');
-	let recordAsTransaction = $state(true);
+	let recordAsTransaction = $state(false);
 
 	// Initialize state when lendingRecord is provided (edit mode)
 	$effect(() => {
@@ -369,6 +369,20 @@
 		width: 18px;
 		height: 18px;
 		flex-shrink: 0;
+		appearance: auto;
+		-webkit-appearance: auto;
+		outline: none;
+		box-shadow: none;
+	}
+
+	.checkbox-label input:focus {
+		box-shadow: none;
+		border-color: transparent;
+	}
+
+	.checkbox-label:has(input:focus) {
+		border-color: var(--color-primary);
+		box-shadow: 0 0 0 3px var(--color-primary-light);
 	}
 
 	.checkbox-text {
