@@ -13,9 +13,9 @@ interface ImportRow {
 
 export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;
-	const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1'));
+	const rawPage = parseInt(url.searchParams.get('page') ?? '1', 10);
+	let page = Number.isFinite(rawPage) ? Math.max(1, rawPage) : 1;
 	const limit = 20;
-	const offset = (page - 1) * limit;
 	const type = url.searchParams.get('type');
 	const category_id = url.searchParams.get('category_id');
 	const date_from = url.searchParams.get('date_from');
@@ -57,6 +57,12 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 		params
 	);
 
+	const total = countRow?.total ?? 0;
+	const totalPages = Math.ceil(total / limit);
+	// Clamp out-of-range pages to the last available page (NaN already → 1 above).
+	page = Math.min(page, Math.max(totalPages, 1));
+	const offset = (page - 1) * limit;
+
 	const transactions = await queryMany<Transaction>(
 		`SELECT t.*, c.name as category_name, c.color as category_color
 		 FROM transactions t
@@ -83,9 +89,10 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	return {
 		transactions,
 		allForBalance,
-		total: countRow?.total ?? 0,
+		total,
 		page,
-		totalPages: Math.ceil((countRow?.total ?? 0) / limit),
+		totalPages,
+		limit,
 		categories,
 	};
 }

@@ -79,6 +79,27 @@
     };
   });
 
+  // ─── Restore category filter from a `category_id` deep-link (refresh,
+  // back/forward, or shared URL) once categories are available. Declared
+  // BEFORE the filter-sync effect so the filter is restored before the
+  // query-string comparison runs. `lastHydratedCatId` guards against
+  // re-hydrating a category the user just cleared. ─────────────────
+
+  let lastHydratedCatId = '';
+  $effect(() => {
+    const urlCatId = $page.url.searchParams.get('category_id') || '';
+    if (!urlCatId) {
+      lastHydratedCatId = '';
+      return;
+    }
+    if (urlCatId === lastHydratedCatId) return;
+    const cat = (data.categories ?? []).find((c) => String(c.id) === urlCatId);
+    if (cat) {
+      filters.category = cat.name;
+      lastHydratedCatId = urlCatId;
+    }
+  });
+
   // ─── Sync filters → URL (auto-navigates, triggers server load) ──
 
   $effect(() => {
@@ -101,9 +122,17 @@
     if (filters.search) params.set('search', filters.search);
 
     const newQs = params.toString();
-    const currentQs = $page.url.search.replace(/^\?/, '');
 
-    if (newQs !== currentQs) {
+    // Compare only the filter part of the URL. Ignore `page` so pagination
+    // navigations (goToPage) are not overwritten back to page 1; genuine
+    // filter changes still drop `page`, resetting to page 1 as intended.
+    const currentFilterQs = (() => {
+      const p = new URLSearchParams($page.url.searchParams);
+      p.delete('page');
+      return p.toString();
+    })();
+
+    if (newQs !== currentFilterQs) {
       goto(`/transactions${newQs ? '?' + newQs : ''}`, {
         keepFocus: true,
         noScroll: true,
@@ -287,10 +316,57 @@
     searchInput = '';
   }
 
-  function goToPage(p: number) {
+  // ─── Pagination: keep the viewport in place across navigations ───
+  // `noScroll: true` stops SvelteKit resetting to the top, but the browser
+  // still re-clamps scroll while the new page renders (height changes on the
+  // last page, scroll anchoring) and SvelteKit re-asserts whatever position
+  // the browser ends up with. Measuring the pager's rect *after* the render
+  // races with that, so instead we capture the exact scrollY *before*
+  // navigating, await the navigation to fully commit, then re-apply that
+  // position once layout has settled. rAF runs before paint, so the clamped
+  // intermediate position is never shown, and `behavior: 'auto'` overrides
+  // the global `scroll-behavior: smooth` so the restore is an instant snap.
+  async function goToPage(p: number) {
+    const y = window.scrollY;
     const params = new URLSearchParams($page.url.searchParams);
     params.set('page', String(p));
-    goto(`/transactions?${params.toString()}`, { keepFocus: true, noScroll: true });
+    try {
+      await goto(`/transactions?${params.toString()}`, { keepFocus: true, noScroll: true });
+    } catch {
+      return; // superseded by a newer navigation — leave scroll alone
+    }
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: y, behavior: 'auto' });
+      });
+    });
+  }
+
+  // ─── Pagination helpers (ledger pager) ─────────────────────────
+
+  const perPage = $derived(data.limit ?? 20);
+  const countLabel = $derived.by(() => {
+    const p = data.page ?? 1;
+    const t = data.total ?? 0;
+    const start = (p - 1) * perPage + 1;
+    const end = Math.min(p * perPage, t);
+    return `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${t.toLocaleString()} transactions`;
+  });
+
+  // Page numbers with ellipses, e.g. [1, '…', 4, 5, 6, '…', 12].
+  function pageItems(current: number, total: number): Array<number | '…'> {
+    const items: Array<number | '…'> = [];
+    const push = (n: number | '…') => {
+      if (items[items.length - 1] !== n) items.push(n);
+    };
+    for (let p = 1; p <= total; p++) {
+      if (p === 1 || p === total || Math.abs(p - current) <= 1) {
+        push(p);
+      } else if (items[items.length - 1] !== '…') {
+        push('…');
+      }
+    }
+    return items;
   }
 
   // ─── Active type for summary cards ────────────────────────────────
@@ -510,21 +586,48 @@
   {/snippet}
 </TransactionList>
 
-<!-- ═══ Pagination ═══ -->
+<!-- ═══ Pagination (ledger pager) ═══ -->
 {#if (data.totalPages ?? 0) > 1}
-  <div class="pagination">
+  <nav class="pager" aria-label="Pagination">
     <button
-      class="page-btn"
-      disabled={data.page === 1}
+      class="pager-btn"
+      disabled={(data.page ?? 1) === 1}
       onclick={() => goToPage((data.page ?? 1) - 1)}
-    >← Prev</button>
-    <span class="page-info">Page {data.page} of {data.totalPages}</span>
+      aria-label="Previous page"
+    >
+      <svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      <span class="pager-word">Prev</span>
+    </button>
+
+    <ol class="pager-pages">
+      {#each pageItems(data.page ?? 1, data.totalPages ?? 1) as item, i (i)}
+        {#if item === '…'}
+          <li class="pager-gap" aria-hidden="true">…</li>
+        {:else}
+          <li>
+            <button
+              class="pager-num"
+              class:current={item === (data.page ?? 1)}
+              onclick={() => goToPage(item)}
+              aria-label={`Page ${item}`}
+              aria-current={item === (data.page ?? 1) ? 'page' : undefined}
+            >{item}</button>
+          </li>
+        {/if}
+      {/each}
+    </ol>
+
     <button
-      class="page-btn"
-      disabled={data.page === data.totalPages}
+      class="pager-btn"
+      disabled={(data.page ?? 1) === (data.totalPages ?? 1)}
       onclick={() => goToPage((data.page ?? 1) + 1)}
-    >Next →</button>
-  </div>
+      aria-label="Next page"
+    >
+      <span class="pager-word">Next</span>
+      <svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  </nav>
+  <p class="pager-count">{countLabel}</p>
 {/if}
 
 <!-- ═══ Mobile filters bottom sheet ═══
@@ -854,46 +957,140 @@
     }
   }
 
-  /* ─── Pagination ─── */
-  .pagination {
+  /* ─── Pagination (ledger pager) ───
+     Number track in the ledger mono face; the current page is a solid teal
+     pill with a gold "you are here" tick — the same teal/gold pairing as the
+     document header band. */
+  .pager {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: var(--space-md);
+    gap: var(--space-sm);
     margin-top: var(--space-xl);
+    flex-wrap: wrap;
   }
 
-  .page-btn {
-    padding: var(--space-sm) var(--space-md);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
-    cursor: pointer;
-    font-size: var(--font-size-sm);
-    font-family: inherit;
-    font-weight: 600;
+  .pager-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     min-height: 44px;
-    min-width: 80px;
-    transition: all var(--transition-fast);
+    padding: 0 var(--space-md);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    font-family: var(--font-body);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
   }
 
-  .page-btn:disabled {
-    opacity: 0.5;
+  .pager-btn:hover:not(:disabled) {
+    color: var(--color-teal);
+    border-color: var(--color-teal);
+    background: var(--color-teal-bg);
+    box-shadow: var(--glow-card);
+  }
+
+  .pager-btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  .pager-btn:disabled {
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
-  .page-btn:hover:not(:disabled) {
-    background: var(--color-primary-light);
-    border-color: var(--color-primary);
+  .pager-btn:focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: 2px;
   }
 
-  .page-info {
+  .pager-icon {
+    flex-shrink: 0;
+  }
+
+  .pager-pages {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .pager-pages li {
+    display: inline-flex;
+  }
+
+  .pager-num {
+    min-width: 40px;
+    height: 44px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     font-size: var(--font-size-sm);
-    font-weight: 600;
-    padding: var(--space-xs) var(--space-md);
-    background: var(--color-primary-light);
-    color: var(--color-primary);
-    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+    position: relative;
+  }
+
+  .pager-num:hover:not(.current) {
+    color: var(--color-teal);
+    background: var(--color-teal-bg);
+    border-color: var(--color-hairline);
+  }
+
+  .pager-num:focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: 2px;
+  }
+
+  .pager-num.current {
+    background: var(--color-teal);
+    border-color: var(--color-teal);
+    color: var(--color-ink-inverse);
+    box-shadow: var(--glow-card);
+  }
+
+  .pager-num.current::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 3px;
+    transform: translateX(-50%);
+    width: 14px;
+    height: 3px;
+    border-radius: var(--radius-pill);
+    background: var(--color-gold);
+  }
+
+  .pager-gap {
+    padding: 0 4px;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    user-select: none;
+  }
+
+  .pager-count {
+    margin: var(--space-sm) 0 0;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    letter-spacing: 0.02em;
   }
 
   /* ─── Modal actions ─── */
@@ -909,13 +1106,38 @@
 
   /* ─── Responsive ─── */
   @media (max-width: 768px) {
-    .pagination {
-      flex-direction: column;
-      gap: var(--space-sm);
+    .pager {
+      gap: var(--space-xs);
     }
 
-    .page-btn {
-      width: 100%;
+    .pager-btn {
+      min-width: 44px;
+      justify-content: center;
+      padding: 0 var(--space-sm);
+    }
+
+    .pager-word {
+      display: none;
+    }
+
+    .pager-pages {
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .pager-num {
+      min-width: 36px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pager-btn,
+    .pager-num {
+      transition: none;
+    }
+
+    .pager-btn:active:not(:disabled) {
+      transform: none;
     }
   }
 

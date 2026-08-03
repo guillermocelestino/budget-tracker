@@ -17,6 +17,7 @@ declare global {
 			total?: number;
 			page?: number;
 			totalPages?: number;
+			limit?: number;
 			categories?: Category[];
 			spending?: Record<number, number>;
 			income?: Record<number, number>;
