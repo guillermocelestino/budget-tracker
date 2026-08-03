@@ -18,6 +18,7 @@
   import LendingImport from '$lib/components/LendingImport.svelte';
   import { showSuccess, showError } from '$lib/stores/toast.svelte';
   import { downloadCsv, lendingsToCSV } from '$lib/utils/csv';
+  import { generateLendingPdf } from '$lib/utils/pdf';
   import type { Lending } from '$lib/types';
 
   let data = $derived($page.data as App.PageData);
@@ -112,6 +113,20 @@
     downloadCsv(csv, `lending-${new Date().toISOString().split('T')[0]}.csv`);
   }
 
+  async function handleExportPdf() {
+    if (showLendings.length === 0) {
+      showError('No lendings to export');
+      return;
+    }
+    try {
+      const doc = await generateLendingPdf(showLendings);
+      doc.save(`lending-${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (e) {
+      console.error('[Export] PDF generation failed:', e);
+      showError('Failed to generate PDF');
+    }
+  }
+
   // Duplicate an entry: POST a copy of the source to the API, then re-run the
   // page load so the new row appears immediately (same UX as Transactions).
   // Status is preserved so the copy lands in the same tab the user is on.
@@ -156,6 +171,7 @@
         <OverflowMenu
           onImportCsv={() => (importSlideOpen = true)}
           onExportCsv={handleExportCsv}
+          onExportPdf={handleExportPdf}
         />
         <Button variant="primary" onclick={openAdd}>
           <span class="btn-lead" aria-hidden="true">+</span>
@@ -166,6 +182,7 @@
         <OverflowMenu
           onImportCsv={() => (importSlideOpen = true)}
           onExportCsv={handleExportCsv}
+          onExportPdf={handleExportPdf}
         />
       </span>
     </div>

@@ -19,6 +19,19 @@ export function formatCurrency(amount: number): string {
 	return amount < 0 ? `-${cfg.symbol}${formatted}` : `${cfg.symbol}${formatted}`;
 }
 
+/**
+ * Format an amount as a plain figure with thousands separators and two
+ * decimal places — no currency symbol and no sign. Used for PDF output.
+ */
+export function formatPlainAmount(amount: number): string {
+	const code = (typeof prefs !== 'undefined' ? prefs.currency : 'PHP') || 'PHP';
+	const cfg = CURRENCY_MAP[code] ?? CURRENCY_MAP.PHP;
+	return Math.abs(amount).toLocaleString(cfg.locale, {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	});
+}
+
 export function formatDate(dateStr: string): string {
 	const date = parseDate(dateStr);
 	// Determine the format based on user preference
