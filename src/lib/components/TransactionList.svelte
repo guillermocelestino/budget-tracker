@@ -706,14 +706,14 @@
     .flat-register .txn-amount-col { min-width: 0; }
 
     /* Hover actions leave the column flow — overlay at the row's right edge
-       so they never shift the numeric columns out of alignment. */
+       so they never shift the numeric columns out of alignment. Its own
+       surface background (base .hover-actions) occludes the amount beneath,
+       so no external mask is needed in any theme. */
     .flat-register .txn-row .hover-actions {
       position: absolute;
       right: var(--space-lg);
       top: 50%;
       transform: translate(4px, -50%);
-      padding-left: var(--space-md);
-      background: linear-gradient(90deg, transparent, var(--color-teal-bg) 24%);
       z-index: 2;
     }
 
@@ -923,10 +923,21 @@
   .amount-income { color: var(--color-teal); }
   .amount-expense { color: var(--color-coral); }
 
-  /* ── Hover-reveal action buttons ── */
+  /* ── Hover-reveal action buttons (floating segmented toolbar) ──
+     A contiguous surface chip (not a bare icon cluster) so the amount
+     digits beneath it are occluded in BOTH themes. The old gradient used
+     --color-teal-bg, which is opaque in Light but translucent in Dark
+     (rgba(43,168,162,0.12)), letting the bright amounts bleed through and
+     making the actions vanish on hover in dark mode. A surface chip is
+     theme-proof and needs no mask. */
   .hover-actions {
     display: flex;
     gap: 2px;
+    padding: 4px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
     opacity: 0;
     transform: translateX(4px);
     transition: opacity 120ms var(--ease), transform 120ms var(--ease);

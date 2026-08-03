@@ -1212,10 +1212,13 @@
     transform: translateY(-50%);
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
     opacity: 0;
-    padding-left: var(--space-md);
-    background: linear-gradient(90deg, transparent, var(--color-teal-bg) 24%);
+    padding: 4px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
     z-index: 2;
     transition: opacity 120ms var(--ease);
     pointer-events: none;
@@ -1522,6 +1525,9 @@
       transform: none;
       pointer-events: auto;
       background: none;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
       padding: 6px 0 0;
       margin-top: 2px;
       border-top: 1px dashed var(--color-hairline);
