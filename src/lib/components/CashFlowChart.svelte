@@ -262,7 +262,6 @@
   .cf-outer {
     position: relative;
     width: 100%;
-    height: 340px;
     display: flex;
     flex-direction: column;
   }
@@ -280,14 +279,15 @@
   .cf-legend {
     display: flex;
     justify-content: center;
-    gap: var(--space-xl);
+    flex-wrap: wrap;
+    gap: var(--space-md);
     padding: 0 var(--space-md) var(--space-sm);
   }
 
   .cf-legend-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     font-size: var(--font-size-xs);
     font-weight: 500;
     color: var(--color-text-muted);
@@ -295,9 +295,9 @@
   }
 
   .cf-legend-line {
-    width: 24px;
-    height: 3px;
-    border-radius: 2px;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
   }
 
   .cf-legend-badge {
@@ -306,6 +306,7 @@
     padding: 1px 8px;
     border-radius: var(--radius-sm);
     font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
   }
 
   .income-badge {
@@ -318,12 +319,13 @@
     background: rgba(239, 108, 74, 0.10);
   }
 
-  /* ─── Chart Area ─── */
+  /* ─── Chart Area — proportional on narrow, capped on wide ─── */
 
   .cf-chart-wrap {
     position: relative;
-    flex: 1;
-    min-height: 0;
+    width: 100%;
+    aspect-ratio: 21 / 9;
+    max-height: 360px;
     min-width: 0;
   }
 
@@ -439,8 +441,9 @@
      ════════════════════════════════════════ */
 
   @media (max-width: 768px) {
-    .cf-outer {
-      height: 280px;
+    .cf-chart-wrap {
+      aspect-ratio: 16 / 9;
+      max-height: 240px;
     }
     .cf-legend-badge {
       display: none;
@@ -452,24 +455,8 @@
   }
 
   @media (max-width: 480px) {
-    .cf-outer {
-      height: 240px;
-    }
     .cf-legend-item {
       font-size: 10px;
     }
   }
-
-		/* ═══ FORCED MOBILE OVERRIDES ═══ */
-		@media (max-width: 768px) {
-			.cf-outer {
-				height: 250px !important;
-				max-height: 250px !important;
-			}
-
-			.cf-chart {
-				height: 200px !important;
-				min-height: 200px !important;
-			}
-		}
 </style>

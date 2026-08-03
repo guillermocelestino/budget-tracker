@@ -20,89 +20,103 @@
 	);
 </script>
 
-<div class="safe-spend-widget">
-	<div class="ssw-left">
-		<div class="ssw-ribbon"></div>
-		<div class="ssw-icon">
-			<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-				<circle cx="12" cy="12" r="10"/>
-				<path d="M12 6v6l4 2"/>
-			</svg>
-		</div>
-		<div class="ssw-info">
-			<span class="ssw-label">Available to Spend</span>
-			<span class="ssw-value" class:positive={isPositive} class:negative={!isPositive}>
-				{isPositive ? '' : '−'}{formatCurrency(Math.abs(available))}
-			</span>
-		</div>
-	</div>
-	<div class="ssw-right">
-		<div class="ssw-meter">
-			<div class="ssw-track">
-				<div
-					class="ssw-fill"
-					class:fill-ok={pctUsed <= 80}
-					class:fill-warn={pctUsed > 80 && pctUsed <= 100}
-					class:fill-over={pctUsed > 100}
-					style="width: {Math.min(pctUsed, 100)}%"
-				></div>
-			</div>
-			<span class="ssw-pct">{pctUsed}% used</span>
-		</div>
-	</div>
+<div class="stsw-card flip7-card accent-gold">
+  <div class="stsw-content">
+    <div class="stsw-header">
+      <div class="stsw-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 6v6l4 2"/>
+        </svg>
+      </div>
+      <div class="stsw-info">
+        <span class="stsw-label">Available to Spend</span>
+        <span class="stsw-value" class:positive={isPositive} class:negative={!isPositive}>
+          {isPositive ? '' : '−'}{formatCurrency(Math.abs(available))}
+        </span>
+      </div>
+    </div>
+    <div class="stsw-meter">
+      <div class="stsw-track">
+        <div
+          class="stsw-fill"
+          class:fill-ok={pctUsed <= 80}
+          class:fill-warn={pctUsed > 80 && pctUsed <= 100}
+          class:fill-over={pctUsed > 100}
+          style="width: {Math.min(pctUsed, 100)}%"
+        ></div>
+      </div>
+      <span class="stsw-pct">{pctUsed}% used</span>
+    </div>
+
+    <a href="/transactions" class="stsw-cta">
+      View Budget
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+    </a>
+  </div>
 </div>
 
 <style>
-	.safe-spend-widget {
+	/* ═══════════════════════════════════════════════════════
+	   SAFE TO SPEND WIDGET — Flip7 Insight Card
+	   Meter below label, fluid width, scales with card
+	   ══════════════════════════════════════════════════════ */
+
+	.stsw-card {
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+		gap: var(--space-sm);
+		padding: var(--space-md) var(--space-lg);
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-xl);
+		box-shadow: var(--shadow-card);
+		position: relative;
+		overflow: hidden;
+		transition: transform 200ms var(--bounce), box-shadow 200ms var(--ease);
+	}
+
+	@media (pointer: fine) {
+		.stsw-card:hover {
+			transform: translateY(-2px);
+			box-shadow: var(--glow-card);
+		}
+	}
+
+	/* Left accent bar — gold (semantic: available to spend) */
+	.stsw-card.accent-gold .stsw-accent {
+		background: var(--color-gold);
+	}
+
+	.stsw-header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: var(--space-lg);
-		padding: var(--space-md) var(--space-lg);
-		background: var(--color-cream);
-		border-radius: var(--radius-xl);
-		box-shadow: var(--shadow-card);
-		margin-bottom: var(--space-lg);
-		position: relative;
-		overflow: hidden;
-	}
-
-	.ssw-left {
-		display: flex;
-		align-items: center;
 		gap: var(--space-md);
-		min-width: 0;
 	}
 
-	.ssw-ribbon {
-		position: absolute;
-		top: 0;
-		left: 0;
-		width: 4px;
-		height: 100%;
-		background: linear-gradient(180deg, var(--color-teal), var(--color-gold));
-		border-radius: 0 2px 2px 0;
-	}
-
-	.ssw-icon {
+	.stsw-icon {
 		width: 44px;
 		height: 44px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: var(--color-teal-bg);
-		color: var(--color-teal);
+		background: var(--color-gold-bg);
+		color: var(--color-gold-dark);
 		border-radius: var(--radius-md);
 		flex-shrink: 0;
 	}
 
-	.ssw-info {
+	.stsw-info {
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
 	}
 
-	.ssw-label {
+	.stsw-label {
 		font-size: var(--font-size-xs);
 		font-weight: var(--font-weight-semibold);
 		color: var(--color-text-muted);
@@ -110,7 +124,7 @@
 		letter-spacing: 0.06em;
 	}
 
-	.ssw-value {
+	.stsw-value {
 		font-family: var(--font-display);
 		font-size: var(--font-size-xl);
 		font-weight: var(--font-weight-extrabold);
@@ -118,37 +132,32 @@
 		color: var(--color-ink);
 	}
 
-	.ssw-value.positive {
+	.stsw-value.positive {
 		color: var(--color-teal);
-		text-shadow: 0 0 20px rgba(43, 168, 162, 0.2);
 	}
 
-	.ssw-value.negative {
+	.stsw-value.negative {
 		color: var(--color-coral);
-		animation: boom-pulse 2s infinite;
 	}
 
-	.ssw-right {
-		flex-shrink: 0;
-		min-width: 120px;
-	}
-
-	.ssw-meter {
+	/* Meter — full width below header, pushed to card bottom (equal height) */
+	.stsw-meter {
 		display: flex;
 		flex-direction: column;
-		align-items: flex-end;
 		gap: 4px;
+		width: 100%;
+		margin-top: auto;
 	}
 
-	.ssw-track {
-		width: 120px;
+	.stsw-track {
+		width: 100%;
 		height: 8px;
 		background: var(--color-hairline);
 		border-radius: var(--radius-pill);
 		overflow: hidden;
 	}
 
-	.ssw-fill {
+	.stsw-fill {
 		height: 100%;
 		border-radius: var(--radius-pill);
 		transition: width 600ms var(--ease);
@@ -166,33 +175,71 @@
 	.fill-over {
 		background: linear-gradient(90deg, var(--color-coral-dark), var(--color-coral));
 		box-shadow: var(--glow-coral);
-		animation: boom-pulse 1.5s infinite;
 	}
 
-	.ssw-pct {
+	.stsw-pct {
 		font-family: var(--font-mono);
 		font-size: 10px;
 		color: var(--color-text-muted);
 		font-variant-numeric: tabular-nums;
 	}
 
-	@media (max-width: 640px) {
-		.safe-spend-widget {
-			flex-direction: column;
-			align-items: stretch;
-			gap: var(--space-sm);
+	/* ─── CTA — subtle pill link, right-aligned ─── */
+	.stsw-cta {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		align-self: flex-end;
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		color: var(--color-gold-dark);
+		text-decoration: none;
+		padding: 4px 10px;
+		border-radius: var(--radius-pill);
+		min-height: 28px;
+		transition: background var(--transition-fast);
+	}
+
+	.stsw-cta:hover {
+		background: var(--color-gold-bg);
+	}
+
+	.stsw-cta svg {
+		transition: transform var(--transition-fast);
+	}
+
+	.stsw-cta:hover svg {
+		transform: translateX(3px);
+	}
+
+	/* ═══════════════════════════════════════
+	   RESPONSIVE
+	   ════════════════════════════════════════ */
+
+	@media (max-width: 480px) {
+		.stsw-card {
+			padding: var(--space-sm) var(--space-md);
 		}
 
-		.ssw-right {
-			min-width: unset;
+		.stsw-icon {
+			width: 36px;
+			height: 36px;
 		}
 
-		.ssw-meter {
-			align-items: stretch;
+		.stsw-value {
+			font-size: var(--font-size-lg);
 		}
+	}
 
-		.ssw-track {
-			width: 100%;
+	@media (prefers-reduced-motion: reduce) {
+		.stsw-card {
+			transition: none;
+		}
+		.stsw-card:hover {
+			transform: none;
+		}
+		.stsw-fill {
+			transition: none;
 		}
 	}
 </style>

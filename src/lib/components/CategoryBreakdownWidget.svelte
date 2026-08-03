@@ -187,26 +187,29 @@
     min-height: 200px;
   }
 
-  /* ─── Grid: donut | list ─── */
+  /* ─── Grid: donut on top, ranked list below (tall card) ─── */
 
   .cb-grid {
     display: grid;
-    grid-template-columns: 220px 1fr;
-    gap: var(--space-xl);
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    gap: var(--space-md);
     align-items: start;
   }
 
-  /* ─── Donut section ─── */
+  /* ─── Donut section — centered, larger ─── */
 
   .donut-section {
     display: flex;
     justify-content: center;
+    align-items: center;
+    min-height: 220px;
   }
 
   .donut-wrapper {
     position: relative;
     width: 100%;
-    max-width: 220px;
+    max-width: 280px;
     min-width: 0;
     aspect-ratio: 1;
   }
@@ -439,29 +442,15 @@
 
   @media (max-width: 768px) {
     .cb-grid {
-      grid-template-columns: 1fr;
       gap: var(--space-md);
-    }
-
-    .donut-section {
-      max-width: 200px;
-      margin: 0 auto;
-      height: 220px;
-      display: flex;
-      align-items: center;
     }
 
     .donut-wrapper {
       max-width: 180px;
-      position: relative;
     }
 
     .category-list {
       -webkit-overflow-scrolling: touch;
-    }
-
-    .donut-wrapper {
-      max-width: 180px;
     }
 
     .cat-bar {
@@ -526,24 +515,4 @@
       transition: none;
     }
   }
-
-		/* ═══ FORCED MOBILE OVERRIDES ═══ */
-		@media (max-width: 768px) {
-			.cb-grid {
-				display: grid !important;
-				grid-template-columns: 1fr !important;
-				gap: 16px !important;
-			}
-
-			.donut-section {
-				height: 220px !important;
-				max-height: 220px !important;
-				width: 100% !important;
-			}
-
-			.donut-wrapper {
-				max-width: 180px !important;
-				height: 180px !important;
-			}
-		}
 </style>

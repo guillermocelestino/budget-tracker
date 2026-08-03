@@ -62,14 +62,12 @@
       </div>
       <h2 class="ra-title">Recent Activity</h2>
     </div>
-    {#if hasTransactions}
-      <a href={viewAllHref} class="ra-view-all">
-        View All
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 12h14M12 5l7 7-7 7"/>
-        </svg>
-      </a>
-    {/if}
+    <a href={viewAllHref} class="ra-view-all">
+      View All
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+    </a>
   </div>
 
   <!-- ═══ Feed rows ═══ -->
@@ -232,12 +230,10 @@
   .ra-row {
     display: flex;
     align-items: center;
-    gap: var(--space-md);
-    padding: var(--space-md) var(--space-lg);
-    border-bottom: 2px dashed var(--color-teal);
-    border-bottom-color: rgba(43, 168, 162, 0.20);
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-lg);
+    border-bottom: 1px solid var(--color-hairline);
     transition: transform var(--transition-fast) var(--bounce), background 120ms ease;
-    min-height: 68px;
     position: relative;
     cursor: default;
   }
@@ -263,19 +259,19 @@
   /* ─── Avatar — teal-bg circle with colored ring ─── */
 
   .ra-avatar {
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
     border-radius: var(--radius-full);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     background: var(--color-teal-bg);
-    box-shadow: inset 0 0 0 2.5px var(--ring-color, var(--color-teal));
+    box-shadow: inset 0 0 0 2px var(--ring-color, var(--color-teal));
   }
 
   .ra-initials {
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-xs);
     font-weight: 700;
     color: var(--color-teal);
   }
@@ -445,13 +441,12 @@
 
   @media (max-width: 480px) {
     .ra-row {
-      padding: var(--space-sm) var(--space-md);
-      min-height: 60px;
+      padding: var(--space-xs) var(--space-md);
     }
 
     .ra-avatar {
-      width: 34px;
-      height: 34px;
+      width: 28px;
+      height: 28px;
     }
 
     .ra-row.is-expense {

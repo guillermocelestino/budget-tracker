@@ -13,9 +13,9 @@
 		totalIncome?: number;
 	} = $props();
 
-	const projectedEndBalance = $derived(currentBalance + (totalIncome / (daysRemaining || 1) * 0) - (avgDailySpend * daysRemaining));
-	const projectedIncome = $derived(totalIncome > 0 ? totalIncome / (daysRemaining || 1) * daysRemaining : 0);
-	const projectedBalance = $derived(currentBalance + projectedIncome - (avgDailySpend * daysRemaining));
+	const projectedBalance = $derived(
+		currentBalance + (totalIncome / (daysRemaining || 1)) * daysRemaining - avgDailySpend * daysRemaining
+	);
 
 	const isProjectedPositive = $derived(projectedBalance >= 0);
 	const pctOfMonthElapsed = $derived(Math.round((1 - daysRemaining / 30) * 100));
@@ -33,10 +33,23 @@
 		if (projectedBalance < currentBalance * 0.5) return 'behind';
 		return 'on track';
 	}
+
+	// Confidence chip: surplus / deficit / on track — semantic colors
+	const chipState = $derived(
+		!isProjectedPositive ? 'deficit' : trendLabel() === 'ahead' ? 'surplus' : 'on track'
+	);
+	const chipClass = $derived(
+		chipState === 'deficit' ? 'chip-deficit' : chipState === 'surplus' ? 'chip-surplus' : 'chip-track'
+	);
 </script>
 
-<div class="forecast-banner" class:positive={isProjectedPositive} class:negative={!isProjectedPositive}>
-	<div class="forecast-left">
+<div
+	class="forecast-card flip7-card"
+	class:accent-sky={isProjectedPositive}
+	class:accent-coral={!isProjectedPositive}
+>
+	<!-- Header: icon + label -->
+	<div class="forecast-head">
 		<div class="forecast-icon">
 			{#if isProjectedPositive}
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
@@ -52,56 +65,70 @@
 				</svg>
 			{/if}
 		</div>
-		<div class="forecast-text">
-			<span class="forecast-headline">
-				Projected end-of-month: <strong>{formatCurrency(Math.abs(projectedBalance))}</strong>
-				<span class="forecast-sign" class:sign-positive={isProjectedPositive} class:sign-negative={!isProjectedPositive}>
-					{isProjectedPositive ? 'surplus' : 'deficit'}
-				</span>
-			</span>
-			<span class="forecast-context">
-				{pctOfMonthElapsed}% of month elapsed · spending {trendIcon()} {trendLabel()}
-			</span>
-		</div>
+		<span class="forecast-label">Month-End Forecast</span>
 	</div>
-	<div class="forecast-right">
-		<span class="forecast-chip" class:chip-positive={isProjectedPositive} class:chip-negative={!isProjectedPositive}>
-			<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M12 20V10"/>
-				<path d="M18 20V4"/>
-				<path d="M6 20v-4"/>
-			</svg>
-			Forecast
-		</span>
+
+	<!-- Large projected value — semantic color -->
+	<div class="forecast-projected" class:value-negative={!isProjectedPositive}>
+		<span class="forecast-sign">{isProjectedPositive ? '' : '−'}</span>
+		{formatCurrency(Math.abs(projectedBalance))}
 	</div>
+
+	<!-- Trend indicator -->
+	<div
+		class="forecast-trend"
+		class:trend-up={trendIcon() === '▲'}
+		class:trend-down={trendIcon() === '▼'}
+	>
+		<span class="trend-arrow">{trendIcon()}</span>
+		<span class="trend-label">{trendLabel()}</span>
+		<span class="trend-sep" aria-hidden="true">·</span>
+		<span class="trend-meta">{pctOfMonthElapsed}% of month elapsed</span>
+	</div>
+
+	<!-- Confidence chip — bottom-right, pushed by margin-top:auto -->
+	<span class="forecast-chip {chipClass}">{chipState}</span>
 </div>
 
 <style>
-	.forecast-banner {
+	/* ══════════════════════════════════════════════════════
+	   FORECAST BANNER — Flip7 Insight Card (tall)
+	   Equal height with SafeToSpendWidget via parent grid stretch
+	   Semantic left bar (sky = surplus, coral = deficit)
+	   ══════════════════════════════════════════════════════ */
+
+	.forecast-card {
 		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-md);
-		padding: var(--space-sm) var(--space-lg);
-		border-radius: var(--radius-xl);
+		flex-direction: column;
+		align-items: stretch;
+		gap: var(--space-sm);
+		padding: var(--space-lg);
 		background: var(--color-surface);
 		border: 1px solid var(--color-hairline);
-		border-left: 4px solid var(--color-sky);
-		margin-bottom: var(--space-lg);
-		min-height: 52px;
-		box-shadow: var(--glow-sky);
+		border-radius: var(--radius-xl);
+		box-shadow: var(--shadow-card);
+		height: 100%;
+		transition: transform 200ms var(--bounce), box-shadow 200ms var(--ease);
 	}
 
-	.forecast-banner.negative {
-		border-left-color: var(--color-coral);
-		box-shadow: var(--glow-coral);
+	@media (pointer: fine) {
+		.forecast-card:hover {
+			transform: translateY(-2px);
+			box-shadow: var(--glow-card);
+		}
 	}
 
-	.forecast-left {
+	/* Left accent bar via accent modifier — replaces border-left + custom shadow */
+	.forecast-card.accent-sky .forecast-accent { background: var(--color-sky); }
+	.forecast-card.accent-coral .forecast-accent { background: var(--color-coral); }
+
+	/* Dark mode: .flip7-card::before handles the glow */
+
+	/* ─── Header: icon + label ─── */
+	.forecast-head {
 		display: flex;
 		align-items: center;
-		gap: var(--space-md);
-		min-width: 0;
+		gap: var(--space-sm);
 	}
 
 	.forecast-icon {
@@ -116,90 +143,124 @@
 		flex-shrink: 0;
 	}
 
-	.forecast-banner.negative .forecast-icon {
-		background: rgba(239, 108, 74, 0.10);
+	.forecast-card.accent-coral .forecast-icon {
+		background: var(--color-coral-bg);
 		color: var(--color-coral);
 	}
 
-	.forecast-text {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		min-width: 0;
+	.forecast-label {
+		font-size: var(--font-size-xs);
+		font-weight: var(--font-weight-semibold);
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
 	}
 
-	.forecast-headline {
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		color: var(--color-ink);
-		line-height: 1.3;
-	}
-
-	.forecast-headline strong {
-		font-family: var(--font-mono);
+	/* ─── Large projected value ─── */
+	.forecast-projected {
+		font-family: var(--font-display);
+		font-size: var(--font-size-2xl);
+		font-weight: var(--font-weight-extrabold);
 		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.02em;
+		line-height: 1.1;
+		color: var(--color-teal);
+		margin-top: var(--space-xs);
+		white-space: nowrap;
+	}
+
+	.forecast-projected.value-negative {
+		color: var(--color-coral);
 	}
 
 	.forecast-sign {
-		display: inline-block;
-		margin-left: 6px;
-		padding: 1px 8px;
-		border-radius: var(--radius-pill);
-		font-size: 10px;
+		font-size: 0.8em;
 		font-weight: 700;
-		font-family: var(--font-display);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
+		color: inherit;
 	}
 
-	.sign-positive {
-		background: var(--color-teal-bg);
-		color: var(--color-teal);
-	}
-
-	.sign-negative {
-		background: rgba(239, 108, 74, 0.10);
-		color: var(--color-coral);
-	}
-
-	.forecast-context {
-		font-size: var(--font-size-xs);
+	/* ─── Trend indicator ─── */
+	.forecast-trend {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-size: var(--font-size-sm);
 		color: var(--color-text-muted);
 	}
 
-	.forecast-right {
-		flex-shrink: 0;
+	.trend-arrow {
+		font-size: var(--font-size-xs);
+		font-weight: 700;
 	}
 
+	.trend-label {
+		font-weight: 600;
+	}
+
+	.forecast-trend.trend-up { color: var(--color-teal); }
+	.forecast-trend.trend-down { color: var(--color-coral); }
+
+	.trend-sep {
+		opacity: 0.5;
+	}
+
+	.trend-meta {
+		color: var(--color-text-muted);
+	}
+
+	/* ─── Confidence chip — bottom-right ─── */
 	.forecast-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		padding: 4px 12px;
+		align-self: flex-end;
+		margin-top: auto;
+		padding: 4px 14px;
 		border-radius: var(--radius-pill);
 		font-size: var(--font-size-xs);
 		font-weight: 700;
 		font-family: var(--font-display);
+		text-transform: capitalize;
+		letter-spacing: 0.02em;
 	}
 
-	.chip-positive {
+	.chip-surplus {
 		background: var(--color-teal-bg);
 		color: var(--color-teal);
 	}
 
-	.chip-negative {
+	.chip-deficit {
 		background: rgba(239, 108, 74, 0.10);
 		color: var(--color-coral);
 	}
 
-	@media (max-width: 640px) {
-		.forecast-banner {
-			flex-direction: column;
-			align-items: stretch;
+	.chip-track {
+		background: var(--color-gold-bg);
+		color: var(--color-gold-dark);
+	}
+
+	/* ════════════════════════════════════════
+	   RESPONSIVE
+	   ════════════════════════════════════════ */
+
+	@media (max-width: 480px) {
+		.forecast-card {
+			padding: var(--space-sm) var(--space-md);
 		}
 
-		.forecast-right {
-			display: none;
+		.forecast-icon {
+			width: 32px;
+			height: 32px;
+		}
+
+		.forecast-projected {
+			font-size: var(--font-size-xl);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.forecast-card {
+			transition: none;
+		}
+		.forecast-card:hover {
+			transform: none;
 		}
 	}
 </style>

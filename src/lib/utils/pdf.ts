@@ -109,7 +109,8 @@ export async function generateTransactionPdf(
 	doc.setTextColor(...muted);
 	doc.text('Net Balance', labelX, ly);
 	doc.setFontSize(9);
-	doc.setTextColor(summary.net >= 0 ? [...teal] : [...coral]);
+	const netColor: readonly [number, number, number] = summary.net >= 0 ? teal : coral;
+	doc.setTextColor(...netColor);
 	doc.text(
 		formatCurrency(Math.abs(summary.net)),
 		boxX + boxW - 12,
@@ -170,8 +171,8 @@ export async function generateTransactionPdf(
 			}
 		},
 		didDrawPage() {
-			const count = (doc.internal as any).getNumberOfPages();
-			const page = (doc.internal as any).getCurrentPageInfo().pageNumber;
+			const count = doc.getNumberOfPages();
+			const page = doc.getCurrentPageInfo().pageNumber;
 
 			doc.setFontSize(7);
 			doc.setTextColor(...muted);
@@ -256,10 +257,15 @@ export async function generateReportPdf(
 	const boxH = 36;
 	const boxGap = 8;
 
-	const boxes = [
-		{ label: 'Total Income', value: formatCurrency(summary.totalIncome), color: [...teal], bg: [236, 253, 245] as const },
-		{ label: 'Total Expenses', value: formatCurrency(summary.totalExpenses), color: [...ink], bg: [254, 242, 242] as const },
-		{ label: 'Net Cash Flow', value: formatCurrency(Math.abs(summary.net)), color: summary.net >= 0 ? [...teal] : [...coral], bg: [239, 246, 255] as const },
+	const boxes: Array<{
+		label: string;
+		value: string;
+		color: readonly [number, number, number];
+		bg: readonly [number, number, number];
+	}> = [
+		{ label: 'Total Income', value: formatCurrency(summary.totalIncome), color: teal, bg: [236, 253, 245] as const },
+		{ label: 'Total Expenses', value: formatCurrency(summary.totalExpenses), color: ink, bg: [254, 242, 242] as const },
+		{ label: 'Net Cash Flow', value: formatCurrency(Math.abs(summary.net)), color: summary.net >= 0 ? teal : coral, bg: [239, 246, 255] as const },
 	];
 
 	boxes.forEach((box, i) => {
@@ -365,8 +371,8 @@ export async function generateReportPdf(
 			}
 		},
 		didDrawPage() {
-			const count = doc.internal.getNumberOfPages();
-			const page = (doc.internal as any).getCurrentPageInfo().pageNumber;
+			const count = doc.getNumberOfPages();
+			const page = doc.getCurrentPageInfo().pageNumber;
 
 			doc.setFontSize(7);
 			doc.setTextColor(...muted);

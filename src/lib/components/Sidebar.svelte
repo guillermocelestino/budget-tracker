@@ -137,22 +137,6 @@
     </a>
   </div>
 
-  <!-- ─── User profile ─── -->
-  <div class="user-profile">
-    <div class="user-avatar">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-        <circle cx="12" cy="7" r="4"/>
-      </svg>
-    </div>
-    {#if !isCollapsed}
-      <div class="user-info">
-        <span class="user-name">Guest User</span>
-        <span class="user-email">Manage your finances</span>
-      </div>
-    {/if}
-  </div>
-
   <!-- ─── Primary Navigation (core workflows) ─── -->
   <nav class="sidebar-nav" aria-label="Primary">
     {#each primaryNav as item}
@@ -373,53 +357,6 @@
     letter-spacing: var(--letter-spacing-wide);
   }
 
-  /* ─── User profile ─── */
-  .user-profile {
-    display: flex;
-    align-items: center;
-    gap: var(--space-md);
-    padding: var(--space-md) var(--space-lg);
-    margin: var(--space-md);
-    background: var(--color-teal-bg);
-    border-radius: var(--radius-lg);
-    flex-shrink: 0;
-  }
-
-  .user-avatar {
-    width: 40px;
-    height: 40px;
-    background: var(--color-teal);
-    border-radius: var(--radius-md);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    flex-shrink: 0;
-  }
-
-  .user-info {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .user-name {
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    color: var(--color-text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .user-email {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
   /* ─── Navigation ─── */
   .sidebar-nav {
     display: flex;
@@ -546,12 +483,6 @@
 
   .collapsed .nav-icon {
     margin: 0;
-  }
-
-  .collapsed .user-profile {
-    justify-content: center;
-    padding: var(--space-sm);
-    margin: var(--space-sm);
   }
 
   .collapsed .logo-link {
@@ -727,12 +658,6 @@
       padding: var(--space-xs) var(--space-sm);
     }
 
-    .sidebar .user-profile {
-      justify-content: flex-start;
-      padding: var(--space-md) var(--space-lg);
-      margin: var(--space-md);
-    }
-
     .sidebar .logo-link {
       justify-content: flex-start;
     }
@@ -767,10 +692,6 @@
     .sidebar-header {
       min-height: auto;
       padding: var(--space-md);
-    }
-
-    .user-profile {
-      margin: var(--space-sm);
     }
   }
 
