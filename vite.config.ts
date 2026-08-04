@@ -75,6 +75,9 @@ export default defineConfig({
 			}
 		})
 	],
+	optimizeDeps: {
+		include: ['read-excel-file/universal']
+	},
 	test: {
 		include: ['src/**/*.{test,spec}.{js,ts}', 'tests/unit-test/**/*.{test,spec}.{js,ts}']
 	}

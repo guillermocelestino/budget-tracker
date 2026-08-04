@@ -41,7 +41,7 @@ export interface ImportFieldDef {
 export interface ImportPreviewColumn {
 	header: string;
 	key: string;
-	kind: 'status' | 'date' | 'amount' | 'text' | 'type';
+	kind: 'status' | 'date' | 'amount' | 'text' | 'type' | 'badge';
 	align?: 'left' | 'right';
 	/** optional extra td class (e.g. 'cell-desc' for truncation) */
 	cls?: string;
@@ -526,8 +526,17 @@ export async function detectDuplicates(
  * Returns empty arrays if there aren't at least a header row and one data row.
  */
 export function parseCSV(text: string): { headers: string[]; rows: string[][] } {
+	console.log('[parseCSV] Input text length:', text.length);
+	console.log('[parseCSV] First 500 chars:', text.slice(0, 500));
+
 	const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
-	if (lines.length < 2) return { headers: [], rows: [] };
+	console.log('[parseCSV] Lines after filtering:', lines.length);
+	lines.forEach((line, i) => console.log(`  Line ${i}:`, line));
+
+	if (lines.length < 2) {
+		console.log('[parseCSV] Not enough lines, returning empty');
+		return { headers: [], rows: [] };
+	}
 
 	function parseLine(line: string): string[] {
 		const result: string[] = [];
@@ -555,6 +564,11 @@ export function parseCSV(text: string): { headers: string[]; rows: string[][] } 
 
 	const headers = parseLine(lines[0]).filter(h => h.length > 0);
 	const rows = lines.slice(1).map(parseLine).filter(r => r.some(c => c.trim().length > 0));
+
+	console.log('[parseCSV] Parsed headers:', headers);
+	console.log('[parseCSV] Parsed rows:', rows.length);
+	rows.forEach((row, i) => console.log(`  Row ${i}:`, row));
+
 	return { headers, rows };
 }
 

@@ -24,6 +24,7 @@
 		unknownHint = 'Add these in <a href="/categories" target="_blank">Categories</a> or fix the CSV, then re-import.',
 		newNamesTitle = '',
 		newNamesHint = '',
+		limit = 15,
 	}: {
 		rows: ImportRow[];
 		validation: ImportValidationResult;
@@ -36,6 +37,7 @@
 		unknownHint?: string;
 		newNamesTitle?: string;
 		newNamesHint?: string;
+		limit?: number;
 	} = $props();
 
 	const validCount = $derived(validation.validRows.length);
@@ -62,6 +64,12 @@
 			...validation.invalidRows.map(({ row }, i) => ({ ...row, _status: 'invalid' as const, _index: i, _errors: validation.invalidRows[i].errors, _warnings: validation.invalidRows[i].warnings, _originalIndex: rows.indexOf(row) })),
 		]
 	);
+
+	// Rows to display (capped at limit)
+	const displayRowLimit = $derived(limit > 0 ? limit : displayRows.length);
+	const hasMoreRows = $derived(displayRows.length > displayRowLimit);
+
+	const displayedRows = $derived(displayRows.slice(0, displayRowLimit));
 </script>
 
 <div class="import-preview">
@@ -132,7 +140,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each displayRows as row, i}
+				{#each displayedRows as row, i}
 					<tr class={row._status === 'valid' ? 'row-valid' : 'row-invalid'}>
 						{#each columns as col}
 							{#if col.kind === 'status'}
@@ -157,6 +165,14 @@
 								</td>
 							{:else if col.kind === 'date'}
 								<td class="cell-date">{String(row[col.key] ?? '')}</td>
+							{:else if col.kind === 'badge'}
+								<td class="cell-badge">
+									{#if row[col.key]}
+										<span class="badge" class:badge-active={String(row[col.key]).toLowerCase() === 'paid' || String(row[col.key]).toLowerCase() === 'active'}>
+											{String(row[col.key])}
+										</span>
+									{:else}—{/if}
+								</td>
 							{:else}
 								<td class:cell-desc={col.cls === 'cell-desc'} class:cell-cat={col.cls === 'cell-cat'}>{String(row[col.key] ?? '')}</td>
 							{/if}
@@ -178,7 +194,6 @@
 										<div class="warning-item">
 											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-												<line x1="12" x2="12" y1="9" y2="13"/>
 												<line x1="12" x2="12.01" y1="17" y2="17"/>
 											</svg>
 											{warn}
@@ -189,6 +204,19 @@
 						</tr>
 					{/if}
 				{/each}
+				{#if hasMoreRows}
+					<tr class="more-rows-row">
+						<td colspan={columns.length}>
+							<div class="more-rows-indicator">
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<polyline points="17 17 12 12 7 7"/>
+									<polyline points="17 7 12 12 7 17"/>
+								</svg>
+								…and {displayRows.length - displayRowLimit} more row{displayRows.length - displayRowLimit > 1 ? 's' : ''}
+							</div>
+						</td>
+					</tr>
+				{/if}
 			</tbody>
 		</table>
 	</div>
@@ -418,6 +446,29 @@
 		font-size: var(--font-size-xs);
 	}
 
+	.cell-badge {
+		text-align: center;
+	}
+
+	.badge {
+		padding: 2px 10px;
+		border-radius: var(--radius-pill);
+		font-size: var(--font-size-xs);
+		font-weight: 700;
+		font-family: var(--font-display);
+		display: inline-block;
+	}
+
+	.badge-active {
+		background: var(--color-teal-bg);
+		color: var(--color-teal);
+	}
+
+	.badge:not(.badge-active) {
+		background: rgba(239, 108, 74, 0.10);
+		color: var(--color-coral);
+	}
+
 	.type-chip {
 		padding: 2px 8px;
 		border-radius: var(--radius-pill);
@@ -477,6 +528,25 @@
 	.error-item svg, .warning-item svg {
 		flex-shrink: 0;
 		margin-top: 1px;
+	}
+
+	.more-rows-row {
+		background: var(--color-surface-inset);
+	}
+
+	.more-rows-indicator {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-xs);
+		padding: var(--space-md);
+		color: var(--color-text-muted);
+		font-size: var(--font-size-sm);
+		font-style: italic;
+	}
+
+	.more-rows-indicator svg {
+		color: var(--color-text-muted);
 	}
 
 	.preview-summary {

@@ -148,12 +148,14 @@ export const actions = {
 	},
 
 	import: async ({ request, locals }) => {
-		const data = await request.formData();
-		return importLendingsForUser(
-			locals.user!.userId,
-			data.get('rows') as string,
-			data.get('config') as string,
-			'borrowed'
-		);
+		const formData = await request.formData();
+		const file = formData.get('file') as File;
+		const configJson = formData.get('config') as string;
+
+		if (!file) {
+			return fail(400, { error: 'No file provided' });
+		}
+
+		return importLendingsForUser(locals.user!.userId, file, configJson, 'borrowed');
 	},
 };

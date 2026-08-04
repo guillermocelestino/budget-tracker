@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 
-	let { open = false, title = 'Confirm', onclose, children }: {
+	let { open = false, title = 'Confirm', onclose, children, size = 'default' }: {
 		open?: boolean;
 		title?: string;
 		onclose?: () => void;
 		children?: import('svelte').Snippet;
+		size?: 'default' | 'wide';
 	} = $props();
 
 	let modalCard = $state<HTMLElement | null>(null);
@@ -57,7 +58,7 @@
 {#if open}
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_interactive_supports_focus -->
 	<div class="modal-backdrop" tabindex="-1" onclick={handleBackdrop} role="dialog" aria-modal="true" aria-label={title}>
-		<div class="modal-card" bind:this={modalCard}>
+		<div class="modal-card {size === 'wide' ? 'modal-card-wide' : ''}" bind:this={modalCard}>
 			<div class="modal-ribbon"></div>
 			<div class="modal-header">
 				<h3 class="modal-title">{title}</h3>
@@ -98,6 +99,16 @@
 		overflow: hidden;
 		animation: modal-in 300ms var(--bounce);
 		border: 1px solid var(--color-border);
+	}
+
+	.modal-card-wide {
+		max-width: 720px;
+		max-height: calc(100dvh - 32px);
+	}
+
+	.modal-card-wide .modal-body {
+		overflow-y: auto;
+		max-height: calc(100dvh - 200px);
 	}
 
 	.modal-ribbon {

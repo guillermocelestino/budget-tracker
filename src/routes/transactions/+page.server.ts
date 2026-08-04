@@ -1,7 +1,17 @@
 import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
 import type { Transaction, Category } from '$lib/types';
-import { validateMappedRow, detectDuplicates, normCategoryName, type ImportMappingConfig } from '$lib/utils/importValidation';
+import {
+	validateMappedRow,
+	detectDuplicates,
+	normCategoryName,
+	type ImportMappingConfig,
+	autoMap,
+	buildMappedRows,
+	validateAllRows,
+	DEFAULT_IMPORT_FIELDS,
+} from '$lib/utils/importValidation';
+import { parseImportFile } from '$lib/utils/fileImport';
 
 interface ImportRow {
 	date: string;
@@ -118,27 +128,16 @@ export const actions = {
 
 	import: async ({ request, locals }) => {
 		const userId = locals.user!.userId;
-		const data = await request.formData();
-		const rowsJson = data.get('rows') as string;
-		const configJson = data.get('config') as string;
+		const formData = await request.formData();
+		const file = formData.get('file') as File;
+		const configJson = formData.get('config') as string;
 
-		if (!rowsJson) {
-			return fail(400, { error: 'No transaction data provided' });
+		console.log('[Import] Received file:', file?.name, file?.size, file?.type);
+
+		if (!file) {
+			return fail(400, { error: 'No file provided' });
 		}
 
-		let rows: ImportRow[];
-		try {
-			rows = JSON.parse(rowsJson);
-		} catch {
-			return fail(400, { error: 'Invalid transaction data format' });
-		}
-
-		if (!Array.isArray(rows) || rows.length === 0) {
-			return fail(400, { error: 'No transactions to import' });
-		}
-
-		// Parse config (values are re-validated defensively — the client already
-		// produced them, but a crafted request must not smuggle an invalid rule)
 		let config: ImportMappingConfig = { dateFormat: 'YYYY-MM-DD', typeRule: 'sign' };
 		try {
 			const parsed = configJson ? JSON.parse(configJson) : {};
@@ -152,37 +151,40 @@ export const actions = {
 			// keep safe defaults
 		}
 
-		// Fetch user categories for validation + duplicate detection (needs id to map category_id → name)
+		// Parse the file (same utility as client preview)
+		const { headers, rows } = await parseImportFile(file);
+
+		if (headers.length < 2) {
+			return fail(400, { error: 'File must have a header row and at least one data row' });
+		}
+
+		// Auto-map headers using default transaction fields
+		const mapping = autoMap(headers, DEFAULT_IMPORT_FIELDS);
+
+		// Required guard
+		const requiredUnmapped = DEFAULT_IMPORT_FIELDS
+			.filter(f => f.required)
+			.filter(f => !Object.values(mapping).includes(f.key));
+
+		if (requiredUnmapped.length > 0) {
+			const labels = requiredUnmapped.map(f => f.label).join(', ');
+			return fail(400, { error: `Could not auto-map required column(s): ${labels}. Download the template.` });
+		}
+
+		// Build and validate
+		const mappedRows = buildMappedRows(rows, headers, mapping, config);
+
+		// Fetch user categories for validation + duplicate detection
 		const userCategories = await queryMany<Category>(
 			'SELECT id, name, type FROM categories WHERE user_id = $1 ORDER BY name ASC',
 			[userId]
 		);
 
-		// Validate each row
-		const errors: string[] = [];
-		const validRows: ImportRow[] = [];
-
-		for (let i = 0; i < rows.length; i++) {
-			const row = rows[i];
-			const rowNum = i + 1;
-			const rowErrors: string[] = [];
-
-			const result = validateMappedRow(row, userCategories, config);
-
-			if (result.valid) {
-				validRows.push(row);
-			} else {
-				for (const err of result.errors) {
-					errors.push(`Row ${rowNum}: ${err}`);
-				}
-			}
-		}
+		const { validRows, invalidRows, unknownCategories } = validateAllRows(mappedRows, userCategories, config);
 
 		if (validRows.length === 0) {
-			return fail(400, {
-				error: 'Validation failed: no valid rows to import',
-				details: errors,
-			});
+			const errors = invalidRows.flatMap(({ row, errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`));
+			return fail(400, { error: 'Validation failed: no valid rows to import', details: errors });
 		}
 
 		// Fetch existing transactions for duplicate detection
@@ -209,7 +211,8 @@ export const actions = {
 				imported: 0,
 				total: validRows.length,
 				skippedDuplicates: skippedDuplicateCount,
-				skippedInvalid: errors.length,
+				skippedInvalid: invalidRows.length,
+				unknownCategories,
 			};
 		}
 
@@ -219,19 +222,14 @@ export const actions = {
 
 		for (let i = 0; i < rowsToInsert.length; i++) {
 			const row = rowsToInsert[i];
-			// Shared normalizer — same trim+lowercase rule the client preview used,
-			// so the stored resolution can never disagree with the preview verdict.
 			const catName = normCategoryName(row.category_name);
 
-			// Find category by name, trim+case-insensitive on BOTH sides, scoped to
-			// this user only. category_id is never taken from the payload.
 			let cat = await queryOne<{ id: number }>(
 				'SELECT id FROM categories WHERE user_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2))',
 				[userId, catName]
 			);
 
 			if (!cat) {
-				// Category doesn't exist - this shouldn't happen if validation passed, but handle gracefully
 				insertErrors.push(`Row ${i + 1}: Category "${catName}" not found`);
 				continue;
 			}
@@ -249,8 +247,11 @@ export const actions = {
 			imported: inserted,
 			total: validRows.length,
 			skippedDuplicates: skippedDuplicateCount,
-			skippedInvalid: errors.length,
-			details: errors.length > 0 ? errors : undefined,
+			skippedInvalid: invalidRows.length,
+			unknownCategories,
+			details: [...insertErrors, ...invalidRows.flatMap(({ row, errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`))].length > 0
+				? [...insertErrors, ...invalidRows.flatMap(({ row, errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`))]
+				: undefined,
 		};
 	},
 };

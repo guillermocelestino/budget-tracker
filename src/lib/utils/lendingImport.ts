@@ -19,6 +19,8 @@ export const LENDING_IMPORT_FIELDS: ImportFieldDef[] = [
 	{ key: 'due_date', label: '🗓 Due Date', aliases: ['due date', 'due', 'repayment date', 'payback date', 'maturity date', 'deadline'] },
 	{ key: 'interest_rate', label: '📈 Interest Rate (%)', aliases: ['interest', 'interest rate', 'rate', 'apr', 'annual interest'] },
 	{ key: 'notes', label: '📝 Notes', aliases: ['notes', 'note', 'description', 'details', 'memo', 'remarks'] },
+	{ key: 'status', label: '🔖 Status (active/paid)', aliases: ['status', 'state', 'payment status', 'repayment status', 'settled'] },
+	{ key: 'recovered_amount', label: '💵 Amount Recovered/Repaid', aliases: ['amount recovered', 'amount repaid', 'recovered', 'repaid', 'settled amount', 'paid amount', 'amount paid'] },
 ];
 
 // Type alias so it gains an implicit index signature and is assignable to
@@ -30,6 +32,8 @@ export type MappedLendingRow = {
 	date_lent: string;
 	due_date: string;
 	notes: string;
+	status: 'active' | 'paid';
+	recovered_amount: number;
 };
 
 /**
@@ -40,6 +44,22 @@ export function parseRate(s: string): number {
 	if (!s || !s.trim()) return 0;
 	const n = parseFloat(String(s).replace(/[%\s]/g, ''));
 	return isNaN(n) ? NaN : n;
+}
+
+/**
+ * Normalize status string to 'active' | 'paid'.
+ * Accepts: {repaid,recovered,settled,paid,closed,done} → 'paid'
+ *          {active,open,pending,outstanding} → 'active'
+ * Default: 'active'
+ */
+export function normalizeStatus(s: string): 'active' | 'paid' {
+	if (!s || !s.trim()) return 'active';
+	const v = s.trim().toLowerCase();
+	const paid = ['repaid', 'recovered', 'settled', 'paid', 'closed', 'done'];
+	const active = ['active', 'open', 'pending', 'outstanding'];
+	if (paid.includes(v)) return 'paid';
+	if (active.includes(v)) return 'active';
+	return 'active';
 }
 
 /**
@@ -58,6 +78,8 @@ export function buildMappedLendingRows(
 	const dueDateCol = headers.find(c => mapping[c] === 'due_date');
 	const rateCol = headers.find(c => mapping[c] === 'interest_rate');
 	const notesCol = headers.find(c => mapping[c] === 'notes');
+	const statusCol = headers.find(c => mapping[c] === 'status');
+	const recoveredCol = headers.find(c => mapping[c] === 'recovered_amount');
 
 	return rawRows.map(rawRow => {
 		const getVal = (col: string | undefined, fallback = '') =>
@@ -69,17 +91,29 @@ export function buildMappedLendingRows(
 		const rawDueDate = getVal(dueDateCol);
 		const rawRate = getVal(rateCol);
 		const rawNotes = getVal(notesCol);
+		const rawStatus = getVal(statusCol);
+		const rawRecovered = getVal(recoveredCol);
 
 		const parsedLent = parseDateFlexible(rawDateLent, config.dateFormat);
 		const parsedDue = rawDueDate.trim() ? parseDateFlexible(rawDueDate, config.dateFormat) : null;
 
+		const amount = parseAmountFlexible(rawAmount) ?? 0;
+		const interest_rate = parseRate(rawRate);
+		const recoveredAmount = parseAmountFlexible(rawRecovered);
+
+		// Derive status: if recovered >= amount → force 'paid'; else use status column or default 'active'
+		const statusFromColumn = normalizeStatus(rawStatus);
+		const finalStatus = (recoveredAmount !== null && recoveredAmount >= amount) ? 'paid' : statusFromColumn;
+
 		return {
 			person_name: rawPerson.trim(),
-			amount: parseAmountFlexible(rawAmount) ?? 0,
-			interest_rate: parseRate(rawRate),
+			amount,
+			interest_rate,
 			date_lent: parsedLent ?? rawDateLent.trim(),
 			due_date: rawDueDate.trim() ? (parsedDue ?? rawDueDate.trim()) : '',
 			notes: rawNotes.trim(),
+			status: finalStatus,
+			recovered_amount: recoveredAmount ?? 0,
 		};
 	});
 }
@@ -123,6 +157,20 @@ export function validateMappedLendingRow(
 	// Interest rate — numeric
 	if (row.interest_rate === null || row.interest_rate === undefined || isNaN(row.interest_rate)) {
 		errors.push('Invalid interest rate');
+	}
+
+	// Recovered amount — optional, must be 0 ≤ recovered ≤ amount
+	if (row.recovered_amount !== null && row.recovered_amount !== undefined && !isNaN(row.recovered_amount)) {
+		if (row.recovered_amount < 0) {
+			errors.push('Recovered amount cannot be negative');
+		} else if (row.recovered_amount > row.amount) {
+			errors.push('Recovered amount cannot exceed the loan amount');
+		}
+	}
+
+	// Status must be active or paid
+	if (!['active', 'paid'].includes(row.status)) {
+		errors.push(`Invalid status: "${row.status}"`);
 	}
 
 	// New person → non-blocking "will be created" warning (auto-create on import)
@@ -206,6 +254,8 @@ export function detectLendingDuplicates(
 			date_lent: l.date_lent,
 			due_date: '',
 			notes: '',
+			status: 'active',
+			recovered_amount: 0,
 		}, (l.direction as 'lent' | 'borrowed')));
 	}
 

@@ -4,11 +4,15 @@
 		onDownloadSample,
 		sampleHref = '/sample-transactions.csv',
 		sampleFilename = 'sample-transactions.csv',
+		templateHref,
+		templateFilename,
 	}: {
 		onFiles?: (file: File) => void;
 		onDownloadSample?: () => void;
 		sampleHref?: string;
 		sampleFilename?: string;
+		templateHref?: string;
+		templateFilename?: string;
 	} = $props();
 
 	let isDragging = $state(false);
@@ -27,7 +31,7 @@
 		e.preventDefault();
 		isDragging = false;
 		const file = e.dataTransfer?.files?.[0];
-		if (file && (file.name.endsWith('.csv') || file.type === 'text/csv')) {
+		if (file && (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.type === 'text/csv' || file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) {
 			onFiles?.(file);
 		}
 	}
@@ -69,12 +73,12 @@
 				<line x1="9" x2="15" y1="15" y2="15"/>
 			</svg>
 		</div>
-		<p class="drop-title">Drop your CSV file here</p>
+		<p class="drop-title">Drop your CSV or Excel file here</p>
 		<p class="drop-sub">or click to browse</p>
 		<input
 			id="import-file-input"
 			type="file"
-			accept=".csv,text/csv"
+			accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 			class="file-input-hidden"
 			onchange={handleFileInput}
 		/>
@@ -86,14 +90,26 @@
 			Browse Files
 		</button>
 		{#if onDownloadSample}
-			<a href={sampleHref} download={sampleFilename} class="drop-sample-link">
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-					<polyline points="7 10 12 15 17 10"/>
-					<line x1="12" y1="15" x2="12" y2="3"/>
-				</svg>
-				Download sample CSV
-			</a>
+			<div class="drop-sample-links">
+				<a href={sampleHref} download={sampleFilename} class="drop-sample-link">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+						<polyline points="7 10 12 15 17 10"/>
+						<line x1="12" y1="15" x2="12" y2="3"/>
+					</svg>
+					Download sample CSV
+				</a>
+				{#if templateHref && templateFilename}
+					<a href={templateHref} download={templateFilename} class="drop-sample-link">
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+							<polyline points="7 10 12 15 17 10"/>
+							<line x1="12" y1="15" x2="12" y2="3"/>
+						</svg>
+						Download Excel template
+					</a>
+				{/if}
+			</div>
 		{/if}
 	</div>
 </div>
@@ -197,9 +213,17 @@
 		transform: scale(0.96);
 	}
 
-	.drop-sample-link {
+	.drop-sample-links {
 		pointer-events: auto;
 		margin-top: var(--space-md);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-xs);
+		align-items: center;
+	}
+
+	.drop-sample-link {
+		pointer-events: auto;
 		padding: var(--space-xs) var(--space-md);
 		background: var(--color-surface);
 		color: var(--color-teal);

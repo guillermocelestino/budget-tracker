@@ -4,8 +4,10 @@ import {
 	LENDING_IMPORT_FIELDS,
 	buildMappedLendingRows,
 	validateAllLendingRows,
+	validateMappedLendingRow,
 	detectLendingDuplicates,
 	parseRate,
+	normalizeStatus,
 } from './lendingImport';
 
 const CONFIG = { dateFormat: 'YYYY-MM-DD', typeRule: 'sign' as const };
@@ -119,7 +121,7 @@ describe('detectLendingDuplicates', () => {
 
 	it('LENDING_IMPORT_FIELDS drives autoMap for the sample headers', () => {
 		const aliases = LENDING_IMPORT_FIELDS.map(f => f.key);
-		expect(aliases).toEqual(['person_name', 'amount', 'date_lent', 'due_date', 'interest_rate', 'notes']);
+		expect(aliases).toEqual(['person_name', 'amount', 'date_lent', 'due_date', 'interest_rate', 'notes', 'status', 'recovered_amount']);
 	});
 
 	it('autoMap maps the borrowed sample headers (Lender, Date Borrowed)', () => {
@@ -160,5 +162,84 @@ describe('detectLendingDuplicates', () => {
 		// In-batch duplicate: the last Tita Beth row is a dup of the first.
 		const dups = detectLendingDuplicates(3, result.validRows, [], 'borrowed');
 		expect(dups).toEqual([4]);
+	});
+});
+
+describe('normalizeStatus', () => {
+	it('maps paid synonyms → paid', () => {
+		for (const s of ['paid', 'repaid', 'recovered', 'settled', 'closed', 'done', 'PAID', '  Repaid  ']) {
+			expect(normalizeStatus(s)).toBe('paid');
+		}
+	});
+
+	it('maps active synonyms → active', () => {
+		for (const s of ['active', 'open', 'pending', 'outstanding', 'Active', ' OPEN ']) {
+			expect(normalizeStatus(s)).toBe('active');
+		}
+	});
+
+	it('defaults empty and unknown values to active', () => {
+		expect(normalizeStatus('')).toBe('active');
+		expect(normalizeStatus('   ')).toBe('active');
+		expect(normalizeStatus('random')).toBe('active');
+		expect(normalizeStatus(undefined as unknown as string)).toBe('active');
+	});
+});
+
+describe('status + recovered amount', () => {
+	// Headers/mapping include the Status + Amount Recovered columns.
+	const headers = ['Person', 'Amount', 'Date Lent', 'Status', 'Amount Recovered'];
+	const mapping: Record<string, string> = {
+		Person: 'person_name',
+		Amount: 'amount',
+		'Date Lent': 'date_lent',
+		Status: 'status',
+		'Amount Recovered': 'recovered_amount',
+	};
+
+	it('recovered ≥ amount forces status paid', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', 'active', '5000']], headers, mapping, CONFIG);
+		expect(built[0].status).toBe('paid');
+	});
+
+	it('over-recovered (recovered > amount) also forces paid', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', 'active', '7000']], headers, mapping, CONFIG);
+		expect(built[0].status).toBe('paid');
+	});
+
+	it('partial recovery keeps the column status (active)', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', 'active', '1000']], headers, mapping, CONFIG);
+		expect(built[0].status).toBe('active');
+	});
+
+	it('partial recovery with a paid column stays paid', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', 'paid', '1000']], headers, mapping, CONFIG);
+		expect(built[0].status).toBe('paid');
+	});
+
+	it('a missing/blank recovered cell is treated as absent (0), not an error', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', '', '']], headers, mapping, CONFIG);
+		expect(built[0].status).toBe('active');
+		expect(built[0].recovered_amount).toBe(0);
+		const r = validateMappedLendingRow(built[0], [], CONFIG);
+		expect(r.valid).toBe(true);
+	});
+
+	it('flags recovered amount exceeding the loan amount', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', '', '6000']], headers, mapping, CONFIG);
+		const r = validateMappedLendingRow(built[0], [], CONFIG);
+		expect(r.errors.some(e => e.includes('exceed the loan amount'))).toBe(true);
+	});
+
+	it('flags a negative recovered amount', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', '', '-100']], headers, mapping, CONFIG);
+		const r = validateMappedLendingRow(built[0], [], CONFIG);
+		expect(r.errors.some(e => e.includes('cannot be negative'))).toBe(true);
+	});
+
+	it('a valid partial recovery row passes validation', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', 'paid', '1000']], headers, mapping, CONFIG);
+		const r = validateMappedLendingRow(built[0], [], CONFIG);
+		expect(r.valid).toBe(true);
 	});
 });
