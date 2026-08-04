@@ -75,7 +75,6 @@
   </button>
 
   {#if isOpen}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div bind:this={menuEl} class="overflow-menu" role="menu" aria-label="Import and export">
       <p class="overflow-group-label">Import</p>
       <button class="overflow-option" onclick={() => { onImportCsv?.(); close(); }} role="menuitem" type="button">

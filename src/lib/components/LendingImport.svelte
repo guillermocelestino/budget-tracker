@@ -59,7 +59,6 @@
 	});
 	let importResult = $state<{ imported?: number; total?: number; skippedDuplicates?: number; skippedInvalid?: number; newPeople?: string[] } | null>(null);
 	let importError = $state('');
-	let importSubmitting = $state(false);
 
 	// Match the app's own label convention (LendingForm): "Date Lent" for lent,
 	// "Date Borrowed" for borrowed.
@@ -126,16 +125,14 @@
 					newPeople: d.newPeople as string[] | undefined,
 				};
 				importStep = 'done';
-				importSubmitting = false;
-				const count = d.imported as number || 0;
+								const count = d.imported as number || 0;
 				if (count > 0) {
 					showSuccess(`Imported ${count} ${noun.toLowerCase()}` + (d.skippedDuplicates ? ` · skipped ${d.skippedDuplicates} duplicates` : ''));
 				} else {
 					showError('Nothing new to import');
 				}
 			} else if (result.type === 'failure') {
-				importSubmitting = false;
-				const d = result.data as { error?: string; details?: string[] } | undefined;
+								const d = result.data as { error?: string; details?: string[] } | undefined;
 				importError = d?.error || 'Import failed';
 				if (d?.details) {
 					importError += ': ' + d.details.slice(0, 3).join('; ');
@@ -147,7 +144,6 @@
 
 {#if open}
 	<SlideOver isOpen={open} onClose={onClose} title={title}>
-		{#snippet children()}
 			{#if importStep === 'upload'}
 				<ImportDropZone
 					onFiles={handleFileUpload}
@@ -215,7 +211,6 @@
 					<ImportPreview
 						rows={importMappedRows}
 						validation={importValidation}
-						onConfirm={() => { importSubmitting = true; }}
 						onCancel={() => (importStep = 'mapping')}
 						columns={previewColumns}
 						confirmLabel={'Import {n} ' + noun}
@@ -265,8 +260,7 @@
 					</div>
 				</div>
 			{/if}
-		{/snippet}
-	</SlideOver>
+		</SlideOver>
 {/if}
 
 <style>

@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
-import type { Transaction, CategoryReportItem, NetWorthSnapshot } from '$lib/types';
+import type { Transaction, CategoryReportItem } from '$lib/types';
 import { getCurrentMonth } from '$lib/utils/format';
 import { computeNetWorth } from '$lib/server/networth';
 

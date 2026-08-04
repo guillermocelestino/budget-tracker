@@ -71,7 +71,6 @@
 	let result = $state<{ imported?: number; total?: number; skippedDuplicates?: number; skippedInvalid?: number; newPeople?: string[] } | null>(null);
 	let error = $state('');
 	let isParsing = $state(false);
-	let isSubmitting = $state(false);
 
 	const requiredFields = $derived(fields.filter(f => f.required).map(f => f.key));
 	const requiredUnmapped = $derived(
@@ -121,15 +120,6 @@
 		}
 	}
 
-	// ─── Handle config change ───
-	function handleConfigChange(key: keyof ImportMappingConfig, value: string) {
-		config = { ...config, [key]: value };
-		// Re-validate if we're already in preview
-		if (step === 'preview') {
-			goToPreview();
-		}
-	}
-
 	// ─── Handle form submission ───
 	// The outer submit handler runs BEFORE SvelteKit sends the request
 	// (it awaits this function, then fetches with the same FormData). So we
@@ -142,7 +132,6 @@
 
 		return async ({ result: actionResult, update }: { result: { type: string; data?: Record<string, unknown> }; update: () => Promise<void> }) => {
 			await update();
-			isSubmitting = false;
 			if (actionResult.type === 'success') {
 				const d = actionResult.data || {};
 				result = {
@@ -187,13 +176,11 @@
 		result = null;
 		error = '';
 		isParsing = false;
-		isSubmitting = false;
 	}
 </script>
 
 {#if open}
 	<ModalDialog {open} title={title} onclose={onClose} size="wide">
-		{#snippet children()}
 			{#if step === 'upload'}
 				<ImportDropZone
 					onFiles={handleFileUpload}
@@ -234,7 +221,6 @@
 					<ImportPreview
 						rows={mappedRows}
 						validation={validation}
-						onConfirm={() => { isSubmitting = true; }}
 						onCancel={() => { step = 'upload'; resetWizard(); onClose?.(); }}
 						columns={columns}
 						confirmLabel={'Import {n} ' + noun}
@@ -288,8 +274,7 @@
 					</div>
 				</div>
 			{/if}
-		{/snippet}
-	</ModalDialog>
+		</ModalDialog>
 {/if}
 
 <style>

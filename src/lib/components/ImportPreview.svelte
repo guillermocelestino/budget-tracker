@@ -112,6 +112,8 @@
 			<span>
 				<strong>{unknownTitle}</strong> {validation.unknownCategories.join(', ')}
 				<br>
+				<!-- unknownHint is a static string passed by the wizard (not user input); it contains an anchor link -->
+				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 				<small>{@html unknownHint}</small>
 			</span>
 		</div>
@@ -134,15 +136,15 @@
 		<table class="preview-table">
 			<thead>
 				<tr>
-					{#each columns as col}
+					{#each columns as col (col.header)}
 						<th class:text-right={col.align === 'right'}>{col.header}</th>
 					{/each}
 				</tr>
 			</thead>
 			<tbody>
-				{#each displayedRows as row, i}
+				{#each displayedRows as row, i (i)}
 					<tr class={row._status === 'valid' ? 'row-valid' : 'row-invalid'}>
-						{#each columns as col}
+						{#each columns as col (col.header)}
 							{#if col.kind === 'status'}
 								<td class="status-cell">
 									{#if row._status === 'valid'}
@@ -182,7 +184,7 @@
 						<tr class="error-row">
 							<td colspan={columns.length}>
 								<div class="error-detail">
-									{#each row._errors ?? [] as err}
+									{#each row._errors ?? [] as err, i (i)}
 										<div class="error-item">
 											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/>
@@ -190,7 +192,7 @@
 											{err}
 										</div>
 									{/each}
-									{#each row._warnings ?? [] as warn}
+									{#each row._warnings ?? [] as warn, i (i)}
 										<div class="warning-item">
 											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>

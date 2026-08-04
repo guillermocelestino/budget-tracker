@@ -6,7 +6,6 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import PageBackground from '$lib/components/PageBackground.svelte';
 	import Button from '$lib/components/Button.svelte';
-	import ConfettiBurst from '$lib/components/ConfettiBurst.svelte';
 	import TransactionSummary from '$lib/components/TransactionSummary.svelte';
 	import TransactionFilters from '$lib/components/TransactionFilters.svelte';
 	import TransactionList from '$lib/components/TransactionList.svelte';
@@ -20,7 +19,6 @@
 	import { generateTransactionPdf } from '$lib/utils/pdf';
 	import { getCurrentMonth } from '$lib/utils/format';
 	import {
-		autoMap,
 		buildMappedRows,
 		validateAllRows,
 		type ImportMappingConfig,

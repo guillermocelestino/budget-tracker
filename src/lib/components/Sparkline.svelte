@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import '$lib/utils/chart';
+    import '$lib/utils/chart';
   import { Line } from 'svelte-chartjs';
   import { formatCurrency } from '$lib/utils/format';
 
@@ -11,15 +10,6 @@
     labels: string[];
     data: number[];
   } = $props();
-
-  let isDark = $state(false);
-
-  onMount(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    isDark = mq.matches;
-    mq.addEventListener('change', (e) => (isDark = e.matches));
-    return () => mq.removeEventListener('change', () => {});
-  });
 
   // Determine direction for color choice
   const isPositive = $derived(data.length > 0 ? data[data.length - 1] >= data[0] : true);

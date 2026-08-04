@@ -69,9 +69,9 @@
     if (slidingThumb) {
       // Defer to next tick to let DOM update
       // Read reactive values to track them as dependencies
-      activeIndex;
-      value;
-      showFlatView;
+      void activeIndex;
+      void value;
+      void showFlatView;
       requestAnimationFrame(updateThumbPosition);
     }
   });

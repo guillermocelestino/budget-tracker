@@ -21,7 +21,7 @@
 
 {#if confettiPieces.length > 0}
 	<div class="confetti" aria-hidden="true">
-		{#each confettiPieces as piece, i}
+		{#each confettiPieces as piece, i (i)}
 			<span
 				class="confetti-piece"
 				style="left: {piece.left}%; width: {piece.size}px; height: {piece.size}px; background: {piece.color}; animation-delay: {piece.delay}s; animation-duration: {piece.duration}s; transform: rotate({piece.rot}deg);"

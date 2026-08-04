@@ -16,7 +16,6 @@
     showRunningBalance = true,
     categories = [],
     showFlatView = false,
-    onViewChange,
     emptyState,
   }: {
     transactions: Transaction[];
@@ -30,7 +29,6 @@
     showRunningBalance?: boolean;
     categories?: { id: number; name: string; color: string; type: string }[];
     showFlatView?: boolean;
-    onViewChange?: (flat: boolean) => void;
     emptyState?: import('svelte').Snippet;
   } = $props();
 
@@ -65,7 +63,7 @@
     }
   }
 
-  function handleSwipeEnd(e: TouchEvent) {
+  function handleSwipeEnd(_e: TouchEvent) {
     isSwiping = false;
     if (swipeOffset > 80) {
       if (swipedRowId !== null && onDelete) {
@@ -478,7 +476,7 @@
               onchange={() => saveInlineEdit(txn.id)}
               onkeydown={(e) => handleInlineKeydown(e, txn.id)}
             >
-              {#each categories as cat}
+              {#each categories as cat (cat.id)}
                 <option value={cat.id}>{cat.name}</option>
               {/each}
             </select>
@@ -504,7 +502,7 @@
 <div class="txn-list">
   {#if loading}
     <div class="shimmer-list" aria-busy="true" aria-label="Loading transactions">
-      {#each Array(5) as _}
+      {#each Array(5) as _, i (i)}
         <div class="shimmer-row">
           <div class="shimmer-dot skeleton" style="width:32px;height:32px"></div>
           <div class="shimmer-info">

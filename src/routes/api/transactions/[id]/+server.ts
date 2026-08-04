@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { queryOne, queryMany, execute } from '$lib/database/query';
+import { queryOne, execute } from '$lib/database/query';
 import type { Transaction } from '$lib/types';
 
 export async function GET({ params, locals }: { params: { id: string }; locals: App.Locals }) {

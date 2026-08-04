@@ -104,10 +104,7 @@
     return Math.min((cat.spent / cat.budget_limit) * 100, 100);
   }
 
-  function txCount(cat: EnrichedCategory): number {
-    return cat.type === 'income' ? (cat.earned > 0 ? 1 : 0) : (cat.spent > 0 ? 1 : 0);
-  }
-</script>
+  </script>
 
 <!-- ════════════════════════════════════════════════════════════════
      INCOME CATEGORIES — collapsed section

@@ -37,12 +37,6 @@
 		(yoyData?.previousMonth?.expense ?? 0) > 0
 	);
 
-	function changeClass(change: number): string {
-		if (change > 0) return 'positive';
-		if (change < 0) return 'negative';
-		return 'neutral';
-	}
-
 	function changeArrow(change: number, isIncome: boolean): string {
 		if (change === 0) return '→';
 		if (isIncome) return change > 0 ? '↑' : '↓';

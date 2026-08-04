@@ -61,7 +61,6 @@
   let showPanel = $state(false);
   let editingCategory = $state<EnrichedCategory | null>(null);
   let deleteId = $state<number | null>(null);
-  let panelError = $state('');
 
   // Monthly summary
   const expenseCats = $derived(categories.filter(c => c.type === 'expense'));
@@ -78,21 +77,18 @@
 
   function openAdd() {
     editingCategory = null;
-    panelError = '';
-    showPanel = true;
+        showPanel = true;
   }
 
   function openEdit(cat: EnrichedCategory) {
     editingCategory = cat;
-    panelError = '';
-    showPanel = true;
+        showPanel = true;
   }
 
   function closePanel() {
     showPanel = false;
     editingCategory = null;
-    panelError = '';
-  }
+      }
 </script>
 
 <svelte:head>
@@ -160,14 +156,12 @@
   title={editingCategory ? 'Edit Category' : 'Add Category'}
   onClose={closePanel}
 >
-  {#snippet children()}
-    <CategoryForm
+  <CategoryForm
       category={editingCategory ?? undefined}
       action={editingCategory ? '?/update' : '?/create'}
       onCancel={closePanel}
       onSuccess={closePanel}
     />
-  {/snippet}
 </SlideOver>
 
 <!-- ═══ Delete confirmation ═══ -->

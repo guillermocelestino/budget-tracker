@@ -9,13 +9,11 @@
 		categories = [],
 		transaction,
 		action,
-		form,
 		errors = {},
 	}: {
 		categories: Category[];
 		transaction?: Transaction;
 		action?: string;
-		form?: Record<string, unknown>;
 		errors?: Record<string, string>;
 	} = $props();
 

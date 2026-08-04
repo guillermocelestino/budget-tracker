@@ -69,7 +69,6 @@
   const incomeColor = $derived(isDark ? '#3CC4BD' : '#2BA8A2'); // teal
   const expenseColor = $derived(isDark ? '#FF8A6A' : '#EF6C4A'); // coral
   const tickColor = $derived(isDark ? '#8FB3B0' : '#5C7A78');
-  const gridColor = $derived(isDark ? 'rgba(234,247,245,0.04)' : 'rgba(20,48,46,0.04)');
 
   // ─── Chart data ───
   const chartData = $derived<ChartData<'line'>>({
@@ -167,7 +166,6 @@
           `;
 
           // Position above the caret, centered horizontally
-          const chartRect = context.chart.canvas.getBoundingClientRect();
           const containerRect = tooltipEl.parentElement!.getBoundingClientRect();
           const tooltipW = tooltipEl.offsetWidth || 180;
 

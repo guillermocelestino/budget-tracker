@@ -2,9 +2,7 @@ import { fail } from '@sveltejs/kit';
 import { queryMany, execute } from '$lib/database/query';
 import { normName, type ImportMappingConfig, autoMap } from '$lib/utils/importValidation';
 import {
-	validateMappedLendingRow,
 	detectLendingDuplicates,
-	type MappedLendingRow,
 	LENDING_IMPORT_FIELDS,
 	buildMappedLendingRows,
 	validateAllLendingRows,
@@ -14,7 +12,7 @@ import { parseImportFile } from '$lib/utils/fileImport';
 /**
  * Shared server-side lending import. `userId` comes from the session ONLY
  * (never the payload). Receives the File directly, re-parses it, and
- * re-runs the SAME validateMappedLendingRow the client preview used,
+ * re-runs the SAME validateAllLendingRows the client preview used,
  * so the store verdict can never disagree with the preview.
  * Unknown people are auto-created simply by inserting the row (borrower_name
  * is free text, scoped to this user).
@@ -29,7 +27,7 @@ export async function importLendingsForUser(
 		return fail(400, { error: 'No file provided' });
 	}
 
-	let config: ImportMappingConfig = { dateFormat: 'YYYY-MM-DD', typeRule: 'sign' };
+	const config: ImportMappingConfig = { dateFormat: 'YYYY-MM-DD', typeRule: 'sign' };
 	try {
 		const parsed = configJson ? JSON.parse(configJson) : {};
 		if (typeof parsed.dateFormat === 'string' && parsed.dateFormat) {
@@ -64,10 +62,10 @@ export async function importLendingsForUser(
 
 	// Build and validate
 	const mappedRows = buildMappedLendingRows(rows, headers, mapping, config);
-	const { validRows, invalidRows, newPeople } = validateAllLendingRows(mappedRows, [], config);
+	const { validRows, invalidRows } = validateAllLendingRows(mappedRows, [], config);
 
 	if (validRows.length === 0) {
-		const errors = invalidRows.flatMap(({ row, errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`));
+		const errors = invalidRows.flatMap(({ errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`));
 		return fail(400, { error: 'Validation failed: no valid rows to import', details: errors });
 	}
 
@@ -121,6 +119,6 @@ export async function importLendingsForUser(
 		skippedDuplicates: skippedDuplicateCount,
 		skippedInvalid: invalidRows.length,
 		newPeople: newPeopleFiltered,
-		details: invalidRows.length > 0 ? invalidRows.flatMap(({ row, errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`)) : undefined,
+		details: invalidRows.length > 0 ? invalidRows.flatMap(({ errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`)) : undefined,
 	};
 }

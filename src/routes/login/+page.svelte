@@ -2,10 +2,8 @@
 	import { enhance, applyAction } from '$app/forms';
 	import { page } from '$app/stores';
 
-	let data = $derived($page.data as App.PageData);
 	let error = $derived(($page.form as { error?: string } | null)?.error ?? '');
 	let isLoading = $state(false);
-	let rememberMe = $state(false);
 	let showPassword = $state(false);
 </script>
 

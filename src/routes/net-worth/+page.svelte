@@ -8,7 +8,7 @@
   import PageHeader from '$lib/components/PageHeader.svelte';
   import PageBackground from '$lib/components/PageBackground.svelte';
   import NetWorthHero from '$lib/components/NetWorthHero.svelte';
-  import type { NetWorthSnapshot, CashTrendPoint } from '$lib/types';
+  import type { NetWorthSnapshot } from '$lib/types';
 
   let data = $derived($page.data as App.PageData);
   let snapshot: NetWorthSnapshot = $derived(data.netWorth!);
@@ -252,7 +252,7 @@
         <span class="chart-emoji-box">📈</span>
         <span class="chart-title">YOUR CASH JOURNEY</span>
         <div class="timeframe-pills">
-          {#each timeframeOptions as tf}
+          {#each timeframeOptions as tf (tf)}
             <button
               class="pill"
               class:pill-active={activeTimeframe === tf}
@@ -302,7 +302,7 @@
   <div class="drill-section">
     <span class="drill-title">SOURCE</span>
     <div class="drill-row">
-      {#each snapshot.legs as leg}
+      {#each snapshot.legs as leg (leg.key)}
         <button class="drill-btn" style="--btn-color: var(--color-{leg.tone})" onclick={() => drillTo(leg.key)}>
           <span class="drill-dot" style="background: var(--color-{leg.tone})"></span>
           <span class="drill-label">{leg.label}</span>

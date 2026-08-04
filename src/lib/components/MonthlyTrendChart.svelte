@@ -3,7 +3,7 @@
   import '$lib/utils/chart';
   import { Line } from 'svelte-chartjs';
   import { formatCurrency } from '$lib/utils/format';
-  import type { ChartData, ChartOptions, TooltipModel } from 'chart.js';
+  import type { ChartData, ChartOptions } from 'chart.js';
 
   let {
     labels = [],
@@ -17,26 +17,6 @@
 
   let canvasEl = $state<HTMLCanvasElement | null>(null);
   let isDark = $state(false);
-
-  // ─── External tooltip state ───────────────────────────────────────
-
-  let tooltip = $state<{
-    visible: boolean;
-    x: number;
-    y: number;
-    label: string;
-    income: number;
-    expense: number;
-  }>({
-    visible: false,
-    x: 0,
-    y: 0,
-    label: '',
-    income: 0,
-    expense: 0,
-  });
-
-  let tooltipEl = $state<HTMLDivElement | null>(null);
 
   onMount(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');

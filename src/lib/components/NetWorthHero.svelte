@@ -46,18 +46,14 @@
   // ─── Net sign ───
   const netPositive = $derived(snapshot.net >= 0);
   const netColor = $derived(netPositive ? 'var(--color-teal)' : 'var(--color-coral)');
-  const netTone = $derived(netPositive ? 'teal' : 'coral');
 
   // ─── Count-up animation ref ───
   let displayNet = $state(0);
-  let animating = $state(false);
 
   $effect(() => {
-    animating = true;
     const cancel = countUp(snapshot.net, 800, (val) => {
       displayNet = val;
     });
-    animating = false;
     return cancel;
   });
 
@@ -94,7 +90,7 @@
     <div class="nwc-tip-bar">
       <div class="tip-track">
         <div class="tip-left-wrap" style="width: {leftSidePct * 2}%;">
-          {#each leftSegments as seg}
+          {#each leftSegments as seg, i (i)}
             <div class="tip-segment tip-{seg.tone}" style="width: {seg.width}%;"></div>
           {/each}
         </div>
@@ -102,7 +98,7 @@
           <div class="tip-zero"></div>
         </div>
         <div class="tip-right-wrap" style="width: {rightSidePct * 2}%;">
-          {#each rightSegments as seg}
+          {#each rightSegments as seg, i (i)}
             <div class="tip-segment tip-{seg.tone}" style="width: {seg.width}%;"></div>
           {/each}
         </div>
@@ -111,7 +107,7 @@
 
     <div class="nwc-footer">
       <span class="nwc-legends">
-        {#each [...leftSegments, ...rightSegments] as seg}
+        {#each [...leftSegments, ...rightSegments] as seg, i (i)}
           <span class="nwc-legend" style="--dot-color: var(--color-{seg.tone})">
             <span class="legend-dot"></span>{formatCurrency(seg.amount)}
           </span>
@@ -139,7 +135,7 @@
     <div class="nw-tip-bar">
       <div class="tip-track">
         <div class="tip-left-wrap" style="width: {leftSidePct * 2}%;">
-          {#each leftSegments as seg}
+          {#each leftSegments as seg, i (i)}
             <div class="tip-segment tip-{seg.tone}" style="width: {seg.width}%;"></div>
           {/each}
         </div>
@@ -147,18 +143,18 @@
           <div class="tip-zero"></div>
         </div>
         <div class="tip-right-wrap" style="width: {rightSidePct * 2}%;">
-          {#each rightSegments as seg}
+          {#each rightSegments as seg, i (i)}
             <div class="tip-segment tip-{seg.tone}" style="width: {seg.width}%;"></div>
           {/each}
         </div>
       </div>
       <div class="tip-labels">
-        {#each leftSegments as seg}
+        {#each leftSegments as seg, i (i)}
           <span class="tip-label" style="--tip-color: var(--color-{seg.tone})">
             <span class="tip-dot"></span>{seg.label} ({formatCurrency(seg.amount)})
           </span>
         {/each}
-        {#each rightSegments as seg}
+        {#each rightSegments as seg, i (i)}
           <span class="tip-label" style="--tip-color: var(--color-{seg.tone})">
             <span class="tip-dot"></span>{seg.label} ({formatCurrency(seg.amount)})
           </span>
@@ -168,6 +164,8 @@
 
     <!-- Narrative delta -->
     {#if moverLine}
+      <!-- moverLine is generated internally from snapshot data (not user input) -->
+      <!-- eslint-disable-next-line svelte/no-at-html-tags -->
       <p class="nw-narrative">Your net worth is {formatCurrency(snapshot.net)} — {@html moverLine}</p>
     {/if}
 
@@ -182,7 +180,7 @@
           <!-- Donut -->
           <div class="podium-donut">
             <svg viewBox="0 0 100 100" class="donut-svg">
-              {#each snapshot.legs as leg, i}
+              {#each snapshot.legs as leg, i (i)}
                 {@const offset = snapshot.legs.slice(0, i).reduce((s, l) => s + Math.abs(l.amount), 0)}
                 {@const legPct = maxMag > 0 ? (Math.abs(leg.amount) / maxMag) * 100 : 0}
                 {@const circumference = 2 * Math.PI * 38}
@@ -206,7 +204,7 @@
 
           <!-- Ranked list -->
           <ul class="podium-list">
-            {#each snapshot.legs as leg, i}
+            {#each snapshot.legs as leg, i (i)}
               <li class="podium-item" style="--item-color: var(--color-{leg.tone})">
                 <span class="podium-rank">
                   {#if i === 0}🥇{:else if i === 1}🥈{:else}🥉{/if}

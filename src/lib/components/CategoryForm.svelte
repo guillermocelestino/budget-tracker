@@ -115,7 +115,7 @@
 	<div class="form-group">
 		<label class="form-label">Icon</label>
 		<div class="icon-grid">
-			{#each ['🍽️', '🚗', '🛍️', '🎬', '📄', '🏥', '📚', '📦', '💰', '💻', '💵', '🏠', '✈️', '🎮', '👕', '🐾'] as opt}
+			{#each ['🍽️', '🚗', '🛍️', '🎬', '📄', '🏥', '📚', '📦', '💰', '💻', '💵', '🏠', '✈️', '🎮', '👕', '🐾'] as opt (opt)}
 				<button
 					type="button"
 					class="icon-opt"
@@ -133,7 +133,7 @@
 		<label class="form-label">Color</label>
 		<div class="color-picker">
 			<div class="color-swatches">
-				{#each ['#ef4444','#f97316','#f59e0b','#10b981','#14b8a6','#3b82f6','#6366f1','#8b5cf6','#ec4899','#6b7280'] as c}
+				{#each ['#ef4444','#f97316','#f59e0b','#10b981','#14b8a6','#3b82f6','#6366f1','#8b5cf6','#ec4899','#6b7280'] as c (c)}
 					<button
 						type="button"
 						class="swatch"

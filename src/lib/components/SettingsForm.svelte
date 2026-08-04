@@ -37,7 +37,7 @@
 		<span class="setting-desc">Choose your visual style</span>
 	</div>
 	<div class="theme-pill">
-		{#each themeOptions as opt}
+		{#each themeOptions as opt (opt.value)}
 			<button
 				class="pill-option"
 				class:active={prefs.theme === opt.value}
@@ -60,7 +60,7 @@
 			value={prefs.currency}
 			onchange={(e) => updatePrefs({ currency: (e.target as HTMLSelectElement).value })}
 		>
-			{#each currencyOptions as opt}
+			{#each currencyOptions as opt (opt.value)}
 				<option value={opt.value} selected={prefs.currency === opt.value}>{opt.label}</option>
 			{/each}
 		</select>
@@ -78,7 +78,7 @@
 			value={prefs.dateFormat}
 			onchange={(e) => updatePrefs({ dateFormat: (e.target as HTMLSelectElement).value })}
 		>
-			{#each dateFormatOptions as opt}
+			{#each dateFormatOptions as opt (opt.value)}
 				<option value={opt.value} selected={prefs.dateFormat === opt.value}>{opt.label}</option>
 			{/each}
 		</select>

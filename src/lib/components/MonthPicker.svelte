@@ -54,7 +54,7 @@
 		value={selectedMonth}
 		onchange={(e) => onChange?.((e.target as HTMLSelectElement).value)}
 	>
-		{#each months as m}
+		{#each months as m (m.value)}
 			<option value={m.value} selected={m.value === selectedMonth}>{m.label}</option>
 		{/each}
 	</select>

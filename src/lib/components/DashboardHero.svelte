@@ -4,28 +4,16 @@
 
   let {
     balance = 0,
-    totalIncome = 0,
-    totalExpenses = 0,
     savingsRate = 0,
     lendingSummary,
     incomeChange,
     expenseChange,
-    incomeTrend = [],
-    incomeLabels = [],
-    expenseTrend = [],
-    expenseLabels = [],
   }: {
     balance?: number;
-    totalIncome?: number;
-    totalExpenses?: number;
     savingsRate?: number;
     lendingSummary?: { totalLent: number; totalRecovered: number; outstanding: number };
     incomeChange?: number;
     expenseChange?: number;
-    incomeTrend?: number[];
-    incomeLabels?: string[];
-    expenseTrend?: number[];
-    expenseLabels?: string[];
   } = $props();
 
   // ─── Animated hero balance ───
@@ -48,9 +36,6 @@
 
   // ─── Lending derived values ───
   const hasLending = $derived(lendingSummary != null);
-  const netLending = $derived(lendingSummary ? lendingSummary.outstanding : 0);
-  const displayNetLending = $derived(formatCurrency(Math.abs(netLending)));
-  const isLendingPositive = $derived(netLending > 0);
 </script>
 
 <div class="dash-hero flip7-card" class:accent-gold={true}>

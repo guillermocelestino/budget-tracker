@@ -45,13 +45,7 @@
   });
 
   // ─── Good/bad helpers ────────────────────────────────────────
-  function deltaColor(change: number, invert: boolean): string {
-    if (change === 0) return 'var(--color-text-muted)';
-    const isGood = invert ? change < 0 : change > 0;
-    return isGood ? 'var(--color-positive)' : 'var(--color-negative)';
-  }
-
-  function deltaArrow(change: number, invert: boolean): string {
+  function deltaArrow(change: number, _invert: boolean): string {
     if (change > 0) return '↑';
     if (change < 0) return '↓';
     return '→';

@@ -17,10 +17,6 @@ import { queryOne, queryMany, execute } from '../src/lib/database/query.js';
 // ============================================================
 // ANCHOR DATE & HELPERS
 // ============================================================
-const TODAY = '2026-07-30';              // Hardcoded "today"
-const CURRENT_MONTH = '2026-07';         // Current month
-const YTD_START = '2026-01-01';          // YTD start
-
 // Deterministic "random" using a simple seeded LCG (not Math.random)
 function makeSeededRandom(seed = 12345) {
   let state = seed;
@@ -28,10 +24,6 @@ function makeSeededRandom(seed = 12345) {
     state = (state * 1664525 + 1013904223) >>> 0;
     return state / 4294967296;
   };
-}
-
-function formatDate(d: Date) {
-  return d.toISOString().split('T')[0];
 }
 
 // ============================================================
@@ -43,23 +35,6 @@ const DEMO_USER = {
   // Monthly salary: ₱85,000
   // Rent: ₱18,000 (Bills & Utilities)
   // Discretionary: ~₱67,000
-};
-
-const INCOME_CATEGORIES = {
-  SALARY: { name: 'Salary', budget: null },
-  FREELANCE: { name: 'Freelance', budget: null },
-  OTHER_INCOME: { name: 'Other Income', budget: null },
-};
-
-const EXPENSE_CATEGORIES = {
-  FOOD: { name: 'Food & Dining', budget: 500 },
-  TRANSPORT: { name: 'Transportation', budget: 200 },
-  SHOPPING: { name: 'Shopping', budget: 300 },
-  ENTERTAINMENT: { name: 'Entertainment', budget: 150 },
-  BILLS: { name: 'Bills & Utilities', budget: 400 },
-  HEALTHCARE: { name: 'Healthcare', budget: 200 },
-  EDUCATION: { name: 'Education', budget: 100 },
-  OTHER: { name: 'Other Expense', budget: null },
 };
 
 // ============================================================
@@ -98,13 +73,11 @@ function generateTransactions(catIds: Record<string, number>) {
     push(m, 10, 'expense', 'BILLS', 1500, 'Fiber internet');
 
     // --- FOOD & DINING ---
-    let foodTotal = 0;
     for (let d = 1; d <= daysInMonth; d++) {
       const isWeekend = new Date(2026, m - 1, d).getDay() % 6 === 0;
       const daily = isWeekend
         ? 450 + Math.round(rand() * 200)
         : 280 + Math.round(rand() * 150);
-      foodTotal += daily;
       if (d % 3 === 1 || isWeekend) {
         push(m, d, 'expense', 'FOOD', daily, isWeekend ? 'Weekend food delivery' : 'Lunch & snacks');
       }

@@ -128,7 +128,7 @@ function parseDateWithFormat(dateStr: string, format: string): string | null {
 			// Literal text between tokens — escape regex-special chars, and
 			// allow any of the common date separators (- / . space comma)
 			const lit = format.slice(last, m.index);
-			parts.push(lit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[-\/.]/g, '[-\\/.]'));
+			parts.push(lit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[-/.]/g, '[-\\/.]'));
 		}
 		const tok = m[0];
 		tokenNames.push(tok);
@@ -142,7 +142,7 @@ function parseDateWithFormat(dateStr: string, format: string): string | null {
 		last = m.index + tok.length;
 	}
 	if (last < format.length) {
-		parts.push(format.slice(last).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[-\/.]/g, '[-\\/.]'));
+		parts.push(format.slice(last).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[-/.]/g, '[-\\/.]'));
 	}
 
 	const match = dateStr.match(new RegExp(`^${parts.join('')}$`));
@@ -178,13 +178,13 @@ function autoDetectDate(dateStr: string): string | null {
 		/^(\d{4})-(\d{2})-(\d{2})$/,
 		// DD/MM/YYYY or DD-MM-YYYY (ambiguous for US files — the mapping step's
 		// explicit date format overrides; native Date below also catches US order)
-		/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/,
+		/^(\d{2})[-/](\d{2})[-/](\d{4})$/,
 		// YYYY/MM/DD
 		/^(\d{4})\/(\d{2})\/(\d{2})$/,
 		// DD.MM.YYYY
 		/^(\d{2})\.(\d{2})\.(\d{4})$/,
 		// M/D/YYYY (US shorthand)
-		/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/,
+		/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/,
 		// YYYYMMDD
 		/^(\d{4})(\d{2})(\d{2})$/,
 	];
@@ -289,13 +289,10 @@ export function deriveType(
 }
 
 /**
- * Normalize amount for storage: always positive, type determines sign
- * Refunds are stored as positive amount with type='expense' (or negative amount with type='income')
- * but per app convention: amount is always positive, type determines direction
+ * Normalize amount for storage: always positive, the sign is implied by `type`.
+ * Refunds are stored as positive amount with type='expense' (or negative amount with type='income').
  */
-export function normalizeAmountForStorage(amount: number, type: 'income' | 'expense'): number {
-	// Store as positive; the sign is implied by type
-	// Negative amounts in CSV with type='expense' are refunds
+export function normalizeAmountForStorage(amount: number): number {
 	return Math.abs(amount);
 }
 
@@ -449,7 +446,7 @@ export function buildMappedRows(
 		const type = deriveType(amount, rawType, config.typeRule);
 
 		// Normalize amount for storage (always positive)
-		const normalizedAmount = normalizeAmountForStorage(amount, type);
+		const normalizedAmount = normalizeAmountForStorage(amount);
 
 		return {
 			date,

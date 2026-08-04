@@ -285,7 +285,7 @@
   <!-- ═══ Tabs ═══ -->
   <div class="tabs-bar">
     <div class="tabs-pill">
-      {#each tabs as tab}
+      {#each tabs as tab (tab)}
         <button
           class="tab-btn"
           class:active={activeTab === tab.id}
@@ -362,7 +362,7 @@
               <div class="donut-container">
                 <svg width="180" height="180" viewBox="0 0 180 180">
                   {#if incomeArcs.length > 0}
-                    {#each incomeArcs as arc, i}
+                    {#each incomeArcs as arc, i (i)}
                       <circle
                         cx="90" cy="90" r="40"
                         fill="none"
@@ -437,7 +437,7 @@
               <div class="donut-container">
                 <svg width="180" height="180" viewBox="0 0 180 180">
                   {#if expenseArcs.length > 0}
-                    {#each expenseArcs as arc, i}
+                    {#each expenseArcs as arc, i (i)}
                       <circle
                         cx="90" cy="90" r="40"
                         fill="none"

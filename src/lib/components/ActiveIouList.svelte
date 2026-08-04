@@ -91,21 +91,10 @@
     return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   }
 
-  function daysOverdue(dueDate: string | null): number {
-    if (!dueDate) return 0;
-    const due = new Date(dueDate + 'T00:00:00');
-    const diffMs = today.getTime() - due.getTime();
-    return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-  }
-
   // ─── Progress ───
   // If the schema had repaid_amount, we'd compute from that.
   // Today we use amount as 100% and show 0 progress for active, 100% for paid.
   // In future: partial repayments via a separate table.
-  function progressPercent(iou: Lending): number {
-    return iou.status === 'paid' ? 100 : 0;
-  }
-
   function recoveredAmount(iou: Lending): number {
     return iou.status === 'paid' ? iou.amount : 0;
   }
@@ -173,8 +162,6 @@
 
     return groups;
   });
-
-  const hasActiveItems = $derived(triageGroups.some(g => g.id !== 'paid' && g.items.length > 0));
 
   // ─── Per-card overflow menu (mobile) ───
   let menuIou = $state<Lending | null>(null);

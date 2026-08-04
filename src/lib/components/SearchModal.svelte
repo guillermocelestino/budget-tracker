@@ -54,12 +54,6 @@
 		return items;
 	});
 
-	let highlightIndex = $state(0);
-
-	$effect(() => {
-		highlightIndex = Math.min(selectedIndex, Math.max(0, allResults.length - 1));
-	});
-
 	function doSearch(q: string) {
 		if (q.length < 2) {
 			results = { transactions: [], lendings: [], categories: [] };
@@ -170,7 +164,7 @@
 					{#if results.transactions.length > 0}
 						<div class="result-group">
 							<span class="result-group-label">Transactions</span>
-							{#each results.transactions as txn}
+							{#each results.transactions as txn (txn.id)}
 								<button
 									class="result-item"
 									class:highlighted={allResults.findIndex(r => r.id === `txn-${txn.id}`) === selectedIndex}
@@ -193,7 +187,7 @@
 					{#if results.categories.length > 0}
 						<div class="result-group">
 							<span class="result-group-label">Categories</span>
-							{#each results.categories as cat}
+							{#each results.categories as cat (cat.id)}
 								<button
 									class="result-item"
 									class:highlighted={allResults.findIndex(r => r.id === `cat-${cat.id}`) === selectedIndex}
@@ -215,7 +209,7 @@
 					{#if results.lendings.length > 0}
 						<div class="result-group">
 							<span class="result-group-label">Lendings</span>
-							{#each results.lendings as lend}
+							{#each results.lendings as lend (lend.id)}
 								<button
 									class="result-item"
 									class:highlighted={allResults.findIndex(r => r.id === `lend-${lend.id}`) === selectedIndex}

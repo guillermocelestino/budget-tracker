@@ -41,7 +41,7 @@
 <!-- ═══ Timeframe Segmented Pill ═══ -->
 <div class="timeframe-bar">
   <div class="timeframe-pill">
-    {#each timeframes as tf}
+    {#each timeframes as tf (tf)}
       <button
         class="tf-btn"
         class:active={timeframe === tf}

@@ -4,7 +4,6 @@
 	import PageBackground from '$lib/components/PageBackground.svelte';
 	import SettingsSection from '$lib/components/SettingsSection.svelte';
 	import SettingsForm from '$lib/components/SettingsForm.svelte';
-	import { showSuccess } from '$lib/stores/toast.svelte';
 
 	let data = $derived($page.data as App.PageData);
 	let username = $derived(data?.user?.username ?? 'User');

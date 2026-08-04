@@ -66,7 +66,7 @@
 			<span class="mapping-col-preview">Sample Value</span>
 			<span class="mapping-col-field">Maps To</span>
 		</div>
-		{#each columns as col}
+		{#each columns as col (col)}
 			<div class="mapping-row">
 				<span class="mapping-col-name">
 					<span class="col-chip">{col}</span>
@@ -80,7 +80,7 @@
 							value={mapping[col] ?? 'skip'}
 							onchange={(e) => onChange?.(col, (e.target as HTMLSelectElement).value)}
 						>
-							{#each fieldOptions as opt}
+							{#each fieldOptions as opt (opt.value)}
 								<option value={opt.value} selected={(mapping[col] ?? 'skip') === opt.value}>
 									{opt.label}
 								</option>
@@ -97,7 +97,7 @@
 			<legend>Date Format</legend>
 			<div class="select-wrap">
 				<select value={config.dateFormat} onchange={(e) => onConfigChange?.('dateFormat', (e.target as HTMLSelectElement).value)}>
-					{#each dateFormats as fmt}
+					{#each dateFormats as fmt (fmt.value)}
 						<option value={fmt.value} selected={config.dateFormat === fmt.value}>{fmt.label}</option>
 					{/each}
 				</select>
@@ -110,7 +110,7 @@
 				<legend>Type Rule</legend>
 				<div class="select-wrap">
 					<select value={config.typeRule} onchange={(e) => onConfigChange?.('typeRule', (e.target as HTMLSelectElement).value)}>
-						{#each typeRules as rule}
+						{#each typeRules as rule (rule.value)}
 							<option value={rule.value} selected={config.typeRule === rule.value}>{rule.label}</option>
 						{/each}
 					</select>

@@ -42,7 +42,7 @@
 	<div class="pwa-toast" role="alert">
 		<div class="pwa-accent"></div>
 		<div class="pwa-message">
-			<span class="pwa-icon">{'⚡'}</span>
+			<span class="pwa-icon">⚡</span>
 			<div>
 				<strong>Update available</strong>
 				<p>A new version of Finance Tracker is ready.</p>
@@ -57,7 +57,7 @@
 	<div class="pwa-toast offline-toast" role="status">
 		<div class="pwa-accent"></div>
 		<div class="pwa-message">
-			<span class="pwa-icon">{'📦'}</span>
+			<span class="pwa-icon">📦</span>
 			<div>
 				<strong>Ready offline</strong>
 				<p>Finance Tracker can now work without internet.</p>

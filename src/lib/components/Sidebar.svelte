@@ -139,13 +139,15 @@
 
   <!-- ─── Primary Navigation (core workflows) ─── -->
   <nav class="sidebar-nav" aria-label="Primary">
-    {#each primaryNav as item}
+    {#each primaryNav as item (item.href)}
       <a
         href={item.href}
         class="nav-item"
         class:active={isActive(item.href)}
         title={isCollapsed ? item.label : undefined}
       >
+        <!-- icons is an internal map of inline SVG strings (not user input) -->
+        <!-- eslint-disable-next-line svelte/no-at-html-tags -->
         <span class="nav-icon">{@html icons[item.icon]}</span>
         <span class="nav-label">{item.label}</span>
       </a>
@@ -157,13 +159,15 @@
 
   <!-- ─── Secondary Navigation (configuration) ─── -->
   <nav class="sidebar-nav" aria-label="Secondary">
-    {#each secondaryNav as item}
+    {#each secondaryNav as item (item.href)}
       <a
         href={item.href}
         class="nav-item secondary-item"
         class:active={isActive(item.href)}
         title={isCollapsed ? item.label : undefined}
       >
+        <!-- icons is an internal map of inline SVG strings (not user input) -->
+        <!-- eslint-disable-next-line svelte/no-at-html-tags -->
         <span class="nav-icon">{@html icons[item.icon]}</span>
         <span class="nav-label">{item.label}</span>
       </a>

@@ -2,7 +2,6 @@ import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
 import type { Transaction, Category } from '$lib/types';
 import {
-	validateMappedRow,
 	detectDuplicates,
 	normCategoryName,
 	type ImportMappingConfig,
@@ -12,14 +11,6 @@ import {
 	DEFAULT_IMPORT_FIELDS,
 } from '$lib/utils/importValidation';
 import { parseImportFile } from '$lib/utils/fileImport';
-
-interface ImportRow {
-	date: string;
-	description: string;
-	amount: number;
-	type: 'income' | 'expense';
-	category_name: string;
-}
 
 export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -138,7 +129,7 @@ export const actions = {
 			return fail(400, { error: 'No file provided' });
 		}
 
-		let config: ImportMappingConfig = { dateFormat: 'YYYY-MM-DD', typeRule: 'sign' };
+		const config: ImportMappingConfig = { dateFormat: 'YYYY-MM-DD', typeRule: 'sign' };
 		try {
 			const parsed = configJson ? JSON.parse(configJson) : {};
 			if (typeof parsed.dateFormat === 'string' && parsed.dateFormat) {
@@ -183,7 +174,7 @@ export const actions = {
 		const { validRows, invalidRows, unknownCategories } = validateAllRows(mappedRows, userCategories, config);
 
 		if (validRows.length === 0) {
-			const errors = invalidRows.flatMap(({ row, errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`));
+			const errors = invalidRows.flatMap(({ errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`));
 			return fail(400, { error: 'Validation failed: no valid rows to import', details: errors });
 		}
 
@@ -224,7 +215,7 @@ export const actions = {
 			const row = rowsToInsert[i];
 			const catName = normCategoryName(row.category_name);
 
-			let cat = await queryOne<{ id: number }>(
+			const cat = await queryOne<{ id: number }>(
 				'SELECT id FROM categories WHERE user_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2))',
 				[userId, catName]
 			);
@@ -249,8 +240,8 @@ export const actions = {
 			skippedDuplicates: skippedDuplicateCount,
 			skippedInvalid: invalidRows.length,
 			unknownCategories,
-			details: [...insertErrors, ...invalidRows.flatMap(({ row, errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`))].length > 0
-				? [...insertErrors, ...invalidRows.flatMap(({ row, errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`))]
+			details: [...insertErrors, ...invalidRows.flatMap(({ errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`))].length > 0
+				? [...insertErrors, ...invalidRows.flatMap(({ errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`))]
 				: undefined,
 		};
 	},

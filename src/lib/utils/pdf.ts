@@ -115,14 +115,18 @@ interface PdfTableOptions {
 	head: string[][];
 	body: string[][];
 	columnStyles?: Record<number, { cellWidth?: number | 'auto'; halign?: 'left' | 'center' | 'right' }>;
-	didParseCell?: (data: any) => void;
+	didParseCell?: (data: {
+		cell: { styles: { textColor?: unknown } };
+		row: { index: number };
+		column: { index: number };
+	}) => void;
 	footerLabel: string;
 }
 
 /** Flip7 table: plain theme, bordered header, zebra rows, page footer. */
 function renderPdfTable(
 	doc: jsPDF,
-	autoTable: any,
+	autoTable: Awaited<ReturnType<typeof createPdfDocument>>['autoTable'],
 	pw: number,
 	ph: number,
 	m: number,

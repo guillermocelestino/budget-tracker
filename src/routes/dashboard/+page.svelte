@@ -54,16 +54,10 @@
 <div class="dashboard-section">
 	<DashboardHero
 		balance={data.summary?.balance ?? 0}
-		totalIncome={data.summary?.totalIncome ?? 0}
-		totalExpenses={data.summary?.totalExpenses ?? 0}
 		savingsRate={data.summary?.savingsRate ?? 0}
 		lendingSummary={data.lendingSummary}
 		incomeChange={data.incomeChange}
 		expenseChange={data.expenseChange}
-		incomeTrend={data.trendIncome ?? []}
-		incomeLabels={data.trendLabels ?? []}
-		expenseTrend={data.trendExpenses ?? []}
-		expenseLabels={data.trendLabels ?? []}
 	/>
 </div>
 

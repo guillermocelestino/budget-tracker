@@ -57,7 +57,7 @@
 	<div class="onboarding-backdrop">
 		<div class="onboarding-card" role="dialog" aria-label="Welcome">
 			<div class="onboarding-step-indicator">
-				{#each steps as _, i}
+				{#each steps as _, i (i)}
 					<div class="ob-step-dot" class:ob-active={i === step} class:ob-done={i < step}></div>
 				{/each}
 			</div>
@@ -66,6 +66,8 @@
 				<span class="ob-icon">{steps[step].icon}</span>
 			</div>
 			<h2 class="ob-title">{steps[step].title}</h2>
+			<!-- steps[step].desc is static onboarding copy defined in this component (not user input) -->
+			<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 			<p class="ob-desc">{@html steps[step].desc}</p>
 
 			<div class="ob-actions">

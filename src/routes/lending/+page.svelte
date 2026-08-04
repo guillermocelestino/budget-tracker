@@ -20,8 +20,7 @@
 	import { downloadCsv, lendingsToCSV } from '$lib/utils/csv';
 	import { generateLendingPdf } from '$lib/utils/pdf';
 	import { LENDING_IMPORT_FIELDS, buildMappedLendingRows, validateAllLendingRows, type MappedLendingRow } from '$lib/utils/lendingImport';
-	import { autoMap, type ImportPreviewColumn, type ImportMappingConfig, type ImportValidationResult } from '$lib/utils/importValidation';
-	import { parseImportFile } from '$lib/utils/fileImport';
+	import type { ImportPreviewColumn, ImportMappingConfig, ImportValidationResult } from '$lib/utils/importValidation';
 	import type { Lending } from '$lib/types';
 
 	let data = $derived($page.data as App.PageData);
@@ -237,13 +236,11 @@
 	title={editingLending ? 'Edit Lending' : 'New Lending'}
 	onClose={closePanel}
 >
-	{#snippet children()}
-		<LendingForm
+	<LendingForm
 			lendingRecord={editingLending ?? undefined}
 			onCancel={closePanel}
 			onSuccess={closePanel}
 		/>
-	{/snippet}
 </SlideOver>
 
 <!-- ═══ Import Wizard Modal ═══ -->
