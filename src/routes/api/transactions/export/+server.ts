@@ -11,6 +11,11 @@ export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 	const search = url.searchParams.get('search');
 	const exportType = url.searchParams.get('exportType') || 'all';
 	const format = url.searchParams.get('format') || 'csv';
+	// Optional comma-separated ids — narrows the export to specific transactions only.
+	const ids = (url.searchParams.get('ids') ?? '')
+		.split(',')
+		.map((s) => parseInt(s, 10))
+		.filter((n) => !isNaN(n) && n > 0);
 
 	const limit = 20;
 	const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1'));
@@ -39,6 +44,11 @@ export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 		const like = `%${search.trim()}%`;
 		conditions.push(`(t.description ILIKE $${params.length + 1} OR c.name ILIKE $${params.length + 2})`);
 		params.push(like, like);
+	}
+	if (ids.length > 0) {
+		const placeholders = ids.map((_, i) => `$${params.length + i + 1}`).join(', ');
+		conditions.push(`t.id IN (${placeholders})`);
+		params.push(...ids);
 	}
 
 	const where = 'WHERE ' + conditions.join(' AND ');

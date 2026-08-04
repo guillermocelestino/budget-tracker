@@ -16,6 +16,9 @@
     showRunningBalance = true,
     categories = [],
     showFlatView = false,
+    selectionMode = false,
+    selectedIds = new Set() as Set<number>,
+    onToggleSelection,
     emptyState,
   }: {
     transactions: Transaction[];
@@ -29,6 +32,9 @@
     showRunningBalance?: boolean;
     categories?: { id: number; name: string; color: string; type: string }[];
     showFlatView?: boolean;
+    selectionMode?: boolean;
+    selectedIds?: Set<number>;
+    onToggleSelection?: (id: number) => void;
     emptyState?: import('svelte').Snippet;
   } = $props();
 
@@ -42,7 +48,21 @@
   let inlineEditValue = $state('');
   let menuTxn = $state<Transaction | null>(null);
 
+  // Cleanup: when selection mode becomes active, drop any in-progress edit/swipe
+  // state. Internal reset only — never touched again throughout the mode.
+  $effect(() => {
+    if (!selectionMode) return;
+    editingId = null;
+    inlineEditingId = null;
+    inlineEditField = null;
+    inlineEditValue = '';
+    swipedRowId = null;
+    swipeOffset = 0;
+    isSwiping = false;
+  });
+
   function handleSwipeStart(e: TouchEvent, txnId: number) {
+    if (selectionMode) return;
     if (swipedRowId !== txnId && swipedRowId !== null) {
       swipedRowId = null;
       swipeOffset = 0;
@@ -171,10 +191,12 @@
 
   function toggleEdit(id: number) {
     if (!showActions) return;
+    if (selectionMode) return;
     editingId = editingId === id ? null : id;
   }
 
   function startInlineEdit(txnId: number, field: 'amount' | 'category', e: Event) {
+    if (selectionMode) return;
     e.stopPropagation();
     inlineEditingId = txnId;
     inlineEditField = field;
@@ -234,6 +256,7 @@
   }
 
   function handleInlineKeydown(e: KeyboardEvent, txnId: number) {
+    if (selectionMode) return;
     if (e.key === 'Enter') { e.preventDefault(); saveInlineEdit(txnId); }
     else if (e.key === 'Escape') { cancelInlineEdit(); }
   }
@@ -331,6 +354,7 @@
     class:txn-expense={!isIncome}
     class:editing={isExpanded}
     class:swiped={swipedRowId === txn.id}
+    class:selected={selectionMode && selectedIds.has(txn.id)}
     data-txn-id={txn.id}
     role="button"
     tabindex="0"
@@ -340,12 +364,28 @@
     ontouchend={handleSwipeEnd}
     aria-label="{isIncome ? 'Income' : 'Expense'}: {txn.description}, {formatCurrency(txn.amount)}"
     aria-expanded={isExpanded}
-    onclick={() => toggleEdit(txn.id)}
+    onclick={() => (selectionMode ? onToggleSelection?.(txn.id) : toggleEdit(txn.id))}
     onkeydown={(e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleEdit(txn.id); }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (selectionMode) onToggleSelection?.(txn.id);
+        else toggleEdit(txn.id);
+      }
       if (e.key === 'Escape') editingId = null;
     }}
   >
+    <!-- Selection checkbox (selection mode only) -->
+    {#if selectionMode}
+      <div class="sel-check">
+        <input
+          type="checkbox"
+          checked={selectedIds.has(txn.id)}
+          onchange={() => onToggleSelection?.(txn.id)}
+          onclick={(e) => e.stopPropagation()}
+          aria-label="Select {cleanDescription(txn.description)}"
+        />
+      </div>
+    {/if}
     <!-- Category color stripe + initial circle -->
     <div class="cat-stripe" style="background: {txn.category_color || '#2BA8A2'}"></div>
     <div class="cat-circle" style="background: {txn.category_color || '#2BA8A2'}20; color: {txn.category_color || '#2BA8A2'}">
@@ -393,7 +433,7 @@
     </div>
 
     <!-- Hover-only edit / duplicate / delete icons -->
-    {#if showActions && !isExpanded && !isInlineEditing}
+    {#if showActions && !isExpanded && !isInlineEditing && !selectionMode}
       <div class="hover-actions">
         <button
           class="hover-btn"
@@ -423,7 +463,7 @@
     {/if}
 
     <!-- Mobile-only row overflow trigger -->
-    {#if showActions && !isExpanded}
+    {#if showActions && !isExpanded && !selectionMode}
       <button
         class="row-menu-btn"
         aria-label="Actions for {cleanDescription(txn.description)}"
@@ -530,8 +570,13 @@
     {/if}
   {:else if showFlatView}
     <!-- Flat register view -->
-    <div class="flat-register">
+    <div class="flat-register" class:selecting={selectionMode}>
       <div class="flat-header" role="rowheader">
+        {#if selectionMode}
+          <!-- Empty spacer so the header tracks the row's checkbox column. The
+               Select All checkbox lives in the bulk action bar, not here. -->
+          <span class="fh-sel" aria-hidden="true"></span>
+        {/if}
         <span class="fh-circle" aria-hidden="true"></span>
         <span class="fh-desc">Description</span>
         <span class="fh-date">Date</span>
@@ -677,7 +722,21 @@
       column-gap: var(--space-sm);
     }
 
+    /* Selection mode: prepend a 28px checkbox track to the shared grid so
+       every row (and the header's empty .fh-sel spacer) aligns as a column. */
+    .flat-register.selecting .flat-header,
+    .flat-register.selecting .txn-row {
+      grid-template-columns:
+        28px            /* selection       */
+        28px            /* category circle  */
+        minmax(0, 1fr)  /* description      */
+        84px            /* date             */
+        96px            /* balance          */
+        108px;          /* amount           */
+    }
+
     /* Header cells: reset flex sizing, let the grid tracks drive width */
+    .flat-register .flat-header .fh-sel,
     .flat-register .flat-header .fh-circle,
     .flat-register .flat-header .fh-desc,
     .flat-register .flat-header .fh-date,
@@ -806,6 +865,34 @@
     font-size: 11px;
     font-weight: 800;
     margin-right: var(--space-xs);
+  }
+
+  /* ── Selection checkbox cell (selection mode only) ── */
+  .sel-check {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 28px;
+    flex-shrink: 0;
+  }
+
+  .sel-check input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--color-teal);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  /* Selected row — reuse the Flip7 teal treatment used for inline editing */
+  .txn-row.selected {
+    background: var(--color-teal-bg);
+    box-shadow: inset 0 0 0 1px var(--color-teal);
+  }
+
+  .txn-row.selected::before {
+    width: 4px;
   }
 
   /* ── Shimmer loading rows ── */
@@ -1207,6 +1294,7 @@
     .row-menu-btn { display: inline-flex; }
     .flat-header { display: none; }
     .txn-date-col { display: none; }
+    .sel-check { width: 44px; height: 44px; }
   }
 
   .refund-chip {

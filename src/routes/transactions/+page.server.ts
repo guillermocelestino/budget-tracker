@@ -102,19 +102,39 @@ export const actions = {
 	delete: async ({ request, locals }) => {
 		const userId = locals.user!.userId;
 		const data = await request.formData();
-		const id = parseInt(data.get('id') as string);
+		const raw = (data.get('id') as string) ?? '';
+		const ids = raw
+			.split(',')
+			.map((s) => parseInt(s.trim(), 10))
+			.filter((n) => !isNaN(n) && n > 0);
 
-		if (isNaN(id)) {
+		if (ids.length === 0) {
 			return fail(400, { error: 'Invalid transaction ID' });
 		}
 
-		const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
-		if (!existing) {
-			return fail(404, { error: 'Transaction not found' });
+		if (ids.length === 1) {
+			const id = ids[0];
+			const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
+			if (!existing) {
+				return fail(404, { error: 'Transaction not found' });
+			}
+			await execute('DELETE FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
+			return { success: true, deleted: 1 };
 		}
 
-		await execute('DELETE FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
-		return { success: true };
+		const placeholders = ids.map((_, i) => `$${i + 2}`).join(', ');
+		const existing = await queryMany<{ id: number }>(
+			`SELECT id FROM transactions WHERE user_id = $1 AND id IN (${placeholders})`,
+			[userId, ...ids]
+		);
+		if (existing.length === 0) {
+			return fail(404, { error: 'Transaction not found' });
+		}
+		await execute(
+			`DELETE FROM transactions WHERE user_id = $1 AND id IN (${placeholders})`,
+			[userId, ...ids]
+		);
+		return { success: true, deleted: existing.length };
 	},
 
 	import: async ({ request, locals }) => {

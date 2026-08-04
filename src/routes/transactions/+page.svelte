@@ -30,7 +30,12 @@
 	import type { Category } from '$lib/types';
 
 	let data = $derived($page.data as App.PageData);
-	let deleteId = $state<number | null>(null);
+	let deleteTarget = $state<number | number[] | null>(null);
+
+	// Bulk selection (Selection Mode) — entered via the header overflow menu.
+	// Selection is always page-scoped; clearing happens on page/filter change.
+	let selectionMode = $state(false);
+	let selectedIds = $state(new Set<number>());
 
 	// ═════════════════════════════════════════════════════════════════
 	// FILTER STATE — initialized from URL, synced back via $effect
@@ -217,11 +222,12 @@
 
 	let showFlatView = $state(false);
 
-	async function handleExport(format: 'csv' | 'pdf') {
-		const params = $page.url.searchParams.toString();
+	async function handleExport(format: 'csv' | 'pdf', ids?: number[]) {
+		const params = new URLSearchParams($page.url.searchParams);
+		if (ids && ids.length > 0) params.set('ids', ids.join(','));
 
 		if (format === 'csv') {
-			window.location.href = `/api/transactions/export${params ? '?' + params : ''}`;
+			window.location.href = `/api/transactions/export?${params.toString()}`;
 			return;
 		}
 
@@ -393,7 +399,7 @@
 		return pages;
 	});
 
-	const countLabel = $derived(() => {
+	const countLabel = $derived.by(() => {
 		const page = data.page ?? 1;
 		const limit = data.limit ?? 20;
 		const total = data.total ?? 0;
@@ -401,6 +407,60 @@
 		const end = Math.min(page * limit, total);
 		if (total === 0) return 'No transactions';
 		return `Showing ${start}–${end} of ${total}`;
+	});
+
+	// ─── Selection Mode: deriveds + handlers ───────────────────────────
+
+	const pageIds = $derived((data.transactions ?? []).map((t) => t.id));
+	const selectedOnPage = $derived(pageIds.filter((id) => selectedIds.has(id)).length);
+	const allSelected = $derived(pageIds.length > 0 && selectedOnPage === pageIds.length);
+	const someSelected = $derived(selectedOnPage > 0 && !allSelected);
+	const selectedCount = $derived(selectedIds.size);
+
+	function toggleSelection(id: number) {
+		const next = new Set(selectedIds);
+		if (next.has(id)) next.delete(id);
+		else next.add(id);
+		selectedIds = next;
+	}
+
+	// Select All is strictly page-scoped: toggles every row on the current page.
+	function toggleAll() {
+		if (allSelected) {
+			selectedIds = new Set([...selectedIds].filter((id) => !pageIds.includes(id)));
+		} else {
+			selectedIds = new Set([...selectedIds, ...pageIds]);
+		}
+	}
+
+	function exitSelectionMode() {
+		selectionMode = false;
+		selectedIds = new Set();
+	}
+
+	// Svelte action: drive a native checkbox's `indeterminate` from a boolean
+	// (☐ none / ⊟ some / ☑ all).
+	function setIndeterminate(node: HTMLInputElement, indeterminate: boolean) {
+		node.indeterminate = indeterminate;
+		return {
+			update(indeterminate: boolean) {
+				node.indeterminate = indeterminate;
+			},
+		};
+	}
+
+	// Clear the page-scoped selection whenever the result set changes
+	// (pagination/filters), but leave Selection Mode active until the user
+	// cancels or completes a bulk action.
+	let lastFilterKey = '';
+	$effect(() => {
+		const key = $page.url.searchParams.toString();
+		untrack(() => {
+			if (lastFilterKey !== '' && key !== lastFilterKey) {
+				selectedIds = new Set();
+			}
+			lastFilterKey = key;
+		});
 	});
 </script>
 
@@ -420,6 +480,7 @@
 				onImportCsv={() => (importWizardOpen = true)}
 				onExportCsv={() => handleExport('csv')}
 				onExportPdf={() => handleExport('pdf')}
+				onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
 			/>
 			<Button variant="primary" href="/transactions/new">
 				<span class="btn-lead" aria-hidden="true">+</span>
@@ -433,6 +494,7 @@
 				onImportCsv={() => (importWizardOpen = true)}
 				onExportCsv={() => handleExport('csv')}
 				onExportPdf={() => handleExport('pdf')}
+				onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
 			/>
 		</span>
 	{/snippet}
@@ -476,6 +538,28 @@
 	</div>
 </div>
 
+<!-- ═══ Bulk selection action bar (Selection Mode only) ═══ -->
+{#if selectionMode && pageIds.length > 0}
+	<div class="bulk-bar" role="toolbar" aria-label="Selected transactions">
+		<div class="bulk-left">
+			<input
+				type="checkbox"
+				checked={allSelected}
+				use:setIndeterminate={someSelected}
+				onchange={toggleAll}
+				aria-label="Select all transactions on this page"
+			/>
+			<span class="bulk-count">{selectedCount} selected</span>
+		</div>
+		<div class="bulk-actions">
+			<Button variant="ghost" size="sm" disabled={selectedCount === 0} onclick={() => handleExport('csv', [...selectedIds])}>Export CSV</Button>
+			<Button variant="ghost" size="sm" disabled={selectedCount === 0} onclick={() => handleExport('pdf', [...selectedIds])}>Export PDF</Button>
+			<Button variant="danger" size="sm" disabled={selectedCount === 0} onclick={() => (deleteTarget = [...selectedIds])}>Delete Selected</Button>
+			<Button variant="ghost" size="sm" onclick={exitSelectionMode}>Cancel</Button>
+		</div>
+	</div>
+{/if}
+
 <!-- ═══ Transaction list (Bank Register) ═══ -->
 <TransactionList
 	transactions={data.transactions ?? []}
@@ -483,8 +567,11 @@
 	categories={data.categories ?? []}
 	showRunningBalance={true}
 	{showFlatView}
+	{selectionMode}
+	{selectedIds}
+	onToggleSelection={toggleSelection}
 	onEdit={(id) => goto(`/transactions/${id}/edit`)}
-	onDelete={(id) => (deleteId = id)}
+	onDelete={(id) => (deleteTarget = id)}
 	onDuplicate={handleDuplicate}
 >
 	{#snippet emptyState()}
@@ -557,10 +644,15 @@
 <!-- ═══ Mobile filters bottom sheet ═══
      Rendered by SearchFilterPill (mobile) — no page-level sheet. -->
 
-<!-- ═══ Delete confirmation modal ═══ -->
-{#if deleteId !== null}
-	<ModalDialog open={deleteId !== null} onclose={() => (deleteId = null)} title="Delete Transaction">
-		<p>Are you sure you want to delete this transaction? This action cannot be undone.</p>
+<!-- ═══ Delete confirmation modal (single or bulk) ═══ -->
+{#if deleteTarget !== null}
+	{@const isBulk = Array.isArray(deleteTarget) && deleteTarget.length > 1}
+	{@const deleteCount = Array.isArray(deleteTarget) ? deleteTarget.length : 1}
+	<ModalDialog open={deleteTarget !== null} onclose={() => (deleteTarget = null)} title={isBulk ? 'Delete Transactions' : 'Delete Transaction'}>
+		<p>
+			Are you sure you want to delete {deleteCount} transaction{deleteCount !== 1 ? 's' : ''}?
+			This action cannot be undone.
+		</p>
 		<form
 			method="POST"
 			action="?/delete"
@@ -569,12 +661,14 @@
 					result,
 					update,
 				}: {
-					result: { type: string; data?: { error?: string } };
+					result: { type: string; data?: { error?: string; deleted?: number } };
 					update: () => Promise<void>;
 				}) => {
 					if (result.type === 'success') {
-						deleteId = null;
-						showSuccess('Transaction deleted successfully');
+						const deleted = result.data?.deleted ?? deleteCount;
+						exitSelectionMode();
+						deleteTarget = null;
+						showSuccess(`${deleted} transaction${deleted !== 1 ? 's' : ''} deleted`);
 					} else if (result.type === 'failure') {
 						showError(result.data?.error || 'Failed to delete transaction');
 					}
@@ -582,10 +676,14 @@
 				};
 			}}
 		>
-			<input type="hidden" name="id" value={deleteId} />
+			<input
+				type="hidden"
+				name="id"
+				value={Array.isArray(deleteTarget) ? deleteTarget.join(',') : String(deleteTarget)}
+			/>
 			<div class="modal-actions">
 				<Button variant="danger" type="submit">Delete</Button>
-				<Button variant="ghost" type="button" onclick={() => (deleteId = null)}>Cancel</Button>
+				<Button variant="ghost" type="button" onclick={() => (deleteTarget = null)}>Cancel</Button>
 			</div>
 		</form>
 	</ModalDialog>
@@ -679,6 +777,93 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-md);
+	}
+
+	/* ─── Bulk selection action bar (Selection Mode only) ─── */
+	.bulk-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: var(--space-sm);
+		padding: var(--space-sm) var(--space-md);
+		margin-bottom: var(--space-md);
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-xl);
+		box-shadow: var(--shadow-sm);
+		animation: bulkIn 200ms var(--ease) both;
+	}
+
+	.bulk-left {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		min-height: 44px;
+	}
+
+	.bulk-left input[type='checkbox'] {
+		width: 18px;
+		height: 18px;
+		margin: 0;
+		accent-color: var(--color-teal);
+		cursor: pointer;
+	}
+
+	.bulk-count {
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
+		color: var(--color-teal);
+		letter-spacing: 0.02em;
+	}
+
+	.bulk-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-xs);
+		flex-wrap: wrap;
+	}
+
+	/* Keep the compact sm buttons at the 44px interactive minimum */
+	.bulk-bar :global(.btn) {
+		min-height: 44px;
+	}
+
+	@keyframes bulkIn {
+		from {
+			opacity: 0;
+			transform: translateY(-6px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	@media (max-width: 768px) {
+		.bulk-bar {
+			align-items: stretch;
+			flex-direction: column;
+			gap: var(--space-sm);
+		}
+
+		/* Stack the actions as an even 2×2 grid beneath the status row, with a
+		   dashed hairline seam separating "N selected" from the actions (matches
+		   the app's sheet-footer / date-header divider language). */
+		.bulk-actions {
+			display: grid;
+			grid-template-columns: repeat(2, 1fr);
+			gap: var(--space-xs);
+			width: 100%;
+			border-top: 1px dashed var(--color-hairline);
+			padding-top: var(--space-sm);
+		}
+
+		.bulk-actions :global(.btn) {
+			width: 100%;
+		}
 	}
 
 	/* ─── Mobile / Desktop visibility ─── */
