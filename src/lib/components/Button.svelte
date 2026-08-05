@@ -10,8 +10,9 @@
 		children,
 		ariaLabel = '',
 		title = '',
+		el = $bindable(null),
 	}: {
-		variant?: 'primary' | 'danger' | 'ghost' | 'link';
+		variant?: 'primary' | 'danger' | 'ghost' | 'link' | 'teal';
 		size?: 'sm' | 'md';
 		href?: string;
 		type?: 'button' | 'submit';
@@ -21,11 +22,13 @@
 		children?: import('svelte').Snippet;
 		ariaLabel?: string;
 		title?: string;
+		el?: HTMLElement | null;
 	} = $props();
 </script>
 
 {#if href}
 	<a
+		bind:this={el}
 		href={href}
 		class="btn btn-{variant} btn-{size}"
 		class:full-width={fullWidth}
@@ -36,6 +39,7 @@
 	</a>
 {:else}
 	<button
+		bind:this={el}
 		{type}
 		{disabled}
 		class="btn btn-{variant} btn-{size}"
@@ -155,6 +159,26 @@
 	}
 
 	.btn-danger:active {
+		transform: scale(0.95);
+	}
+
+	/* ═══ Teal = solid mint confirm (secondary-weight) ═══
+	     Not a gold-primary — one loud action per page. Replaces the hand-rolled
+	     .btn-primary clones in the lending/borrowed modals. */
+	.btn-teal {
+		background: var(--teal);
+		color: var(--color-surface);
+		box-shadow: 0 4px 16px rgba(79, 157, 136, 0.18);
+		font-weight: var(--font-weight-semibold);
+	}
+
+	.btn-teal:hover {
+		background: var(--teal-deep);
+		box-shadow: 0 6px 24px rgba(79, 157, 136, 0.28);
+		transform: translateY(-1px);
+	}
+
+	.btn-teal:active {
 		transform: scale(0.95);
 	}
 

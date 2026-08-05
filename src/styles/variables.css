@@ -46,6 +46,9 @@
   --color-coral-light: #FF8A6A;
   --color-coral-dark: #D45233;
   --color-coral-bg: rgba(239, 108, 74, 0.15);
+  --color-amber: #c07a1e;
+  --color-amber-bg: rgba(192, 122, 30, 0.14);
+  --color-amber-dark: #a06010;
   --color-sky: #5DADE2;
   --color-sky-light: #7FC0EB;
   --color-ink: #14302E;
@@ -227,6 +230,9 @@
   --color-coral-light: #FFA489;
   --color-coral-dark: #EF6C4A;
   --color-coral-bg: rgba(255, 138, 106, 0.15);
+  --color-amber: #e9a94f;
+  --color-amber-bg: rgba(233, 169, 79, 0.16);
+  --color-amber-dark: #f2b96a;
   --color-sky: #6FC0F0;
   --color-sky-light: #8CCDF4;
   --color-ink: #EAF7F5;

@@ -72,7 +72,7 @@
 		padding: var(--space-2xl) var(--space-lg);
 		text-align: center;
 		background: var(--color-surface);
-		border: 1px dashed var(--color-hairline);
+		border: 1px solid var(--color-hairline);
 		border-radius: var(--radius-xl);
 		gap: var(--space-sm);
 		animation: fade-in-up 400ms var(--ease) both;
@@ -118,10 +118,12 @@
 		margin-top: var(--space-sm);
 	}
 
+	/* CTA stays teal while a gold header Add coexists on screen (all list
+	   pages); it would only become gold when it is the sole create affordance. */
 	.empty-action {
 		padding: var(--space-sm) var(--space-xl);
-		background: linear-gradient(135deg, var(--color-gold), var(--color-gold-light));
-		color: var(--color-ink);
+		background: var(--teal);
+		color: var(--color-surface);
 		border: none;
 		border-radius: var(--radius-pill);
 		font-family: var(--font-display);
@@ -132,7 +134,7 @@
 		min-height: 44px;
 		display: inline-flex;
 		align-items: center;
-		box-shadow: var(--glow-gold);
+		box-shadow: 0 4px 16px rgba(79, 157, 136, 0.18);
 		transition: all 200ms var(--bounce);
 		position: relative;
 		overflow: hidden;
@@ -149,9 +151,9 @@
 
 	.empty-action:hover {
 		transform: translateY(-1px);
-		box-shadow: 0 6px 24px rgba(255, 210, 63, 0.5);
+		box-shadow: 0 6px 24px rgba(79, 157, 136, 0.28);
 		text-decoration: none;
-		color: var(--color-ink);
+		color: var(--color-surface);
 	}
 
 	.empty-action:active {

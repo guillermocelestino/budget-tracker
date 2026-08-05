@@ -23,6 +23,15 @@ export function formatCurrency(amount: number): string {
  * Format an amount as a plain figure with thousands separators and two
  * decimal places — no currency symbol and no sign. Used for PDF output.
  */
+/**
+ * Format an amount with an explicit direction sign — "+" for inflows,
+ * U+2212 MINUS "−" for outflows. Used for the mono, tabular-nums money
+ * figures across list pages (rule 2).
+ */
+export function formatSignedCurrency(amount: number): string {
+	return (amount >= 0 ? '+' : '−') + formatCurrency(Math.abs(amount));
+}
+
 export function formatPlainAmount(amount: number): string {
 	const code = (typeof prefs !== 'undefined' ? prefs.currency : 'PHP') || 'PHP';
 	const cfg = CURRENCY_MAP[code] ?? CURRENCY_MAP.PHP;
