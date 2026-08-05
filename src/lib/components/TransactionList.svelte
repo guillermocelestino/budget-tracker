@@ -4,7 +4,7 @@
   import RowHoverActions from '$lib/components/RowHoverActions.svelte';
   import DateHeaderBand from '$lib/components/DateHeaderBand.svelte';
   import { getCategoryHue, getCategoryText, getCategoryTint } from '$lib/utils/categoryColors';
-  import { isDark } from '$lib/stores/preferences.svelte';
+  import { themeState } from '$lib/stores/preferences.svelte';
   import type { Transaction } from '$lib/types';
 
   let {
@@ -349,8 +349,8 @@
   {@const isExpanded = editingId === txn.id}
   {@const isInlineEditing = inlineEditingId === txn.id}
   {@const hue = getCategoryHue(txn.category_name, txn.category_color)}
-  {@const tint = getCategoryTint(txn.category_name, hue, isDark)}
-  {@const fg = getCategoryText(txn.category_name, hue, isDark)}
+  {@const tint = getCategoryTint(txn.category_name, hue, themeState.isDark)}
+  {@const fg = getCategoryText(txn.category_name, hue, themeState.isDark)}
 
   <div
     class="txn-row"
@@ -577,7 +577,7 @@
     </div>
   {:else}
     <!-- Grouped register view (default) -->
-    <div class="grouped-list">
+    <div class="grouped-list" class:selecting={selectionMode}>
       {#each groups as group (group.date)}
         {@render dateHeader(group)}
         {#each group.items as txn (txn.id)}
@@ -770,6 +770,121 @@
         transform: none;
       }
     }
+  }
+
+  /* ══ Grouped view column grid (desktop ≥641px) ══════════════════════
+     Grouped rows share a grid so the hover cluster can be anchored to the
+     description (main) column — its containing block is exactly that grid
+     area, so it structurally cannot reach BAL/amount/kebab at any width.
+     Mobile (≤640px) keeps the existing flex card layout. */
+  .grouped-list {
+    /* Solid equivalent of the mint row-hover tint: the cluster backdrop
+       blends into the row instead of colliding with title/pill text.
+       Light ~#f0f8f5; dark = solid blend of rgba(43,168,162,0.12) over
+       --color-surface #161A18. */
+    --row-hover-bg: #f0f8f5;
+  }
+
+  [data-theme="dark"] .grouped-list {
+    --row-hover-bg: #192b29;
+  }
+
+  @media (min-width: 641px) {
+    .grouped-list .txn-row {
+      display: grid;
+      grid-template-columns:
+        28px            /* category circle  */
+        minmax(0, 1fr)  /* description      */
+        auto            /* balance          */
+        auto            /* amount           */
+        auto;           /* kebab            */
+      align-items: center;
+      column-gap: var(--space-sm);
+    }
+
+    /* Selection mode: prepend a 28px checkbox track so every row's columns
+       stay aligned (the flat register does the same via .selecting). */
+    .grouped-list.selecting .txn-row {
+      grid-template-columns:
+        28px            /* selection        */
+        28px            /* category circle  */
+        minmax(0, 1fr)  /* description      */
+        auto            /* balance          */
+        auto            /* amount           */
+        auto;           /* kebab            */
+    }
+
+    .grouped-list .txn-row .cat-circle { margin-right: 0; }
+    .grouped-list .txn-row .txn-info { position: relative; }
+
+    /* Hover cluster — absolutely positioned so it never affects layout, but
+       given grid lines 2→3 so its containing block is exactly the main
+       column's area. right:8px keeps it clear of the BAL column. */
+    .grouped-list .txn-row .hover-slot {
+      grid-column: 2 / 3;
+      grid-row: 1 / 2;
+      right: 8px;
+    }
+
+    /* <1200px backdrop: solid row-hover tint behind the glyphs with a
+       left-fading edge. Rides the cluster's own opacity reveal — no second
+       hover implementation. */
+    .grouped-list .txn-row .hover-slot :global(.hover-actions) {
+      background: linear-gradient(to right, transparent, var(--row-hover-bg) 20px);
+      border-radius: var(--radius-lg);
+      padding: 2px 6px 2px 24px;
+    }
+  }
+
+  /* ≥1200px: reserved-actions column (same mechanism as the flat register) —
+     the last track widens and the cluster + kebab sit in-flow together, so
+     the money columns never shift. */
+  @media (min-width: 1200px) {
+    .grouped-list .txn-row {
+      grid-template-columns:
+        28px            /* category circle  */
+        minmax(0, 1fr)  /* description      */
+        auto            /* balance          */
+        auto            /* amount           */
+        232px;          /* reserved actions */
+    }
+
+    .grouped-list.selecting .txn-row {
+      grid-template-columns:
+        28px            /* selection        */
+        28px            /* category circle  */
+        minmax(0, 1fr)  /* description      */
+        auto            /* balance          */
+        auto            /* amount           */
+        232px;          /* reserved actions */
+    }
+
+    .grouped-list .txn-row .row-actions-col {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+    }
+
+    .grouped-list .txn-row .hover-slot {
+      position: static;
+      transform: none;
+      right: auto;
+      grid-column: auto;
+      grid-row: auto;
+    }
+
+    .grouped-list .txn-row .hover-slot :global(.hover-actions) {
+      background: none;
+      padding: 0;
+      border-radius: 0;
+    }
+  }
+
+  /* Grouped rows: row hover uses the same solid tint as the cluster backdrop
+     so the revealed cluster blends seamlessly into the row. */
+  .grouped-list .txn-row:hover {
+    background: var(--row-hover-bg);
   }
 
   /* ── Row with left accent bar ── */
@@ -976,11 +1091,11 @@
   }
 
   .balance-value {
-    font-size: 11px;
-    font-weight: 500;
+    font-size: 13px;
+    font-weight: 600;
     font-family: var(--font-mono);
     letter-spacing: -0.02em;
-    opacity: 0.75;
+    opacity: 1;
   }
 
   /* ── Amount column: mono, right-aligned, colored by sign ── */
@@ -1297,7 +1412,7 @@
     .txn-expense { border-left-color: var(--color-coral); }
 
     .txn-row:last-child { margin-bottom: 0; }
-    .txn-row.editing { border-bottom: 1px dashed var(--color-hairline); }
+    .txn-row.editing { border-bottom: 1px solid var(--color-hairline); }
 
     .grouped-list, .flat-register {
       background: transparent;
@@ -1325,7 +1440,7 @@
     }
 
     .balance-label { font-size: 8px; }
-    .balance-value { font-size: 10px; }
+    .balance-value { font-size: 12px; }
 
     .edit-panel {
       flex-direction: column;

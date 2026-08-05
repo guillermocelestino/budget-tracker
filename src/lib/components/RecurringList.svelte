@@ -3,7 +3,7 @@
 	import RowActionsMenu from '$lib/components/RowActionsMenu.svelte';
 	import RowHoverActions from '$lib/components/RowHoverActions.svelte';
 	import { getCategoryHue, getCategoryText, getCategoryTint } from '$lib/utils/categoryColors';
-	import { isDark } from '$lib/stores/preferences.svelte';
+	import { themeState } from '$lib/stores/preferences.svelte';
 	import type { RecurringTransaction } from '$lib/types';
 
 	let {
@@ -97,8 +97,8 @@
 	{@const status = getStatusBadge(rec)}
 	{@const isIncome = rec.type === 'income'}
 	{@const hue = getCategoryHue(rec.category_name, rec.category_color)}
-	{@const tint = getCategoryTint(rec.category_name, hue, isDark)}
-	{@const fg = getCategoryText(rec.category_name, hue, isDark)}
+	{@const tint = getCategoryTint(rec.category_name, hue, themeState.isDark)}
+	{@const fg = getCategoryText(rec.category_name, hue, themeState.isDark)}
 
 	<div class="recurring-row" class:txn-income={isIncome} class:txn-expense={!isIncome} data-recurring-id={rec.id} data-hover-row role="button" tabindex="0" aria-label="{rec.description}, {frequencyLabels[rec.frequency]}, next: {formatNextRun(rec.next_run)}" onclick={() => onEdit?.(rec)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit?.(rec); } }}>
 		<!-- Category accent bar -->

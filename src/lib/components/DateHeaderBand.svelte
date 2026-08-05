@@ -66,7 +66,9 @@
 	.day-subtotal {
 		margin-left: auto;
 		font-family: var(--font-mono);
-		font-size: var(--font-size-base);
+		/* One token down from base (16px → 14px): still bold + colored, but
+		   secondary to the date label so the group reads date → count → subtotal. */
+		font-size: var(--font-size-sm);
 		font-weight: 800;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: -0.02em;

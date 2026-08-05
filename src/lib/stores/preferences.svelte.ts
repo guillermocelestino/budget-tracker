@@ -67,12 +67,13 @@ export const prefs = $state<Preferences>(initial);
 // Single source of truth is the `data-theme` attribute on <html>, which
 // applyTheme() owns. SSR-safe: false default server-side; read ONCE at mount
 // (so dark-theme users never get a one-frame flash of light tints), then kept
-// current by a MutationObserver.
-export let isDark = $state(false);
+// current by a MutationObserver. Exported as a mutable object (never reassigned)
+// so module state is legal in Svelte 5.
+export const themeState = $state({ isDark: false });
 
 if (typeof document !== 'undefined') {
 	const syncIsDark = () => {
-		isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+		themeState.isDark = document.documentElement.getAttribute('data-theme') === 'dark';
 	};
 	syncIsDark();
 	const themeObserver = new MutationObserver(syncIsDark);
