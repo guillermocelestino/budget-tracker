@@ -20,7 +20,7 @@
     onPause,
     onResume,
     onPay,
-    payLabel = 'Mark Paid',
+    payLabel = 'Record Payment',
   }: {
     title: string;
     amount: string;

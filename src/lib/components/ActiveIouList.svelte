@@ -3,7 +3,7 @@
   import { formatCurrency, formatDate, getToday } from '$lib/utils/format';
   import RowActionsMenu from '$lib/components/RowActionsMenu.svelte';
   import RowHoverActions from '$lib/components/RowHoverActions.svelte';
-  import type { Lending } from '$lib/types';
+  import type { LendingWithPayments } from '$lib/types';
 
   let {
     ious = [],
@@ -11,14 +11,16 @@
     onEdit,
     onDelete,
     onDuplicate,
+    onViewHistory,
     direction = 'lent',
     viewMode = 'card',
   }: {
-    ious: Lending[];
+    ious: LendingWithPayments[];
     onPay?: (id: number) => void;
     onEdit?: (id: number) => void;
     onDelete?: (id: number) => void;
     onDuplicate?: (id: number) => void;
+    onViewHistory?: (id: number) => void;
     direction?: 'lent' | 'borrowed';
     viewMode?: 'card' | 'table';
   } = $props();
@@ -74,7 +76,7 @@
   // ─── Triage bucket helpers ───
   type State = 'overdue' | 'due-this-week' | 'later' | 'paid' | 'on-track';
 
-  function computeState(iou: Lending): State {
+  function computeState(iou: LendingWithPayments): State {
     if (iou.status === 'paid') return 'paid';
     if (!iou.due_date) return 'later';
     const due = new Date(iou.due_date + 'T00:00:00');
@@ -96,8 +98,8 @@
   // If the schema had repaid_amount, we'd compute from that.
   // Today we use amount as 100% and show 0 progress for active, 100% for paid.
   // In future: partial repayments via a separate table.
-  function recoveredAmount(iou: Lending): number {
-    return iou.status === 'paid' ? iou.amount : 0;
+  function recoveredAmount(iou: LendingWithPayments): number {
+    return iou.resolved_total;
   }
 
   // ─── Triage groups ───
@@ -106,15 +108,15 @@
     label: string;
     emoji: string;
     state: State;
-    items: Lending[];
+    items: LendingWithPayments[];
     count: number;
   };
 
   const triageGroups = $derived.by(() => {
-    const overdue: Lending[] = [];
-    const dueThisWeek: Lending[] = [];
-    const later: Lending[] = [];
-    const paid: Lending[] = [];
+    const overdue: LendingWithPayments[] = [];
+    const dueThisWeek: LendingWithPayments[] = [];
+    const later: LendingWithPayments[] = [];
+    const paid: LendingWithPayments[] = [];
 
     for (const iou of ious) {
       const state = computeState(iou);
@@ -128,7 +130,7 @@
     }
 
     // Sort by amount desc within each group (snowball-friendly: largest first)
-    const sortByAmountDesc = (a: Lending, b: Lending) => b.amount - a.amount;
+    const sortByAmountDesc = (a: LendingWithPayments, b: LendingWithPayments) => b.amount - a.amount;
 
     const groups: TriageGroup[] = [];
 
@@ -165,7 +167,7 @@
   });
 
   // ─── Per-card overflow menu (mobile) ───
-  let menuIou = $state<Lending | null>(null);
+  let menuIou = $state<LendingWithPayments | null>(null);
 
   // ─── State styling helpers (gold retired → amber; coral → rose) ───
   function stateAccentColor(state: State): string {
@@ -208,7 +210,7 @@
     }
   }
 
-  function countdownLabel(iou: Lending): { text: string; color: string } | null {
+  function countdownLabel(iou: LendingWithPayments): { text: string; color: string } | null {
     if (iou.status === 'paid') return null;
     const days = daysUntilDue(iou.due_date);
     if (days === null) return null;
@@ -273,7 +275,7 @@
           {#each group.items as iou (iou.id)}
             {@const state = computeState(iou)}
             {@const cd = countdownLabel(iou)}
-            {@const progressPct = iou.status === 'paid' ? 100 : 0}
+            {@const progressPct = iou.amount > 0 ? Math.min((iou.resolved_total / iou.amount) * 100, 100) : 0}
             {@const init = iou.borrower_name.charAt(0).toUpperCase()}
             <div
               class="iou-card reveal-on-scroll"
@@ -322,7 +324,7 @@
                   <span class="progress-label" style="color: {stateTextColor(state)};">
                     {formatCurrency(recoveredAmount(iou))} / {formatCurrency(iou.amount)}
                   </span>
-                  <span class="progress-pct" style="color: {stateTextColor(state)};">{progressPct}%</span>
+                  <span class="progress-pct" style="color: {stateTextColor(state)};">{Math.round(progressPct)}%</span>
                 </div>
 
                 <!-- Hover actions (desktop) — absolute inside the info area,
@@ -333,7 +335,8 @@
                   <div class="iou-hover-slot">
                     <RowHoverActions
                       actions={[
-                        { id: 'pay', label: direction === 'lent' ? 'Mark Paid' : 'Repay', text: direction === 'lent' ? 'Mark Paid' : 'Repay', onClick: () => onPay?.(iou.id) },
+                        { id: 'pay', label: 'Record Payment', text: 'Record Payment', onClick: () => onPay?.(iou.id) },
+                        { id: 'history', label: 'History', text: 'History', onClick: () => onViewHistory?.(iou.id) },
                         { id: 'edit', label: 'Edit', icon: editIcon, onClick: () => onEdit?.(iou.id) },
                         { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(iou.id) },
                         // Quick-delete: last, danger-tone, same confirm modal
@@ -347,11 +350,14 @@
                 {/if}
               </div>
 
-              <!-- Right: amount + countdown + overflow (mobile) + recovered glow -->
+              <!-- Right: remaining (primary) + countdown + overflow (mobile) + recovered glow -->
               <div class="iou-right">
                 <span class="iou-amount" class:paid-amount={iou.status === 'paid'} style="color: {moneyDirectionColor()};">
-                  {formatDirectionalAmount(iou.amount)}
+                  {formatDirectionalAmount(iou.remaining)}
                 </span>
+                {#if iou.status !== 'paid' && iou.resolved_total > 0}
+                  <span class="iou-paid-sub">{formatCurrency(iou.resolved_total)} paid</span>
+                {/if}
 
                 <!-- Countdown pill -->
                 {#if cd}
@@ -381,7 +387,7 @@
                   </span>
                 {:else}
                   <button class="iou-btn iou-btn-pay" onclick={() => onPay?.(iou.id)} type="button">
-                    {direction === 'lent' ? 'Mark Paid' : 'Repay'}
+                    Record Payment
                   </button>
                 {/if}
               </div>
@@ -417,7 +423,7 @@
       {#each ious as iou (iou.id)}
         {@const state = computeState(iou)}
         {@const cd = countdownLabel(iou)}
-        {@const progressPct = iou.status === 'paid' ? 100 : 0}
+        {@const progressPct = iou.amount > 0 ? Math.min((iou.resolved_total / iou.amount) * 100, 100) : 0}
         {@const accent = stateAccentColor(state)}
         {@const bg = stateBgColor(state)}
         {@const fg = stateTextColor(state)}
@@ -469,9 +475,9 @@
             </span>
           </div>
 
-          <!-- Amount (headline money column) -->
+          <!-- Amount (headline money column) — remaining is primary -->
           <div class="row-amount">
-            <span class="amount-num" class:struck={iou.status === 'paid'} style="color: {moneyDirectionColor()};">{formatDirectionalAmount(iou.amount)}</span>
+            <span class="amount-num" class:struck={iou.status === 'paid'} style="color: {moneyDirectionColor()};">{formatDirectionalAmount(iou.remaining)}</span>
           </div>
 
           <!-- Reserved actions cell: holds the hover cluster (active rows only)
@@ -483,7 +489,8 @@
               <div class="row-actions">
                 <RowHoverActions
                   actions={[
-                    { id: 'pay', label: direction === 'lent' ? 'Mark Paid' : 'Repay', text: direction === 'lent' ? 'Mark Paid' : 'Repay', onClick: () => onPay?.(iou.id) },
+                    { id: 'pay', label: 'Record Payment', text: 'Record Payment', onClick: () => onPay?.(iou.id) },
+                    { id: 'history', label: 'History', text: 'History', onClick: () => onViewHistory?.(iou.id) },
                     { id: 'edit', label: 'Edit', icon: editIcon, onClick: () => onEdit?.(iou.id) },
                     { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(iou.id) },
                     // Quick-delete: last, danger-tone, same confirm modal as the
@@ -514,7 +521,7 @@
     ariaLabel="Lending actions"
     onClose={() => (menuIou = null)}
     onPay={() => { const id = menuIou!.id; menuIou = null; onPay?.(id); }}
-    payLabel={direction === 'lent' ? 'Mark Paid' : 'Repay'}
+    payLabel="Record Payment"
     onEdit={() => { const id = menuIou!.id; menuIou = null; onEdit?.(id); }}
     onDuplicate={() => { const id = menuIou!.id; menuIou = null; onDuplicate?.(id); }}
     onDelete={() => { const id = menuIou!.id; menuIou = null; onDelete?.(id); }}
@@ -890,6 +897,15 @@
   .iou-amount.paid-amount {
     text-decoration: line-through;
     color: var(--color-text-muted) !important;
+  }
+
+  .iou-paid-sub {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
   /* Countdown pill */

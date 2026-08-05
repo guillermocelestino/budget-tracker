@@ -8,11 +8,13 @@
 		lendingRecord,
 		onCancel,
 		onSuccess,
+		hasPayments = false,
 		direction = $bindable('lent')
 	}: {
 		lendingRecord?: Lending;
 		onCancel?: () => void;
 		onSuccess?: () => void;
+		hasPayments?: boolean;
 		direction?: 'lent' | 'borrowed';
 	} = $props();
 
@@ -90,28 +92,32 @@
 <form method="POST" action={lendingRecord ? '?/update' : '?/create'} use:enhance={handleEnhance}>
 	{#if lendingRecord}
 		<input type="hidden" name="id" value={lendingRecord.id} />
-		<input type="hidden" name="status" value={lendingRecord.status} />
 	{/if}
 	<input type="hidden" name="direction" value={direction} />
 
-	<div class="direction-toggle">
+	<div class="direction-toggle" class:locked={hasPayments}>
 		<button
 			type="button"
 			class:active={direction === 'lent'}
-			onclick={() => direction = 'lent'}
+			onclick={() => { if (!hasPayments) direction = 'lent'; }}
 			aria-pressed={direction === 'lent'}
+			disabled={hasPayments}
 		>
 			Lent
 		</button>
 		<button
 			type="button"
 			class:active={direction === 'borrowed'}
-			onclick={() => direction = 'borrowed'}
+			onclick={() => { if (!hasPayments) direction = 'borrowed'; }}
 			aria-pressed={direction === 'borrowed'}
+			disabled={hasPayments}
 		>
 			Borrowed
 		</button>
 	</div>
+	{#if hasPayments}
+		<p class="lock-hint">Amount, direction, and loan date are locked because payments exist. Create a new record for a different amount.</p>
+	{/if}
 
 	<div class="form-group">
 		<label class="form-label" for="borrower_name">{borrowerLabel}</label>
@@ -128,7 +134,7 @@
 	<div class="form-row">
 		<div class="form-group">
 			<label class="form-label" for="amount">Amount</label>
-			<div class="amount-wrap">
+			<div class="amount-wrap" class:locked={hasPayments}>
 				<span class="amount-prefix">₱</span>
 				<input
 					id="amount"
@@ -141,6 +147,7 @@
 					onfocus={onAmountFocus}
 					onblur={onAmountBlur}
 					autocomplete="off"
+					disabled={hasPayments}
 				/>
 			</div>
 			<input type="hidden" name="amount" value={rawAmount} />
@@ -168,6 +175,7 @@
 				type="date"
 				required
 				bind:value={dateLent}
+				disabled={hasPayments}
 			/>
 		</div>
 
@@ -346,6 +354,26 @@
 		background: var(--color-teal);
 		color: white;
 		box-shadow: var(--shadow-sm);
+	}
+
+	.direction-toggle.locked button:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.lock-hint {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		margin: -4px 0 var(--space-md);
+		padding: var(--space-xs) var(--space-sm);
+		background: var(--color-bg);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-sm);
+	}
+
+	.amount-wrap.locked input:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 
 	.checkbox-group {

@@ -1,4 +1,4 @@
-import type { Transaction, Category, Lending, RecurringTransaction, DashboardSummary, MonthlyReportItem, CategoryReportItem, NetWorthSnapshot } from '$lib/types';
+import type { Transaction, Category, Lending, LendingWithPayments, RecurringTransaction, DashboardSummary, MonthlyReportItem, CategoryReportItem, NetWorthSnapshot } from '$lib/types';
 
 declare global {
 	namespace App {
@@ -33,8 +33,8 @@ declare global {
 			transaction?: Transaction;
 			lendingSummary?: { totalLent: number; totalRecovered: number; outstanding: number };
 			borrowedSummary?: { totalBorrowed: number; totalRepaid: number; outstanding: number };
-			activeLendings?: Lending[];
-			paidLendings?: Lending[];
+			activeLendings?: LendingWithPayments[];
+			paidLendings?: LendingWithPayments[];
 			totals?: { totalLent: number; totalRecovered: number; outstanding: number };
 			transactionCount?: number;
 			categoryLabels?: string[];

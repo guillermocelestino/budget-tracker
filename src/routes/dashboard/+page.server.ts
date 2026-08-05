@@ -37,10 +37,11 @@ export async function load({ locals }: { locals: App.Locals }) {
 
 	const lendingSummary = await queryOne<{ totalLent: string; totalRecovered: string }>(
 			`SELECT
-				COALESCE(SUM(amount), 0) as "totalLent",
-				COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as "totalRecovered"
-			 FROM lendings
-			 WHERE user_id = $1 AND direction = 'lent'`,
+				COALESCE(SUM(l.amount), 0) as "totalLent",
+				COALESCE(SUM(CASE WHEN p.payment_type = 'payment' THEN p.amount ELSE 0 END), 0) as "totalRecovered"
+			 FROM lendings l
+			 LEFT JOIN lending_payments p ON p.lending_id = l.id
+			 WHERE l.user_id = $1 AND l.direction = 'lent'`,
 			[userId]
 		);
 
@@ -50,10 +51,11 @@ export async function load({ locals }: { locals: App.Locals }) {
 	// Borrowed stats for mobile rail
 	const borrowedSummary = await queryOne<{ totalBorrowed: string; totalRepaid: string }>(
 		`SELECT
-			COALESCE(SUM(amount), 0) as "totalBorrowed",
-			COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as "totalRepaid"
-		 FROM lendings
-		 WHERE user_id = $1 AND direction = 'borrowed'`,
+			COALESCE(SUM(l.amount), 0) as "totalBorrowed",
+			COALESCE(SUM(CASE WHEN p.payment_type = 'payment' THEN p.amount ELSE 0 END), 0) as "totalRepaid"
+		 FROM lendings l
+		 LEFT JOIN lending_payments p ON p.lending_id = l.id
+		 WHERE l.user_id = $1 AND l.direction = 'borrowed'`,
 		[userId]
 	);
 	const totalBorrowed = parseFloat(borrowedSummary?.totalBorrowed ?? '0');

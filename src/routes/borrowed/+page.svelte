@@ -10,6 +10,10 @@
 	import LendingBalanceHeader from '$lib/components/LendingBalanceHeader.svelte';
 	import LendingSummaryCards from '$lib/components/LendingSummaryCards.svelte';
 	import ActiveIouList from '$lib/components/ActiveIouList.svelte';
+	import RecordPaymentModal from '$lib/components/RecordPaymentModal.svelte';
+	import PaymentHistoryPanel from '$lib/components/PaymentHistoryPanel.svelte';
+	import EditPaymentModal from '$lib/components/EditPaymentModal.svelte';
+	import DeletePaymentConfirmModal from '$lib/components/DeletePaymentConfirmModal.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import OverflowMenu from '$lib/components/OverflowMenu.svelte';
 	import ViewToggle from '$lib/components/ViewToggle.svelte';
@@ -23,7 +27,7 @@
 	import { generateBorrowedPdf } from '$lib/utils/pdf';
 	import { LENDING_IMPORT_FIELDS, buildMappedLendingRows, validateAllLendingRows, type MappedLendingRow } from '$lib/utils/lendingImport';
 	import type { ImportPreviewColumn, ImportMappingConfig, ImportValidationResult } from '$lib/utils/importValidation';
-	import type { Lending } from '$lib/types';
+	import type { Lending, LendingPayment, LendingWithPayments } from '$lib/types';
 
 	let data = $derived($page.data as App.PageData);
 
@@ -31,9 +35,15 @@
 	let editingLending = $state<Lending | null>(null);
 	let activeTab = $state<'all' | 'active' | 'paid'>('active');
 	let viewMode = $state<'card' | 'table'>('card');
-	let markPaidId = $state<number | null>(null);
-	let recordAsTransaction = $state(true);
+	let recordPaymentLending = $state<LendingWithPayments | null>(null);
 	let deleteId = $state<number | null>(null);
+	let historyLending = $state<LendingWithPayments | null>(null);
+	let historyPayments = $state<LendingPayment[]>([]);
+	let historyOpen = $state(false);
+	let editPaymentLending = $state<LendingWithPayments | null>(null);
+	let editPayment = $state<LendingPayment | null>(null);
+	let deletePayment = $state<LendingPayment | null>(null);
+	let editingLendingHasPayments = $state(false);
 	let searchInput = $state('');
 	let filtersOpen = $state(false);
 	let importWizardOpen = $state(false);
@@ -65,7 +75,7 @@
 	const activeFilterCount = $derived(activeTab !== 'active' ? 1 : 0);
 
 	// Stage 1 — tab selection (status filter, untouched by search).
-	const tabLendings: Lending[] = $derived(
+	const tabLendings: LendingWithPayments[] = $derived(
 		activeTab === 'all'
 			? [...activeLendings, ...paidLendings]
 			: activeTab === 'active'
@@ -76,7 +86,7 @@
 	// Stage 2 — client-side search narrowing against borrower (lender) + notes.
 	// The hero/summary read from `totals` (sourced from `data.totals`), NOT
 	// showLendings, so search can never change the headline balance.
-	const showLendings: Lending[] = $derived.by(() => {
+	const showLendings: LendingWithPayments[] = $derived.by(() => {
 		const term = searchTerm.trim().toLowerCase();
 		if (!term) return tabLendings;
 		return tabLendings.filter(
@@ -254,6 +264,7 @@
 			lendingRecord={editingLending ?? undefined}
 			onCancel={closePanel}
 			onSuccess={closePanel}
+			hasPayments={editingLendingHasPayments}
 			direction="borrowed"
 		/>
 </SlideOver>
@@ -320,53 +331,86 @@
 
 <ActiveIouList
 	ious={showLendings}
-	onPay={(id) => markPaidId = id}
-	onEdit={(id) => { const l = showLendings.find(l => l.id === id); if (l) openEdit(l); }}
+	onPay={(id) => { const l = showLendings.find(l => l.id === id); if (l) recordPaymentLending = l; }}
+	onViewHistory={async (id) => {
+		const l = showLendings.find(l => l.id === id);
+		if (!l) return;
+		const res = await fetch(`/api/lendings/${id}/payments`);
+		if (res.ok) {
+			historyPayments = await res.json();
+			historyLending = l;
+			historyOpen = true;
+		}
+	}}
+	onEdit={(id) => {
+		const l = showLendings.find(l => l.id === id);
+		if (l) {
+			editingLendingHasPayments = l.resolved_total > 0;
+			openEdit(l);
+		}
+	}}
 	onDelete={(id) => deleteId = id}
 	onDuplicate={handleDuplicate}
 	direction="borrowed"
 	viewMode={viewMode}
 />
 
-<!-- ═══ Mark as Paid Modal ═══ -->
-{#if markPaidId !== null}
-	<ModalDialog open={markPaidId !== null} onclose={() => { markPaidId = null; recordAsTransaction = true; }} title="Record Repayment">
-		<div class="modal-icon-wrap">
-			<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<polyline points="20 6 9 17 4 12"/>
-			</svg>
-		</div>
-		<p class="modal-desc">Would you like to record this repayment as an expense?</p>
-		<form method="POST" action="?/markPaid" use:enhance={() => {
-			return async ({ result, update }: { result: { type: string; data?: { error?: string } }; update: () => Promise<void> }) => {
-				await update();
-				if (result.type === 'success') {
-					markPaidId = null;
-					showSuccess('Marked as repaid successfully');
-				} else {
-					showError((result.data as { error?: string } | undefined)?.error || 'Failed to update');
+<!-- ═══ Record Payment Modal ═══ -->
+{#if recordPaymentLending}
+	<RecordPaymentModal
+		lending={recordPaymentLending}
+		direction="borrowed"
+		onclose={() => recordPaymentLending = null}
+	/>
+{/if}
+
+<!-- ═══ Payment History SlideOver ═══ -->
+{#if historyOpen && historyLending}
+	<SlideOver
+		isOpen={historyOpen}
+		title="Payment History"
+		onClose={() => { historyOpen = false; historyLending = null; historyPayments = []; }}
+	>
+		<PaymentHistoryPanel
+			lending={historyLending}
+			payments={historyPayments}
+			direction="borrowed"
+			onRecordPayment={() => { historyOpen = false; recordPaymentLending = historyLending; }}
+			onEditPayment={(paymentId) => {
+				const p = historyPayments.find(p => p.id === paymentId);
+				if (p && historyLending) {
+					historyOpen = false;
+					editPaymentLending = historyLending;
+					editPayment = p;
 				}
-			};
-		}}>
-			<input type="hidden" name="id" value={markPaidId} />
-			<div class="radio-group">
-				<label class="radio-option">
-					<input type="radio" name="record_as_transaction" value="true" bind:group={recordAsTransaction} />
-					<span class="radio-label">Yes, record as expense transaction</span>
-					<span class="radio-desc">Creates an expense entry in Transactions (repaying debt = money out)</span>
-				</label>
-				<label class="radio-option">
-					<input type="radio" name="record_as_transaction" value="false" bind:group={recordAsTransaction} />
-					<span class="radio-label">No, just mark as repaid</span>
-					<span class="radio-desc">No transaction created</span>
-				</label>
-			</div>
-			<div class="modal-actions">
-				<Button variant="teal" type="submit">Confirm</Button>
-				<Button variant="ghost" type="button" onclick={() => { markPaidId = null; recordAsTransaction = true; }}>Cancel</Button>
-			</div>
-		</form>
-	</ModalDialog>
+			}}
+			onDeletePayment={(paymentId) => {
+				const p = historyPayments.find(p => p.id === paymentId);
+				if (p) {
+					historyOpen = false;
+					deletePayment = p;
+				}
+			}}
+		/>
+	</SlideOver>
+{/if}
+
+<!-- ═══ Edit Payment Modal ═══ -->
+{#if editPaymentLending && editPayment}
+	<EditPaymentModal
+		lending={editPaymentLending}
+		payment={editPayment}
+		direction="borrowed"
+		onclose={() => { editPaymentLending = null; editPayment = null; }}
+	/>
+{/if}
+
+<!-- ═══ Delete Payment Confirmation ═══ -->
+{#if deletePayment}
+	<DeletePaymentConfirmModal
+		payment={deletePayment}
+		onclose={() => deletePayment = null}
+	/>
 {/if}
 
 <!-- ═══ Delete Confirmation ═══ -->
@@ -461,48 +505,6 @@
 	.modal-icon-wrap.danger {
 		background: var(--color-expense-light);
 		color: var(--color-expense);
-	}
-
-	.modal-desc {
-		text-align: center;
-		margin-bottom: var(--space-md);
-	}
-
-	.radio-group {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-sm);
-		margin: var(--space-md) 0;
-	}
-
-	.radio-option {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		padding: var(--space-sm) var(--space-md);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		cursor: pointer;
-		transition: all var(--transition-fast);
-	}
-
-	.radio-option:has(input:checked) {
-		border-color: var(--color-teal);
-		background: var(--color-teal-bg);
-	}
-
-	.radio-option input {
-		accent-color: var(--color-teal);
-	}
-
-	.radio-label {
-		font-weight: 600;
-		font-size: var(--font-size-sm);
-	}
-
-	.radio-desc {
-		font-size: var(--font-size-xs);
-		color: var(--color-text-secondary);
 	}
 
 	.modal-actions {

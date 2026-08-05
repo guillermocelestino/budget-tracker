@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { queryMany, execute } from '$lib/database/query';
+import { queryMany, queryOne, execute } from '$lib/database/query';
 import { normName, type ImportMappingConfig, autoMap } from '$lib/utils/importValidation';
 import {
 	detectLendingDuplicates,
@@ -100,8 +100,9 @@ export async function importLendingsForUser(
 
 	// Insert valid, non-duplicate rows — parameterized via query.ts (portable).
 	// The lendings schema stores only `status` ('active' | 'paid'); the recovered
-	// amount is used to DERIVE status (recovered >= amount → 'paid') and is not
-	// persisted.
+	// amount creates a payment row in lending_payments (the authoritative ledger).
+	// Imports never directly populate derived balance fields — derived state is
+	// computed from payment history. No transaction is created for imported payments.
 	let inserted = 0;
 	for (const row of rowsToInsert) {
 		await execute(
@@ -109,6 +110,22 @@ export async function importLendingsForUser(
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 			[userId, row.person_name, row.amount, row.interest_rate, row.date_lent, row.due_date || null, row.notes, direction, row.status]
 		);
+
+		// If recovered_amount > 0, create a historical payment row
+		if (row.recovered_amount > 0) {
+			const newLending = await queryOne<{ id: number }>(
+				'SELECT id FROM lendings WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
+				[userId]
+			);
+			if (newLending) {
+				await execute(
+					`INSERT INTO lending_payments (lending_id, user_id, amount, payment_date, notes, payment_type)
+					 VALUES ($1, $2, $3, $4, $5, 'payment')`,
+					[newLending.id, userId, row.recovered_amount, row.date_lent, 'Imported']
+				);
+			}
+		}
+
 		inserted++;
 	}
 

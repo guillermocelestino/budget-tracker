@@ -1,41 +1,37 @@
 import { fail } from '@sveltejs/kit';
-import { queryMany, queryOne, execute } from '$lib/database/query';
+import { queryOne, execute } from '$lib/database/query';
 import type { Lending } from '$lib/types';
 import { importLendingsForUser } from '$lib/server/lendingImport';
 import { recordLendingTransaction } from '$lib/server/recordLendingTransaction';
+import {
+	getLendingsWithPayments,
+	getLendingTotals,
+	recordPayment,
+	updatePayment,
+	deletePayment,
+	getPaymentHistory,
+	hasPayments,
+	deleteLinkedTransactions,
+} from '$lib/server/lendingPayments';
+import { getToday } from '$lib/utils/format';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;
 
-	const activeLendings = await queryMany<Lending>(
-		'SELECT * FROM lendings WHERE user_id = $1 AND status = $2 AND direction = $3 ORDER BY created_at DESC',
-		[userId, 'active', 'borrowed']
-	);
+	const allLendings = await getLendingsWithPayments(userId, 'borrowed');
+	const activeLendings = allLendings.filter(l => l.derived_status === 'active');
+	const paidLendings = allLendings.filter(l => l.derived_status === 'paid');
 
-	const paidLendings = await queryMany<Lending>(
-		'SELECT * FROM lendings WHERE user_id = $1 AND status = $2 AND direction = $3 ORDER BY updated_at DESC',
-		[userId, 'paid', 'borrowed']
-	);
-
-	const totals = await queryOne<{ total_lent: string; total_recovered: string }>(
-		`SELECT
-			COALESCE(SUM(amount), 0) as total_lent,
-			COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as total_recovered
-		 FROM lendings
-		 WHERE user_id = $1 AND direction = 'borrowed'`,
-		[userId]
-	);
-
-	const totalBorrowed = parseFloat(String(totals?.total_lent ?? '0'));
-	const totalRepaid = parseFloat(String(totals?.total_recovered ?? '0'));
+	const totals = await getLendingTotals(userId, 'borrowed');
 
 	return {
 		activeLendings,
 		paidLendings,
 		totals: {
-			totalLent: totalBorrowed,
-			totalRecovered: totalRepaid,
-			outstanding: totalBorrowed - totalRepaid,
+			totalLent: totals.total,
+			totalRecovered: totals.cashPaid,
+			writtenOff: totals.writtenOff,
+			outstanding: totals.outstanding,
 		},
 	};
 }
@@ -89,52 +85,148 @@ export const actions = {
 		const interest_rate = parseFloat(data.get('interest_rate') as string) || 0;
 		const date_lent = data.get('date_lent') as string;
 		const due_date = data.get('due_date') as string;
-		const status = data.get('status') as string;
 		const notes = (data.get('notes') as string)?.trim() || null;
 
 		if (isNaN(id)) return fail(400, { error: 'Invalid ID' });
 		if (!borrower_name) return fail(400, { error: 'Lender name is required' });
-		if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0) {
-			return fail(400, { error: 'Amount must be a positive number' });
-		}
 		if (!date_lent) return fail(400, { error: 'Date borrowed is required' });
 
-		await execute(
-			`UPDATE lendings SET borrower_name = $1, amount = $2, interest_rate = $3, date_lent = $4, due_date = $5, status = $6, notes = $7, updated_at = NOW()
-			 WHERE user_id = $8 AND id = $9`,
-			[borrower_name, parseFloat(amountStr), interest_rate, date_lent, due_date || null, status, notes, userId, id]
-		);
+		// Check if payments exist — if so, lock amount, direction, date_lent
+		const paymentExists = await hasPayments(userId, id);
+
+		if (paymentExists) {
+			// Lock amount, direction, date_lent — only update metadata
+			await execute(
+				`UPDATE lendings SET borrower_name = $1, interest_rate = $2, due_date = $3, notes = $4, updated_at = NOW()
+				 WHERE user_id = $5 AND id = $6`,
+				[borrower_name, interest_rate, due_date || null, notes, userId, id]
+			);
+		} else {
+			// No payments — amount is editable
+			if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0) {
+				return fail(400, { error: 'Amount must be a positive number' });
+			}
+			await execute(
+				`UPDATE lendings SET borrower_name = $1, amount = $2, interest_rate = $3, date_lent = $4, due_date = $5, notes = $6, updated_at = NOW()
+				 WHERE user_id = $7 AND id = $8`,
+				[borrower_name, parseFloat(amountStr), interest_rate, date_lent, due_date || null, notes, userId, id]
+			);
+		}
 
 		return { success: true };
 	},
 
-	markPaid: async ({ request, locals }) => {
+	recordPayment: async ({ request, locals }) => {
 		const userId = locals.user!.userId;
 		const data = await request.formData();
-		const id = parseInt(data.get('id') as string);
-		const recordAsTransaction = data.get('record_as_transaction') === 'true';
 
-		if (isNaN(id)) return fail(400, { error: 'Invalid ID' });
+		const lendingId = parseInt(data.get('lending_id') as string);
+		const amountStr = (data.get('amount') as string)?.replace(/,/g, '');
+		const paymentDate = data.get('payment_date') as string;
+		const notes = (data.get('notes') as string)?.trim() || null;
+		const paymentType = (data.get('payment_type') as string) || 'payment';
+		const createTransaction = data.get('create_transaction') === 'on';
 
-		const lending = await queryOne<Lending>('SELECT * FROM lendings WHERE user_id = $1 AND id = $2', [userId, id]);
-		if (!lending) return fail(404, { error: 'Borrowing not found' });
-
-		await execute(
-			'UPDATE lendings SET status = $1, updated_at = NOW() WHERE user_id = $2 AND id = $3',
-			['paid', userId, id]
-		);
-
-		if (recordAsTransaction) {
-			await recordLendingTransaction(userId, {
-				event: 'repayment',
-				direction: lending.direction,
-				amount: lending.amount,
-				partyName: lending.borrower_name,
-				date: new Date().toISOString().split('T')[0]
-			});
+		if (isNaN(lendingId)) return fail(400, { error: 'Invalid lending ID' });
+		if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0) {
+			return fail(400, { error: 'Payment amount must be a positive number' });
+		}
+		if (!paymentDate) return fail(400, { error: 'Payment date is required' });
+		if (!['payment', 'write_off'].includes(paymentType)) {
+			return fail(400, { error: 'Invalid payment type' });
 		}
 
-		return { success: true };
+		const amount = parseFloat(amountStr);
+		const today = getToday();
+
+		// Validate payment date >= date_lent and <= today
+		const lending = await queryOne<Lending>(
+			'SELECT * FROM lendings WHERE user_id = $1 AND id = $2',
+			[userId, lendingId]
+		);
+		if (!lending) return fail(404, { error: 'Borrowing record not found' });
+
+		if (paymentDate < lending.date_lent) {
+			return fail(400, { error: 'Payment date cannot be before the loan date' });
+		}
+		if (paymentDate > today) {
+			return fail(400, { error: 'Payment date cannot be in the future' });
+		}
+
+		try {
+			await recordPayment(userId, {
+				lendingId,
+				amount,
+				paymentDate,
+				notes,
+				paymentType: paymentType as 'payment' | 'write_off',
+				createTransaction: createTransaction && paymentType === 'payment',
+			});
+			return { success: true };
+		} catch (e) {
+			return fail(400, { error: (e as Error).message });
+		}
+	},
+
+	updatePayment: async ({ request, locals }) => {
+		const userId = locals.user!.userId;
+		const data = await request.formData();
+
+		const paymentId = parseInt(data.get('payment_id') as string);
+		const amountStr = (data.get('amount') as string)?.replace(/,/g, '');
+		const paymentDate = data.get('payment_date') as string;
+		const notes = (data.get('notes') as string)?.trim() || null;
+
+		if (isNaN(paymentId)) return fail(400, { error: 'Invalid payment ID' });
+		if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0) {
+			return fail(400, { error: 'Payment amount must be a positive number' });
+		}
+		if (!paymentDate) return fail(400, { error: 'Payment date is required' });
+
+		const amount = parseFloat(amountStr);
+		const today = getToday();
+
+		try {
+			// Validate payment date
+			const payment = await queryOne<{ lending_id: number }>(
+				'SELECT lending_id FROM lending_payments WHERE user_id = $1 AND id = $2',
+				[userId, paymentId]
+			);
+			if (!payment) return fail(404, { error: 'Payment not found' });
+
+			const lending = await queryOne<Lending>(
+				'SELECT * FROM lendings WHERE user_id = $1 AND id = $2',
+				[userId, payment.lending_id]
+			);
+			if (!lending) return fail(404, { error: 'Borrowing record not found' });
+
+			if (paymentDate < lending.date_lent) {
+				return fail(400, { error: 'Payment date cannot be before the loan date' });
+			}
+			if (paymentDate > today) {
+				return fail(400, { error: 'Payment date cannot be in the future' });
+			}
+
+			await updatePayment(userId, paymentId, { amount, paymentDate, notes });
+			return { success: true };
+		} catch (e) {
+			return fail(400, { error: (e as Error).message });
+		}
+	},
+
+	deletePayment: async ({ request, locals }) => {
+		const userId = locals.user!.userId;
+		const data = await request.formData();
+		const paymentId = parseInt(data.get('payment_id') as string);
+
+		if (isNaN(paymentId)) return fail(400, { error: 'Invalid payment ID' });
+
+		try {
+			await deletePayment(userId, paymentId);
+			return { success: true };
+		} catch (e) {
+			return fail(400, { error: (e as Error).message });
+		}
 	},
 
 	delete: async ({ request, locals }) => {
@@ -143,6 +235,8 @@ export const actions = {
 		const id = parseInt(data.get('id') as string);
 		if (isNaN(id)) return fail(400, { error: 'Invalid ID' });
 
+		// Delete all linked transactions first, then the lending (cascades to payments)
+		await deleteLinkedTransactions(userId, id);
 		await execute('DELETE FROM lendings WHERE user_id = $1 AND id = $2', [userId, id]);
 		return { success: true };
 	},

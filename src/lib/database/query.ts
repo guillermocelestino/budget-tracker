@@ -120,3 +120,93 @@ export async function execute(text: string, params: unknown[] = []): Promise<voi
 		}
 	}
 }
+
+/**
+ * Execute multiple operations inside a single database transaction.
+ * If any operation fails, the entire transaction is rolled back.
+ *
+ * PostgreSQL: uses BEGIN/COMMIT/ROLLBACK on a dedicated client.
+ * SQLite: uses better-sqlite3's db.transaction() (synchronous, atomic).
+ *
+ * The callback receives helper functions that operate within the transaction:
+ * - txQueryOne: queryOne scoped to the transaction
+ * - txQueryMany: queryMany scoped to the transaction
+ * - txExecute: execute scoped to the transaction
+ */
+export async function withTransaction<T>(
+	callback: (helpers: {
+		queryOne: <U>(text: string, params?: unknown[]) => Promise<U | undefined>;
+		queryMany: <U>(text: string, params?: unknown[]) => Promise<U[]>;
+		execute: (text: string, params?: unknown[]) => Promise<void>;
+	}) => Promise<T>
+): Promise<T> {
+	if (usePostgres) {
+		const client = await getPgPool().connect();
+		try {
+			await client.query('BEGIN');
+			const helpers = {
+				queryOne: async <U>(text: string, params: unknown[] = []): Promise<U | undefined> => {
+					const { rows } = await client.query(text, params);
+					return rows[0] as U | undefined;
+				},
+				queryMany: async <U>(text: string, params: unknown[] = []): Promise<U[]> => {
+					const { rows } = await client.query(text, params);
+					return rows as U[];
+				},
+				execute: async (text: string, params: unknown[] = []): Promise<void> => {
+					await client.query(text, params);
+				},
+			};
+			const result = await callback(helpers);
+			await client.query('COMMIT');
+			return result;
+		} catch (err) {
+			await client.query('ROLLBACK');
+			throw err;
+		} finally {
+			client.release();
+		}
+	} else {
+		const db = await getSQLiteDb();
+		// For SQLite, better-sqlite3 is synchronous, so we use db.transaction()
+		// However, our helpers are async, so we need to handle this carefully.
+		// Since better-sqlite3 is synchronous, we can just run the operations
+		// sequentially — SQLite's default locking provides serializability.
+		// We use BEGIN/COMMIT/ROLLBACK explicitly for compatibility.
+		db.exec('BEGIN');
+		try {
+			const helpers = {
+				queryOne: async <U>(text: string, params: unknown[] = []): Promise<U | undefined> => {
+					const { sql, paramIndices } = translatePgToSQLite(text);
+					const stmt = db.prepare(sql);
+					const mappedParams = mapParamsForSqlite(params, paramIndices);
+					const result = mappedParams.length > 0 ? stmt.get(...mappedParams) : stmt.get();
+					return result as U | undefined;
+				},
+				queryMany: async <U>(text: string, params: unknown[] = []): Promise<U[]> => {
+					const { sql, paramIndices } = translatePgToSQLite(text);
+					const stmt = db.prepare(sql);
+					const mappedParams = mapParamsForSqlite(params, paramIndices);
+					const result = mappedParams.length > 0 ? stmt.all(...mappedParams) : stmt.all();
+					return result as U[];
+				},
+				execute: async (text: string, params: unknown[] = []): Promise<void> => {
+					const { sql, paramIndices } = translatePgToSQLite(text);
+					const stmt = db.prepare(sql);
+					const mappedParams = mapParamsForSqlite(params, paramIndices);
+					if (mappedParams.length > 0) {
+						stmt.run(...mappedParams);
+					} else {
+						stmt.run();
+					}
+				},
+			};
+			const result = await callback(helpers);
+			db.exec('COMMIT');
+			return result;
+		} catch (err) {
+			db.exec('ROLLBACK');
+			throw err;
+		}
+	}
+}

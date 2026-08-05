@@ -87,6 +87,30 @@ export interface Lending {
 	direction: 'lent' | 'borrowed';
 }
 
+export type PaymentType = 'payment' | 'write_off';
+
+export interface LendingPayment {
+	id: number;
+	lending_id: number;
+	user_id: number;
+	amount: number;
+	payment_date: string;
+	notes: string | null;
+	transaction_id: number | null;
+	payment_type: PaymentType;
+	reference: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface LendingWithPayments extends Lending {
+	cash_paid: number;
+	written_off: number;
+	resolved_total: number;
+	remaining: number;
+	derived_status: 'active' | 'paid';
+}
+
 export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export interface RecurringTransaction {

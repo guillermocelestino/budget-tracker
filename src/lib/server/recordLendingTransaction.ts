@@ -3,13 +3,18 @@ import { queryOne, execute } from '$lib/database/query';
 /**
  * Records a financial transaction linked to a lending/borrowing lifecycle event.
  *
- * This helper owns the business rule mapping:
- * - event='create' + direction='lent'      → expense ("Lent to {party}")
- * - event='create' + direction='borrowed'  → income ("Borrowed from {party}")
- * - event='repayment' + direction='lent'   → income ("Repayment from {party}")
+ * Business rule mapping:
+ * - event='create' + direction='lent'        → expense ("Lent to {party}")
+ * - event='create' + direction='borrowed'    → income ("Borrowed from {party}")
+ * - event='repayment' + direction='lent'     → income ("Repayment from {party}")
  * - event='repayment' + direction='borrowed' → expense ("Repaid to {party}")
  *
- * Categories are looked up or created as needed.
+ * Categories are looked up by name with a fallback chain:
+ * - Lending repayment → "Loan Repayment" (fallback: "Lending Recovery")
+ * - Borrowed repayment → "Debt Repayment"
+ * Never renames existing user categories. Never hardcodes category IDs.
+ *
+ * Returns the created transaction's ID (or null if no transaction was created).
  */
 export async function recordLendingTransaction(
 	userId: number,
@@ -20,7 +25,7 @@ export async function recordLendingTransaction(
 		partyName: string;
 		date: string;
 	}
-): Promise<void> {
+): Promise<number | null> {
 	const { event, direction, amount, partyName, date } = params;
 
 	// Business rule: determine transaction type, category, and description from event + direction
@@ -48,7 +53,8 @@ export async function recordLendingTransaction(
 		// event === 'repayment'
 		if (direction === 'lent') {
 			transactionType = 'income';
-			categoryName = 'Lending Recovery';
+			// Canonical name: "Loan Repayment" — fallback to legacy "Lending Recovery"
+			categoryName = 'Loan Repayment';
 			categoryColor = '#8b5cf6';
 			categoryIcon = '💳';
 			description = `Repayment from ${partyName}`;
@@ -61,25 +67,58 @@ export async function recordLendingTransaction(
 		}
 	}
 
-	// Find or create category
-	const existingCategory = await queryOne<{ id: number }>(
-		'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
-		[userId, categoryName]
-	);
-
+	// Find or create category — fallback lookup chain for lending repayments
 	let categoryId: number;
-	if (existingCategory) {
-		categoryId = existingCategory.id;
-	} else {
-		await execute(
-			'INSERT INTO categories (user_id, name, color, icon, type) VALUES ($1, $2, $3, $4, $5)',
-			[userId, categoryName, categoryColor, categoryIcon, transactionType]
+
+	if (event === 'repayment' && direction === 'lent') {
+		// Try canonical name "Loan Repayment" first
+		const canonicalCat = await queryOne<{ id: number }>(
+			'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
+			[userId, 'Loan Repayment']
 		);
-		const newCat = await queryOne<{ id: number }>(
+		if (canonicalCat) {
+			categoryId = canonicalCat.id;
+		} else {
+			// Fallback to legacy name "Lending Recovery"
+			const legacyCat = await queryOne<{ id: number }>(
+				'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
+				[userId, 'Lending Recovery']
+			);
+			if (legacyCat) {
+				categoryId = legacyCat.id;
+			} else {
+				// Create "Loan Repayment"
+				await execute(
+					'INSERT INTO categories (user_id, name, color, icon, type) VALUES ($1, $2, $3, $4, $5)',
+					[userId, 'Loan Repayment', categoryColor, categoryIcon, transactionType]
+				);
+				const newCat = await queryOne<{ id: number }>(
+					'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
+					[userId, 'Loan Repayment']
+				);
+				categoryId = newCat!.id;
+			}
+		}
+	} else {
+		// Standard lookup for all other cases
+		const existingCategory = await queryOne<{ id: number }>(
 			'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
 			[userId, categoryName]
 		);
-		categoryId = newCat!.id;
+
+		if (existingCategory) {
+			categoryId = existingCategory.id;
+		} else {
+			await execute(
+				'INSERT INTO categories (user_id, name, color, icon, type) VALUES ($1, $2, $3, $4, $5)',
+				[userId, categoryName, categoryColor, categoryIcon, transactionType]
+			);
+			const newCat = await queryOne<{ id: number }>(
+				'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
+				[userId, categoryName]
+			);
+			categoryId = newCat!.id;
+		}
 	}
 
 	// Insert transaction
@@ -87,4 +126,11 @@ export async function recordLendingTransaction(
 		'INSERT INTO transactions (user_id, amount, description, date, category_id, type) VALUES ($1, $2, $3, $4, $5, $6)',
 		[userId, amount, description, date, categoryId, transactionType]
 	);
+
+	// Return the created transaction ID
+	const newTx = await queryOne<{ id: number }>(
+		'SELECT id FROM transactions WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
+		[userId]
+	);
+	return newTx?.id ?? null;
 }

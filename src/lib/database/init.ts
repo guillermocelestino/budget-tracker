@@ -80,6 +80,24 @@ CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
 CREATE INDEX IF NOT EXISTS idx_lendings_user_id ON lendings(user_id);
 CREATE INDEX IF NOT EXISTS idx_lendings_status ON lendings(status);
+
+CREATE TABLE IF NOT EXISTS lending_payments (
+	id SERIAL PRIMARY KEY,
+	lending_id INTEGER NOT NULL REFERENCES lendings(id) ON DELETE CASCADE,
+	user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	amount NUMERIC(12,2) NOT NULL,
+	payment_date DATE NOT NULL,
+	notes TEXT,
+	transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL,
+	payment_type TEXT NOT NULL DEFAULT 'payment' CHECK (payment_type IN ('payment', 'write_off')),
+	reference TEXT,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_lending_payments_lending_id ON lending_payments(lending_id);
+CREATE INDEX IF NOT EXISTS idx_lending_payments_user_id ON lending_payments(user_id);
+CREATE INDEX IF NOT EXISTS idx_lending_payments_payment_date ON lending_payments(payment_date DESC);
 `;
 
 const SQLITE_SCHEMA_SQL = `
@@ -161,6 +179,24 @@ CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
 CREATE INDEX IF NOT EXISTS idx_lendings_user_id ON lendings(user_id);
 CREATE INDEX IF NOT EXISTS idx_lendings_status ON lendings(status);
+
+CREATE TABLE IF NOT EXISTS lending_payments (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	lending_id INTEGER NOT NULL REFERENCES lendings(id) ON DELETE CASCADE,
+	user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	amount REAL NOT NULL,
+	payment_date TEXT NOT NULL,
+	notes TEXT,
+	transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL,
+	payment_type TEXT NOT NULL DEFAULT 'payment' CHECK (payment_type IN ('payment', 'write_off')),
+	reference TEXT,
+	created_at TEXT NOT NULL DEFAULT (datetime('now')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_lending_payments_lending_id ON lending_payments(lending_id);
+CREATE INDEX IF NOT EXISTS idx_lending_payments_user_id ON lending_payments(user_id);
+CREATE INDEX IF NOT EXISTS idx_lending_payments_payment_date ON lending_payments(payment_date DESC);
 `;
 
 const DEFAULT_USERS = [
@@ -228,6 +264,56 @@ export async function initDb(): Promise<void> {
 					}
 				}
 			}
+
+			// ── Migration: Seed canonical repayment categories (never rename existing) ──
+			// "Loan Repayment" (income) — for lending repayments
+			await client.query(`
+				INSERT INTO categories (user_id, name, color, icon, type)
+				SELECT u.id, 'Loan Repayment', '#8b5cf6', '💳', 'income'
+				FROM users u
+				WHERE NOT EXISTS (
+					SELECT 1 FROM categories c
+					WHERE c.user_id = u.id AND c.name IN ('Loan Repayment', 'Lending Recovery')
+				)
+			`);
+			// "Debt Repayment" (expense) — for borrowed repayments
+			await client.query(`
+				INSERT INTO categories (user_id, name, color, icon, type)
+				SELECT u.id, 'Debt Repayment', '#ef4444', '💸', 'expense'
+				FROM users u
+				WHERE NOT EXISTS (
+					SELECT 1 FROM categories c WHERE c.user_id = u.id AND c.name = 'Debt Repayment'
+				)
+			`);
+
+			// ── Migration: Backfill synthetic payments for legacy status='paid' records ──
+			await client.query(`
+				INSERT INTO lending_payments (lending_id, user_id, amount, payment_date, notes, payment_type)
+				SELECT l.id, l.user_id, l.amount, COALESCE(l.due_date, l.date_lent), 'Migrated', 'payment'
+				FROM lendings l
+				WHERE l.status = 'paid'
+				  AND NOT EXISTS (SELECT 1 FROM lending_payments p WHERE p.lending_id = l.id)
+			`);
+
+			// ── Migration: Recalculate status cache for all records ──
+			await client.query(`
+				UPDATE lendings SET status = 'paid'
+				WHERE COALESCE(
+					(SELECT SUM(amount) FROM lending_payments p
+					 WHERE p.lending_id = lendings.id
+					   AND p.payment_type IN ('payment', 'write_off')
+					), 0
+				) >= lendings.amount
+			`);
+			await client.query(`
+				UPDATE lendings SET status = 'active'
+				WHERE COALESCE(
+					(SELECT SUM(amount) FROM lending_payments p
+					 WHERE p.lending_id = lendings.id
+					   AND p.payment_type IN ('payment', 'write_off')
+					), 0
+				) < lendings.amount
+			`);
 		} finally {
 			client.release();
 		}
@@ -266,10 +352,60 @@ export async function initDb(): Promise<void> {
 				}
 			}
 		}
+
+		// ── Migration: Seed canonical repayment categories (never rename existing) ──
+		// "Loan Repayment" (income) — for lending repayments
+		db.exec(`
+			INSERT INTO categories (user_id, name, color, icon, type)
+			SELECT u.id, 'Loan Repayment', '#8b5cf6', '💳', 'income'
+			FROM users u
+			WHERE NOT EXISTS (
+				SELECT 1 FROM categories c
+				WHERE c.user_id = u.id AND c.name IN ('Loan Repayment', 'Lending Recovery')
+			)
+		`);
+		// "Debt Repayment" (expense) — for borrowed repayments
+		db.exec(`
+			INSERT INTO categories (user_id, name, color, icon, type)
+			SELECT u.id, 'Debt Repayment', '#ef4444', '💸', 'expense'
+			FROM users u
+			WHERE NOT EXISTS (
+				SELECT 1 FROM categories c WHERE c.user_id = u.id AND c.name = 'Debt Repayment'
+			)
+		`);
+
+		// ── Migration: Backfill synthetic payments for legacy status='paid' records ──
+		db.exec(`
+			INSERT INTO lending_payments (lending_id, user_id, amount, payment_date, notes, payment_type)
+			SELECT l.id, l.user_id, l.amount, COALESCE(l.due_date, l.date_lent), 'Migrated', 'payment'
+			FROM lendings l
+			WHERE l.status = 'paid'
+			  AND NOT EXISTS (SELECT 1 FROM lending_payments p WHERE p.lending_id = l.id)
+		`);
+
+		// ── Migration: Recalculate status cache for all records ──
+		db.exec(`
+			UPDATE lendings SET status = 'paid'
+			WHERE COALESCE(
+				(SELECT SUM(amount) FROM lending_payments p
+				 WHERE p.lending_id = lendings.id
+				   AND p.payment_type IN ('payment', 'write_off')
+				), 0
+			) >= lendings.amount
+		`);
+		db.exec(`
+			UPDATE lendings SET status = 'active'
+			WHERE COALESCE(
+				(SELECT SUM(amount) FROM lending_payments p
+				 WHERE p.lending_id = lendings.id
+				   AND p.payment_type IN ('payment', 'write_off')
+				), 0
+			) < lendings.amount
+		`);
 	}
 
-	// Boot-time self-check: verify all four tables exist
-	const requiredTables = ['users', 'categories', 'transactions', 'lendings', 'recurring_transactions'];
+	// Boot-time self-check: verify all tables exist
+	const requiredTables = ['users', 'categories', 'transactions', 'lendings', 'lending_payments', 'recurring_transactions'];
 	if (usePostgres) {
 		const client = await getPgPool().connect();
 		try {

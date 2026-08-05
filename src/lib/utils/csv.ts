@@ -63,15 +63,21 @@ export function lendingsToCSV(
 		due_date: string | null;
 		status: string;
 		notes: string | null;
+		cash_paid?: number;
+		written_off?: number;
+		remaining?: number;
 	}>,
 	direction: 'lent' | 'borrowed' = 'lent'
 ): string {
 	const personLabel = direction === 'borrowed' ? 'Lender' : 'Borrower';
-	const header = `${personLabel},Amount,Interest Rate (%),Date,Due Date,Status,Notes`;
+	const header = `${personLabel},Original,Cash Paid,Written Off,Remaining,Interest Rate (%),Date,Due Date,Status,Notes`;
 	const rows = lendings.map((l) =>
 		[
 			csvEscape(l.borrower_name),
 			csvEscape(`₱${l.amount.toFixed(2)}`),
+			csvEscape(`₱${(l.cash_paid ?? 0).toFixed(2)}`),
+			csvEscape(`₱${(l.written_off ?? 0).toFixed(2)}`),
+			csvEscape(`₱${(l.remaining ?? l.amount).toFixed(2)}`),
 			csvEscape(l.interest_rate),
 			csvEscape(l.date_lent),
 			csvEscape(l.due_date),
