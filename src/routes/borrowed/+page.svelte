@@ -16,6 +16,7 @@
 	import ListToolbar from '$lib/components/ListToolbar.svelte';
 	import SearchFilterPill from '$lib/components/SearchFilterPill.svelte';
 	import LendingFilters from '$lib/components/LendingFilters.svelte';
+	import CountChip from '$lib/components/CountChip.svelte';
 	import ImportWizard from '$lib/components/ImportWizard.svelte';
 	import { showSuccess, showError } from '$lib/stores/toast.svelte';
 	import { downloadCsv, lendingsToCSV } from '$lib/utils/csv';
@@ -196,22 +197,25 @@
 	<title>Borrowed — Finance Tracker</title>
 </svelte:head>
 
-<PageHeader title="Borrowed" flush>
+<PageHeader title="Borrowed" flush borderless>
+	{#snippet badge()}
+		<CountChip count={activeLendings.length} suffix="active" />
+	{/snippet}
 	{#snippet subtitle()}
 		<span class="context-subline">{activeLendings.length} active · {paidLendings.length} repaid</span>
 	{/snippet}
 	{#snippet action()}
 		<div class="header-actions">
 			<span class="desktop-only">
+				<Button variant="primary" onclick={openAdd}>
+					<span class="btn-lead" aria-hidden="true">+</span>
+					New Borrowing
+				</Button>
 				<OverflowMenu
 					onImportCsv={() => (importWizardOpen = true)}
 					onExportCsv={handleExportCsv}
 					onExportPdf={handleExportPdf}
 				/>
-				<Button variant="primary" onclick={openAdd}>
-					<span class="btn-lead" aria-hidden="true">+</span>
-					New Borrowing
-				</Button>
 			</span>
 			<span class="mobile-only">
 				<OverflowMenu
@@ -357,8 +361,8 @@
 				</label>
 			</div>
 			<div class="modal-actions">
-				<button type="submit" class="btn btn-primary">Confirm</button>
-				<button type="button" class="btn btn-secondary" onclick={() => { markPaidId = null; recordAsTransaction = true; }}>Cancel</button>
+				<Button variant="teal" type="submit">Confirm</Button>
+				<Button variant="ghost" type="button" onclick={() => { markPaidId = null; recordAsTransaction = true; }}>Cancel</Button>
 			</div>
 		</form>
 	</ModalDialog>
@@ -387,8 +391,8 @@
 		}}>
 			<input type="hidden" name="id" value={deleteId} />
 			<div class="modal-actions">
-				<button type="submit" class="btn btn-danger">Delete</button>
-				<button type="button" class="btn btn-secondary" onclick={() => deleteId = null}>Cancel</button>
+				<Button variant="danger" type="submit">Delete</Button>
+				<Button variant="ghost" type="button" onclick={() => deleteId = null}>Cancel</Button>
 			</div>
 		</form>
 	</ModalDialog>
@@ -427,6 +431,7 @@
 		font-variant-numeric: tabular-nums;
 		font-size: var(--font-size-xs);
 		letter-spacing: 0.02em;
+		color: var(--muted);
 	}
 
 	/* ─── Mobile / Desktop visibility (matches /transactions + /lending) ─── */
@@ -505,47 +510,9 @@
 		margin-top: var(--space-lg);
 	}
 
-	.btn {
+	.modal-actions :global(.btn) {
 		flex: 1;
-		padding: var(--space-sm) var(--space-lg);
-		border-radius: var(--radius-md);
-		font-size: var(--font-size-base);
-		font-weight: 600;
-		cursor: pointer;
-		border: none;
-		min-height: 44px;
-		transition: all var(--transition-fast);
 	}
-
-	.btn-primary {
-		background: linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%);
-		color: var(--color-on-gold);
-		box-shadow: var(--glow-gold);
-	}
-
-	.btn-primary:hover {
-		background: var(--color-gold-dark);
-	}
-
-	.btn-secondary {
-		background: var(--color-bg);
-		color: var(--color-text);
-		border: 1px solid var(--color-border);
-	}
-
-	.btn-secondary:hover {
-		background: var(--color-border);
-	}
-
-	.btn-danger {
-		background: var(--color-expense);
-		color: white;
-	}
-
-	.btn-danger:hover {
-		background: var(--color-danger-hover);
-	}
-
 
 	@media (max-width: 768px) {
 		.desktop-only {

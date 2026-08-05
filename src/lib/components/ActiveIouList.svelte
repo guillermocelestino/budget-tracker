@@ -571,8 +571,8 @@
     align-items: center;
     gap: var(--space-sm);
     padding: var(--space-sm) 0 var(--space-sm) var(--space-md);
-    border-bottom: 3px dashed var(--color-teal);
-    background: var(--color-cream);
+    border-bottom: 1px solid var(--line);
+    background: var(--mint-tint);
     position: sticky;
     top: 0;
     z-index: 3;
@@ -595,7 +595,7 @@
     font-family: var(--font-display);
     font-size: var(--font-size-sm);
     font-weight: 700;
-    color: var(--color-ink);
+    color: var(--teal-deep);
     text-transform: none;
     letter-spacing: 0.02em;
   }
@@ -964,7 +964,7 @@
     align-items: center;
     column-gap: var(--space-sm);
     padding: var(--space-xs) var(--space-lg);
-    background: var(--color-surface-inset);
+    background: var(--mint-tint);
     border-bottom: 1px solid var(--color-hairline);
     position: sticky;
     top: 0;
@@ -1003,7 +1003,7 @@
     align-items: center;
     column-gap: var(--space-sm);
     padding: var(--space-sm) var(--space-lg);
-    border-bottom: 1px dashed var(--color-hairline);
+    border-bottom: 1px solid var(--color-hairline);
     background: var(--color-surface);
     min-height: 56px;
     transition: background 180ms var(--ease);
@@ -1355,7 +1355,7 @@
       gap: var(--space-sm);
       padding-top: 6px;
       margin-top: 2px;
-      border-top: 1px dashed var(--color-hairline);
+      border-top: 1px solid var(--color-hairline);
     }
 
     .iou-mobile-actions .iou-btn-pay {
@@ -1424,7 +1424,7 @@
       padding: var(--space-sm) var(--space-md);
       margin: 0 var(--space-sm) 6px;
       background: var(--color-surface);
-      border: 1px dashed var(--color-hairline);
+      border: 1px solid var(--color-hairline);
       border-radius: var(--radius-lg);
       min-height: 0;
     }
@@ -1486,7 +1486,7 @@
       justify-content: space-between;
       gap: var(--space-sm);
       padding-top: 4px;
-      border-top: 1px dashed var(--color-hairline);
+      border-top: 1px solid var(--color-hairline);
     }
 
     .row-due {
@@ -1534,7 +1534,7 @@
       box-shadow: none;
       padding: 6px 0 0;
       margin-top: 2px;
-      border-top: 1px dashed var(--color-hairline);
+      border-top: 1px solid var(--color-hairline);
     }
 
     .row-pay {

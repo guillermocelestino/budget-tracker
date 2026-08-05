@@ -13,6 +13,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import SearchFilterPill from '$lib/components/SearchFilterPill.svelte';
 	import ViewToggle from '$lib/components/ViewToggle.svelte';
+	import CountChip from '$lib/components/CountChip.svelte';
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
 	import ImportWizard from '$lib/components/ImportWizard.svelte';
 	import { showSuccess, showError } from '$lib/stores/toast.svelte';
@@ -470,22 +471,25 @@
 
 <PageBackground />
 
-<PageHeader title="Transactions" flush>
+<PageHeader title="Transactions" flush borderless>
+	{#snippet badge()}
+		<CountChip count={totalCount} />
+	{/snippet}
 	{#snippet subtitle()}
 		<span class="context-subline">{contextSubline}</span>
 	{/snippet}
 	{#snippet action()}
 		<span class="header-actions desktop-only">
+			<Button variant="primary" href="/transactions/new">
+				<span class="btn-lead" aria-hidden="true">+</span>
+				Add Transaction
+			</Button>
 			<OverflowMenu
 				onImportCsv={() => (importWizardOpen = true)}
 				onExportCsv={() => handleExport('csv')}
 				onExportPdf={() => handleExport('pdf')}
 				onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
 			/>
-			<Button variant="primary" href="/transactions/new">
-				<span class="btn-lead" aria-hidden="true">+</span>
-				Add Transaction
-			</Button>
 		</span>
 		<!-- Mobile: the SpeedDial FAB in the bottom nav is the Add CTA; the
 		     header keeps only the Import/Export overflow, always in thumb-reach. -->
@@ -518,9 +522,9 @@
 			ariaLabel="Search transactions"
 			filterAriaLabel="Filter transactions"
 		>
-			{#snippet panel(_mode, close)}
+			{#snippet panel(mode, close)}
 				<TransactionFilters
-					mode="sheet"
+					{mode}
 					categories={data.categories ?? []}
 					activeFilters={{
 						date: filters.date,
@@ -735,6 +739,7 @@
 		font-variant-numeric: tabular-nums;
 		font-size: var(--font-size-xs);
 		letter-spacing: 0.02em;
+		color: var(--muted);
 	}
 
 	/* ─── Toolbar ─── */
@@ -850,14 +855,13 @@
 		}
 
 		/* Stack the actions as an even 2×2 grid beneath the status row, with a
-		   dashed hairline seam separating "N selected" from the actions (matches
-		   the app's sheet-footer / date-header divider language). */
+		   solid hairline seam separating "N selected" from the actions. */
 		.bulk-actions {
 			display: grid;
 			grid-template-columns: repeat(2, 1fr);
 			gap: var(--space-xs);
 			width: 100%;
-			border-top: 1px dashed var(--color-hairline);
+			border-top: 1px solid var(--color-hairline);
 			padding-top: var(--space-sm);
 		}
 
@@ -1084,7 +1088,7 @@
 		width: 14px;
 		height: 3px;
 		border-radius: var(--radius-pill);
-		background: var(--color-gold);
+		background: var(--teal-deep);
 	}
 
 	.pager-gap {

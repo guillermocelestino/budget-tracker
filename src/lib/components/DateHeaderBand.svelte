@@ -80,4 +80,13 @@
 	.day-subtotal.negative {
 		color: var(--rose);
 	}
+
+	/* Mobile (≤480px): inset rounded band to match the card-ized list */
+	@media (max-width: 480px) {
+		.date-header {
+			border-radius: var(--radius-md);
+			margin: 0 var(--space-sm);
+			padding: var(--space-xs) var(--space-md);
+		}
+	}
 </style>

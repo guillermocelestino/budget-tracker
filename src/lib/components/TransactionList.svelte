@@ -1,6 +1,7 @@
 <script lang="ts">
   import { formatCurrency, formatDate, formatDateShort, formatSignedCurrency, getToday } from '$lib/utils/format';
   import RowActionsMenu from '$lib/components/RowActionsMenu.svelte';
+  import DateHeaderBand from '$lib/components/DateHeaderBand.svelte';
   import { getCategoryHue, getCategoryText, getCategoryTint } from '$lib/utils/categoryColors';
   import { isDark } from '$lib/stores/preferences.svelte';
   import type { Transaction } from '$lib/types';
@@ -153,7 +154,7 @@
     }));
   });
 
-  type DateGroup = { date: string; label: string; items: (Transaction & { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean })[]; subtotal: number; subtotalColor: string };
+  type DateGroup = { date: string; label: string; items: (Transaction & { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean })[]; subtotal: number };
 
   const groups = $derived.by(() => {
     const map = new Map<string, (Transaction & { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean })[]>();
@@ -179,7 +180,7 @@
         });
       }
       const subtotal = items.reduce((sum, t) => sum + signedAmount(t), 0);
-      return { date, label, items, subtotal, subtotalColor: subtotal >= 0 ? 'var(--color-teal)' : 'var(--color-coral)' };
+      return { date, label, items, subtotal };
     });
   });
 
@@ -331,17 +332,7 @@
 {/snippet}
 
 {#snippet dateHeader(group: DateGroup)}
-  <div class="date-header" role="rowheader">
-    <span class="date-label">{group.label}</span>
-    <span class="date-dot" aria-hidden="true">·</span>
-    <span class="date-count">{group.items.length} {group.items.length === 1 ? 'Transaction' : 'Transactions'}</span>
-    <span
-      class="day-subtotal"
-      style="color: {group.subtotalColor}"
-    >
-      {group.subtotal >= 0 ? '+' : ''}{formatCurrency(group.subtotal)}
-    </span>
-  </div>
+  <DateHeaderBand label={group.label} count={group.items.length} subtotal={group.subtotal} />
 {/snippet}
 
 {#snippet bankRow(txn: Transaction & { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean })}
@@ -629,57 +620,14 @@
     overflow: hidden;
   }
 
-  /* ── Date Header (Flip7: sentence-case, teal tint, per-day subtotal) ── */
-  .date-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-sm) var(--space-md);
-    background: var(--color-teal-bg);
-    border-bottom: 1px dashed var(--color-hairline);
-    position: sticky;
-    top: 0;
-    z-index: 3;
-  }
-
-  .date-label {
-    font-family: var(--font-display);
-    font-size: var(--font-size-xs);
-    font-weight: 700;
-    color: var(--color-teal);
-    text-transform: none;
-    letter-spacing: 0.02em;
-  }
-
-  .date-dot {
-    font-size: 11px;
-    color: var(--color-teal);
-    opacity: 0.5;
-  }
-
-  .date-count {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--color-text-muted);
-  }
-
-  .day-subtotal {
-    margin-left: auto;
-    font-family: var(--font-mono);
-    font-size: var(--font-size-base);
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
-  }
-
-  /* ── Flat view column header (sticky) ── */
+  /* ── Flat view column header (sticky, solid mint band) ── */
   .flat-header {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
     padding: var(--space-xs) var(--space-lg);
     padding-left: calc(var(--space-md) + 4px);
-    background: var(--color-surface-inset);
+    background: var(--mint-tint);
     border-bottom: 1px solid var(--color-hairline);
     position: sticky;
     top: 0;
@@ -795,7 +743,7 @@
     align-items: center;
     gap: var(--space-sm);
     padding: var(--space-sm) var(--space-lg);
-    border-bottom: 1px dashed var(--color-hairline);
+    border-bottom: 1px solid var(--color-hairline);
     background: var(--color-surface);
     cursor: pointer;
     font-family: var(--font-body);
@@ -917,7 +865,7 @@
     align-items: center;
     gap: var(--space-md);
     padding: 12px var(--space-lg);
-    border-bottom: 1px dashed var(--color-hairline);
+    border-bottom: 1px solid var(--color-hairline);
     min-height: 56px;
   }
 
@@ -1097,7 +1045,7 @@
     padding: 10px var(--space-md) 12px;
     padding-left: calc(var(--space-md) + 4px);
     background: var(--color-teal-bg);
-    border-bottom: 1px dashed var(--color-hairline);
+    border-bottom: 1px solid var(--color-hairline);
     border-left: 4px solid var(--color-teal);
   }
 
@@ -1332,7 +1280,7 @@
       min-height: 44px;
       gap: 2px;
       background: var(--color-surface);
-      border: 1px dashed var(--color-hairline);
+      border: 1px solid var(--color-hairline);
       border-left: 4px solid transparent;
       border-radius: var(--radius-lg);
       margin: 0 var(--space-sm) 6px;
@@ -1352,12 +1300,6 @@
       overflow: visible;
     }
 
-    .date-header {
-      border-radius: var(--radius-md);
-      margin: 0 var(--space-sm);
-      padding: var(--space-xs) var(--space-md);
-    }
-
     .cat-circle { width: 24px; height: 24px; font-size: 10px; }
 
     .txn-info { flex: 1 1 auto; min-width: 0; order: 1; }
@@ -1373,7 +1315,7 @@
       gap: 4px;
       margin-top: 0;
       padding-top: 2px;
-      border-top: 1px dashed var(--color-hairline);
+      border-top: 1px solid var(--color-hairline);
       min-width: auto;
     }
 
@@ -1396,7 +1338,7 @@
     }
     .shimmer-row {
       background: var(--color-cream);
-      border: 1px dashed var(--color-hairline);
+      border: 1px solid var(--color-hairline);
       border-radius: var(--radius-lg);
       margin: 0 var(--space-sm) 6px;
     }

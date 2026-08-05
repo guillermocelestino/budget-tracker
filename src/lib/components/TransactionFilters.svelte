@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Button from '$lib/components/Button.svelte';
+  import FilterFooter from '$lib/components/FilterFooter.svelte';
   import type { Category } from '$lib/types';
 
   // ─── Props ────────────────────────────────────────────────────────
@@ -294,13 +294,14 @@
     </button>
   {/if}
 
-  <!-- ═══ Sheet footer (mobile bottom-sheet mode only) ═══ -->
-  {#if mode === 'sheet'}
-    <div class="sheet-footer">
-      <Button variant="ghost" fullWidth onclick={clearFilters}>Reset Filters</Button>
-      <Button variant="primary" fullWidth onclick={onApply}>Apply Filters</Button>
-    </div>
-  {/if}
+  <!-- ═══ Shared Apply / Reset footer (one implementation across all list pages) ═══ -->
+  <FilterFooter
+    canApply={hasActiveFilters}
+    canClear={hasActiveFilters}
+    onApply={() => onApply?.()}
+    onClear={clearFilters}
+    {mode}
+  />
 </div>
 
 <style>
@@ -616,18 +617,6 @@
     margin: 0 0 var(--space-xs);
     animation: none;
     overflow: visible;
-  }
-
-  .filter-bar.sheet .sheet-footer {
-    position: sticky;
-    bottom: 0;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-md);
-    padding: var(--space-lg) 0 var(--space-xs);
-    margin-top: var(--space-sm);
-    border-top: 1px dashed var(--color-hairline);
-    background: var(--color-surface);
   }
 
   /* ─── Responsive ─── */
