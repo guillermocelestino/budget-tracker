@@ -59,11 +59,13 @@
 	});
 	let importResult = $state<{ imported?: number; total?: number; skippedDuplicates?: number; skippedInvalid?: number; newPeople?: string[] } | null>(null);
 	let importError = $state('');
+	let file = $state<File | null>(null);
 
 	// Match the app's own label convention (LendingForm): "Date Lent" for lent,
 	// "Date Borrowed" for borrowed.
+	// IMPORTANT: All headers must be unique - ImportPreview uses col.header as the key
 	const previewColumns = $derived<ImportPreviewColumn[]>([
-		{ header: 'Status', key: '_status', kind: 'status' },
+		{ header: 'Validity', key: '_status', kind: 'status' },
 		{ header: 'Person', key: 'person_name', kind: 'text', cls: 'cell-desc' },
 		{ header: 'Amount', key: 'amount', kind: 'amount', align: 'right' },
 		{ header: direction === 'borrowed' ? 'Date Borrowed' : 'Date Lent', key: 'date_lent', kind: 'date' },
@@ -71,7 +73,8 @@
 	]);
 
 	// ─── Handle file upload ───
-	function handleFileUpload(file: File) {
+	function handleFileUpload(uploadedFile: File) {
+		file = uploadedFile; // Store for form submission
 		const reader = new FileReader();
 		reader.onload = (e) => {
 			const text = e.target?.result as string;
@@ -86,7 +89,7 @@
 			importError = '';
 			importStep = 'mapping';
 		};
-		reader.readAsText(file);
+		reader.readAsText(uploadedFile);
 	}
 
 	function handleMappingChange(col: string, field: string) {
@@ -111,12 +114,24 @@
 		importStep = 'preview';
 	}
 
-	// ─── Handle form submission result ───
-	function handleImportEnhance() {
-		return async ({ result, update }: { result: { type: string; data?: Record<string, unknown> }; update: () => Promise<void> }) => {
+	// ─── Handle form submission ───
+	// The outer submit handler runs BEFORE SvelteKit sends the request
+	// (it awaits this function, then fetches with the same FormData). So we
+	// append the stored File here — the only place the file reaches the server.
+	// No hidden <input type="file"> is needed in the DOM.
+	function handleImportEnhance({ formData }: { formData: FormData }) {
+		if (file) {
+			formData.append('file', file);
+		}
+
+		return async ({ result, update }: { result: { type: string; data?: Record<string, unknown> } | Record<string, unknown>; update: () => Promise<void> }) => {
 			await update();
-			if (result.type === 'success') {
-				const d = result.data || {};
+			// Shape-agnostic unwrap: works for both raw server returns and
+			// SvelteKit ActionResult wrappers.
+			const data = (result as { data?: Record<string, unknown> }).data ?? result;
+			const ok = (data as { success?: boolean }).success === true;
+			if (ok) {
+				const d = data as Record<string, unknown>;
 				importResult = {
 					imported: d.imported as number,
 					total: d.total as number,
@@ -125,14 +140,14 @@
 					newPeople: d.newPeople as string[] | undefined,
 				};
 				importStep = 'done';
-								const count = d.imported as number || 0;
+				const count = d.imported as number || 0;
 				if (count > 0) {
 					showSuccess(`Imported ${count} ${noun.toLowerCase()}` + (d.skippedDuplicates ? ` · skipped ${d.skippedDuplicates} duplicates` : ''));
 				} else {
 					showError('Nothing new to import');
 				}
-			} else if (result.type === 'failure') {
-								const d = result.data as { error?: string; details?: string[] } | undefined;
+			} else {
+				const d = data as { error?: string; details?: string[] };
 				importError = d?.error || 'Import failed';
 				if (d?.details) {
 					importError += ': ' + d.details.slice(0, 3).join('; ');
@@ -205,7 +220,7 @@
 					<span class="step-dot active"></span>
 					<span class="step-label">Step 3 of 3 — Review & Confirm</span>
 				</div>
-				<form method="POST" action="?/import" use:enhance={handleImportEnhance}>
+				<form method="POST" action="?/import" use:enhance={handleImportEnhance} enctype="multipart/form-data">
 					<input type="hidden" name="rows" value={JSON.stringify(importValidation.validRows)} />
 					<input type="hidden" name="config" value={JSON.stringify(importConfig)} />
 					<ImportPreview

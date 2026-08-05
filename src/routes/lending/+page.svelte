@@ -161,8 +161,9 @@
 
 	// ─── Import Wizard props ──────────────────────────────────────────
 	// Preview columns for ImportPreview
+	// IMPORTANT: All headers must be unique - ImportPreview uses col.header as the key
 	const previewColumns = $derived<ImportPreviewColumn[]>([
-		{ header: 'Status', key: '_status', kind: 'status' },
+		{ header: 'Validity', key: '_status', kind: 'status' },
 		{ header: 'Person', key: 'person_name', kind: 'text', cls: 'cell-desc' },
 		{ header: 'Amount', key: 'amount', kind: 'amount', align: 'right' },
 		{ header: 'Date Lent', key: 'date_lent', kind: 'date' },
