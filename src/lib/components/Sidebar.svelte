@@ -15,6 +15,7 @@
     { href: '/net-worth', label: 'Net Worth', icon: 'net-worth' },
     { href: '/lending', label: 'Lending', icon: 'lending' },
     { href: '/borrowed', label: 'Borrowed', icon: 'borrowed' },
+    { href: '/recurring', label: 'Recurring', icon: 'recurring' },
     { href: '/reports', label: 'Reports', icon: 'reports' },
   ];
 
@@ -91,9 +92,17 @@
     'net-worth': `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
     </svg>`,
-    reports: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>
+    recurring: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="12 6 12 12 16 14"/>
+      <path d="M12 2a10 10 0 0 1 0 20 10 10 0 0 1 0-20"/>
     </svg>`,
+    reports: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" x2="12" y1="20" y2="10"/>
+      <line x1="18" x2="18" y1="20" y2="4"/>
+      <line x1="6" x2="6" y1="20" y2="16"/>
+      <line x1="3" x2="21" y1="20" y2="20"/>
+   </svg>`,
     categories: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/>
       <path d="M7 7h.01"/>

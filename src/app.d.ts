@@ -1,4 +1,4 @@
-import type { Transaction, Category, Lending, DashboardSummary, MonthlyReportItem, CategoryReportItem, NetWorthSnapshot } from '$lib/types';
+import type { Transaction, Category, Lending, RecurringTransaction, DashboardSummary, MonthlyReportItem, CategoryReportItem, NetWorthSnapshot } from '$lib/types';
 
 declare global {
 	namespace App {
@@ -19,6 +19,14 @@ declare global {
 			totalPages?: number;
 			limit?: number;
 			categories?: Category[];
+			recurring?: RecurringTransaction[];
+			activeCount?: number;
+			upcomingRecurring?: RecurringTransaction[];
+			transaction?: Transaction;
+			recurringTransaction?: RecurringTransaction;
+			errors?: Record<string, string>;
+			error?: string;
+			values?: Record<string, unknown>;
 			spending?: Record<number, number>;
 			income?: Record<number, number>;
 					selectedMonth?: string;

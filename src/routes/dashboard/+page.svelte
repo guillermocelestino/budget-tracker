@@ -9,7 +9,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import CategoryBreakdownWidget from '$lib/components/CategoryBreakdownWidget.svelte';
 	import PageBackground from '$lib/components/PageBackground.svelte';
-	import { getCurrentMonth, getMonthLabel } from '$lib/utils/format';
+	import { getCurrentMonth, getMonthLabel, formatDate, formatCurrency } from '$lib/utils/format';
 	let data = $derived($page.data as App.PageData);
 
 	// ─── Forecast computation ───
@@ -29,6 +29,21 @@
 			color: (data.categoryColors ?? [])[i] || '#6366f1',
 		}))
 	);
+
+	// Upcoming recurring items
+	const upcomingRecurring = $derived(data.upcomingRecurring ?? []);
+	const upcomingWithDays = $derived(upcomingRecurring.map(rec => {
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		const nextRun = new Date(rec.next_run + 'T00:00:00');
+		const diffDays = Math.ceil((nextRun.getTime() - today.getTime()) / 86400000);
+		let label: string;
+		if (diffDays === 0) label = 'Today';
+		else if (diffDays === 1) label = 'Tomorrow';
+		else if (diffDays > 1 && diffDays <= 7) label = `In ${diffDays} days`;
+		else label = formatDate(rec.next_run);
+		return { ...rec, label };
+	}));
 
 	// Context subline — mirrors /transactions and /lending header format
 	const contextSubline = $derived.by(() => {
@@ -87,6 +102,35 @@
 		/>
 	</div>
 </div>
+
+<!-- ═══ Section 3.5: Upcoming Recurring ═══ -->
+{#if upcomingWithDays.length > 0}
+<div class="dashboard-section">
+	<div class="upcoming-recurring-section flip7-card">
+		<div class="upcoming-header">
+			<h2 class="section-title">Upcoming Recurring</h2>
+			<a href="/recurring" class="view-all-link">View all</a>
+		</div>
+		<div class="upcoming-list">
+			{#each upcomingWithDays as rec (rec.id)}
+				<div class="upcoming-item">
+					<div class="upcoming-icon" style="background: {rec.category_color || '#2BA8A2'}20; color: {rec.category_color || '#2BA8A2'}">
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+					</div>
+					<div class="upcoming-info">
+						<span class="upcoming-name">{rec.description}</span>
+						<span class="upcoming-meta">{rec.frequency} · {rec.category_name}</span>
+					</div>
+					<div class="upcoming-amount" style="color: {rec.type === 'income' ? 'var(--color-teal)' : 'var(--color-coral)'}">
+						{rec.type === 'income' ? '+' : '−'}{formatCurrency(rec.amount)}
+					</div>
+					<span class="upcoming-date">{rec.label}</span>
+				</div>
+			{/each}
+		</div>
+	</div>
+</div>
+{/if}
 
 <!-- ═══ Section 4: Charts — Cash Flow (full width) + Category (tall) ═══ -->
 <div class="dashboard-section">
@@ -298,6 +342,135 @@
 		.dashboard-section {
 			animation: none;
 			transition: none;
+		}
+	}
+
+	/* Upcoming Recurring Section */
+	.upcoming-recurring-section {
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-xl);
+		padding: var(--space-lg);
+		/* Match the 24px vertical rhythm of the other dashboard sections
+		   (insights-row, activity-section, charts-row) */
+		margin-bottom: var(--space-xl);
+	}
+
+	.upcoming-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: var(--space-md);
+	}
+
+	.view-all-link {
+		font-family: var(--font-display);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--color-teal);
+		text-decoration: none;
+		transition: color 150ms var(--ease);
+	}
+
+	.view-all-link:hover {
+		color: var(--color-teal-dark);
+		text-decoration: underline;
+	}
+
+	.upcoming-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+	}
+
+	.upcoming-item {
+		display: flex;
+		align-items: center;
+		gap: var(--space-md);
+		padding: var(--space-sm);
+		border-radius: var(--radius-md);
+		transition: background 150ms var(--ease);
+	}
+
+	.upcoming-item:hover {
+		background: var(--color-surface-hover);
+	}
+
+	.upcoming-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		border-radius: var(--radius-md);
+		flex-shrink: 0;
+	}
+
+	.upcoming-info {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.upcoming-name {
+		font-family: var(--font-body);
+		font-size: var(--font-size-sm);
+		font-weight: 500;
+		color: var(--color-text);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.upcoming-meta {
+		font-family: var(--font-mono);
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+	}
+
+	.upcoming-amount {
+		font-family: var(--font-display);
+		font-size: var(--font-size-sm);
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		flex-shrink: 0;
+	}
+
+	.upcoming-date {
+		font-family: var(--font-mono);
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		background: var(--color-bg);
+		padding: 2px 8px;
+		border-radius: var(--radius-pill);
+		flex-shrink: 0;
+		white-space: nowrap;
+	}
+
+	@media (max-width: 480px) {
+		.upcoming-recurring-section {
+			padding: var(--space-md);
+		}
+
+		.upcoming-item {
+			flex-wrap: wrap;
+		}
+
+		.upcoming-info {
+			flex: 1 1 calc(100% - 60px);
+		}
+
+		.upcoming-amount {
+			order: -1;
+			margin-left: auto;
+		}
+
+		.upcoming-date {
+			width: 100%;
+			text-align: right;
+			margin-top: var(--space-xs);
 		}
 	}
 </style>

@@ -48,6 +48,31 @@ CREATE TABLE IF NOT EXISTS lendings (
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS recurring_transactions (
+	id SERIAL PRIMARY KEY,
+	user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
+	amount NUMERIC(12,2) NOT NULL,
+	description TEXT NOT NULL,
+	category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
+	frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
+	interval INTEGER NOT NULL DEFAULT 1,
+	day_of_week INTEGER CHECK(day_of_week BETWEEN 0 AND 6),
+	day_of_month INTEGER CHECK(day_of_month BETWEEN 1 AND 31),
+	month_of_year INTEGER CHECK(month_of_year BETWEEN 1 AND 12),
+	start_date DATE NOT NULL,
+	end_date DATE,
+	next_run DATE NOT NULL,
+	last_generated_at TIMESTAMPTZ,
+	active BOOLEAN NOT NULL DEFAULT TRUE,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_recurring_transactions_user_id ON recurring_transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_recurring_transactions_next_run ON recurring_transactions(next_run);
+CREATE INDEX IF NOT EXISTS idx_recurring_transactions_active ON recurring_transactions(active);
+
 CREATE INDEX IF NOT EXISTS idx_categories_user_id ON categories(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date DESC);
@@ -103,6 +128,31 @@ CREATE TABLE IF NOT EXISTS lendings (
 	created_at TEXT NOT NULL DEFAULT (datetime('now')),
 	updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS recurring_transactions (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
+	amount REAL NOT NULL,
+	description TEXT NOT NULL,
+	category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
+	frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
+	interval INTEGER NOT NULL DEFAULT 1,
+	day_of_week INTEGER CHECK(day_of_week BETWEEN 0 AND 6),
+	day_of_month INTEGER CHECK(day_of_month BETWEEN 1 AND 31),
+	month_of_year INTEGER CHECK(month_of_year BETWEEN 1 AND 12),
+	start_date TEXT NOT NULL,
+	end_date TEXT,
+	next_run TEXT NOT NULL,
+	last_generated_at TEXT,
+	active INTEGER NOT NULL DEFAULT 1,
+	created_at TEXT NOT NULL DEFAULT (datetime('now')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_recurring_transactions_user_id ON recurring_transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_recurring_transactions_next_run ON recurring_transactions(next_run);
+CREATE INDEX IF NOT EXISTS idx_recurring_transactions_active ON recurring_transactions(active);
 
 CREATE INDEX IF NOT EXISTS idx_categories_user_id ON categories(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
@@ -219,7 +269,7 @@ export async function initDb(): Promise<void> {
 	}
 
 	// Boot-time self-check: verify all four tables exist
-	const requiredTables = ['users', 'categories', 'transactions', 'lendings'];
+	const requiredTables = ['users', 'categories', 'transactions', 'lendings', 'recurring_transactions'];
 	if (usePostgres) {
 		const client = await getPgPool().connect();
 		try {

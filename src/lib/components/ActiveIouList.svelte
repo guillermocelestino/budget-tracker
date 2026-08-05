@@ -978,6 +978,14 @@
   .rh-progress { text-align: right; }
   .rh-amount { text-align: right; }
 
+  /* Desktop (≥769px): comfortable minimum header height. min-height (not
+     fixed height) so the header can still grow if content wraps. */
+  @media (min-width: 769px) {
+    .register-header {
+      min-height: 42px;
+    }
+  }
+
   /* ── Rows ── */
   .iou-row {
     position: relative;

@@ -11,19 +11,27 @@
     amount,
     tone = 'neutral',
     ariaLabel = 'Actions',
+    isActive,
     onClose = () => {},
     onEdit,
     onDuplicate,
     onDelete,
+    onRunNow,
+    onPause,
+    onResume,
   }: {
     title: string;
     amount: string;
     tone?: 'income' | 'expense' | 'neutral';
     ariaLabel?: string;
+    isActive?: boolean;
     onClose?: () => void;
     onEdit?: () => void;
     onDuplicate?: () => void;
     onDelete?: () => void;
+    onRunNow?: () => void;
+    onPause?: () => void;
+    onResume?: () => void;
   } = $props();
 
   let panelEl = $state<HTMLDivElement | null>(null);
@@ -73,6 +81,30 @@
       </svg>
       <span>Duplicate</span>
     </button>
+    {#if onRunNow}
+      <button class="row-action" onclick={() => onRunNow?.()} role="menuitem" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        <span>Run Now</span>
+      </button>
+    {/if}
+    {#if isActive && onPause}
+      <button class="row-action" onclick={() => onPause?.()} role="menuitem" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="6" y="4" width="4" height="16"/>
+          <rect x="14" y="4" width="4" height="16"/>
+        </svg>
+        <span>Pause</span>
+      </button>
+    {:else if !isActive && onResume}
+      <button class="row-action" onclick={() => onResume?.()} role="menuitem" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        <span>Resume</span>
+      </button>
+    {/if}
     <button class="row-action danger" onclick={() => onDelete?.()} role="menuitem" type="button">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="3 6 5 6 21 6"/>
@@ -128,7 +160,7 @@
     justify-content: space-between;
     gap: var(--space-md);
     padding: var(--space-xs) var(--space-xs) var(--space-lg);
-    border-bottom: 1px dashed var(--color-hairline);
+    border-bottom: 1px solid var(--color-hairline);
     margin-bottom: var(--space-sm);
   }
 

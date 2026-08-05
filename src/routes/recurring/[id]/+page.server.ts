@@ -1,0 +1,60 @@
+import { fail, redirect } from '@sveltejs/kit';
+import { queryMany, queryOne } from '$lib/database/query';
+import type { Category, RecurringTransaction, TransactionType, RecurringFrequency } from '$lib/types';
+import { updateRecurringTransaction } from '$lib/server/recurringService';
+import type { RecurringInput } from '$lib/server/recurringService';
+
+export async function load({ params, locals }: { params: { id: string }; locals: App.Locals }) {
+	const userId = locals.user!.userId;
+	const id = parseInt(params.id, 10);
+
+	const recurring = await queryOne<RecurringTransaction>(
+		`SELECT rt.*, c.name as category_name, c.color as category_color
+		 FROM recurring_transactions rt
+		 LEFT JOIN categories c ON rt.category_id = c.id
+		 WHERE rt.id = $1 AND rt.user_id = $2`,
+		[id, userId]
+	);
+
+	if (!recurring) {
+		return fail(404, { error: 'Recurring transaction not found' });
+	}
+
+	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
+
+	return { recurring, categories };
+}
+
+export const actions = {
+	update: async ({ request, params, locals }: { request: Request; params: { id: string }; locals: App.Locals }) => {
+		const userId = locals.user!.userId;
+		const id = parseInt(params.id, 10);
+		const data = await request.formData();
+
+		const input: RecurringInput = {
+			type: data.get('type') as TransactionType,
+			amount: parseFloat(data.get('amount') as string),
+			description: data.get('description') as string,
+			category_id: parseInt(data.get('category_id') as string),
+			frequency: data.get('frequency') as RecurringFrequency,
+			interval: parseInt(data.get('interval') as string) || 1,
+			day_of_week: null,
+			day_of_month: null,
+			month_of_year: null,
+			start_date: data.get('start_date') as string,
+			end_date: (data.get('end_date') as string) || null,
+			active: data.get('active') === 'on',
+		};
+
+		const result = await updateRecurringTransaction(userId, id, input);
+
+		if (!result.success) {
+			if (result.errors) {
+				return fail(400, { errors: result.errors, values: input });
+			}
+			return fail(400, { error: result.error });
+		}
+
+		throw redirect(303, '/recurring');
+	},
+};

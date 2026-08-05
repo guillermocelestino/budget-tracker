@@ -1,11 +1,15 @@
 import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
-import type { Transaction, CategoryReportItem } from '$lib/types';
+import type { Transaction, CategoryReportItem, RecurringTransaction } from '$lib/types';
 import { getCurrentMonth } from '$lib/utils/format';
 import { computeNetWorth } from '$lib/server/networth';
+import { processRecurringTransactions } from '$lib/server/recurringScheduler';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;
+
+	// Process any due recurring transactions on dashboard load
+	await processRecurringTransactions(userId);
 	const currentMonthStr = getCurrentMonth();
 	const currentMonth = new Date(currentMonthStr + '-01');
 	const firstDay = `${currentMonthStr}-01`;
@@ -95,6 +99,20 @@ export async function load({ locals }: { locals: App.Locals }) {
 	// Net worth for the dashboard teaser (same snapshot as /net-worth)
 	const netWorth = await computeNetWorth(userId);
 
+	// Upcoming recurring transactions (next 3)
+	const today = new Date().toISOString().split('T')[0];
+	const upcomingRecurring = await queryMany<RecurringTransaction>(
+		`SELECT rt.*, c.name as category_name, c.color as category_color
+		 FROM recurring_transactions rt
+		 LEFT JOIN categories c ON rt.category_id = c.id
+		 WHERE rt.user_id = $1
+		 AND rt.active = true
+		 AND rt.next_run >= $2
+		 ORDER BY rt.next_run ASC
+		 LIMIT 3`,
+		[userId, today]
+	);
+
 	return {
 		summary: {
 			totalIncome,
@@ -131,6 +149,7 @@ export async function load({ locals }: { locals: App.Locals }) {
 				/ parseFloat(trendData[trendData.length - 2].expense)) * 100
 			: 0,
 		netWorth,
+		upcomingRecurring,
 	};
 }
 

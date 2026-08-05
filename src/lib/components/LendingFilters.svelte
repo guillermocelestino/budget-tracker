@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Button from '$lib/components/Button.svelte';
+  import FilterFooter from '$lib/components/FilterFooter.svelte';
 
   /**
    * LendingFilters — the filter panel for /lending and /borrowed.
@@ -7,12 +7,17 @@
    * (mobile). The single future-proof home for lending filters: new filters
    * (Interest Rate, Due Date, Overdue Only, Has Notes, Sort By) are added as
    * additional `.filter-section` blocks — the toolbar itself never grows.
+   *
+   * Status edits are STAGED inside the open panel (`staged`); they are
+   * committed to the host via `onStatusChange` on Apply, and discarded when
+   * the panel closes without Apply. Reset returns to `defaultStatus`.
    */
   let {
     status = 'active',
     onStatusChange,
     counts = { all: 0, active: 0, paid: 0 },
     paidLabel = 'Paid',
+    defaultStatus = 'active',
     mode = 'popover',
     onApply,
   }: {
@@ -20,9 +25,28 @@
     onStatusChange?: (status: 'all' | 'active' | 'paid') => void;
     counts?: { all: number; active: number; paid: number };
     paidLabel?: string;
+    defaultStatus?: 'all' | 'active' | 'paid';
     mode?: 'popover' | 'sheet';
     onApply?: () => void;
   } = $props();
+
+  // The panel remounts every open, so `staged` always starts from the applied
+  // status — edits below it are staged until Apply.
+  // svelte-ignore state_referenced_locally
+  let staged = $state<'all' | 'active' | 'paid'>(status);
+
+  const canApply = $derived(staged !== status);
+  const canClear = $derived(status !== defaultStatus || staged !== defaultStatus);
+
+  function handleApply() {
+    onStatusChange?.(staged);
+    onApply?.();
+  }
+
+  function handleClear() {
+    staged = defaultStatus;
+    onStatusChange?.(defaultStatus);
+  }
 
   const statusOptions = $derived([
     { value: 'all' as const, label: 'All' },
@@ -38,10 +62,10 @@
     {#each statusOptions as opt (opt.value)}
       <button
         class="filter-option"
-        class:active={status === opt.value}
-        onclick={() => onStatusChange?.(opt.value)}
+        class:active={staged === opt.value}
+        onclick={() => (staged = opt.value)}
         role="radio"
-        aria-checked={status === opt.value}
+        aria-checked={staged === opt.value}
         type="button"
       >
         <span class="filter-dot" aria-hidden="true"></span>
@@ -53,11 +77,14 @@
 
   <!-- ═══ Future sections land here (Interest Rate, Due Date, …) ═══ -->
 
-  <!-- ═══ Footer: Reset (→ default 'active' view) / Apply (→ close) ═══ -->
-  <div class="sheet-footer">
-    <Button variant="ghost" fullWidth onclick={() => onStatusChange?.('active')}>Reset Filters</Button>
-    <Button variant="primary" fullWidth onclick={onApply}>Apply Filters</Button>
-  </div>
+  <!-- ═══ Shared footer: Reset (→ default view) / Apply (→ commit + close) ═══ -->
+  <FilterFooter
+    canApply={canApply}
+    canClear={canClear}
+    onApply={handleApply}
+    onClear={handleClear}
+    {mode}
+  />
 </div>
 
 <style>
@@ -148,19 +175,5 @@
 
   .filter-option.active .filter-count {
     color: var(--color-teal);
-  }
-
-  /* Footer — sticky in the bottom sheet; the popover host recolors it
-     (`.filters-popover :global(.sheet-footer)` → cream). */
-  .sheet-footer {
-    position: sticky;
-    bottom: 0;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-md);
-    padding: var(--space-md) 0 var(--space-xs);
-    margin-top: var(--space-sm);
-    border-top: 1px dashed var(--color-hairline);
-    background: var(--color-surface);
   }
 </style>

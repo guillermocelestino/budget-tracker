@@ -34,7 +34,28 @@
   });
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') onClose();
+    if (e.key === 'Escape') {
+      onClose();
+      return;
+    }
+    // Trap Tab inside the sheet while open.
+    if (e.key === 'Tab' && panelEl) {
+      const focusables = Array.from(
+        panelEl.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
   }
 </script>
 
@@ -111,7 +132,7 @@
     align-items: center;
     justify-content: space-between;
     padding: var(--space-xs) var(--space-lg);
-    border-bottom: 1px dashed var(--color-border);
+    border-bottom: 1px solid var(--color-border);
     flex-shrink: 0;
   }
 

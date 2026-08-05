@@ -1,10 +1,29 @@
 <script lang="ts">
-	let { title, subtitle, action, flush = false }: { title: string; subtitle?: import('svelte').Snippet; action?: import('svelte').Snippet; flush?: boolean } = $props();
+	let {
+		title,
+		subtitle,
+		action,
+		flush = false,
+		badge,
+		borderless = false,
+	}: {
+		title: string;
+		subtitle?: import('svelte').Snippet;
+		action?: import('svelte').Snippet;
+		flush?: boolean;
+		badge?: import('svelte').Snippet;
+		borderless?: boolean;
+	} = $props();
 </script>
 
-<div class="page-header" class:flush={flush}>
+<div class="page-header" class:flush={flush} class:borderless={borderless}>
 	<div class="page-title-group">
-		<h1 class="page-title">{title}</h1>
+		<div class="page-title-line">
+			<h1 class="page-title">{title}</h1>
+			{#if badge}
+				{@render badge()}
+			{/if}
+		</div>
 		{#if subtitle}
 			<div class="page-subtitle">
 				{@render subtitle()}
@@ -44,6 +63,14 @@
 		min-width: 0;
 	}
 
+	.page-title-line {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: var(--space-sm);
+		min-width: 0;
+	}
+
 	.page-subtitle {
 		font-size: var(--font-size-sm);
 		color: var(--color-text-muted);
@@ -67,6 +94,12 @@
 		flex-wrap: wrap;
 		gap: var(--space-sm);
 		min-width: 0;
+	}
+
+	/* borderless = drop the dashed bottom rule (used where a page defines its
+	   own title treatment and forbids dashed lines) */
+	.page-header.borderless {
+		border: none;
 	}
 
 	/* flush = align header content to the content rail (no extra horizontal inset) */

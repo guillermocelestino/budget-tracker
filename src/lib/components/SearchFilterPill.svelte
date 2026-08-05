@@ -209,7 +209,7 @@
   }
 
   /* Sticky Reset/Apply footer matches the cream popover surface */
-  .filters-popover :global(.sheet-footer) {
+  .filters-popover :global(.filter-footer) {
     background: var(--color-cream);
   }
 
@@ -252,11 +252,10 @@
     color: var(--color-teal);
   }
 
-  /* Active — one or more filters applied: bordered teal chip + count badge */
+  /* Active — one or more filters applied: glyph turns teal, count chip shown.
+     Otherwise the funnel stays quiet --muted. */
   .search-filter-btn.active {
-    border-color: var(--color-teal);
-    background: var(--color-teal-bg);
-    color: var(--color-teal);
+    color: var(--teal);
     font-weight: 600;
   }
 
@@ -290,8 +289,8 @@
     height: 20px;
     padding: 0 6px;
     border-radius: var(--radius-pill);
-    background: var(--color-coral);
-    color: var(--color-ink-inverse);
+    background: var(--mint-tint);
+    color: var(--teal-deep);
     font-size: var(--font-size-xs);
     font-weight: 700;
     font-family: var(--font-mono);

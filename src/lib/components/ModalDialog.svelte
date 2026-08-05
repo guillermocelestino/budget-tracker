@@ -126,7 +126,7 @@
 		justify-content: space-between;
 		padding: var(--space-md) var(--space-lg);
 		padding-top: calc(var(--space-md) + 3px);
-		border-bottom: 1px dashed var(--color-border);
+		border-bottom: 1px solid var(--color-border);
 	}
 
 	.modal-title {

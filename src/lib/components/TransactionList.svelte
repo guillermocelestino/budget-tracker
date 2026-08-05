@@ -703,6 +703,14 @@
   .fh-balance { min-width: 90px; text-align: right; flex-shrink: 0; }
   .fh-amount { min-width: 90px; text-align: right; flex-shrink: 0; }
 
+  /* Desktop (≥769px): comfortable minimum header height. min-height (not
+     fixed height) so the header can still grow if content wraps. */
+  @media (min-width: 769px) {
+    .flat-header {
+      min-height: 42px;
+    }
+  }
+
   /* ══ Flat view shared column grid (desktop ≥641px) ═══════════════════
      The flat header and every flat row share ONE grid template so all
      values align perfectly beneath their headers. Columns are fixed-width

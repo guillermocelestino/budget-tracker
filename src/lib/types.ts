@@ -87,6 +87,43 @@ export interface Lending {
 	direction: 'lent' | 'borrowed';
 }
 
+export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+export interface RecurringTransaction {
+	id: number;
+	user_id: number;
+	type: TransactionType;
+	amount: number;
+	description: string;
+	category_id: number;
+	frequency: RecurringFrequency;
+	interval: number;
+	day_of_week: number | null; // 0-6 (Sunday-Saturday)
+	day_of_month: number | null; // 1-31
+	month_of_year: number | null; // 1-12
+	start_date: string;
+	end_date: string | null;
+	next_run: string;
+	last_generated_at: string | null;
+	active: boolean;
+	created_at: string;
+	updated_at: string;
+	category_name?: string;
+	category_color?: string;
+}
+
+export interface RecurringTransactionFormData {
+	type: TransactionType;
+	amount: number;
+	description: string;
+	category_id: number;
+	frequency: RecurringFrequency;
+	interval: number;
+	start_date: string;
+	end_date: string | null;
+	active: boolean;
+}
+
 /** A single leg of the net-worth composition. */
 export interface NetWorthLeg {
 	key: 'cash' | 'lent' | 'borrowed';
