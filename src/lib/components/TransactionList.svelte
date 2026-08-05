@@ -1,6 +1,8 @@
 <script lang="ts">
-  import { formatCurrency, formatDate, formatDateShort, getToday } from '$lib/utils/format';
+  import { formatCurrency, formatDate, formatDateShort, formatSignedCurrency, getToday } from '$lib/utils/format';
   import RowActionsMenu from '$lib/components/RowActionsMenu.svelte';
+  import { getCategoryHue, getCategoryText, getCategoryTint } from '$lib/utils/categoryColors';
+  import { isDark } from '$lib/stores/preferences.svelte';
   import type { Transaction } from '$lib/types';
 
   let {
@@ -268,12 +270,11 @@
   }
 
   function formatRunningBalance(balance: number): string {
-    const formatted = formatCurrency(Math.abs(balance));
-    return balance >= 0 ? `+${formatted}` : `−${formatted}`;
+    return formatSignedCurrency(balance);
   }
 
   function runningBalanceColor(balance: number): string {
-    return balance >= 0 ? 'var(--color-teal)' : 'var(--color-coral)';
+    return balance >= 0 ? 'var(--teal)' : 'var(--rose)';
   }
 
   function signedAmount(txn: Transaction): number {
@@ -347,6 +348,9 @@
   {@const isIncome = txn.type === 'income'}
   {@const isExpanded = editingId === txn.id}
   {@const isInlineEditing = inlineEditingId === txn.id}
+  {@const hue = getCategoryHue(txn.category_name, txn.category_color)}
+  {@const tint = getCategoryTint(txn.category_name, hue, isDark)}
+  {@const fg = getCategoryText(txn.category_name, hue, isDark)}
 
   <div
     class="txn-row"
@@ -387,8 +391,8 @@
       </div>
     {/if}
     <!-- Category color stripe + initial circle -->
-    <div class="cat-stripe" style="background: {txn.category_color || '#2BA8A2'}"></div>
-    <div class="cat-circle" style="background: {txn.category_color || '#2BA8A2'}20; color: {txn.category_color || '#2BA8A2'}">
+    <div class="cat-stripe" style="background: {fg}"></div>
+    <div class="cat-circle" style="background: {tint}; color: {fg}">
       {@render catIcon(categoryIconKey(txn.category_name))}
     </div>
 
@@ -400,10 +404,7 @@
         {/if}
         {cleanDescription(txn.description)}
       </span>
-      <span
-        class="cat-pill"
-        style="background:{(txn.category_color || '#2BA8A2')}18; color:{txn.category_color || '#2BA8A2'}"
-      >
+      <span class="cat-pill" style="background: {tint}; color: {fg}">
         {txn.category_name || 'Uncategorized'}
       </span>
     </div>
@@ -817,8 +818,8 @@
     pointer-events: none;
   }
 
-  .txn-income::before { background: var(--color-teal); }
-  .txn-expense::before { background: var(--color-coral); }
+  .txn-income::before { background: var(--teal); }
+  .txn-expense::before { background: var(--rose); }
 
   .txn-row:hover {
     background: var(--color-teal-bg);
@@ -1013,8 +1014,8 @@
     letter-spacing: -0.02em;
   }
 
-  .amount-income { color: var(--color-teal); }
-  .amount-expense { color: var(--color-coral); }
+  .amount-income { color: var(--teal); }
+  .amount-expense { color: var(--rose); }
 
   /* ── Hover-reveal action buttons (floating segmented toolbar) ──
      A contiguous surface chip (not a bare icon cluster) so the amount
@@ -1121,8 +1122,8 @@
     font-weight: 600;
   }
 
-  .badge-income { background: var(--color-teal-bg); color: var(--color-teal); }
-  .badge-expense { background: rgba(239, 108, 74, 0.10); color: var(--color-coral); }
+  .badge-income { background: var(--mint-tint); color: var(--teal-deep); }
+  .badge-expense { background: var(--rose-soft); color: var(--rose); }
 
   .edit-inline-row {
     display: flex;

@@ -106,14 +106,14 @@
     transform: translateY(-2px);
   }
 
-  /* ─── Top Ribbon: Brand Signature (teal→gold) ─── */
+  /* ─── Top Ribbon: Brand Signature (solid teal — gold retired) ─── */
   .hero-ribbon {
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     height: 3px;
-    background: linear-gradient(90deg, var(--color-teal), var(--color-gold));
+    background: var(--color-teal);
   }
 
   /* ─── Content Layout ─── */
@@ -154,19 +154,19 @@
     flex-shrink: 0;
   }
 
-  /* Big animated number — primary focal point */
+  /* Big animated number — primary focal point (rule 2: mono + tabular) */
   .hero-value {
     font-size: var(--font-size-3xl);
     font-weight: 800;
     letter-spacing: -0.04em;
     font-variant-numeric: tabular-nums;
-    font-family: var(--font-display);
+    font-family: var(--font-mono);
     line-height: 1.1;
   }
 
   /* Semantic value colors (content only, not backgrounds) */
-  .creditor .hero-value { color: var(--color-teal); }
-  .debtor  .hero-value { color: var(--color-coral); }
+  .creditor .hero-value { color: var(--teal); }
+  .debtor  .hero-value { color: var(--rose); }
   .settled .hero-value { color: var(--color-text-muted); }
 
   /* Direction icon — preserved at 40×40px */
@@ -211,8 +211,8 @@
     font-weight: 700;
   }
 
-  .hbl-value.owed { color: var(--color-teal); }
-  .hbl-value.owe  { color: var(--color-coral); }
+  .hbl-value.owed { color: var(--teal); }
+  .hbl-value.owe  { color: var(--rose); }
 
   .hbl-divider {
     opacity: 0.4;

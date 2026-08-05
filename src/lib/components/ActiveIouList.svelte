@@ -166,34 +166,34 @@
   // ─── Per-card overflow menu (mobile) ───
   let menuIou = $state<Lending | null>(null);
 
-  // ─── State styling helpers ───
+  // ─── State styling helpers (gold retired → amber; coral → rose) ───
   function stateAccentColor(state: State): string {
     switch (state) {
-      case 'overdue': return 'var(--color-coral)';
-      case 'due-this-week': return 'var(--color-gold)';
-      case 'later': return 'var(--color-teal)';
+      case 'overdue': return 'var(--rose)';
+      case 'due-this-week': return 'var(--color-amber)';
+      case 'later': return 'var(--teal)';
       case 'paid': return 'var(--color-sky)';
-      default: return 'var(--color-teal)';
+      default: return 'var(--teal)';
     }
   }
 
   function stateBgColor(state: State): string {
     switch (state) {
-      case 'overdue': return 'rgba(239, 108, 74, 0.08)';
-      case 'due-this-week': return 'rgba(255, 210, 63, 0.10)';
-      case 'later': return 'var(--color-teal-bg)';
+      case 'overdue': return 'var(--rose-soft)';
+      case 'due-this-week': return 'var(--color-amber-bg)';
+      case 'later': return 'var(--mint-tint)';
       case 'paid': return 'rgba(93, 173, 226, 0.08)';
-      default: return 'var(--color-teal-bg)';
+      default: return 'var(--mint-tint)';
     }
   }
 
   function stateTextColor(state: State): string {
     switch (state) {
-      case 'overdue': return 'var(--color-coral)';
-      case 'due-this-week': return 'var(--color-gold-dark)';
-      case 'later': return 'var(--color-teal)';
+      case 'overdue': return 'var(--rose)';
+      case 'due-this-week': return 'var(--color-amber-dark)';
+      case 'later': return 'var(--teal)';
       case 'paid': return 'var(--color-sky)';
-      default: return 'var(--color-teal)';
+      default: return 'var(--teal)';
     }
   }
 
@@ -211,10 +211,19 @@
     if (iou.status === 'paid') return null;
     const days = daysUntilDue(iou.due_date);
     if (days === null) return null;
-    if (days < 0) return { text: `${-days}d overdue`, color: 'var(--color-coral)' };
-    if (days === 0) return { text: 'Due today', color: 'var(--color-gold-dark)' };
-    if (days <= 7) return { text: `Due in ${days}d`, color: 'var(--color-gold-dark)' };
-    return { text: `Due in ${days}d`, color: 'var(--color-teal)' };
+    if (days < 0) return { text: `${-days}d overdue`, color: 'var(--rose)' };
+    if (days === 0) return { text: 'Due today', color: 'var(--color-amber)' };
+    if (days <= 7) return { text: `Due in ${days}d`, color: 'var(--color-amber)' };
+    return { text: `Due in ${days}d`, color: 'var(--teal)' };
+  }
+
+  // ─── Money direction (rule 2) — lent is money out (− rose), borrowed is in (+ teal) ───
+  function moneyDirectionColor(): string {
+    return direction === 'borrowed' ? 'var(--teal)' : 'var(--rose)';
+  }
+
+  function formatDirectionalAmount(amount: number): string {
+    return (direction === 'borrowed' ? '+' : '−') + formatCurrency(amount);
   }
 </script>
 
@@ -305,8 +314,8 @@
 
               <!-- Right: amount + countdown + overflow (mobile) + hover actions (desktop) -->
               <div class="iou-right">
-                <span class="iou-amount" class:paid-amount={iou.status === 'paid'} style="color: {stateTextColor(state)};">
-                  {formatCurrency(iou.amount)}
+                <span class="iou-amount" class:paid-amount={iou.status === 'paid'} style="color: {moneyDirectionColor()};">
+                  {formatDirectionalAmount(iou.amount)}
                 </span>
 
                 <!-- Countdown pill -->
@@ -440,7 +449,7 @@
 
           <!-- Amount (headline money column) -->
           <div class="row-amount">
-            <span class="amount-num" class:struck={iou.status === 'paid'}>{formatCurrency(iou.amount)}</span>
+            <span class="amount-num" class:struck={iou.status === 'paid'} style="color: {moneyDirectionColor()};">{formatDirectionalAmount(iou.amount)}</span>
           </div>
 
           <!-- Hover-reveal actions (overlay, never shift columns) -->
