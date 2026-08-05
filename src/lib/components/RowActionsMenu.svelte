@@ -19,6 +19,8 @@
     onRunNow,
     onPause,
     onResume,
+    onPay,
+    payLabel = 'Mark Paid',
   }: {
     title: string;
     amount: string;
@@ -32,6 +34,8 @@
     onRunNow?: () => void;
     onPause?: () => void;
     onResume?: () => void;
+    onPay?: () => void;
+    payLabel?: string;
   } = $props();
 
   let panelEl = $state<HTMLDivElement | null>(null);
@@ -67,6 +71,14 @@
     <span class="row-amount" class:income={tone === 'income'} class:expense={tone === 'expense'} class:neutral={tone === 'neutral'}>{amount}</span>
   </div>
   <div class="row-actions">
+    {#if onPay}
+      <button class="row-action" onclick={() => onPay?.()} role="menuitem" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        <span>{payLabel}</span>
+      </button>
+    {/if}
     <button class="row-action" onclick={() => onEdit?.()} role="menuitem" type="button">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>

@@ -195,13 +195,17 @@
 		height: 18px;
 	}
 
-	/* Labeled pill action (e.g. "Mark Paid") — solid teal, prominent */
+	/* Labeled pill action (e.g. "Mark Paid") — ghost, not solid. Transparent
+	   bg with teal-deep text; own hover = mint tile. Retains the base 44px
+	   height and --focus focus-visible ring from .quick-btn (only bg/color/
+	   padding/width are overridden). Solid teal fill exists only outside the
+	   cluster (modals, detail CTAs) — one primary per screen. */
 	.quick-btn.pill {
 		width: auto;
 		padding: 0 16px;
 		border-radius: var(--radius-pill);
-		background: var(--teal);
-		color: var(--color-surface);
+		background: transparent;
+		color: var(--teal-deep);
 		font-family: var(--font-body);
 		font-size: 13px;
 		font-weight: 600;
@@ -209,8 +213,8 @@
 
 	.quick-btn.pill:hover,
 	.quick-btn.pill:focus-visible {
-		background: var(--teal-deep);
-		color: var(--color-surface);
+		background: var(--mint-tint);
+		color: var(--teal-deep);
 	}
 
 	.quick-btn-label {

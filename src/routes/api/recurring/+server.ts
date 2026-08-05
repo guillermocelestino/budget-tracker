@@ -86,21 +86,21 @@ export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 
 export async function POST({ request, locals }: { request: Request; locals: App.Locals }) {
 	const userId = locals.user!.userId;
-	const data = await request.formData();
+	const data = await request.json();
 
 	const input: RecurringInput = {
-		type: data.get('type') as TransactionType,
-		amount: parseFloat(data.get('amount') as string),
-		description: data.get('description') as string,
-		category_id: parseInt(data.get('category_id') as string),
-		frequency: data.get('frequency') as RecurringFrequency,
-		interval: parseInt(data.get('interval') as string) || 1,
+		type: data.type as TransactionType,
+		amount: parseFloat(data.amount),
+		description: data.description as string,
+		category_id: parseInt(data.category_id),
+		frequency: data.frequency as RecurringFrequency,
+		interval: parseInt(data.interval) || 1,
 		day_of_week: null,
 		day_of_month: null,
 		month_of_year: null,
-		start_date: data.get('start_date') as string,
-		end_date: (data.get('end_date') as string) || null,
-		active: data.get('active') === 'on',
+		start_date: data.start_date as string,
+		end_date: data.end_date || null,
+		active: data.active === true || data.active === 'on',
 	};
 
 	const result = await createRecurringTransaction(userId, input);

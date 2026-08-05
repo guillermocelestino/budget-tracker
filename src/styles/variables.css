@@ -172,6 +172,9 @@
   --cat-bills: #468499;
   --cat-bills-tint: #e0eef2;
 
+  /* ─── Row hover backdrop (solid equivalent of the hover tint) ─── */
+  --row-hover-bg: #f0f8f5;
+
   /* ─── Touch ─── */
   --touch-target-min: 44px;
   --touch-spacing-min: 8px;
@@ -266,6 +269,9 @@
   --focus: 0 0 0 4px rgba(60, 196, 189, 0.25);
 
   --shadow-lg: 0 8px 32px rgba(60, 196, 189, 0.18), 0 2px 4px rgba(0, 0, 0, 0.25);
+
+  /* ── Row hover backdrop (solid equivalent of the hover tint) ── */
+  --row-hover-bg: #192b29;
 
   /* ── Recurring page — calm mint soft-UI tokens (dark) ── */
   --mint-tint: rgba(79, 157, 136, 0.16);

@@ -324,9 +324,30 @@
                   </span>
                   <span class="progress-pct" style="color: {stateTextColor(state)};">{progressPct}%</span>
                 </div>
+
+                <!-- Hover actions (desktop) — absolute inside the info area,
+                     right-aligned, ending before the amount/status cluster.
+                     Paid rows render no cluster (the Recovered glow is their
+                     state; the kebab is their only overflow path). -->
+                {#if iou.status !== 'paid'}
+                  <div class="iou-hover-slot">
+                    <RowHoverActions
+                      actions={[
+                        { id: 'pay', label: direction === 'lent' ? 'Mark Paid' : 'Repay', text: direction === 'lent' ? 'Mark Paid' : 'Repay', onClick: () => onPay?.(iou.id) },
+                        { id: 'edit', label: 'Edit', icon: editIcon, onClick: () => onEdit?.(iou.id) },
+                        { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(iou.id) },
+                        // Quick-delete: last, danger-tone, same confirm modal
+                        // as the kebab. Conditional — no dead button.
+                        ...(onDelete
+                          ? [{ id: 'delete', label: 'Delete', icon: trashIcon, tone: 'danger' as const, onClick: () => onDelete?.(iou.id) }]
+                          : [])
+                      ]}
+                    />
+                  </div>
+                {/if}
               </div>
 
-              <!-- Right: amount + countdown + overflow (mobile) + hover actions (desktop) -->
+              <!-- Right: amount + countdown + overflow (mobile) + recovered glow -->
               <div class="iou-right">
                 <span class="iou-amount" class:paid-amount={iou.status === 'paid'} style="color: {moneyDirectionColor()};">
                   {formatDirectionalAmount(iou.amount)}
@@ -339,28 +360,13 @@
                   </span>
                 {/if}
 
-                <!-- Hover actions (desktop) + always-visible overflow (⋯) -->
+                <!-- Always-visible overflow (⋯) + recovered glow for paid -->
                 <div class="iou-actions-row">
-                  <div class="iou-actions">
-                    {#if iou.status === 'paid'}
-                      <span class="recovered-glow">
-                        {direction === 'lent' ? 'Recovered' : 'Repaid'}
-                      </span>
-                    {:else}
-                      <RowHoverActions
-                        actions={[
-                          { id: 'pay', label: direction === 'lent' ? 'Mark Paid' : 'Repay', text: direction === 'lent' ? 'Mark Paid' : 'Repay', onClick: () => onPay?.(iou.id) },
-                          { id: 'edit', label: 'Edit', icon: editIcon, onClick: () => onEdit?.(iou.id) },
-                          { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(iou.id) },
-                          // Quick-delete: last, danger-tone, same confirm modal
-                          // as the kebab. Conditional — no dead button.
-                          ...(onDelete
-                            ? [{ id: 'delete', label: 'Delete', icon: trashIcon, tone: 'danger' as const, onClick: () => onDelete?.(iou.id) }]
-                            : [])
-                        ]}
-                      />
-                    {/if}
-                  </div>
+                  {#if iou.status === 'paid'}
+                    <span class="recovered-glow">
+                      {direction === 'lent' ? 'Recovered' : 'Repaid'}
+                    </span>
+                  {/if}
                   <button class="iou-overflow" onclick={() => (menuIou = iou)} type="button" aria-label="More actions for {iou.borrower_name}" aria-haspopup="menu" aria-expanded={menuIou?.id === iou.id}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
                   </button>
@@ -468,26 +474,31 @@
             <span class="amount-num" class:struck={iou.status === 'paid'} style="color: {moneyDirectionColor()};">{formatDirectionalAmount(iou.amount)}</span>
           </div>
 
-          <!-- Hover-reveal actions (overlay, never covers the amount) -->
-          <div class="row-actions">
-            <RowHoverActions
-              actions={[
-                ...(iou.status !== 'paid'
-                  ? [{ id: 'pay', label: direction === 'lent' ? 'Mark Paid' : 'Repay', text: direction === 'lent' ? 'Mark Paid' : 'Repay', onClick: () => onPay?.(iou.id) }]
-                  : []),
-                { id: 'edit', label: 'Edit', icon: editIcon, onClick: () => onEdit?.(iou.id) },
-                { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(iou.id) },
-                // Quick-delete: last, danger-tone, same confirm modal as the
-                // kebab. Conditional — no dead button.
-                ...(onDelete
-                  ? [{ id: 'delete', label: 'Delete', icon: trashIcon, tone: 'danger' as const, onClick: () => onDelete?.(iou.id) }]
-                  : [])
-              ]}
-            />
+          <!-- Reserved actions cell: holds the hover cluster (active rows only)
+               and the kebab (all rows). <1200px the cluster is an absolute
+               overlay inside the name cell; ≥1200px this cell is a real grid
+               column holding both in-flow. -->
+          <div class="row-actions-cell">
+            {#if iou.status !== 'paid'}
+              <div class="row-actions">
+                <RowHoverActions
+                  actions={[
+                    { id: 'pay', label: direction === 'lent' ? 'Mark Paid' : 'Repay', text: direction === 'lent' ? 'Mark Paid' : 'Repay', onClick: () => onPay?.(iou.id) },
+                    { id: 'edit', label: 'Edit', icon: editIcon, onClick: () => onEdit?.(iou.id) },
+                    { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(iou.id) },
+                    // Quick-delete: last, danger-tone, same confirm modal as the
+                    // kebab. Conditional — no dead button.
+                    ...(onDelete
+                      ? [{ id: 'delete', label: 'Delete', icon: trashIcon, tone: 'danger' as const, onClick: () => onDelete?.(iou.id) }]
+                      : [])
+                  ]}
+                />
+              </div>
+            {/if}
+            <button class="row-kebab" aria-label="Actions for {iou.borrower_name}" onclick={() => (menuIou = iou)} type="button">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </button>
           </div>
-          <button class="row-kebab" aria-label="Actions for {iou.borrower_name}" onclick={() => (menuIou = iou)} type="button">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-          </button>
         </div>
       {/each}
     </div>
@@ -502,6 +513,8 @@
     tone="neutral"
     ariaLabel="Lending actions"
     onClose={() => (menuIou = null)}
+    onPay={() => { const id = menuIou!.id; menuIou = null; onPay?.(id); }}
+    payLabel={direction === 'lent' ? 'Mark Paid' : 'Repay'}
     onEdit={() => { const id = menuIou!.id; menuIou = null; onEdit?.(id); }}
     onDuplicate={() => { const id = menuIou!.id; menuIou = null; onDuplicate?.(id); }}
     onDelete={() => { const id = menuIou!.id; menuIou = null; onDelete?.(id); }}
@@ -580,6 +593,9 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
+    border: none;
+    outline: none;
+    box-shadow: none;
   }
 
   /* Group header (sticky). Right padding is 0 so the count chip snaps to the
@@ -588,13 +604,15 @@
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    padding: var(--space-sm) 0 var(--space-sm) var(--space-md);
+    padding: var(--space-sm) var(--space-md);
     border-bottom: 1px solid var(--line);
     background: var(--mint-tint);
     position: sticky;
     top: 0;
     z-index: 3;
     backdrop-filter: blur(8px);
+    box-shadow: none;
+    outline: none;
   }
 
   .group-emoji {
@@ -643,8 +661,20 @@
   }
 
   .iou-card:hover {
+    background: var(--row-hover-bg);
+    box-shadow: var(--shadow-lg);
     transform: translateY(-2px);
-    box-shadow: var(--shadow-card);
+  }
+
+  /* Focus split: pointer users get no outline; keyboard users get the
+     proper --focus ring with 2px --surface offset. */
+  .iou-card:focus {
+    outline: none;
+  }
+
+  .iou-card:focus-visible {
+    outline: none;
+    box-shadow: var(--focus);
   }
 
   .iou-card.paid {
@@ -729,6 +759,34 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+    position: relative;
+  }
+
+  /* Hover cluster — absolute inside the info area, right-aligned, ending
+     before the amount/status cluster. Single-gradient backdrop (solid
+     row-hover tint with a left-fading edge) blends into the card. */
+  .iou-hover-slot {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 3;
+  }
+
+  /* Backdrop only at 760-1199px where cluster can overlap text */
+  @media (min-width: 760px) and (max-width: 1199px) {
+    .iou-hover-slot :global(.hover-actions) {
+      background: linear-gradient(to right, transparent, var(--row-hover-bg) 24px);
+      padding-left: 24px;
+    }
+  }
+
+  /* ≥1200px: no backdrop — middle region is empty, nothing collides */
+  @media (min-width: 1200px) {
+    .iou-hover-slot :global(.hover-actions) {
+      background: none;
+      padding: 0;
+    }
   }
 
   .iou-name {
@@ -845,13 +903,6 @@
     white-space: nowrap;
   }
 
-  /* Hover actions (reveal handled by the shared RowHoverActions) */
-  .iou-actions {
-    display: flex;
-    gap: 4px;
-    margin-top: 2px;
-  }
-
   .iou-actions-row {
     display: flex;
     align-items: center;
@@ -900,15 +951,15 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     margin-top: 2px;
-    border: 1px solid var(--color-hairline);
+    border: none;
     border-radius: var(--radius-pill);
-    background: var(--color-surface-inset);
-    color: var(--color-text-muted);
+    background: transparent;
+    color: var(--muted);
     cursor: pointer;
-    transition: all 120ms ease;
+    transition: background 140ms ease-out, color 140ms ease-out;
     -webkit-tap-highlight-color: transparent;
   }
 
@@ -934,7 +985,10 @@
     overflow: hidden;
   }
 
-  /* ── Column header (sticky, mono uppercase) ── */
+  /* ── Column header (sticky, mono uppercase) ──
+     Mirrors the data-row grid at both breakpoints so headers never drift
+     from their columns. <1200px: trailing 48px kebab column. ≥1200px: the
+     trailing column widens to the reserved actions column (320px). */
   .register-header {
     display: grid;
     grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 48px;
@@ -952,6 +1006,12 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--color-text-muted);
+  }
+
+  @media (min-width: 1200px) {
+    .register-header {
+      grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 320px;
+    }
   }
 
   .rh-circle {
@@ -985,6 +1045,14 @@
     min-height: 56px;
     transition: background 180ms var(--ease);
     overflow: hidden;
+  }
+
+  /* ≥1200px: the trailing column becomes a reserved actions column holding
+     the hover cluster + kebab together (money never shifts). */
+  @media (min-width: 1200px) {
+    .iou-row {
+      grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 320px;
+    }
   }
 
   /* Left accent bar — state-colored (coral=overdue, gold=due, teal=track, sky=paid),
@@ -1045,12 +1113,13 @@
     flex-shrink: 0;
   }
 
-  /* Identity */
+  /* Identity — position:relative anchors the hover cluster overlay */
   .row-main {
     min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 2px;
+    position: relative;
   }
 
   .row-line1 {
@@ -1185,17 +1254,38 @@
     color: var(--color-text-muted) !important;
   }
 
-  /* ── Hover-reveal actions (overlay, anchored before the amount column so
-     money stays readable; reveal handled by shared RowHoverActions) ── */
+  /* ── Reserved actions cell ──
+     <1200px: transparent to layout (display: contents) so the cluster is an
+     absolute overlay inside the name cell and the kebab is its own grid
+     column. ≥1200px: a real flex cell holding cluster + kebab in-flow. */
+  .row-actions-cell {
+    display: contents;
+  }
+
+  /* <1200px: hover cluster — absolute overlay anchored to the name cell's
+     grid area (column 2), right-aligned, ending before the progress column.
+     The single-gradient backdrop (solid row-hover tint with a left-fading
+     edge) blends into the hovered row instead of colliding with the
+     progress label. */
   .row-actions {
     position: absolute;
-    right: calc(48px + 116px + var(--space-sm));
+    grid-column: 2 / 3;
+    grid-row: 1 / 2;
+    right: 0;
     top: 50%;
     transform: translateY(-50%);
     display: flex;
     align-items: center;
     gap: 2px;
     z-index: 3;
+  }
+
+  /* Register backdrop: 760–1199px only, no border-radius (blend, not chip) */
+  @media (min-width: 760px) and (max-width: 1199px) {
+    .row-actions :global(.hover-actions) {
+      background: linear-gradient(to right, transparent, var(--row-hover-bg) 24px);
+      padding-left: 24px;
+    }
   }
 
   /* Kebab — always visible, quiet at rest (delete lives only here) */
@@ -1221,6 +1311,27 @@
     color: var(--teal-deep);
   }
 
+  /* ≥1200px: reserved actions column — cluster + kebab sit in-flow together */
+  @media (min-width: 1200px) {
+    .row-actions-cell {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+    }
+
+    .row-actions {
+      position: static;
+      transform: none;
+    }
+
+    .row-actions :global(.hover-actions) {
+      background: none;
+      padding: 0;
+      border-radius: 0;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .iou-card { transition: none; }
     .iou-card.overdue { animation: none; }
@@ -1234,6 +1345,7 @@
     .iou-row::before { transition: none; }
     .row-actions { transition: none; }
     .row-progress-fill { transition: none; }
+    .iou-overflow { transition: none; }
   }
 
   /* ═══════════════════════════════════════════════════════
@@ -1288,8 +1400,6 @@
     }
 
     .state-pill { display: none; }
-
-    .iou-actions { display: none; }
 
     .iou-mobile-actions {
       grid-area: actions;
@@ -1475,18 +1585,31 @@
       border-top: 1px solid var(--color-hairline);
     }
 
-    /* On touch the cluster is hover-gated — force it visible in the mobile bar */
-    .row-actions :global(.hover-actions) {
-      opacity: 1;
-      transform: none;
-      pointer-events: auto;
-    }
-
+    /* Kebab survives on every mobile row — the single actions path on touch */
     .row-kebab {
+      display: inline-flex;
       grid-column: 3;
       grid-row: 4;
       justify-self: end;
       align-self: center;
+    }
+
+    /* Cluster hidden on touch / narrow — kebab is the only actions path */
+    .row-actions {
+      display: none;
+    }
+  }
+
+  /* Touch + coarse pointer: cluster hidden everywhere, kebab visible */
+  @media (hover: none), (pointer: coarse) {
+    .row-actions {
+      display: none;
+    }
+    .iou-hover-slot {
+      display: none;
+    }
+    .row-kebab {
+      display: inline-flex;
     }
   }
 </style>

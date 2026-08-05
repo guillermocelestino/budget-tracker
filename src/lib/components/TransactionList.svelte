@@ -786,18 +786,6 @@
      description (main) column — its containing block is exactly that grid
      area, so it structurally cannot reach BAL/amount/kebab at any width.
      Mobile (≤640px) keeps the existing flex card layout. */
-  .grouped-list {
-    /* Solid equivalent of the mint row-hover tint: the cluster backdrop
-       blends into the row instead of colliding with title/pill text.
-       Light ~#f0f8f5; dark = solid blend of rgba(43,168,162,0.12) over
-       --color-surface #161A18. */
-    --row-hover-bg: #f0f8f5;
-  }
-
-  [data-theme="dark"] .grouped-list {
-    --row-hover-bg: #192b29;
-  }
-
   @media (min-width: 641px) {
     .grouped-list .txn-row {
       display: grid;

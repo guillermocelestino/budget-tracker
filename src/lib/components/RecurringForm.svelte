@@ -114,7 +114,7 @@
 	};
 </script>
 
-<form method="POST" {action} use:enhance={onSubmit ? undefined : handleEnhance} onsubmit={handleSubmit}>
+<form use:enhance={onSubmit ? undefined : handleEnhance} onsubmit={handleSubmit}>
 	{#if recurring}
 		<input type="hidden" name="id" value={recurring.id} />
 	{/if}
