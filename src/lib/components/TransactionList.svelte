@@ -1,6 +1,7 @@
 <script lang="ts">
   import { formatCurrency, formatDate, formatDateShort, formatSignedCurrency, getToday } from '$lib/utils/format';
   import RowActionsMenu from '$lib/components/RowActionsMenu.svelte';
+  import RowHoverActions from '$lib/components/RowHoverActions.svelte';
   import DateHeaderBand from '$lib/components/DateHeaderBand.svelte';
   import { getCategoryHue, getCategoryText, getCategoryTint } from '$lib/utils/categoryColors';
   import { isDark } from '$lib/stores/preferences.svelte';
@@ -335,6 +336,14 @@
   <DateHeaderBand label={group.label} count={group.items.length} subtotal={group.subtotal} />
 {/snippet}
 
+{#snippet editIcon()}
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+{/snippet}
+
+{#snippet dupIcon()}
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+{/snippet}
+
 {#snippet bankRow(txn: Transaction & { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean })}
   {@const isIncome = txn.type === 'income'}
   {@const isExpanded = editingId === txn.id}
@@ -351,6 +360,7 @@
     class:swiped={swipedRowId === txn.id}
     class:selected={selectionMode && selectedIds.has(txn.id)}
     data-txn-id={txn.id}
+    data-hover-row
     role="button"
     tabindex="0"
     style={swipedRowId === txn.id ? `transform: translateX(-${swipeOffset}px);` : ''}
@@ -424,50 +434,33 @@
       </span>
     </div>
 
-    <!-- Hover-only edit / duplicate / delete icons -->
+    <!-- Hover quick actions + always-visible kebab (delete lives only in ⋯).
+         <1200px: kebab is its own grid column; hover cluster is a void overlay
+         ending before the BAL column. >=1200px: both live in a reserved
+         actions column. Never both at once. -->
     {#if showActions && !isExpanded && !isInlineEditing && !selectionMode}
-      <div class="hover-actions">
+      <div class="row-actions-col">
+        <div class="hover-slot">
+          <RowHoverActions
+            actions={[
+              { id: 'edit', label: 'Edit amount', icon: editIcon, onClick: () => onEdit?.(txn.id) },
+              { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(txn.id) }
+            ]}
+          />
+        </div>
         <button
-          class="hover-btn"
-          title="Edit amount"
-          onclick={(e) => { e.stopPropagation(); onEdit?.(txn.id); }}
+          class="row-menu-btn"
+          aria-label="Actions for {cleanDescription(txn.description)}"
+          onclick={(e) => { e.stopPropagation(); menuTxn = txn; }}
           type="button"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-        </button>
-        <button
-          class="hover-btn"
-          title="Duplicate"
-          onclick={(e) => { e.stopPropagation(); onDuplicate?.(txn.id); }}
-          type="button"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        </button>
-        <button
-          class="hover-btn hover-delete"
-          title="Delete"
-          onclick={(e) => { e.stopPropagation(); onDelete?.(txn.id); }}
-          type="button"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="1"/>
+            <circle cx="19" cy="12" r="1"/>
+            <circle cx="5" cy="12" r="1"/>
+          </svg>
         </button>
       </div>
-    {/if}
-
-    <!-- Mobile-only row overflow trigger -->
-    {#if showActions && !isExpanded && !selectionMode}
-      <button
-        class="row-menu-btn"
-        aria-label="Actions for {cleanDescription(txn.description)}"
-        onclick={(e) => { e.stopPropagation(); menuTxn = txn; }}
-        type="button"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="1"/>
-          <circle cx="19" cy="12" r="1"/>
-          <circle cx="5" cy="12" r="1"/>
-        </svg>
-      </button>
     {/if}
   </div>
 
@@ -576,6 +569,7 @@
           <span class="fh-balance">Balance</span>
         {/if}
         <span class="fh-amount">Amount</span>
+        <span class="fh-actions" aria-hidden="true"></span>
       </div>
       {#each transactionsWithBalance as txn (txn.id)}
         {@render bankRow(txn)}
@@ -663,8 +657,10 @@
   /* ══ Flat view shared column grid (desktop ≥641px) ═══════════════════
      The flat header and every flat row share ONE grid template so all
      values align perfectly beneath their headers. Columns are fixed-width
-     (content-independent) for strict financial-table alignment. Mobile
-     (≤640px) keeps the existing card layout — this grid does not apply. */
+     (content-independent) for strict financial-table alignment. The trailing
+     column is the kebab (<1200px) or a reserved actions column (≥1200px).
+     Mobile (≤640px) keeps the existing card layout — this grid does not
+     apply. */
   @media (min-width: 641px) {
     .flat-register .flat-header,
     .flat-register .txn-row {
@@ -674,7 +670,8 @@
         minmax(0, 1fr)  /* description      */
         84px            /* date             */
         96px            /* balance          */
-        108px;          /* amount           */
+        108px           /* amount           */
+        44px;           /* kebab column     */
       align-items: center;
       column-gap: var(--space-sm);
     }
@@ -689,7 +686,35 @@
         minmax(0, 1fr)  /* description      */
         84px            /* date             */
         96px            /* balance          */
-        108px;          /* amount           */
+        108px           /* amount           */
+        44px;           /* kebab column     */
+    }
+
+    /* ≥1200px: the trailing column becomes a reserved actions column holding
+       the hover cluster + kebab together (money never shifts). */
+    @media (min-width: 1200px) {
+      .flat-register .flat-header,
+      .flat-register .txn-row {
+        grid-template-columns:
+          28px            /* category circle  */
+          minmax(0, 1fr)  /* description      */
+          84px            /* date             */
+          96px            /* balance          */
+          108px           /* amount           */
+          148px;          /* reserved actions */
+      }
+
+      .flat-register.selecting .flat-header,
+      .flat-register.selecting .txn-row {
+        grid-template-columns:
+          28px            /* selection       */
+          28px            /* category circle  */
+          minmax(0, 1fr)  /* description      */
+          84px            /* date             */
+          96px            /* balance          */
+          108px           /* amount           */
+          148px;          /* reserved actions */
+      }
     }
 
     /* Header cells: reset flex sizing, let the grid tracks drive width */
@@ -698,7 +723,8 @@
     .flat-register .flat-header .fh-desc,
     .flat-register .flat-header .fh-date,
     .flat-register .flat-header .fh-balance,
-    .flat-register .flat-header .fh-amount {
+    .flat-register .flat-header .fh-amount,
+    .flat-register .flat-header .fh-actions {
       min-width: 0;
       width: auto;
       margin: 0;
@@ -719,20 +745,30 @@
     .flat-register .balance-col,
     .flat-register .txn-amount-col { min-width: 0; }
 
-    /* Hover actions leave the column flow — overlay at the row's right edge
-       so they never shift the numeric columns out of alignment. Its own
-       surface background (base .hover-actions) occludes the amount beneath,
-       so no external mask is needed in any theme. */
-    .flat-register .txn-row .hover-actions {
-      position: absolute;
-      right: var(--space-lg);
-      top: 50%;
-      transform: translate(4px, -50%);
-      z-index: 2;
+    /* Hover cluster — void overlay anchored right-aligned in the empty middle
+       region, ending BEFORE the BAL column so money stays readable. The
+       grouped (flex) row and the flat register use different column widths. */
+    .txn-row .hover-slot {
+      right: calc(44px + 90px + 2 * var(--space-sm));
     }
 
-    .flat-register .txn-row:hover .hover-actions {
-      transform: translate(0, -50%);
+    .flat-register .txn-row .hover-slot {
+      right: calc(44px + 108px + 96px + 3 * var(--space-sm));
+    }
+
+    /* ≥1200px: reserved actions column — cluster + kebab sit in-flow together */
+    @media (min-width: 1200px) {
+      .flat-register .txn-row .row-actions-col {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 4px;
+      }
+
+      .flat-register .txn-row .hover-slot {
+        position: static;
+        transform: none;
+      }
     }
   }
 
@@ -965,54 +1001,23 @@
   .amount-income { color: var(--teal); }
   .amount-expense { color: var(--rose); }
 
-  /* ── Hover-reveal action buttons (floating segmented toolbar) ──
-     A contiguous surface chip (not a bare icon cluster) so the amount
-     digits beneath it are occluded in BOTH themes. The old gradient used
-     --color-teal-bg, which is opaque in Light but translucent in Dark
-     (rgba(43,168,162,0.12)), letting the bright amounts bleed through and
-     making the actions vanish on hover in dark mode. A surface chip is
-     theme-proof and needs no mask. */
-  .hover-actions {
-    display: flex;
-    gap: 2px;
-    padding: 4px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-    opacity: 0;
-    transform: translateX(4px);
-    transition: opacity 120ms var(--ease), transform 120ms var(--ease);
-    pointer-events: none;
-    flex-shrink: 0;
+  /* ── Hover cluster + kebab slot ──
+     .row-actions-col is transparent to layout (<1200px): its children join the
+     row's grid/flex directly. The hover cluster is a void overlay that never
+     covers BAL/amount; the kebab occupies its own trailing column. ≥1200px the
+     wrapper becomes a flex cell inside the reserved actions column. */
+  .row-actions-col { display: contents; }
+
+  .hover-slot {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 3;
   }
 
-  .txn-row:hover .hover-actions {
-    opacity: 1;
-    transform: translateX(0);
-    pointer-events: auto;
-  }
-
-  .hover-btn {
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition: background 120ms var(--ease), color 120ms var(--ease);
-  }
-
-  .hover-btn:hover { background: var(--color-teal-bg); color: var(--color-teal); }
-  .hover-delete:hover { background: rgba(239, 108, 74, 0.10); color: var(--color-coral); }
-
-  /* ── Mobile row overflow trigger (⋮) ── */
+  /* Kebab — always visible, quiet at rest */
   .row-menu-btn {
-    display: none;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 44px;
@@ -1020,21 +1025,22 @@
     flex-shrink: 0;
     margin-right: -6px;
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: 10px;
     background: transparent;
     color: var(--color-text-muted);
     cursor: pointer;
     transition: background 180ms var(--ease), color 180ms var(--ease);
   }
 
+  .row-menu-btn:hover,
+  .row-menu-btn:focus-visible {
+    background: var(--mint-tint);
+    color: var(--teal-deep);
+  }
+
   .row-menu-btn:active {
     background: var(--color-teal-bg);
     color: var(--color-teal);
-  }
-
-  .row-menu-btn:focus-visible {
-    outline: 2px solid var(--color-teal);
-    outline-offset: -2px;
   }
 
   /* ── Inline edit panel (Flip7) ── */
@@ -1246,9 +1252,8 @@
   /* ── Mobile (< 640px) ── */
   @media (max-width: 640px) {
     .cat-pill { display: none; }
-    .hover-actions { display: none; }
+    .hover-slot { display: none; }
     .cat-stripe { display: none; }
-    .row-menu-btn { display: inline-flex; }
     .flat-header { display: none; }
     .txn-date-col { display: none; }
     .sel-check { width: 44px; height: 44px; }

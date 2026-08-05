@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { formatCurrency, formatDate, getToday } from '$lib/utils/format';
 	import RowActionsMenu from '$lib/components/RowActionsMenu.svelte';
+	import RowHoverActions from '$lib/components/RowHoverActions.svelte';
+	import { getCategoryHue, getCategoryText, getCategoryTint } from '$lib/utils/categoryColors';
+	import { isDark } from '$lib/stores/preferences.svelte';
 	import type { RecurringTransaction } from '$lib/types';
 
 	let {
@@ -67,158 +70,43 @@
 		return { label: 'Active', class: 'status-active' };
 	}
 
-	/* ── Category hue remapping ──
-	   The seed palette ships royal-blue / indigo / violet values (e.g. Bills &
-	   Utilities #3b82f6, Entertainment #8b5cf6) which are forbidden here. Remap
-	   known categories to calm in-family hues (teal / rose / ocean), and
-	   neutralize any residual blue-ish color on user-created categories. */
-	const CATEGORY_HUES: Record<string, string> = {
-		Salary: '#3f8f79',
-		Freelance: '#5f9d8a',
-		'Other Income': '#7b9f91',
-		'Food & Dining': '#c0564f',
-		Transportation: '#c08a4a',
-		Shopping: '#b0864d',
-		Entertainment: '#a07a6a',
-		'Bills & Utilities': '#468499',
-		Healthcare: '#c56a8b',
-		Education: '#4f8f9e',
-		'Other Expense': '#7a8986'
-	};
-
-	const CATEGORY_TINTS: Record<string, string> = {
-		'Bills & Utilities': '#e0eef2'
-	};
-
-	function hexToRgb(hex: string): [number, number, number] {
-		const m = hex.replace('#', '').match(/^([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
-		return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [79, 157, 136];
-	}
-
-	function withAlpha(hex: string, alpha: number): string {
-		const [r, g, b] = hexToRgb(hex);
-		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-	}
-
-	function isForbiddenHue(hex: string): boolean {
-		const [r0, g0, b0] = hexToRgb(hex);
-		const r = r0 / 255;
-		const g = g0 / 255;
-		const b = b0 / 255;
-		const max = Math.max(r, g, b);
-		const min = Math.min(r, g, b);
-		const d = max - min;
-		if (d === 0) return false;
-		let h: number;
-		if (max === r) h = ((g - b) / d) % 6;
-		else if (max === g) h = (b - r) / d + 2;
-		else h = (r - g) / d + 4;
-		h = (h * 60 + 360) % 360;
-		// blue → indigo → violet
-		return h >= 205 && h < 305;
-	}
-
-	function getCategoryHue(name: string | null | undefined, dbColor: string | null | undefined): string {
-		const n = name || '';
-		if (CATEGORY_HUES[n]) return CATEGORY_HUES[n];
-		const c = dbColor || '#4f9d88';
-		return isForbiddenHue(c) ? '#4f9d88' : c;
-	}
-
-	function getCategoryTint(name: string | null | undefined, hue: string): string {
-		const n = name || '';
-		if (CATEGORY_TINTS[n]) return CATEGORY_TINTS[n];
-		return withAlpha(hue, 0.12);
-	}
-
-	/* ── Quick-action tooltips ──
-	   Each quick button owns a per-button tooltip (a sibling .quick-tip span).
-	   Pointer shows it after a 250ms intent delay; keyboard focus-visible shows
-	   it instantly. Hidden on leave / blur / Escape / scroll. Edge-aware: the
-	   tooltip flips below when the button sits in the first row (or the pill
-	   would clip the viewport top) and is clamped to stay ≥8px inside the card.
-	   Never triggered by row hover alone — only the button itself. */
-	let tipTimer: ReturnType<typeof setTimeout> | undefined;
-	let activeTipEl: HTMLElement | null = null;
-	let tipTrigger: 'pointer' | 'focus' | null = null;
-
-	function hideTip() {
-		clearTimeout(tipTimer);
-		tipTimer = undefined;
-		if (activeTipEl) {
-			activeTipEl.classList.remove('show');
-			activeTipEl = null;
-		}
-		tipTrigger = null;
-	}
-
-	function hideTipByPointer() {
-		clearTimeout(tipTimer);
-		tipTimer = undefined;
-		if (!activeTipEl) {
-			tipTrigger = null;
-			return;
-		}
-		// A keyboard-shown tooltip stays until blur — mouse movement must not hide it.
-		if (tipTrigger === 'focus') return;
-		activeTipEl.classList.remove('show');
-		activeTipEl = null;
-		tipTrigger = null;
-	}
-
-	function scheduleTip(btn: HTMLButtonElement, instant: boolean) {
-		clearTimeout(tipTimer);
-		tipTimer = undefined;
-		const tip = btn.parentElement?.querySelector<HTMLElement>('.quick-tip');
-		if (!tip) return;
-		const show = () => {
-			if (activeTipEl && activeTipEl !== tip) activeTipEl.classList.remove('show');
-			activeTipEl = tip;
-			tipTrigger = instant ? 'focus' : 'pointer';
-			tip.classList.add('show');
-			positionTip(tip, btn);
-		};
-		if (instant) show();
-		else tipTimer = setTimeout(show, 250);
-	}
-
-	function positionTip(tip: HTMLElement, btn: HTMLButtonElement) {
-		requestAnimationFrame(() => {
-			const card = btn.closest<HTMLElement>('.recurring-table');
-			if (!card) return;
-			const pad = 8;
-			const tipRect = tip.getBoundingClientRect();
-			const btnRect = btn.getBoundingClientRect();
-			const cardRect = card.getBoundingClientRect();
-			// Flip below when the button is in the first row (<48px clear space
-			// above it inside the card) or the pill would clip the viewport top.
-			const flip =
-				btnRect.top - cardRect.top < 48 ||
-				btnRect.top - tipRect.height - 6 < pad;
-			tip.classList.toggle('flip', flip);
-			// Clamp horizontally so the pill stays ≥8px inside the card edges.
-			let dx = 0;
-			if (tipRect.left < cardRect.left + pad) dx = cardRect.left + pad - tipRect.left;
-			else if (tipRect.right > cardRect.right - pad) dx = cardRect.right - pad - tipRect.right;
-			tip.style.transform = dx !== 0 ? `translateX(calc(-50% + ${dx}px))` : '';
-		});
-	}
 </script>
 
 <!-- ── SNIPPETS ── -->
+{#snippet runIcon()}
+	<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+{/snippet}
+
+{#snippet editIcon()}
+	<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+{/snippet}
+
+{#snippet dupIcon()}
+	<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+{/snippet}
+
+{#snippet pauseIcon()}
+	<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+{/snippet}
+
+{#snippet resumeIcon()}
+	<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+{/snippet}
+
 {#snippet recurringRow(rec: RecurringTransaction)}
 	{@const status = getStatusBadge(rec)}
 	{@const isIncome = rec.type === 'income'}
 	{@const hue = getCategoryHue(rec.category_name, rec.category_color)}
-	{@const tint = getCategoryTint(rec.category_name, hue)}
+	{@const tint = getCategoryTint(rec.category_name, hue, isDark)}
+	{@const fg = getCategoryText(rec.category_name, hue, isDark)}
 
-	<div class="recurring-row" class:txn-income={isIncome} class:txn-expense={!isIncome} data-recurring-id={rec.id} role="button" tabindex="0" aria-label="{rec.description}, {frequencyLabels[rec.frequency]}, next: {formatNextRun(rec.next_run)}" onclick={() => onEdit?.(rec)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit?.(rec); } }}>
+	<div class="recurring-row" class:txn-income={isIncome} class:txn-expense={!isIncome} data-recurring-id={rec.id} data-hover-row role="button" tabindex="0" aria-label="{rec.description}, {frequencyLabels[rec.frequency]}, next: {formatNextRun(rec.next_run)}" onclick={() => onEdit?.(rec)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit?.(rec); } }}>
 		<!-- Category accent bar -->
-		<div class="cat-stripe" style="background: {hue}"></div>
+		<div class="cat-stripe" style="background: {fg}"></div>
 
 		<!-- Description: icon chip + title/status + next-run -->
 		<div class="txn-desc-cell">
-			<div class="cat-circle" style="background: {tint}; color: {hue}">
+			<div class="cat-circle" style="background: {tint}; color: {fg}">
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M12 2v20M6 4h7a4 4 0 0 1 0 8H6"/><line x1="4" x2="18" y1="12" y2="12"/><line x1="4" x2="18" y1="16" y2="16"/>
 				</svg>
@@ -244,7 +132,7 @@
 				</span>
 			</div>
 			<div class="cat-cell">
-				<span class="cat-pill" style="background: {tint}; color: {hue}">
+				<span class="cat-pill" style="background: {tint}; color: {fg}">
 					{rec.category_name || 'Uncategorized'}
 				</span>
 			</div>
@@ -260,41 +148,16 @@
 		<!-- Reserved quick-action slot (revealed on row hover / focus) -->
 		{#if showActions}
 			<div class="actions-cell">
-				<div class="hover-actions">
-					<div class="quick-btn-wrap" data-action="run">
-						<button class="quick-btn" aria-label="Run now" onclick={(e) => { e.stopPropagation(); onRunNow?.(rec.id); }} onpointerenter={(e) => scheduleTip(e.currentTarget, false)} onpointerleave={hideTipByPointer} onfocus={(e) => { if (e.currentTarget.matches(':focus-visible')) scheduleTip(e.currentTarget, true); }} onblur={hideTip} type="button">
-							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-						</button>
-						<span class="quick-tip">Run now</span>
-					</div>
-					<div class="quick-btn-wrap" data-action="edit">
-						<button class="quick-btn" aria-label="Edit" onclick={(e) => { e.stopPropagation(); onEdit?.(rec); }} onpointerenter={(e) => scheduleTip(e.currentTarget, false)} onpointerleave={hideTipByPointer} onfocus={(e) => { if (e.currentTarget.matches(':focus-visible')) scheduleTip(e.currentTarget, true); }} onblur={hideTip} type="button">
-							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-						</button>
-						<span class="quick-tip">Edit</span>
-					</div>
-					<div class="quick-btn-wrap" data-action="duplicate">
-						<button class="quick-btn" aria-label="Duplicate" onclick={(e) => { e.stopPropagation(); onDuplicate?.(rec.id); }} onpointerenter={(e) => scheduleTip(e.currentTarget, false)} onpointerleave={hideTipByPointer} onfocus={(e) => { if (e.currentTarget.matches(':focus-visible')) scheduleTip(e.currentTarget, true); }} onblur={hideTip} type="button">
-							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-						</button>
-						<span class="quick-tip">Duplicate</span>
-					</div>
-					{#if rec.active}
-						<div class="quick-btn-wrap" data-action="pause">
-							<button class="quick-btn" aria-label="Pause" onclick={(e) => { e.stopPropagation(); onPause?.(rec.id); }} onpointerenter={(e) => scheduleTip(e.currentTarget, false)} onpointerleave={hideTipByPointer} onfocus={(e) => { if (e.currentTarget.matches(':focus-visible')) scheduleTip(e.currentTarget, true); }} onblur={hideTip} type="button">
-								<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-							</button>
-							<span class="quick-tip">Pause</span>
-						</div>
-					{:else}
-						<div class="quick-btn-wrap" data-action="pause">
-							<button class="quick-btn" aria-label="Resume" onclick={(e) => { e.stopPropagation(); onResume?.(rec.id); }} onpointerenter={(e) => scheduleTip(e.currentTarget, false)} onpointerleave={hideTipByPointer} onfocus={(e) => { if (e.currentTarget.matches(':focus-visible')) scheduleTip(e.currentTarget, true); }} onblur={hideTip} type="button">
-								<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-							</button>
-							<span class="quick-tip">Resume</span>
-						</div>
-					{/if}
-				</div>
+				<RowHoverActions
+					actions={[
+						{ id: 'run', label: 'Run now', icon: runIcon, onClick: () => onRunNow?.(rec.id), hideBelow: 'md' },
+						{ id: 'edit', label: 'Edit', icon: editIcon, onClick: () => onEdit?.(rec) },
+						{ id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(rec.id), hideBelow: 'lg' },
+						rec.active
+							? { id: 'pause', label: 'Pause', icon: pauseIcon, onClick: () => onPause?.(rec.id) }
+							: { id: 'resume', label: 'Resume', icon: resumeIcon, onClick: () => onResume?.(rec.id) }
+					]}
+				/>
 			</div>
 
 			<button class="kebab-btn" aria-label="Actions for {rec.description}" onclick={(e) => { e.stopPropagation(); menuTxn = rec; }} type="button">
@@ -309,7 +172,6 @@
 {/snippet}
 
 <!-- Hide tooltips on Escape (discard) and on scroll (never leave a stale pill) -->
-<svelte:window onkeydown={(e) => { if (e.key === 'Escape') hideTip(); }} onscroll={hideTip} />
 
 <!-- ── RENDER ── -->
 <div class="recurring-list">
@@ -594,97 +456,14 @@
 
 	/* ── Reserved quick-action slot ──
 	   Empty at rest (opacity 0, pointer-events none) so nothing shifts;
-	   revealed only on row hover / focus-within. */
+	   revealed only on row hover / focus-within. The cluster + tooltips now
+	   live in the shared RowHoverActions component. */
 	.actions-cell {
 		display: flex;
 		align-items: center;
 		justify-content: flex-end;
 		min-width: 0;
 		padding-right: 8px;
-	}
-
-	.hover-actions {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		opacity: 0;
-		transform: translateX(4px);
-		pointer-events: none;
-		transition: opacity 140ms ease-out, transform 140ms ease-out;
-	}
-
-	/* One identical 44px footprint for every quick action: the visible tile
-	   (radius 10px) always fills it — transparent at rest, --mint-tint on the
-	   button's own hover/focus. Nothing grows, shrinks, or shifts. */
-	.quick-btn-wrap {
-		position: relative;
-	}
-
-	.quick-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 44px;
-		height: 44px;
-		flex-shrink: 0;
-		border: none;
-		border-radius: 10px;
-		background: transparent;
-		color: var(--muted);
-		cursor: default;
-		transition: background 140ms ease-out, color 140ms ease-out;
-		-webkit-tap-highlight-color: transparent;
-	}
-
-	.quick-btn:hover,
-	.quick-btn:focus-visible {
-		background: var(--mint-tint);
-		color: var(--teal-deep);
-	}
-
-	.quick-btn:focus-visible {
-		outline: 2px solid var(--teal-deep);
-		outline-offset: 2px;
-	}
-
-	.quick-btn svg {
-		width: 18px;
-		height: 18px;
-	}
-
-	/* Per-button tooltip — anchored to its own button, centered above the glyph */
-	.quick-tip {
-		position: absolute;
-		left: 50%;
-		transform: translateX(-50%);
-		bottom: calc(100% + 6px);
-		white-space: nowrap;
-		pointer-events: none;
-		z-index: 60;
-		background: var(--ink);
-		color: var(--color-surface);
-		font-family: var(--font-body);
-		font-size: 12px;
-		font-weight: 500;
-		line-height: 1;
-		border-radius: 8px;
-		padding: 4px 10px;
-		opacity: 0;
-		visibility: hidden;
-		transition: opacity 140ms ease-out, visibility 0s linear 140ms;
-	}
-
-	.quick-tip.show {
-		opacity: 1;
-		visibility: visible;
-		transition: opacity 140ms ease-out;
-	}
-
-	/* Edge-aware flip: first-row buttons (and JS `.flip`) put the pill below */
-	.recurring-row:first-child .quick-tip,
-	.quick-tip.flip {
-		top: calc(100% + 6px);
-		bottom: auto;
 	}
 
 	/* ── Kebab — always visible and quiet; mint tile only on its own hover ── */
@@ -716,23 +495,10 @@
 		height: 24px;
 	}
 
-	/* ── Hover / focus gating — hover-capable pointers only ──
-	   The row tints first (no delay); the cluster fades in 70ms later, so
-	   controls never appear on an untinted row. */
-	@media (hover: hover) and (pointer: fine) {
-		.recurring-row:hover .hover-actions,
-		.recurring-row:focus-within .hover-actions {
-			opacity: 1;
-			transform: translateX(0);
-			pointer-events: auto;
-			transition-delay: 70ms;
-		}
-	}
-
-	/* Narrow desktop: shrink the reserved slot and drop Duplicate first, then
-	   Run now, keeping Edit + Pause. The header shares the same template. */
+	/* Narrow desktop: shrink the reserved slot; the shared RowHoverActions
+	   handles the Duplicate/Run drops via its own hideBelow media rules. The
+	   header shares the same template. */
 	@media (max-width: 1099px) {
-		.quick-btn-wrap[data-action='duplicate'] { display: none; }
 		.recurring-row,
 		.recurring-header {
 			grid-template-columns: minmax(0, 1fr) 120px 170px 130px 148px 48px;
@@ -740,7 +506,6 @@
 	}
 
 	@media (max-width: 899px) {
-		.quick-btn-wrap[data-action='run'] { display: none; }
 		.recurring-row,
 		.recurring-header {
 			grid-template-columns: minmax(0, 1fr) 120px 170px 130px 100px 48px;

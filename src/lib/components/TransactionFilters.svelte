@@ -296,8 +296,8 @@
 
   <!-- ═══ Shared Apply / Reset footer (one implementation across all list pages) ═══ -->
   <FilterFooter
-    canApply={hasActiveFilters}
-    canClear={hasActiveFilters}
+    canApply={!!hasActiveFilters}
+    canClear={!!hasActiveFilters}
     onApply={() => onApply?.()}
     onClear={clearFilters}
     {mode}

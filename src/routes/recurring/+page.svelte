@@ -903,7 +903,7 @@
 			width: 100%;
 		}
 
-		.header-actions .btn {
+		:global(.header-actions .btn) {
 			width: 100%;
 		}
 

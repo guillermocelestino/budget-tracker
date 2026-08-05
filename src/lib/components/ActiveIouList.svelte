@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { formatCurrency, formatDate, getToday } from '$lib/utils/format';
   import RowActionsMenu from '$lib/components/RowActionsMenu.svelte';
+  import RowHoverActions from '$lib/components/RowHoverActions.svelte';
   import type { Lending } from '$lib/types';
 
   let {
@@ -227,6 +228,14 @@
   }
 </script>
 
+{#snippet editIcon()}
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+{/snippet}
+
+{#snippet dupIcon()}
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+{/snippet}
+
 <!-- ════════════════════════════════════════
      CARD VIEW (Primary: triage-grouped)
      ════════════════════════════════════════ -->
@@ -266,6 +275,7 @@
               class="iou-card reveal-on-scroll"
               class:paid={iou.status === 'paid'}
               class:overdue={state === 'overdue'}
+              data-hover-row
               style="border-color: {stateAccentColor(state)}40;"
             >
               <!-- Left accent bar (STATE, not sign) -->
@@ -325,30 +335,25 @@
                   </span>
                 {/if}
 
-                <!-- Overflow trigger (mobile) -->
-                <button class="iou-overflow" onclick={() => (menuIou = iou)} type="button" aria-label="More actions for {iou.borrower_name}" aria-haspopup="menu" aria-expanded={menuIou?.id === iou.id}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-                </button>
-
-                <!-- Hover actions (desktop) -->
-                <div class="iou-actions">
-                  <button class="iou-btn iou-btn-edit" onclick={() => onEdit?.(iou.id)} type="button" title="Edit">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-                  </button>
-                  <button class="iou-btn iou-btn-dup" onclick={() => onDuplicate?.(iou.id)} type="button" title="Duplicate">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  </button>
-                  {#if iou.status !== 'paid'}
-                    <button class="iou-btn iou-btn-pay" onclick={() => onPay?.(iou.id)} type="button">
-                      {direction === 'lent' ? 'Mark Paid' : 'Repay'}
-                    </button>
-                  {:else}
-                    <span class="recovered-glow">
-                      {direction === 'lent' ? 'Recovered' : 'Repaid'}
-                    </span>
-                  {/if}
-                  <button class="iou-btn iou-btn-delete" onclick={() => onDelete?.(iou.id)} type="button" title="Delete">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                <!-- Hover actions (desktop) + always-visible overflow (⋯) -->
+                <div class="iou-actions-row">
+                  <div class="iou-actions">
+                    {#if iou.status === 'paid'}
+                      <span class="recovered-glow">
+                        {direction === 'lent' ? 'Recovered' : 'Repaid'}
+                      </span>
+                    {:else}
+                      <RowHoverActions
+                        actions={[
+                          { id: 'edit', label: 'Edit', icon: editIcon, onClick: () => onEdit?.(iou.id) },
+                          { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(iou.id) },
+                          { id: 'pay', label: direction === 'lent' ? 'Mark Paid' : 'Repay', text: direction === 'lent' ? 'Mark Paid' : 'Repay', onClick: () => onPay?.(iou.id) }
+                        ]}
+                      />
+                    {/if}
+                  </div>
+                  <button class="iou-overflow" onclick={() => (menuIou = iou)} type="button" aria-label="More actions for {iou.borrower_name}" aria-haspopup="menu" aria-expanded={menuIou?.id === iou.id}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
                   </button>
                 </div>
               </div>
@@ -391,6 +396,7 @@
         <span class="rh-due">Due</span>
         <span class="rh-progress">Progress</span>
         <span class="rh-amount">Amount</span>
+        <span class="rh-kebab" aria-hidden="true"></span>
       </div>
 
       {#each ious as iou (iou.id)}
@@ -405,6 +411,7 @@
           class="iou-row"
           class:overdue={state === 'overdue'}
           class:paid={iou.status === 'paid'}
+          data-hover-row
           style="--row-accent: {accent};"
         >
           <!-- Leading state-tinted ring -->
@@ -452,23 +459,21 @@
             <span class="amount-num" class:struck={iou.status === 'paid'} style="color: {moneyDirectionColor()};">{formatDirectionalAmount(iou.amount)}</span>
           </div>
 
-          <!-- Hover-reveal actions (overlay, never shift columns) -->
+          <!-- Hover-reveal actions (overlay, never covers the amount) -->
           <div class="row-actions">
-            {#if iou.status !== 'paid'}
-              <button class="row-pay" onclick={() => onPay?.(iou.id)} type="button">
-                {direction === 'lent' ? 'Mark Paid' : 'Repay'}
-              </button>
-            {/if}
-            <button class="row-icon" onclick={() => onEdit?.(iou.id)} type="button" title="Edit" aria-label="Edit {iou.borrower_name}">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-            </button>
-            <button class="row-icon" onclick={() => onDuplicate?.(iou.id)} type="button" title="Duplicate" aria-label="Duplicate {iou.borrower_name}">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            </button>
-            <button class="row-icon row-icon-del" onclick={() => onDelete?.(iou.id)} type="button" title="Delete" aria-label="Delete {iou.borrower_name}">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-            </button>
+            <RowHoverActions
+              actions={[
+                ...(iou.status !== 'paid'
+                  ? [{ id: 'pay', label: direction === 'lent' ? 'Mark Paid' : 'Repay', text: direction === 'lent' ? 'Mark Paid' : 'Repay', onClick: () => onPay?.(iou.id) }]
+                  : []),
+                { id: 'edit', label: 'Edit', icon: editIcon, onClick: () => onEdit?.(iou.id) },
+                { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(iou.id) }
+              ]}
+            />
           </div>
+          <button class="row-kebab" aria-label="Actions for {iou.borrower_name}" onclick={() => (menuIou = iou)} type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </button>
         </div>
       {/each}
     </div>
@@ -827,19 +832,18 @@
     white-space: nowrap;
   }
 
-  /* Hover actions */
+  /* Hover actions (reveal handled by the shared RowHoverActions) */
   .iou-actions {
     display: flex;
     gap: 4px;
-    opacity: 0;
-    transition: opacity 120ms ease;
-    pointer-events: none;
     margin-top: 2px;
   }
 
-  .iou-card:hover .iou-actions {
-    opacity: 1;
-    pointer-events: auto;
+  .iou-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
   }
 
   .iou-btn {
@@ -868,45 +872,6 @@
     box-shadow: 0 4px 16px rgba(79, 157, 136, 0.22);
   }
 
-  .iou-btn-delete {
-    background: transparent;
-    color: var(--color-text-muted);
-    width: 30px;
-    padding: 0;
-    justify_content: center;
-  }
-
-  .iou-btn-delete:hover {
-    background: rgba(239, 108, 74, 0.10);
-    color: var(--color-coral);
-  }
-
-  .iou-btn-edit {
-    background: transparent;
-    color: var(--color-text-muted);
-    width: 30px;
-    padding: 0;
-    justify-content: center;
-  }
-
-  .iou-btn-edit:hover {
-    background: var(--color-teal-bg);
-    color: var(--color-teal);
-  }
-
-  .iou-btn-dup {
-    background: transparent;
-    color: var(--color-text-muted);
-    width: 30px;
-    padding: 0;
-    justify-content: center;
-  }
-
-  .iou-btn-dup:hover {
-    background: var(--color-teal-bg);
-    color: var(--color-teal);
-  }
-
   .recovered-glow {
     font-size: var(--font-size-xs);
     font-weight: 600;
@@ -917,9 +882,9 @@
     box-shadow: var(--glow-sky);
   }
 
-  /* Overflow trigger (⋯) — mobile only */
+  /* Overflow trigger (⋯) — always visible, quiet at rest */
   .iou-overflow {
-    display: none;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 40px;
@@ -959,7 +924,7 @@
   /* ── Column header (sticky, mono uppercase) ── */
   .register-header {
     display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px;
+    grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 48px;
     align-items: center;
     column-gap: var(--space-sm);
     padding: var(--space-xs) var(--space-lg);
@@ -998,7 +963,7 @@
   .iou-row {
     position: relative;
     display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px;
+    grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 48px;
     align-items: center;
     column-gap: var(--space-sm);
     padding: var(--space-sm) var(--space-lg);
@@ -1207,73 +1172,40 @@
     color: var(--color-text-muted) !important;
   }
 
-  /* ── Hover-reveal actions (overlay, never shift columns) ── */
+  /* ── Hover-reveal actions (overlay, anchored before the amount column so
+     money stays readable; reveal handled by shared RowHoverActions) ── */
   .row-actions {
     position: absolute;
-    right: var(--space-lg);
+    right: calc(48px + 116px + var(--space-sm));
     top: 50%;
     transform: translateY(-50%);
     display: flex;
     align-items: center;
     gap: 2px;
-    opacity: 0;
-    padding: 4px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-    z-index: 2;
-    transition: opacity 120ms var(--ease);
-    pointer-events: none;
+    z-index: 3;
   }
 
-  .iou-row:hover .row-actions {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .row-pay {
-    padding: 4px 12px;
-    border: none;
-    border-radius: var(--radius-pill);
-    background: var(--teal);
-    color: var(--color-surface);
-    font-family: var(--font-display);
-    font-size: var(--font-size-xs);
-    font-weight: 700;
-    min-height: 30px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 120ms ease;
-  }
-
-  .row-pay:hover {
-    background: var(--teal-deep);
-    box-shadow: 0 4px 16px rgba(79, 157, 136, 0.22);
-  }
-
-  .row-icon {
-    width: 30px;
-    height: 30px;
-    display: flex;
+  /* Kebab — always visible, quiet at rest (delete lives only here) */
+  .row-kebab {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: 44px;
+    height: 44px;
+    justify-self: center;
+    align-self: center;
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: 10px;
     background: transparent;
     color: var(--color-text-muted);
     cursor: pointer;
-    transition: all 120ms ease;
+    transition: background 180ms var(--ease), color 180ms var(--ease);
   }
 
-  .row-icon:hover {
-    background: var(--color-teal-bg);
-    color: var(--color-teal);
-  }
-
-  .row-icon-del:hover {
-    background: rgba(239, 108, 74, 0.10);
-    color: var(--color-coral);
+  .row-kebab:hover,
+  .row-kebab:focus-visible {
+    background: var(--mint-tint);
+    color: var(--teal-deep);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1522,34 +1454,26 @@
       grid-column: 1 / -1;
       grid-row: 4;
       display: flex;
+      align-items: center;
       width: 100%;
       gap: 6px;
-      opacity: 1;
-      transform: none;
-      pointer-events: auto;
-      background: none;
-      border: none;
-      border-radius: 0;
-      box-shadow: none;
-      padding: 6px 0 0;
+      padding: 6px 52px 0 0;
       margin-top: 2px;
       border-top: 1px solid var(--color-hairline);
     }
 
-    .row-pay {
-      flex: 1.2;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 36px;
-      padding: 6px 8px;
+    /* On touch the cluster is hover-gated — force it visible in the mobile bar */
+    .row-actions :global(.hover-actions) {
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
     }
 
-    .row-icon {
-      flex: 1;
-      width: auto;
-      min-height: 36px;
-      background: var(--color-cream);
+    .row-kebab {
+      grid-column: 3;
+      grid-row: 4;
+      justify-self: end;
+      align-self: center;
     }
   }
 </style>
