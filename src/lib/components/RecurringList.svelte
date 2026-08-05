@@ -805,8 +805,8 @@
 		justify-content: center;
 		min-height: 44px;
 		padding: 0 var(--space-xl);
-		background: var(--mint-tint);
-		color: var(--teal-deep);
+		background: var(--teal);
+		color: var(--color-surface);
 		border: none;
 		border-radius: var(--radius-pill);
 		font-family: var(--font-display);
@@ -818,8 +818,8 @@
 	}
 
 	.empty-action:hover {
-		background: var(--mint-tint-2);
-		box-shadow: 0 4px 16px rgba(79, 157, 136, 0.15);
+		background: var(--teal-deep);
+		box-shadow: 0 4px 16px rgba(79, 157, 136, 0.22);
 	}
 
 	/* ── Shimmer ── */

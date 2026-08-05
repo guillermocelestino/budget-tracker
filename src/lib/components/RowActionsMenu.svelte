@@ -148,10 +148,10 @@
   .row-handle {
     width: 40px;
     height: 5px;
-    background: var(--color-gold);
+    background: var(--color-teal);
     border-radius: var(--radius-pill);
     margin: var(--space-xs) auto var(--space-md);
-    box-shadow: var(--glow-gold);
+    box-shadow: var(--glow-card);
   }
 
   .row-head {

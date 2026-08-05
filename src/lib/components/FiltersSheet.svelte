@@ -119,11 +119,11 @@
   .filters-handle {
     width: 40px;
     height: 5px;
-    background: var(--color-gold);
+    background: var(--color-teal);
     border-radius: var(--radius-pill);
     margin: var(--space-sm) auto;
     flex-shrink: 0;
-    box-shadow: var(--glow-gold);
+    box-shadow: var(--glow-card);
   }
 
   .filters-header {

@@ -10,6 +10,8 @@
 	import SearchFilterPill from '$lib/components/SearchFilterPill.svelte';
 	import FilterFooter from '$lib/components/FilterFooter.svelte';
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
+	import Button from '$lib/components/Button.svelte';
+	import CountChip from '$lib/components/CountChip.svelte';
 	import { showSuccess, showError } from '$lib/stores/toast.svelte';
 	import type { RecurringTransaction } from '$lib/types';
 
@@ -19,7 +21,7 @@
 	let showAddPanel = $state(false);
 	let editingRecurring = $state<RecurringTransaction | null>(null);
 	let panelEl = $state<HTMLDivElement | null>(null);
-	let addBtnEl = $state<HTMLButtonElement | null>(null);
+	let addBtnEl = $state<HTMLElement | null>(null);
 	let filtersOpen = $state(false);
 
 	// Filter state - initialized from URL, synced back via $effect
@@ -400,17 +402,17 @@
 
 <PageHeader title="Recurring Transactions" borderless>
 	{#snippet badge()}
-		<span class="count-chip">{activeCount} active</span>
+		<CountChip count={activeCount} suffix="active" />
 	{/snippet}
 	{#snippet action()}
 		<div class="header-actions">
-			<button class="btn btn-primary" bind:this={addBtnEl} onclick={openAdd}>
+			<Button variant="primary" bind:el={addBtnEl} onclick={openAdd}>
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 					<line x1="12" y1="5" x2="12" y2="19"/>
 					<line x1="5" y1="12" x2="19" y2="12"/>
 				</svg>
-				<span>Add Recurring</span>
-			</button>
+				Add Recurring
+			</Button>
 			<OverflowMenu onExportCsv={handleExportCsv} />
 		</div>
 	{/snippet}
@@ -575,8 +577,8 @@
 >
 	<p>Are you sure you want to delete this recurring transaction? This action cannot be undone.</p>
 	<div class="modal-actions">
-		<button class="btn btn-secondary" onclick={() => deleteTarget = null}>Cancel</button>
-		<button class="btn btn-danger" onclick={() => { handleDelete(deleteTarget!); deleteTarget = null; }}>Delete</button>
+		<Button variant="ghost" type="button" onclick={() => deleteTarget = null}>Cancel</Button>
+		<Button variant="danger" onclick={() => { handleDelete(deleteTarget!); deleteTarget = null; }}>Delete</Button>
 	</div>
 </ModalDialog>
 
@@ -598,50 +600,19 @@
 		box-shadow: 0 0 0 2px rgba(79, 157, 136, 0.35);
 	}
 
-	/* ── Title count chip ── */
-	.count-chip {
-		display: inline-flex;
-		align-items: center;
-		padding: 3px 10px;
-		border-radius: var(--radius-pill);
-		background: var(--mint-tint);
-		color: var(--teal-deep);
-		font-family: var(--font-mono);
-		font-size: var(--font-size-xs);
-		font-weight: 600;
-		line-height: 1.4;
-		white-space: nowrap;
-	}
-
-	/* ── Header actions — Add Recurring as a mint pill button ── */
-	.header-actions .btn.btn-primary {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 8px;
-		min-height: 44px;
-		padding: 0 var(--space-xl);
-		border: none;
-		border-radius: var(--radius-pill);
-		background: var(--mint-tint);
-		color: var(--teal-deep);
-		font-family: var(--font-display);
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		cursor: pointer;
-		transition: background 140ms ease-out, box-shadow 140ms ease-out;
-		-webkit-tap-highlight-color: transparent;
-	}
-
-	.header-actions .btn.btn-primary:hover {
-		background: var(--mint-tint-2);
-		box-shadow: 0 4px 16px rgba(79, 157, 136, 0.15);
-	}
-
-	.header-actions .btn.btn-primary:focus-visible,
 	.rr-empty-btn:focus-visible {
 		outline: 2px solid var(--teal-deep);
 		outline-offset: 2px;
+	}
+
+	.modal-actions {
+		display: flex;
+		gap: var(--space-sm);
+		margin-top: var(--space-md);
+	}
+
+	.modal-actions :global(.btn) {
+		flex: 1;
 	}
 
 	/* ── Empty state — mint circle icon + mint pill create button ── */
@@ -687,6 +658,8 @@
 		line-height: 1.5;
 	}
 
+	/* Teal CTA — a gold header Add coexists on this page, so the empty-state
+	   CTA stays teal (rule: gold only when it is the sole create affordance). */
 	.rr-empty-btn {
 		display: inline-flex;
 		align-items: center;
@@ -695,8 +668,8 @@
 		padding: 0 var(--space-xl);
 		border: none;
 		border-radius: var(--radius-pill);
-		background: var(--mint-tint);
-		color: var(--teal-deep);
+		background: var(--teal);
+		color: var(--color-surface);
 		font-family: var(--font-display);
 		font-size: var(--font-size-sm);
 		font-weight: 600;
@@ -706,8 +679,8 @@
 	}
 
 	.rr-empty-btn:hover {
-		background: var(--mint-tint-2);
-		box-shadow: 0 4px 16px rgba(79, 157, 136, 0.15);
+		background: var(--teal-deep);
+		box-shadow: 0 4px 16px rgba(79, 157, 136, 0.22);
 	}
 
 	/* ── Header actions ── */

@@ -243,8 +243,8 @@
   .overflow-tag {
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-semibold);
-    color: var(--color-gold-dark);
-    background: var(--color-gold-bg);
+    color: var(--color-text-muted);
+    background: var(--color-surface-inset);
     border-radius: var(--radius-pill);
     padding: 2px 8px;
   }

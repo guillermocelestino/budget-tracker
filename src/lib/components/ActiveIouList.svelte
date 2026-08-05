@@ -858,15 +858,14 @@
   }
 
   .iou-btn-pay {
-    background: var(--color-gold);
-    /* Dark text on gold in BOTH themes — ink flips light in dark mode. */
-    color: var(--color-on-gold);
+    background: var(--teal);
+    color: var(--color-surface);
   }
 
   .iou-btn-pay:hover {
-    background: var(--color-gold-light);
+    background: var(--teal-deep);
     transform: scale(1.05);
-    box-shadow: var(--glow-gold);
+    box-shadow: 0 4px 16px rgba(79, 157, 136, 0.22);
   }
 
   .iou-btn-delete {
@@ -1237,8 +1236,8 @@
     padding: 4px 12px;
     border: none;
     border-radius: var(--radius-pill);
-    background: var(--color-gold);
-    color: var(--color-on-gold);
+    background: var(--teal);
+    color: var(--color-surface);
     font-family: var(--font-display);
     font-size: var(--font-size-xs);
     font-weight: 700;
@@ -1249,8 +1248,8 @@
   }
 
   .row-pay:hover {
-    background: var(--color-gold-light);
-    box-shadow: var(--glow-gold);
+    background: var(--teal-deep);
+    box-shadow: 0 4px 16px rgba(79, 157, 136, 0.22);
   }
 
   .row-icon {
