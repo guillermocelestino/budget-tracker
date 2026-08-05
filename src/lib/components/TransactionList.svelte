@@ -344,6 +344,10 @@
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
 {/snippet}
 
+{#snippet trashIcon()}
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+{/snippet}
+
 {#snippet bankRow(txn: Transaction & { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean })}
   {@const isIncome = txn.type === 'income'}
   {@const isExpanded = editingId === txn.id}
@@ -444,7 +448,13 @@
           <RowHoverActions
             actions={[
               { id: 'edit', label: 'Edit amount', icon: editIcon, onClick: () => onEdit?.(txn.id) },
-              { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(txn.id) }
+              { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(txn.id) },
+              // Quick-delete: last in the cluster, danger-tone, same confirm
+              // modal as the kebab (never a silent delete). Conditional so no
+              // dead button when the host page supplies no delete handler.
+              ...(onDelete
+                ? [{ id: 'delete', label: 'Delete', icon: trashIcon, tone: 'danger' as const, onClick: () => onDelete?.(txn.id) }]
+                : [])
             ]}
           />
         </div>
@@ -589,15 +599,14 @@
 </div>
 
 {#if menuTxn}
-  {@const menuId = menuTxn.id}
   <RowActionsMenu
     title={menuTxn.description || 'Transaction'}
     amount={menuTxn.type === 'income' ? `+${formatCurrency(menuTxn.amount)}` : `-${formatCurrency(menuTxn.amount)}`}
     tone={menuTxn.type === 'income' ? 'income' : 'expense'}
     onClose={() => (menuTxn = null)}
-    onEdit={() => { menuTxn = null; onEdit?.(menuId); }}
-    onDuplicate={() => { menuTxn = null; onDuplicate?.(menuId); }}
-    onDelete={() => { menuTxn = null; onDelete?.(menuId); }}
+    onEdit={() => { const id = menuTxn!.id; menuTxn = null; onEdit?.(id); }}
+    onDuplicate={() => { const id = menuTxn!.id; menuTxn = null; onDuplicate?.(id); }}
+    onDelete={() => { const id = menuTxn!.id; menuTxn = null; onDelete?.(id); }}
   />
 {/if}
 
@@ -701,7 +710,7 @@
           84px            /* date             */
           96px            /* balance          */
           108px           /* amount           */
-          148px;          /* reserved actions */
+          204px;          /* reserved actions */
       }
 
       .flat-register.selecting .flat-header,
@@ -713,7 +722,7 @@
           84px            /* date             */
           96px            /* balance          */
           108px           /* amount           */
-          148px;          /* reserved actions */
+          204px;          /* reserved actions */
       }
     }
 

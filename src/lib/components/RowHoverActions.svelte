@@ -17,6 +17,11 @@
 		actions: RowAction[];
 	} = $props();
 
+	// First danger-tone action index — a hairline divider renders immediately
+	// before it, so destructive actions read as a separate zone, not a fourth
+	// sibling. -1 when there is no danger action (e.g. Recurring) → no divider.
+	const firstDangerIndex = $derived(actions.findIndex((a) => a.tone === 'danger'));
+
 	/* ── Quick-action tooltips ──
 	   Pointer shows a tooltip after a 250ms intent delay; keyboard focus-visible
 	   shows it instantly. Hidden on leave / blur / Escape / scroll. Edge-aware:
@@ -85,7 +90,10 @@
 
 {#if actions.length > 0}
 	<div class="hover-actions">
-		{#each actions as a (a.id)}
+		{#each actions as a, i (a.id)}
+			{#if a.tone === 'danger' && firstDangerIndex === i && i > 0}
+				<span class="quick-divider" aria-hidden="true"></span>
+			{/if}
 			<div
 				class="quick-btn-wrap"
 				data-action={a.id}
@@ -139,6 +147,17 @@
 
 	.quick-btn-wrap {
 		position: relative;
+	}
+
+	/* Hairline divider before the first destructive action — 1px × 16px with a
+	   symmetric 8px/8px zone (flex gap 4px + margin-inline 4px each side), so
+	   delete reads as its own zone, not a fourth sibling. */
+	.quick-divider {
+		width: 1px;
+		height: 16px;
+		flex-shrink: 0;
+		background: var(--line);
+		margin-inline: 4px;
 	}
 
 	/* One identical 44px footprint per quick action: the visible tile (radius

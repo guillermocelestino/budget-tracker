@@ -236,6 +236,10 @@
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
 {/snippet}
 
+{#snippet trashIcon()}
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+{/snippet}
+
 <!-- ════════════════════════════════════════
      CARD VIEW (Primary: triage-grouped)
      ════════════════════════════════════════ -->
@@ -345,9 +349,14 @@
                     {:else}
                       <RowHoverActions
                         actions={[
+                          { id: 'pay', label: direction === 'lent' ? 'Mark Paid' : 'Repay', text: direction === 'lent' ? 'Mark Paid' : 'Repay', onClick: () => onPay?.(iou.id) },
                           { id: 'edit', label: 'Edit', icon: editIcon, onClick: () => onEdit?.(iou.id) },
                           { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(iou.id) },
-                          { id: 'pay', label: direction === 'lent' ? 'Mark Paid' : 'Repay', text: direction === 'lent' ? 'Mark Paid' : 'Repay', onClick: () => onPay?.(iou.id) }
+                          // Quick-delete: last, danger-tone, same confirm modal
+                          // as the kebab. Conditional — no dead button.
+                          ...(onDelete
+                            ? [{ id: 'delete', label: 'Delete', icon: trashIcon, tone: 'danger' as const, onClick: () => onDelete?.(iou.id) }]
+                            : [])
                         ]}
                       />
                     {/if}
@@ -467,7 +476,12 @@
                   ? [{ id: 'pay', label: direction === 'lent' ? 'Mark Paid' : 'Repay', text: direction === 'lent' ? 'Mark Paid' : 'Repay', onClick: () => onPay?.(iou.id) }]
                   : []),
                 { id: 'edit', label: 'Edit', icon: editIcon, onClick: () => onEdit?.(iou.id) },
-                { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(iou.id) }
+                { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(iou.id) },
+                // Quick-delete: last, danger-tone, same confirm modal as the
+                // kebab. Conditional — no dead button.
+                ...(onDelete
+                  ? [{ id: 'delete', label: 'Delete', icon: trashIcon, tone: 'danger' as const, onClick: () => onDelete?.(iou.id) }]
+                  : [])
               ]}
             />
           </div>
@@ -482,16 +496,15 @@
 
 <!-- ═══ Per-card overflow menu (mobile) ═══ -->
 {#if menuIou}
-  {@const menuIouId = menuIou.id}
   <RowActionsMenu
     title={menuIou.borrower_name}
     amount={formatCurrency(menuIou.amount)}
     tone="neutral"
     ariaLabel="Lending actions"
     onClose={() => (menuIou = null)}
-    onEdit={() => { menuIou = null; onEdit?.(menuIouId); }}
-    onDuplicate={() => { menuIou = null; onDuplicate?.(menuIouId); }}
-    onDelete={() => { menuIou = null; onDelete?.(menuIouId); }}
+    onEdit={() => { const id = menuIou!.id; menuIou = null; onEdit?.(id); }}
+    onDuplicate={() => { const id = menuIou!.id; menuIou = null; onDuplicate?.(id); }}
+    onDelete={() => { const id = menuIou!.id; menuIou = null; onDelete?.(id); }}
   />
 {/if}
 

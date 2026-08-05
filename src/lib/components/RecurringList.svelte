@@ -223,20 +223,18 @@
 </div>
 
 {#if menuTxn}
-	{@const menuId = menuTxn.id}
-	{@const menuRec = menuTxn}
 	<RowActionsMenu
 		title={menuTxn.description || 'Recurring Transaction'}
 		amount={menuTxn.type === 'income' ? `+${formatCurrency(menuTxn.amount)}` : `-${formatCurrency(menuTxn.amount)}`}
 		tone={menuTxn.type === 'income' ? 'income' : 'expense'}
 		isActive={menuTxn.active}
 		onClose={() => (menuTxn = null)}
-		onEdit={() => { menuTxn = null; onEdit?.(menuRec); }}
-		onDuplicate={() => { menuTxn = null; onDuplicate?.(menuId); }}
-		onDelete={() => { menuTxn = null; onDelete?.(menuId); }}
-		onRunNow={() => { menuTxn = null; onRunNow?.(menuId); }}
-		onPause={() => { menuTxn = null; onPause?.(menuId); }}
-		onResume={() => { menuTxn = null; onResume?.(menuId); }}
+		onEdit={() => { const rec = menuTxn!; menuTxn = null; onEdit?.(rec); }}
+		onDuplicate={() => { const id = menuTxn!.id; menuTxn = null; onDuplicate?.(id); }}
+		onDelete={() => { const id = menuTxn!.id; menuTxn = null; onDelete?.(id); }}
+		onRunNow={() => { const id = menuTxn!.id; menuTxn = null; onRunNow?.(id); }}
+		onPause={() => { const id = menuTxn!.id; menuTxn = null; onPause?.(id); }}
+		onResume={() => { const id = menuTxn!.id; menuTxn = null; onResume?.(id); }}
 	/>
 {/if}
 
