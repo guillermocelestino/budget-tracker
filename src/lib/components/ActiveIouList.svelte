@@ -336,7 +336,6 @@
                     <RowHoverActions
                       actions={[
                         { id: 'pay', label: 'Record Payment', text: 'Record Payment', onClick: () => onPay?.(iou.id) },
-                        { id: 'history', label: 'History', text: 'History', onClick: () => onViewHistory?.(iou.id) },
                         { id: 'edit', label: 'Edit', icon: editIcon, onClick: () => onEdit?.(iou.id) },
                         { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(iou.id) },
                         // Quick-delete: last, danger-tone, same confirm modal
@@ -434,6 +433,16 @@
           class:paid={iou.status === 'paid'}
           data-hover-row
           style="--row-accent: {accent};"
+          role="button"
+          tabindex="0"
+          aria-label="View payment history for {iou.borrower_name}"
+          onclick={() => onViewHistory?.(iou.id)}
+          onkeydown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onViewHistory?.(iou.id);
+            }
+          }}
         >
           <!-- Leading state-tinted ring -->
           <span class="row-circle" style="background: {bg}; color: {fg};">{init}</span>
@@ -486,13 +495,16 @@
                column holding both in-flow. -->
           <div class="row-actions-cell">
             {#if iou.status !== 'paid'}
+              <!-- Reserved actions column holds the hover cluster in-flow (≥1200px).
+                   <1200px the cluster is an absolute overlay inside the name cell;
+                   Duplicate is not a quick action here because the cluster + kebab
+                   exceed the 320px fallback width (see reserved-column arithmetic),
+                   so it moves to the kebab alongside View History. -->
               <div class="row-actions">
                 <RowHoverActions
                   actions={[
                     { id: 'pay', label: 'Record Payment', text: 'Record Payment', onClick: () => onPay?.(iou.id) },
-                    { id: 'history', label: 'History', text: 'History', onClick: () => onViewHistory?.(iou.id) },
                     { id: 'edit', label: 'Edit', icon: editIcon, onClick: () => onEdit?.(iou.id) },
-                    { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(iou.id) },
                     // Quick-delete: last, danger-tone, same confirm modal as the
                     // kebab. Conditional — no dead button.
                     ...(onDelete
@@ -502,7 +514,7 @@
                 />
               </div>
             {/if}
-            <button class="row-kebab" aria-label="Actions for {iou.borrower_name}" onclick={() => (menuIou = iou)} type="button">
+            <button class="row-kebab" aria-label="Actions for {iou.borrower_name}" onclick={(e) => { e.stopPropagation(); menuIou = iou; }} type="button">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
             </button>
           </div>
@@ -522,6 +534,7 @@
     onClose={() => (menuIou = null)}
     onPay={() => { const id = menuIou!.id; menuIou = null; onPay?.(id); }}
     payLabel="Record Payment"
+    onViewHistory={() => { const id = menuIou!.id; menuIou = null; onViewHistory?.(id); }}
     onEdit={() => { const id = menuIou!.id; menuIou = null; onEdit?.(id); }}
     onDuplicate={() => { const id = menuIou!.id; menuIou = null; onDuplicate?.(id); }}
     onDelete={() => { const id = menuIou!.id; menuIou = null; onDelete?.(id); }}
@@ -1004,7 +1017,8 @@
   /* ── Column header (sticky, mono uppercase) ──
      Mirrors the data-row grid at both breakpoints so headers never drift
      from their columns. <1200px: trailing 48px kebab column. ≥1200px: the
-     trailing column widens to the reserved actions column (320px). */
+     trailing column widens to the reserved actions column — measured from
+     the hover cluster + kebab arithmetic (see .iou-row ≥1200px). */
   .register-header {
     display: grid;
     grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 48px;
@@ -1026,7 +1040,7 @@
 
   @media (min-width: 1200px) {
     .register-header {
-      grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 320px;
+      grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 300px;
     }
   }
 
@@ -1061,13 +1075,28 @@
     min-height: 56px;
     transition: background 180ms var(--ease);
     overflow: hidden;
+    cursor: pointer; /* clickable row → opens payment history (same as .txn-row) */
   }
 
   /* ≥1200px: the trailing column becomes a reserved actions column holding
-     the hover cluster + kebab together (money never shifts). */
+     the hover cluster + kebab together (money never shifts). Sized from
+     measured arithmetic so overlap is impossible by construction:
+       Record Payment pill ≈ 140px  (13px "Record Payment" ~108px + 32px padding)
+       edit icon              44px
+       divider (1px+8px margins)  9px
+       delete icon            44px
+       3 flex gaps × 4px       12px
+       ─ cluster subtotal     249px
+       kebab                  44px
+       cell gap (flex)         4px
+       ─ reserved column      297px → 300px
+     (With Duplicate still in the cluster the subtotal would be 345px, over the
+     320px fallback threshold, so Duplicate lives in the kebab here instead.)
+     Grid-template-columns must match .register-header exactly so header and
+     rows never drift. */
   @media (min-width: 1200px) {
     .iou-row {
-      grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 320px;
+      grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 300px;
     }
   }
 
@@ -1278,16 +1307,18 @@
     display: contents;
   }
 
-  /* <1200px: hover cluster — absolute overlay anchored to the name cell's
-     grid area (column 2), right-aligned, ending before the progress column.
-     The single-gradient backdrop (solid row-hover tint with a left-fading
-     edge) blends into the hovered row instead of colliding with the
-     progress label. */
+  /* 760–1199px: hover cluster — absolute overlay anchored to the NAME cell's
+     grid area (column 2, position:relative via .row-main), inset 8px from its
+     right edge. The name cell's right edge sits before the Progress column,
+     so the slot structurally cannot cross into PROGRESS / AMOUNT / kebab —
+     it can only grow leftward over the name text. The single-gradient
+     backdrop (solid row-hover tint with a left-fading edge) blends into the
+     hovered row instead of colliding with the progress label. */
   .row-actions {
     position: absolute;
     grid-column: 2 / 3;
     grid-row: 1 / 2;
-    right: 0;
+    right: 8px;
     top: 50%;
     transform: translateY(-50%);
     display: flex;
@@ -1304,7 +1335,9 @@
     }
   }
 
-  /* Kebab — always visible, quiet at rest (delete lives only here) */
+  /* Kebab — always visible, quiet at rest. Opens the overflow sheet holding
+     View History / Duplicate / Edit / Delete (the cluster carries only the
+     quick actions). */
   .row-kebab {
     display: inline-flex;
     align-items: center;
@@ -1612,6 +1645,18 @@
 
     /* Cluster hidden on touch / narrow — kebab is the only actions path */
     .row-actions {
+      display: none;
+    }
+  }
+
+  /* <760px (narrow desktop) and touch: no hover cluster — the kebab is the
+     only actions path. The name cell is too narrow to host the overlay, and
+     touch has no hover intent. */
+  @media (max-width: 759px) {
+    .row-actions {
+      display: none;
+    }
+    .iou-hover-slot {
       display: none;
     }
   }

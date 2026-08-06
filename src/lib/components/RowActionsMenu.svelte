@@ -2,9 +2,10 @@
   import { tick } from 'svelte';
 
   /**
-   * RowActionsMenu — the per-record overflow bottom sheet (Edit / Duplicate /
-   * Delete + Cancel). Content-neutral: hosts pass a title + pre-formatted
-   * amount string, so the same sheet serves Transaction rows and Lending cards.
+   * RowActionsMenu — the per-record overflow bottom sheet (Record Payment /
+   * View History / Edit / Duplicate / Delete + Cancel). Content-neutral: hosts
+   * pass a title + pre-formatted amount string, so the same sheet serves
+   * Transaction rows and Lending cards.
    */
   let {
     title,
@@ -21,6 +22,7 @@
     onResume,
     onPay,
     payLabel = 'Record Payment',
+    onViewHistory,
   }: {
     title: string;
     amount: string;
@@ -36,6 +38,7 @@
     onResume?: () => void;
     onPay?: () => void;
     payLabel?: string;
+    onViewHistory?: () => void;
   } = $props();
 
   let panelEl = $state<HTMLDivElement | null>(null);
@@ -77,6 +80,15 @@
           <polyline points="20 6 9 17 4 12"/>
         </svg>
         <span>{payLabel}</span>
+      </button>
+    {/if}
+    {#if onViewHistory}
+      <button class="row-action" onclick={() => onViewHistory?.()} role="menuitem" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1 4 1 10 7 10"/>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+        </svg>
+        <span>View History</span>
       </button>
     {/if}
     <button class="row-action" onclick={() => onEdit?.()} role="menuitem" type="button">
