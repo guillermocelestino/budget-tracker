@@ -338,10 +338,10 @@
   }
 
   .filter-chip.active {
-    background: var(--color-teal);
-    border-color: var(--color-teal);
-    color: white;
-    box-shadow: var(--glow-card);
+    background: var(--mint-tint);
+    border-color: var(--mint-tint);
+    color: var(--teal-deep);
+    font-weight: 600;
   }
 
   /* ─── Delete modal usage text + disabled Delete ─── */
@@ -389,7 +389,7 @@
   }
 
   .summary-value.positive {
-    color: var(--color-income);
+    color: var(--teal);
   }
 
   .summary-value.negative {

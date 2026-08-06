@@ -236,58 +236,55 @@
               {@render cardActions(cat)}
             </div>
 
-            <!-- ─── Card row 2: Budgeted │ Spent │ Available ─── -->
-            <div class="budget-grid">
-              <!-- Budgeted column -->
-              <div class="budget-col">
-                <span class="budget-col-label">Budgeted</span>
-                {#if editingId === cat.id}
-                  <div class="budget-edit-wrap">
-                    <span class="budget-prefix">₱</span>
-                    <input
-                      type="text"
-                      inputmode="decimal"
-                      class="budget-edit-input"
-                      value={editRaw}
-                      oninput={onBudgetInput}
-                      onkeydown={(e) => handleBudgetKeydown(e, cat)}
-                      onblur={() => saveEdit(cat)}
-                      autofocus
-                      autocomplete="off"
-                    />
-                  </div>
-                {:else if cat.budget_limit != null}
-                  <button class="budget-col-value clickable" onclick={() => startEdit(cat)} title="Edit budget">
-                    {formatCurrency(cat.budgeted)}
-                  </button>
-                {:else}
-                  <button class="budget-set-btn" onclick={() => startEdit(cat)}>
-                    + Set Budget
-                  </button>
-                {/if}
-              </div>
-
-              <!-- Spent column -->
-              <div class="budget-col">
-                <span class="budget-col-label">Spent</span>
-                <span class="budget-col-value" class:inverted={cat.spent > 0}>
-                  {formatCurrency(cat.spent)}
+            <!-- ─── Budget cluster: Budgeted · Spent · Available + status pill ─── -->
+            {#if cat.budget_limit != null}
+              <div class="budget-cluster">
+                <span class="cluster-item">
+                  <span class="cluster-label">Budgeted</span>
+                  {#if editingId === cat.id}
+                    <span class="budget-edit-wrap">
+                      <span class="budget-prefix">₱</span>
+                      <input
+                        type="text"
+                        inputmode="decimal"
+                        class="budget-edit-input"
+                        value={editRaw}
+                        oninput={onBudgetInput}
+                        onkeydown={(e) => handleBudgetKeydown(e, cat)}
+                        onblur={() => saveEdit(cat)}
+                        autofocus
+                        autocomplete="off"
+                      />
+                    </span>
+                  {:else}
+                    <button class="cluster-value clickable" onclick={() => startEdit(cat)} title="Edit budget">{formatCurrency(cat.budgeted)}</button>
+                  {/if}
                 </span>
-              </div>
-
-              <!-- Available column -->
-              <div class="budget-col available-col">
-                <span class="budget-col-label">Available</span>
-                <span class="budget-col-hero" class:positive={cat.budgeted - cat.spent >= 0} class:negative={cat.budgeted - cat.spent < 0}>
-                  {cat.budget_limit != null ? formatCurrency(cat.budgeted - cat.spent) : '—'}
+                <span class="cluster-sep" aria-hidden="true">·</span>
+                <span class="cluster-item">
+                  <span class="cluster-label">Spent</span>
+                  <span class="cluster-value" class:inverted={cat.spent > 0}>{formatCurrency(cat.spent)}</span>
                 </span>
-                {#if cat.budget_limit != null && cat.budgeted - cat.spent >= 0}
-                  <span class="status-badge ok">Under</span>
-                {:else if cat.budget_limit != null}
+                <span class="cluster-sep" aria-hidden="true">·</span>
+                <span class="cluster-item">
+                  <span class="cluster-label">Available</span>
+                  <span class="cluster-value" class:positive={cat.budgeted - cat.spent >= 0} class:negative={cat.budgeted - cat.spent < 0}>{formatCurrency(cat.budgeted - cat.spent)}</span>
+                </span>
+                {#if statusClass(cat) === 'over'}
                   <span class="status-badge over">Over</span>
+                {:else if statusClass(cat) === 'warn'}
+                  <span class="status-badge warn">Warn</span>
+                {:else if cat.spent > 0}
+                  <span class="status-badge ok">Under</span>
                 {/if}
               </div>
-            </div>
+            {:else}
+              <div class="no-budget-cluster">
+                <span class="no-budget-text">No budget set</span>
+                <span class="cluster-sep" aria-hidden="true">·</span>
+                <button class="no-budget-set" onclick={() => startEdit(cat)}>+ Set budget</button>
+              </div>
+            {/if}
 
             <!-- ─── Card row 3: progress bar ─── -->
             {#if cat.budget_limit != null && cat.budget_limit > 0}
@@ -305,10 +302,6 @@
                     {/if}
                   </span>
                 </div>
-              </div>
-            {:else if cat.budget_limit === null}
-              <div class="no-budget-hint">
-                <span class="hint-text">No budget set</span>
               </div>
             {/if}
           </div>
@@ -418,7 +411,7 @@
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-xl);
-    padding: var(--space-md) var(--space-lg);
+    padding: var(--space-sm) var(--space-lg);
     padding-left: calc(var(--space-lg) + 4px);
     transition: all 250ms var(--bounce);
     overflow: hidden;
@@ -449,7 +442,7 @@
 
   /* Income cards — more compact, no budget info */
   .income-card {
-    padding: var(--space-md) var(--space-lg);
+    padding: var(--space-sm) var(--space-lg);
     padding-left: calc(var(--space-lg) + 4px);
   }
 
@@ -464,7 +457,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--space-md);
+    margin-bottom: var(--space-xs);
   }
 
   .card-left {
@@ -602,92 +595,121 @@
     margin-top: 2px;
   }
 
-  /* ─── Three-column budget grid ─── */
-  .budget-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1.5fr;
-    gap: var(--space-md);
-    margin-bottom: var(--space-sm);
-  }
-
-  .budget-col {
+  /* ─── Budget cluster: Budgeted · Spent · Available (compact, left-aligned) ─── */
+  .budget-cluster {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px var(--space-sm);
+    min-height: 24px;
   }
 
-  .available-col {
-    text-align: right;
+  .cluster-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    min-width: 0;
   }
 
-  .budget-col-label {
-    font-size: 12px;
+  .cluster-label {
+    font-size: 11px;
     font-weight: 500;
     color: var(--color-text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.04em;
   }
 
-  .budget-col-value {
+  .cluster-value {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     font-size: 13px;
     font-weight: 600;
-    font-variant-numeric: tabular-nums;
     color: var(--color-ink);
     background: none;
     border: none;
     padding: 0;
-    font-family: inherit;
     text-align: left;
     cursor: default;
     min-height: auto;
   }
 
-  .budget-col-value.clickable {
+  .cluster-value.clickable {
     cursor: pointer;
     border-bottom: 1px solid var(--color-border);
     padding-bottom: 1px;
     transition: border-color 120ms ease;
   }
 
-  .budget-col-value.clickable:hover {
+  .cluster-value.clickable:hover {
     border-color: var(--color-teal);
     color: var(--color-teal);
   }
 
-  .budget-col-value.inverted {
+  .cluster-value.inverted {
     color: var(--color-coral);
   }
 
-  /* ─── Available hero number ─── */
-  .budget-col-hero {
-    font-size: 15px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    line-height: 1.2;
+  .cluster-value.positive {
+    color: var(--teal);
   }
 
-  .budget-col-hero.positive {
-    color: var(--color-teal);
-  }
-
-  .budget-col-hero.negative {
+  .cluster-value.negative {
     color: var(--color-coral);
   }
 
-  /* ─── Status badges ─── */
+  .cluster-sep {
+    color: var(--color-text-muted);
+  }
+
+  /* No-budget inline line: "No budget set · + Set budget" */
+  .no-budget-cluster {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+  }
+
+  .no-budget-text {
+    font-size: 13px;
+    color: var(--color-text-muted);
+  }
+
+  .no-budget-set {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--teal);
+    cursor: pointer;
+    font-family: inherit;
+    transition: color 120ms ease;
+  }
+
+  .no-budget-set:hover {
+    color: var(--teal-deep);
+    text-decoration: underline;
+  }
+
+  /* ─── Status badges — anchored right in the cluster ─── */
   .status-badge {
     display: inline-block;
     font-size: 11px;
     font-weight: 600;
     padding: 1px 8px;
     border-radius: var(--radius-pill);
-    margin-top: 4px;
     width: fit-content;
+    margin-left: auto;
   }
 
   .status-badge.ok {
     background: var(--color-teal-bg);
     color: var(--color-teal);
+  }
+
+  .status-badge.warn {
+    background: var(--color-amber-bg);
+    color: var(--color-amber);
   }
 
   .status-badge.over {
@@ -729,32 +751,10 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* ─── Set Budget button ─── */
-  .budget-set-btn {
-    background: none;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-pill);
-    padding: 4px 12px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 120ms ease;
-    width: fit-content;
-    min-height: auto;
-  }
-
-  .budget-set-btn:hover {
-    border-color: var(--color-teal);
-    color: var(--color-teal);
-    background: var(--color-teal-bg);
-  }
-
   /* ─── Progress section ─── */
   .progress-section {
-    margin-top: var(--space-sm);
-    padding-top: var(--space-sm);
+    margin-top: var(--space-xs);
+    padding-top: var(--space-xs);
     border-top: 1px solid var(--line);
   }
 
@@ -778,19 +778,6 @@
   .pct-label {
     font-size: 12px;
     color: var(--color-text-muted);
-  }
-
-  /* ─── No budget hint ─── */
-  .no-budget-hint {
-    margin-top: var(--space-sm);
-    padding-top: var(--space-sm);
-    border-top: 1px solid var(--line);
-  }
-
-  .hint-text {
-    font-size: 12px;
-    color: var(--color-text-muted);
-    font-style: italic;
   }
 
   /* ─── Empty state ─── */
@@ -914,7 +901,6 @@
   .compact-type {
     font-size: 10px;
     font-weight: 700;
-    text-transform: uppercase;
     letter-spacing: 0.04em;
     padding: 2px 8px;
     border-radius: var(--radius-pill);
@@ -960,33 +946,12 @@
 
   /* ─── Responsive ─── */
   @media (max-width: 640px) {
-    .budget-grid {
-      grid-template-columns: 1fr 1fr;
-      gap: var(--space-sm);
-    }
-
-    .available-col {
-      grid-column: 1 / -1;
-      text-align: left;
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: var(--space-sm);
-      padding-top: var(--space-xs);
-      border-top: 1px solid var(--line);
-      margin-top: var(--space-xs);
-    }
-
-    .available-col .budget-col-hero {
-      font-size: 14px;
-    }
-
     .card-actions {
       opacity: 1;
     }
 
     .category-card {
-      padding: var(--space-md);
+      padding: var(--space-sm) var(--space-md);
       padding-left: calc(var(--space-md) + 4px);
     }
 
@@ -1002,17 +967,6 @@
   }
 
   @media (max-width: 480px) {
-    .budget-grid {
-      grid-template-columns: 1fr;
-      gap: var(--space-xs);
-    }
-
-    .available-col {
-      border-top: 1px solid var(--line);
-      padding-top: var(--space-xs);
-      margin-top: var(--space-xs);
-    }
-
     .cat-icon {
       width: 40px;
       height: 40px;
@@ -1024,7 +978,7 @@
     }
 
     .category-card {
-      padding: var(--space-md);
+      padding: var(--space-sm) var(--space-md);
       padding-left: calc(var(--space-md) + 4px);
     }
 
