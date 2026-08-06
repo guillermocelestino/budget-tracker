@@ -15,10 +15,13 @@
 	import ViewToggle from '$lib/components/ViewToggle.svelte';
 	import CountChip from '$lib/components/CountChip.svelte';
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
+	import SlideOver from '$lib/components/SlideOver.svelte';
+	import RecurringForm from '$lib/components/RecurringForm.svelte';
 	import ImportWizard from '$lib/components/ImportWizard.svelte';
 	import { showSuccess, showError } from '$lib/stores/toast.svelte';
 	import { generateTransactionPdf } from '$lib/utils/pdf';
-	import { getCurrentMonth } from '$lib/utils/format';
+	import { getCurrentMonth, formatDate, formatCurrency, getToday } from '$lib/utils/format';
+	import { calculateNextRun } from '$lib/utils/recurring';
 	import {
 		buildMappedRows,
 		validateAllRows,
@@ -28,7 +31,7 @@
 		type ImportValidationResult,
 		DEFAULT_IMPORT_FIELDS,
 	} from '$lib/utils/importValidation';
-	import type { Category } from '$lib/types';
+	import type { Category, Transaction, RecurringFormInitial } from '$lib/types';
 
 	let data = $derived($page.data as App.PageData);
 	let deleteTarget = $state<number | number[] | null>(null);
@@ -293,6 +296,106 @@
 			await invalidateAll();
 		} catch (e) {
 			showError((e as Error).message || 'Failed to duplicate transaction');
+		}
+	}
+
+	// ─── Create recurring schedule from a transaction ────────────────────
+	// Kebab item "Create recurring schedule" opens the shared RecurringForm
+	// pre-filled from this transaction. The original transaction is untouched —
+	// we only INSERT a new recurring_transactions row. See
+	// plans/make-transaction-recurring.md for the full semantics.
+
+	let makeRecurringTxn = $state<Transaction | null>(null);
+	let formDirty = $state(false);
+	let discardOpen = $state(false);
+
+	// Pre-fill seed: type/amount/description/category from the transaction;
+	// monthly by default. start_date = max(today, txn.date) so the scheduler
+	// never backfills an old schedule (old transactions clamp to today).
+	const makeRecurringInitial = $derived.by<RecurringFormInitial | null>(() => {
+		const txn = makeRecurringTxn;
+		if (!txn) return null;
+		const today = getToday();
+		return {
+			type: txn.type,
+			amount: Math.abs(txn.amount),
+			description: txn.description,
+			category_id: txn.category_id,
+			frequency: 'monthly',
+			interval: 1,
+			start_date: txn.date > today ? txn.date : today,
+			end_date: '',
+			active: true,
+		};
+	});
+
+	// The scheduler's first generated transaction = start_date + 1 interval.
+	const makeRecurringNextRun = $derived(
+		makeRecurringInitial
+			? calculateNextRun(
+					makeRecurringInitial.start_date,
+					makeRecurringInitial.frequency,
+					makeRecurringInitial.interval,
+					null,
+					null,
+					null,
+					makeRecurringInitial.start_date
+				)
+			: ''
+	);
+
+	function openMakeRecurring(txn: Transaction) {
+		makeRecurringTxn = txn;
+		formDirty = false;
+		discardOpen = false;
+	}
+
+	// ESC / backdrop / ✕ / Cancel all route here; confirm only when dirty.
+	function closeMakeRecurring() {
+		if (discardOpen) return; // already confirming — let the dialog handle Escape
+		if (formDirty) discardOpen = true;
+		else makeRecurringTxn = null;
+	}
+
+	function confirmDiscard() {
+		discardOpen = false;
+		makeRecurringTxn = null;
+	}
+
+	function onRecurringFormSuccess() {
+		makeRecurringTxn = null;
+		formDirty = false;
+	}
+
+	// Fetch-mode submit → POST /api/recurring (same body the /recurring page sends).
+	async function handleRecurringSubmit(formData: FormData): Promise<boolean> {
+		try {
+			const body: Record<string, unknown> = {
+				type: formData.get('type'),
+				amount: parseFloat(formData.get('amount') as string),
+				description: formData.get('description'),
+				category_id: parseInt(formData.get('category_id') as string),
+				frequency: formData.get('frequency'),
+				interval: parseInt(formData.get('interval') as string) || 1,
+				day_of_week: null,
+				day_of_month: null,
+				month_of_year: null,
+				start_date: formData.get('start_date'),
+				end_date: formData.get('end_date') || null,
+				active: formData.get('active') === 'on',
+			};
+			const res = await fetch('/api/recurring', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body),
+			});
+			const result = await res.json();
+			if (result.success) return true;
+			showError(result.error || 'Failed to create schedule');
+			return false;
+		} catch {
+			showError('Failed to create schedule');
+			return false;
 		}
 	}
 
@@ -577,6 +680,7 @@
 	onEdit={(id) => goto(`/transactions/${id}/edit`)}
 	onDelete={(id) => (deleteTarget = id)}
 	onDuplicate={handleDuplicate}
+	onMakeRecurring={openMakeRecurring}
 >
 	{#snippet emptyState()}
 		{#if hasActiveFilters}
@@ -709,6 +813,63 @@
 	templateHref="/templates/transactions.xlsx"
 	templateFilename="transactions-import-template.xlsx"
 />
+
+<!-- ═══ Create Recurring Schedule slide-over ═══ -->
+{#if makeRecurringTxn}
+	<SlideOver isOpen={true} title="Create Recurring Schedule" onClose={closeMakeRecurring}>
+		<p class="rr-subtitle">Future transactions will be created automatically using these settings.</p>
+
+		<!-- Source transaction card -->
+		<div class="source-card">
+			<span class="source-label">Source transaction</span>
+			<div class="source-line1">
+				<span class="source-desc">{makeRecurringTxn.description}</span>
+				<span class="source-type source-type-{makeRecurringTxn.type}">{makeRecurringTxn.type}</span>
+			</div>
+			<span class="source-meta">{formatCurrency(Math.abs(makeRecurringTxn.amount))} · {formatDate(makeRecurringTxn.date)}</span>
+			<span class="source-lock">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+				The original transaction won't be modified.
+			</span>
+		</div>
+
+		<!-- Next scheduled transaction card (the scheduler's computed next_run) -->
+		<div class="next-run-card">
+			<svg class="next-run-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+			<div class="next-run-body">
+				<span class="next-run-label">Next scheduled transaction</span>
+				<span class="next-run-date">{formatDate(makeRecurringNextRun)}</span>
+			</div>
+		</div>
+
+		<p class="rr-helper">This creates a recurring schedule based on this transaction. The original transaction won't be modified.</p>
+
+		<RecurringForm
+			categories={data.categories ?? []}
+			initial={makeRecurringInitial ?? undefined}
+			onSubmit={handleRecurringSubmit}
+			onSuccess={onRecurringFormSuccess}
+			onCancel={closeMakeRecurring}
+			bind:dirty={formDirty}
+			submitLabel="Create Recurring Schedule"
+			successToast={{
+				message: 'Recurring schedule created. Future transactions will be generated automatically.',
+				action: { label: 'Open Recurring', href: '/recurring' },
+			}}
+		/>
+	</SlideOver>
+{/if}
+
+<!-- ═══ Discard recurring schedule confirmation (dirty close) ═══ -->
+{#if discardOpen}
+	<ModalDialog open={discardOpen} onclose={() => (discardOpen = false)} title="Discard recurring schedule?">
+		<p>Your changes haven't been saved.</p>
+		<div class="modal-actions">
+			<Button variant="ghost" type="button" onclick={() => (discardOpen = false)}>Keep editing</Button>
+			<Button variant="danger" type="button" onclick={confirmDiscard}>Discard</Button>
+		</div>
+	</ModalDialog>
+{/if}
 
 <style>
 	/* ─── 8-point section rhythm: Header → Toolbar ─── */
@@ -1118,6 +1279,137 @@
 
 	.modal-actions :global(.btn) {
 		flex: 1;
+	}
+
+	/* ─── Create Recurring Schedule slide-over content ─── */
+	.rr-subtitle {
+		font-size: var(--font-size-sm);
+		color: var(--muted);
+		margin: 0 0 var(--space-md);
+		line-height: 1.5;
+	}
+
+	.source-card {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: var(--space-md);
+		margin-bottom: var(--space-md);
+		background: var(--color-bg);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-lg);
+	}
+
+	.source-label {
+		font-family: var(--font-display);
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--color-text-muted);
+	}
+
+	.source-line1 {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		min-width: 0;
+	}
+
+	.source-desc {
+		font-family: var(--font-display);
+		font-size: var(--font-size-base);
+		font-weight: 700;
+		color: var(--color-ink);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		min-width: 0;
+	}
+
+	.source-type {
+		flex-shrink: 0;
+		padding: 2px 10px;
+		border-radius: var(--radius-pill);
+		font-family: var(--font-display);
+		font-size: 10px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	.source-type-income {
+		background: var(--color-teal-bg);
+		color: var(--color-teal);
+	}
+
+	.source-type-expense {
+		background: var(--color-coral-bg);
+		color: var(--color-coral);
+	}
+
+	.source-meta {
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: var(--font-size-sm);
+		color: var(--color-text-muted);
+	}
+
+	.source-lock {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-top: 6px;
+		padding-top: 6px;
+		border-top: 1px solid var(--color-hairline);
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+	}
+
+	.source-lock svg {
+		flex-shrink: 0;
+	}
+
+	.next-run-card {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		padding: var(--space-md);
+		margin-bottom: var(--space-md);
+		background: var(--color-teal-bg);
+		border: 1px solid var(--color-teal);
+		border-radius: var(--radius-lg);
+	}
+
+	.next-run-icon {
+		flex-shrink: 0;
+		color: var(--color-teal);
+	}
+
+	.next-run-body {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+	}
+
+	.next-run-label {
+		font-size: var(--font-size-xs);
+		font-weight: 500;
+		color: var(--color-text-muted);
+	}
+
+	.next-run-date {
+		font-family: var(--font-display);
+		font-size: var(--font-size-base);
+		font-weight: 700;
+		color: var(--color-ink);
+	}
+
+	.rr-helper {
+		font-size: var(--font-size-sm);
+		color: var(--muted);
+		margin: 0 0 var(--space-md);
+		line-height: 1.5;
 	}
 
 	/* ─── Responsive ─── */

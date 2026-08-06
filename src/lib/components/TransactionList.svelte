@@ -12,6 +12,7 @@
     onDelete,
     onEdit,
     onDuplicate,
+    onMakeRecurring,
     showActions = true,
     loading = false,
     // New props for bank register pattern
@@ -29,6 +30,7 @@
     onDelete?: (id: number) => void;
     onEdit?: (id: number) => void;
     onDuplicate?: (id: number) => void;
+    onMakeRecurring?: (txn: Transaction) => void;
     showActions?: boolean;
     loading?: boolean;
     runningBalanceStart?: number;
@@ -608,6 +610,7 @@
     onClose={() => (menuTxn = null)}
     onEdit={() => { const id = menuTxn!.id; menuTxn = null; onEdit?.(id); }}
     onDuplicate={() => { const id = menuTxn!.id; menuTxn = null; onDuplicate?.(id); }}
+    onMakeRecurring={() => { const txn = menuTxn!; menuTxn = null; onMakeRecurring?.(txn); }}
     onDelete={() => { const id = menuTxn!.id; menuTxn = null; onDelete?.(id); }}
   />
 {/if}

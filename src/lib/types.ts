@@ -148,6 +148,20 @@ export interface RecurringTransactionFormData {
 	active: boolean;
 }
 
+/** Seeds a NEW recurring form (create mode) — e.g. "Create recurring schedule"
+ * pre-fills these from a source transaction. */
+export interface RecurringFormInitial {
+	type: TransactionType;
+	amount: number;
+	description: string;
+	category_id: number;
+	frequency: RecurringFrequency;
+	interval: number;
+	start_date: string;
+	end_date: string | null;
+	active: boolean;
+}
+
 /** A single leg of the net-worth composition. */
 export interface NetWorthLeg {
 	key: 'cash' | 'lent' | 'borrowed';

@@ -31,6 +31,7 @@
     onPay,
     payLabel = 'Record Payment',
     onViewHistory,
+    onMakeRecurring,
     anchor = null,
   }: {
     title: string;
@@ -48,6 +49,7 @@
     onPay?: () => void;
     payLabel?: string;
     onViewHistory?: () => void;
+    onMakeRecurring?: () => void;
     anchor?: HTMLElement | null;
   } = $props();
 
@@ -83,6 +85,7 @@
     if (onViewHistory) list.push({ id: 'history', label: 'View History', icon: iconHistory, onClick: () => onViewHistory?.() });
     if (onEdit) list.push({ id: 'edit', label: 'Edit', icon: iconEdit, onClick: () => onEdit?.() });
     if (onDuplicate) list.push({ id: 'duplicate', label: 'Duplicate', icon: iconDup, onClick: () => onDuplicate?.() });
+    if (onMakeRecurring) list.push({ id: 'make-recurring', label: 'Create recurring schedule', icon: iconRepeat, onClick: () => onMakeRecurring?.() });
     if (onRunNow) list.push({ id: 'run', label: 'Run Now', icon: iconRun, onClick: () => onRunNow?.() });
     if (isActive && onPause) list.push({ id: 'pause', label: 'Pause', icon: iconPause, onClick: () => onPause?.() });
     else if (!isActive && onResume) list.push({ id: 'resume', label: 'Resume', icon: iconResume, onClick: () => onResume?.() });
@@ -176,6 +179,10 @@
 
 {#snippet iconDup()}
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+{/snippet}
+
+{#snippet iconRepeat()}
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
 {/snippet}
 
 {#snippet iconRun()}

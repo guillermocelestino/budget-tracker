@@ -559,12 +559,14 @@
 			</button>
 		</div>
 		<div class="panel-content">
-		<RecurringForm
-			categories={data.categories ?? []}
-			recurring={editingRecurring ?? undefined}
-			onSubmit={handleFormSubmit}
-			onSuccess={onFormSuccess}
-		/>
+		{#key editingRecurring?.id ?? 'new'}
+			<RecurringForm
+				categories={data.categories ?? []}
+				recurring={editingRecurring ?? undefined}
+				onSubmit={handleFormSubmit}
+				onSuccess={onFormSuccess}
+			/>
+		{/key}
 		</div>
 	</div>
 {/if}

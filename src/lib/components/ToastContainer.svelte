@@ -14,6 +14,9 @@
 				</span>
 				<span class="toast-message">{toast.message}</span>
 			</div>
+			{#if toast.action}
+				<a class="toast-action" href={toast.action.href} onclick={() => dismissToast(toast.id)}>{toast.action.label}</a>
+			{/if}
 			<button class="toast-close" onclick={() => dismissToast(toast.id)} aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg></button>
 			{#if toast.duration > 0}
 				<div class="toast-progress" style="animation-duration: {toast.duration}ms"></div>
@@ -105,6 +108,37 @@
 
 	.toast-message {
 		flex: 1;
+	}
+
+	/* Action CTA inside the toast (e.g. "Open Recurring") — a compact link pill */
+	.toast-action {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		min-height: 32px;
+		padding: 0 12px;
+		border: 1px solid var(--color-teal);
+		border-radius: var(--radius-pill);
+		background: var(--color-teal-bg);
+		color: var(--color-teal);
+		font-family: var(--font-body);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		text-decoration: none;
+		white-space: nowrap;
+		cursor: pointer;
+		transition: background 140ms var(--ease), color 140ms var(--ease);
+	}
+
+	.toast-action:hover {
+		background: var(--color-teal);
+		color: var(--color-ink-inverse);
+	}
+
+	.toast-action:focus-visible {
+		outline: 2px solid var(--color-teal);
+		outline-offset: 2px;
 	}
 
 	.toast-close {

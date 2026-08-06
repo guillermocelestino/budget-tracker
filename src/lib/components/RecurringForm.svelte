@@ -1,9 +1,10 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { formatDateInput, formatWithCommas, handleAmountInput, handleAmountFocus, handleAmountBlur } from '$lib/utils/format';
-	import { showSuccess } from '$lib/stores/toast.svelte';
-	import type { Category, RecurringTransaction, TransactionType, RecurringFrequency } from '$lib/types';
+	import { showSuccess, type ToastAction } from '$lib/stores/toast.svelte';
+	import type { Category, RecurringTransaction, TransactionType, RecurringFrequency, RecurringFormInitial } from '$lib/types';
 	import { generatePreview } from '$lib/utils/recurring';
 
 	let {
@@ -13,6 +14,11 @@
 		errors = {},
 		onSuccess,
 		onSubmit,
+		initial,
+		onCancel,
+		submitLabel,
+		successToast,
+		dirty = $bindable(false),
 	}: {
 		categories: Category[];
 		recurring?: RecurringTransaction;
@@ -20,32 +26,132 @@
 		errors?: Record<string, string>;
 		onSuccess?: () => void;
 		onSubmit?: (formData: FormData) => Promise<boolean>;
+		initial?: RecurringFormInitial;
+		onCancel?: () => void;
+		submitLabel?: string;
+		successToast?: { message?: string; action?: ToastAction };
+		dirty?: boolean;
 	} = $props();
 
-	let type = $state<TransactionType>('expense');
-	let rawAmount = $state('');
-	let description = $state('');
-	let category_id = $state<number | string>('');
-	let frequency = $state<RecurringFrequency>('monthly');
-	let interval = $state(1);
-	let start_date = $state(formatDateInput());
-	let end_date = $state('');
-	let active = $state(true);
+	// ── Form state ─────────────────────────────────────────────────────
+	// Seeded SYNCHRONOUSLY from the source record (`recurring` edit mode or
+	// `initial` pre-filled create) via the $state initializers. This removes
+	// any dependence on effect/mount timing: the values are in place the moment
+	// the component is created, so edit mode always opens already-populated.
+	// `src` is a snapshot of the source at instantiation (intentionally NOT
+	// reactive — untrack makes that explicit); a re-sync $effect below handles
+	// a NEW source arriving without a remount.
+	const src = untrack(() => recurring ?? initial);
+
+	let type = $state<TransactionType>(src?.type ?? 'expense');
+	let rawAmount = $state(src ? String(src.amount) : '');
+	let description = $state(src?.description ?? '');
+	let category_id = $state<number | string>(src?.category_id ?? '');
+	let frequency = $state<RecurringFrequency>(src?.frequency ?? 'monthly');
+	let interval = $state(src?.interval ?? 1);
+	let start_date = $state(src?.start_date ?? formatDateInput());
+	let end_date = $state(src?.end_date ?? '');
+	let active = $state(src?.active ?? true);
+
+	type FormSeed = {
+		type: TransactionType;
+		amount: number;
+		description: string;
+		category_id: number | string;
+		frequency: RecurringFrequency;
+		interval: number;
+		start_date: string;
+		end_date: string;
+		active: boolean;
+	};
+
+	// Snapshot of what was seeded, for the `dirty` discard check.
+	let seed = $state<FormSeed | null>(
+		src
+			? {
+					type: src.type,
+					amount: src.amount,
+					description: src.description,
+					category_id: src.category_id,
+					frequency: src.frequency,
+					interval: src.interval,
+					start_date: src.start_date,
+					end_date: src.end_date ?? '',
+					active: src.active,
+				}
+			: {
+					type: 'expense',
+					amount: 0,
+					description: '',
+					category_id: '',
+					frequency: 'monthly',
+					interval: 1,
+					start_date: formatDateInput(),
+					end_date: '',
+					active: true,
+				}
+	);
+
+	// Re-sync when a NEW source record arrives without a remount. Idempotent
+	// on first run (same source → no-op). Built from the SOURCE, never from the
+	// live $state fields, so this effect tracks only `recurring`/`initial` and
+	// never self-triggers on user edits.
+	let lastSource: RecurringTransaction | RecurringFormInitial | null = src ?? null;
 
 	$effect(() => {
-		if (recurring) {
-			type = recurring.type;
-			rawAmount = String(recurring.amount);
-			description = recurring.description;
-			category_id = recurring.category_id;
-			frequency = recurring.frequency;
-			interval = recurring.interval;
-			start_date = recurring.start_date;
-			end_date = recurring.end_date ?? '';
-			active = recurring.active;
+		const next = recurring ?? initial ?? null;
+		if (next === lastSource) return;
+		lastSource = next;
+		if (next) {
+			type = next.type;
+			rawAmount = String(next.amount);
+			description = next.description;
+			category_id = next.category_id;
+			frequency = next.frequency;
+			interval = next.interval;
+			start_date = next.start_date;
+			end_date = next.end_date ?? '';
+			active = next.active;
+			seed = {
+				type: next.type,
+				amount: next.amount,
+				description: next.description,
+				category_id: next.category_id,
+				frequency: next.frequency,
+				interval: next.interval,
+				start_date: next.start_date,
+				end_date: next.end_date ?? '',
+				active: next.active,
+			};
 		} else {
 			start_date = formatDateInput();
+			seed = {
+				type: 'expense',
+				amount: 0,
+				description: '',
+				category_id: '',
+				frequency: 'monthly',
+				interval: 1,
+				start_date: formatDateInput(),
+				end_date: '',
+				active: true,
+			};
 		}
+	});
+
+	// Dirty = any field differs from the seeded snapshot.
+	$effect(() => {
+		if (!seed) return;
+		dirty =
+			type !== seed.type ||
+			(parseFloat(rawAmount) || 0) !== seed.amount ||
+			description !== seed.description ||
+			category_id !== seed.category_id ||
+			frequency !== seed.frequency ||
+			interval !== seed.interval ||
+			start_date !== seed.start_date ||
+			(end_date || '') !== (seed.end_date || '') ||
+			active !== seed.active;
 	});
 
 	const filteredCategories = $derived(
@@ -53,6 +159,8 @@
 	);
 
 	$effect(() => {
+		// Don't wipe category_id during seeding — only validate on user-driven changes
+		if (!seed) return;
 		if (category_id && !filteredCategories.find(c => c.id === category_id)) {
 			category_id = '';
 		}
@@ -77,10 +185,13 @@
 		rawAmount = String(Math.max(0, val + delta));
 	}
 
+	const successMessage = () =>
+		successToast?.message ?? (recurring ? 'Recurring transaction updated successfully' : 'Recurring transaction added successfully');
+
 	function handleEnhance() {
 		return async ({ result, update }: { result: { type: string }; update: () => Promise<void> }) => {
 			if (result.type === 'redirect') {
-				showSuccess(recurring ? 'Recurring transaction updated successfully' : 'Recurring transaction added successfully');
+				showSuccess(successMessage(), undefined, successToast?.action);
 				onSuccess?.();
 			}
 			await update();
@@ -96,7 +207,7 @@
 		const formData = new FormData(form);
 		const success = await onSubmit(formData);
 		if (success) {
-			showSuccess(recurring ? 'Recurring transaction updated successfully' : 'Recurring transaction added successfully');
+			showSuccess(successMessage(), undefined, successToast?.action);
 			onSuccess?.();
 		}
 	}
@@ -114,7 +225,7 @@
 	};
 </script>
 
-<form use:enhance={onSubmit ? undefined : handleEnhance} onsubmit={handleSubmit}>
+<form action={action} use:enhance={onSubmit ? undefined : handleEnhance} onsubmit={handleSubmit}>
 	{#if recurring}
 		<input type="hidden" name="id" value={recurring.id} />
 	{/if}
@@ -308,9 +419,9 @@
 
 	<div class="form-actions">
 		<button type="submit" class="btn btn-submit">
-			{recurring ? 'Update Recurring Transaction' : 'Add Recurring Transaction'}
+			{submitLabel ?? (recurring ? 'Update Recurring Transaction' : 'Add Recurring Transaction')}
 		</button>
-		<button type="button" class="btn btn-cancel" onclick={() => goto('/recurring')}>
+		<button type="button" class="btn btn-cancel" onclick={() => (onCancel ? onCancel() : goto('/recurring'))}>
 			Cancel
 		</button>
 	</div>
