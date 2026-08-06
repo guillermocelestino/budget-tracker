@@ -45,10 +45,10 @@
     background: linear-gradient(90deg, var(--color-teal), var(--color-teal-light));
   }
 
-  /* Near limit (80-100%) — gold fill + --glow-gold */
+  /* Near limit (75-100%) — amber fill + amber glow (status trio: teal/amber/coral) */
   .usage-fill.warn {
-    background: linear-gradient(90deg, var(--color-gold-dark), var(--color-gold));
-    box-shadow: var(--glow-gold);
+    background: linear-gradient(90deg, var(--color-amber-dark), var(--color-amber));
+    box-shadow: 0 0 12px rgba(192, 122, 30, 0.35);
   }
 
   /* Over budget — coral fill with BoomPulse animation */

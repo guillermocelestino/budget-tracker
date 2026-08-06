@@ -1,6 +1,8 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
-  import { formatCurrency } from '$lib/utils/format';
+  import { formatCurrency, formatDateShort } from '$lib/utils/format';
+  import { getCategoryHue, getCategoryTint, getCategoryText } from '$lib/utils/categoryColors';
+  import { themeState } from '$lib/stores/preferences.svelte';
   import CategoryUsageBar from './CategoryUsageBar.svelte';
   import { showSuccess, showError } from '$lib/stores/toast.svelte';
 
@@ -17,6 +19,9 @@
     spent: number;
     earned: number;
     created_at: string;
+    txnCount: number;
+    recurringCount: number;
+    lastUsed: string | null;
   }
 
   // ─── Props ────────────────────────────────────────────────────────
@@ -25,11 +30,20 @@
     categories = [] as EnrichedCategory[],
     onEdit,
     onDelete,
+    onAdd,
+    compact = false,
+    totalCount = 0,
   }: {
     categories: EnrichedCategory[];
     onEdit?: (cat: EnrichedCategory) => void;
-    onDelete?: (id: number) => void;
+    onDelete?: (cat: EnrichedCategory) => void;
+    onAdd?: () => void;
+    compact?: boolean;
+    totalCount?: number;
   } = $props();
+
+  // Dark-mode state for category chip contrast (AA lightened text).
+  const isDark = $derived(themeState.isDark);
 
   // ─── Derived groupings ────────────────────────────────────────────
 
@@ -106,6 +120,40 @@
 
   </script>
 
+<!-- Shared action / compact-row snippets -->
+{#snippet cardActions(cat: EnrichedCategory)}
+  <div class="card-actions">
+    <button class="btn-icon" onclick={() => onEdit?.(cat)} title="Edit category" aria-label="Edit {cat.name}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+    </button>
+    <button class="btn-icon danger" onclick={() => onDelete?.(cat)} title="Delete category" aria-label="Delete {cat.name}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+    </button>
+  </div>
+{/snippet}
+
+{#snippet compactActions(cat: EnrichedCategory)}
+  <span class="compact-actions">
+    <button class="btn-icon" onclick={() => onEdit?.(cat)} title="Edit category" aria-label="Edit {cat.name}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+    </button>
+    <button class="btn-icon danger" onclick={() => onDelete?.(cat)} title="Delete category" aria-label="Delete {cat.name}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+    </button>
+  </span>
+{/snippet}
+
+{#snippet compactRow(cat: EnrichedCategory, tint: string, fg: string)}
+  <div class="compact-row">
+    <span class="compact-icon" style="background: {tint}; color: {fg}">{cat.icon}</span>
+    <span class="compact-name">{cat.name}</span>
+    <span class="compact-type" class:income={cat.type === 'income'}>{cat.type === 'income' ? 'Income' : 'Expense'}</span>
+    <span class="compact-meta">{cat.txnCount || 0} txns · {cat.recurringCount || 0} rec{cat.lastUsed ? ` · ${formatDateShort(cat.lastUsed)}` : ''}</span>
+    <span class="compact-amount">{formatCurrency(cat.type === 'income' ? cat.earned : cat.spent)}</span>
+    {@render compactActions(cat)}
+  </div>
+{/snippet}
+
 <!-- ════════════════════════════════════════════════════════════════
      INCOME CATEGORIES — collapsed section
      ════════════════════════════════════════════════════════════════ -->
@@ -116,41 +164,37 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="chevron-icon">
           <path d="m9 18 6-6-6-6"/>
         </svg>
-        <span class="group-title">Income</span>
+        <span class="group-title">Income · {incomeCategories.length}</span>
       </span>
       <span class="group-total">{formatCurrency(incomeCategories.reduce((s, c) => s + c.earned, 0))} earned</span>
     </summary>
     <div class="category-list">
       {#each incomeCategories as cat (cat.id)}
-        <div class="category-card income-card">
-          <div class="card-accent" style="background: {cat.color}"></div>
-          <div class="card-body">
-            <div class="card-left">
-              <span class="cat-icon" style="background: {cat.color}15; color: {cat.color}">{cat.icon}</span>
-              <div class="cat-info">
-                <span class="cat-name">{cat.name}</span>
-                <span class="cat-type-badge teal">Income</span>
+        {@const hue = getCategoryHue('', cat.color)}
+        {@const tint = getCategoryTint('', hue, isDark)}
+        {@const fg = getCategoryText('', hue, isDark)}
+        {#if compact}
+          {@render compactRow(cat, tint, fg)}
+        {:else}
+          <div class="category-card income-card">
+            <div class="card-accent" style="background: {hue}"></div>
+            <div class="card-body">
+              <div class="card-left">
+                <span class="cat-icon" style="background: {tint}; color: {fg}">{cat.icon}</span>
+                <div class="cat-info">
+                  <span class="cat-name">{cat.name}</span>
+                  <span class="cat-type-badge teal">Income</span>
+                  <span class="cat-usage">{cat.txnCount || 0} transactions · {cat.recurringCount || 0} recurring</span>
+                </div>
               </div>
-            </div>
-            <div class="card-right">
-              <span class="income-value">{formatCurrency(cat.earned)}</span>
-              <span class="income-label">earned</span>
-            </div>
-            <div class="card-actions">
-              <button class="btn-icon" onclick={() => onEdit?.(cat)} title="Edit category" aria-label="Edit {cat.name}">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
-                </svg>
-              </button>
-              <button class="btn-icon danger" onclick={() => onDelete?.(cat.id)} title="Delete category" aria-label="Delete {cat.name}">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 6 5 6 21 6"/>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                </svg>
-              </button>
+              <div class="card-right">
+                <span class="income-value">{formatCurrency(cat.earned)}</span>
+                <span class="income-label">earned this month</span>
+              </div>
+              {@render cardActions(cat)}
             </div>
           </div>
-        </div>
+        {/if}
       {/each}
     </div>
   </details>
@@ -162,7 +206,7 @@
 {#if expenseCategories.length > 0}
   <div class="category-group">
     <div class="group-header">
-      <span class="group-title">Expenses</span>
+      <span class="group-title">Expenses · {expenseCategories.length}</span>
       <span class="group-total">
         {formatCurrency(expenseCategories.reduce((s, c) => s + c.spent, 0))} spent
         of {formatCurrency(expenseCategories.reduce((s, c) => s + c.budgeted, 0))}
@@ -170,127 +214,138 @@
     </div>
     <div class="category-list">
       {#each expenseCategories as cat (cat.id)}
-        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-        <div class="category-card" class:over-budget={statusClass(cat) === 'over'}>
-          <div class="card-accent" style="background: {cat.color}"></div>
+        {@const hue = getCategoryHue('', cat.color)}
+        {@const tint = getCategoryTint('', hue, isDark)}
+        {@const fg = getCategoryText('', hue, isDark)}
+        {#if compact}
+          {@render compactRow(cat, tint, fg)}
+        {:else}
+          <div class="category-card" class:over-budget={statusClass(cat) === 'over'}>
+            <div class="card-accent" style="background: {hue}"></div>
 
-          <!-- ─── Card row 1: icon + name + meta + actions ─── -->
-          <div class="card-header-area">
-            <div class="card-left">
-              <span class="cat-icon" style="background: {cat.color}15; color: {cat.color}">{cat.icon}</span>
-              <div class="cat-info">
-                <span class="cat-name">{cat.name}</span>
-                <span class="cat-type-badge coral">Expense</span>
-              </div>
-            </div>
-            <div class="card-actions">
-              <button class="btn-icon" onclick={() => onEdit?.(cat)} title="Edit category" aria-label="Edit {cat.name}">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
-                </svg>
-              </button>
-              <button class="btn-icon danger" onclick={() => onDelete?.(cat.id)} title="Delete category" aria-label="Delete {cat.name}">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 6 5 6 21 6"/>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- ─── Card row 2: Budgeted │ Spent │ Available ─── -->
-          <div class="budget-grid">
-            <!-- Budgeted column -->
-            <div class="budget-col">
-              <span class="budget-col-label">Budgeted</span>
-              {#if editingId === cat.id}
-                <div class="budget-edit-wrap">
-                  <span class="budget-prefix">₱</span>
-                  <input
-                    type="text"
-                    inputmode="decimal"
-                    class="budget-edit-input"
-                    value={editRaw}
-                    oninput={onBudgetInput}
-                    onkeydown={(e) => handleBudgetKeydown(e, cat)}
-                    onblur={() => saveEdit(cat)}
-                    autofocus
-                    autocomplete="off"
-                  />
+            <!-- ─── Card row 1: icon + name + meta + actions ─── -->
+            <div class="card-header-area">
+              <div class="card-left">
+                <span class="cat-icon" style="background: {tint}; color: {fg}">{cat.icon}</span>
+                <div class="cat-info">
+                  <span class="cat-name">{cat.name}</span>
+                  <span class="cat-type-badge coral">Expense</span>
+                  <span class="cat-usage">{cat.txnCount || 0} transactions · {cat.recurringCount || 0} recurring</span>
                 </div>
-              {:else if cat.budget_limit != null}
-                <button class="budget-col-value clickable" onclick={() => startEdit(cat)} title="Edit budget">
-                  {formatCurrency(cat.budgeted)}
-                </button>
-              {:else}
-                <button class="budget-set-btn" onclick={() => startEdit(cat)}>
-                  + Set Budget
-                </button>
-              {/if}
+              </div>
+              {@render cardActions(cat)}
             </div>
 
-            <!-- Spent column -->
-            <div class="budget-col">
-              <span class="budget-col-label">Spent</span>
-              <span class="budget-col-value" class:inverted={cat.spent > 0}>
-                {formatCurrency(cat.spent)}
-              </span>
-            </div>
+            <!-- ─── Card row 2: Budgeted │ Spent │ Available ─── -->
+            <div class="budget-grid">
+              <!-- Budgeted column -->
+              <div class="budget-col">
+                <span class="budget-col-label">Budgeted</span>
+                {#if editingId === cat.id}
+                  <div class="budget-edit-wrap">
+                    <span class="budget-prefix">₱</span>
+                    <input
+                      type="text"
+                      inputmode="decimal"
+                      class="budget-edit-input"
+                      value={editRaw}
+                      oninput={onBudgetInput}
+                      onkeydown={(e) => handleBudgetKeydown(e, cat)}
+                      onblur={() => saveEdit(cat)}
+                      autofocus
+                      autocomplete="off"
+                    />
+                  </div>
+                {:else if cat.budget_limit != null}
+                  <button class="budget-col-value clickable" onclick={() => startEdit(cat)} title="Edit budget">
+                    {formatCurrency(cat.budgeted)}
+                  </button>
+                {:else}
+                  <button class="budget-set-btn" onclick={() => startEdit(cat)}>
+                    + Set Budget
+                  </button>
+                {/if}
+              </div>
 
-            <!-- Available column -->
-            <div class="budget-col available-col">
-              <span class="budget-col-label">Available</span>
-              <span class="budget-col-hero" class:positive={cat.budgeted - cat.spent >= 0} class:negative={cat.budgeted - cat.spent < 0}>
-                {cat.budget_limit != null ? formatCurrency(cat.budgeted - cat.spent) : '—'}
-              </span>
-              {#if cat.budget_limit != null && cat.budgeted - cat.spent >= 0}
-                <span class="status-badge ok">Under</span>
-              {:else if cat.budget_limit != null}
-                <span class="status-badge over">Over</span>
-              {/if}
-            </div>
-          </div>
-
-          <!-- ─── Card row 3: progress bar ─── -->
-          {#if cat.budget_limit != null && cat.budget_limit > 0}
-            <div class="progress-section">
-              <CategoryUsageBar percent={budgetPercent(cat)} status={statusClass(cat)} />
-              <div class="progress-footer">
-                <span class="pct-value" class:ok={statusClass(cat) === 'ok'} class:warn={statusClass(cat) === 'warn'} class:over={statusClass(cat) === 'over'}>
-                  {Math.round(budgetPercent(cat))}%
-                </span>
-                <span class="pct-label">
-                  {#if statusClass(cat) === 'over'}
-                    Overspent by {formatCurrency(cat.spent - cat.budgeted)}
-                  {:else}
-                    {formatCurrency(cat.budgeted - cat.spent)} remaining
-                  {/if}
+              <!-- Spent column -->
+              <div class="budget-col">
+                <span class="budget-col-label">Spent</span>
+                <span class="budget-col-value" class:inverted={cat.spent > 0}>
+                  {formatCurrency(cat.spent)}
                 </span>
               </div>
+
+              <!-- Available column -->
+              <div class="budget-col available-col">
+                <span class="budget-col-label">Available</span>
+                <span class="budget-col-hero" class:positive={cat.budgeted - cat.spent >= 0} class:negative={cat.budgeted - cat.spent < 0}>
+                  {cat.budget_limit != null ? formatCurrency(cat.budgeted - cat.spent) : '—'}
+                </span>
+                {#if cat.budget_limit != null && cat.budgeted - cat.spent >= 0}
+                  <span class="status-badge ok">Under</span>
+                {:else if cat.budget_limit != null}
+                  <span class="status-badge over">Over</span>
+                {/if}
+              </div>
             </div>
-          {:else if cat.budget_limit === null}
-            <div class="no-budget-hint">
-              <span class="hint-text">No budget set</span>
-            </div>
-          {/if}
-        </div>
+
+            <!-- ─── Card row 3: progress bar ─── -->
+            {#if cat.budget_limit != null && cat.budget_limit > 0}
+              <div class="progress-section">
+                <CategoryUsageBar percent={budgetPercent(cat)} status={statusClass(cat)} />
+                <div class="progress-footer">
+                  <span class="pct-value" class:ok={statusClass(cat) === 'ok'} class:warn={statusClass(cat) === 'warn'} class:over={statusClass(cat) === 'over'}>
+                    {Math.round(budgetPercent(cat))}%
+                  </span>
+                  <span class="pct-label">
+                    {#if statusClass(cat) === 'over'}
+                      Overspent by {formatCurrency(cat.spent - cat.budgeted)}
+                    {:else}
+                      {formatCurrency(cat.budgeted - cat.spent)} remaining
+                    {/if}
+                  </span>
+                </div>
+              </div>
+            {:else if cat.budget_limit === null}
+              <div class="no-budget-hint">
+                <span class="hint-text">No budget set</span>
+              </div>
+            {/if}
+          </div>
+        {/if}
       {/each}
     </div>
   </div>
 {/if}
 
-<!-- ─── Empty state ─── -->
+<!-- ─── Empty states ─── -->
 {#if categories.length === 0}
-  <div class="empty-state">
-    <div class="empty-icon">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/>
-        <line x1="7" x2="7.01" y1="7" y2="7"/>
-      </svg>
+  {#if totalCount > 0}
+    <div class="empty-state">
+      <div class="empty-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </div>
+      <p>No matching categories</p>
+      <span>Try a different search or filter.</span>
     </div>
-    <p>No categories yet</p>
-    <span>Add a category to start organizing your transactions</span>
-  </div>
+  {:else}
+    <div class="empty-state">
+      <div class="empty-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/>
+          <line x1="7" x2="7.01" y1="7" y2="7"/>
+        </svg>
+      </div>
+      <p>Start organizing your finances.</p>
+      <span>Categories help organize your income, expenses, budgets, and recurring schedules.</span>
+      {#if onAdd}
+        <button class="empty-cta" onclick={onAdd} type="button">Add First Category</button>
+      {/if}
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -313,7 +368,7 @@
     cursor: pointer;
     list-style: none;
     user-select: none;
-    border-bottom: 1px dashed var(--color-border);
+    border-bottom: 1px solid var(--line);
   }
 
   .group-header::-webkit-details-marker {
@@ -458,8 +513,9 @@
     text-overflow: ellipsis;
   }
 
-  .cat-meta {
-    font-size: 12px;
+  /* Usage line on cards — lightweight management metadata */
+  .cat-usage {
+    font-size: var(--font-size-xs);
     color: var(--color-text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -488,16 +544,21 @@
     color: var(--color-coral);
   }
 
-  /* ─── Card actions (hover reveal) ─── */
+  /* ─── Card actions — always visible, muted at rest (no kebab) ───
+     Two actions (Edit/Delete) don't warrant another click; they stay
+     discoverable at a lower default opacity and strengthen on interaction. */
   .card-actions {
     display: flex;
     gap: 4px;
-    opacity: 0;
+    align-items: center;
+    opacity: 0.45;
     transition: opacity 150ms ease;
   }
 
   .category-card:hover .card-actions,
-  .category-card:focus-within .card-actions {
+  .category-card:focus-within .card-actions,
+  .card-actions:focus-within,
+  .card-actions:hover {
     opacity: 1;
   }
 
@@ -507,8 +568,8 @@
     cursor: pointer;
     padding: 8px;
     border-radius: var(--radius-md);
-    min-width: 36px;
-    min-height: 36px;
+    min-width: 44px;
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -583,7 +644,7 @@
 
   .budget-col-value.clickable {
     cursor: pointer;
-    border-bottom: 1px dashed var(--color-border);
+    border-bottom: 1px solid var(--color-border);
     padding-bottom: 1px;
     transition: border-color 120ms ease;
   }
@@ -671,7 +732,7 @@
   /* ─── Set Budget button ─── */
   .budget-set-btn {
     background: none;
-    border: 1px dashed var(--color-border);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-pill);
     padding: 4px 12px;
     font-size: 13px;
@@ -694,7 +755,7 @@
   .progress-section {
     margin-top: var(--space-sm);
     padding-top: var(--space-sm);
-    border-top: 1px dashed var(--color-border);
+    border-top: 1px solid var(--line);
   }
 
   .progress-footer {
@@ -711,7 +772,7 @@
   }
 
   .pct-value.ok { color: var(--color-teal); }
-  .pct-value.warn { color: var(--color-gold-dark); }
+  .pct-value.warn { color: var(--color-amber); }
   .pct-value.over { color: var(--color-coral); }
 
   .pct-label {
@@ -723,7 +784,7 @@
   .no-budget-hint {
     margin-top: var(--space-sm);
     padding-top: var(--space-sm);
-    border-top: 1px dashed var(--color-border);
+    border-top: 1px solid var(--line);
   }
 
   .hint-text {
@@ -740,7 +801,7 @@
     text-align: center;
     padding: var(--space-2xl) var(--space-md);
     background: var(--color-cream);
-    border: 1px dashed var(--color-border);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-xl);
     gap: var(--space-sm);
     box-shadow: var(--shadow-card);
@@ -771,6 +832,132 @@
     max-width: 280px;
   }
 
+  /* Empty-state CTA — teal (the gold header Add coexists, so this stays quiet) */
+  .empty-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 var(--space-xl);
+    border: none;
+    border-radius: var(--radius-pill);
+    background: var(--teal);
+    color: var(--color-surface);
+    font-family: var(--font-display);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 140ms ease-out, box-shadow 140ms ease-out, transform 140ms ease-out;
+    margin-top: var(--space-sm);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .empty-cta:hover {
+    background: var(--teal-deep);
+    box-shadow: 0 4px 16px rgba(79, 157, 136, 0.22);
+    transform: translateY(-1px);
+  }
+
+  .empty-cta:focus-visible {
+    outline: 2px solid var(--teal-deep);
+    outline-offset: 2px;
+  }
+
+  /* ─── Compact view (high density for large catalogs) ─── */
+  .compact-row {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto auto auto auto;
+    align-items: center;
+    gap: var(--space-md);
+    min-height: 48px;
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline);
+    border-bottom: none;
+    transition: background 150ms var(--ease);
+  }
+
+  .compact-row:first-of-type {
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  .compact-row:last-of-type {
+    border-bottom: 1px solid var(--color-hairline);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  }
+
+  .compact-row:hover {
+    background: var(--color-teal-bg);
+  }
+
+  .compact-icon {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+
+  .compact-name {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .compact-type {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--color-coral-bg);
+    color: var(--color-coral);
+    flex-shrink: 0;
+  }
+
+  .compact-type.income {
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
+  }
+
+  .compact-meta {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .compact-amount {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    color: var(--color-ink);
+    text-align: right;
+    min-width: 84px;
+  }
+
+  .compact-actions {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    opacity: 0.45;
+    transition: opacity 150ms ease;
+  }
+
+  .compact-row:hover .compact-actions,
+  .compact-actions:focus-within {
+    opacity: 1;
+  }
+
   /* ─── Responsive ─── */
   @media (max-width: 640px) {
     .budget-grid {
@@ -786,7 +973,7 @@
       align-items: center;
       gap: var(--space-sm);
       padding-top: var(--space-xs);
-      border-top: 1px dashed var(--color-border);
+      border-top: 1px solid var(--line);
       margin-top: var(--space-xs);
     }
 
@@ -802,6 +989,16 @@
       padding: var(--space-md);
       padding-left: calc(var(--space-md) + 4px);
     }
+
+    /* Compact rows slim down on mobile: drop type + meta columns */
+    .compact-row {
+      grid-template-columns: 32px minmax(0, 1fr) auto auto;
+    }
+
+    .compact-type,
+    .compact-meta {
+      display: none;
+    }
   }
 
   @media (max-width: 480px) {
@@ -811,7 +1008,7 @@
     }
 
     .available-col {
-      border-top: 1px dashed var(--color-border);
+      border-top: 1px solid var(--line);
       padding-top: var(--space-xs);
       margin-top: var(--space-xs);
     }

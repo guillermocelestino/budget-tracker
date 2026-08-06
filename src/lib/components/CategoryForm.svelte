@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { showSuccess, showError } from '$lib/stores/toast.svelte';
+	import { getCategoryHue } from '$lib/utils/categoryColors';
 	import type { Category } from '$lib/types';
 
 	let {
@@ -14,6 +15,20 @@
 		action?: string;
 		onSuccess?: () => void;
 	} = $props();
+
+	// Curated calm palette — the getCategoryHue cut. Every swatch renders as-is
+	// (no forbidden hues), so what-you-pick = what-renders.
+	const CALM_PALETTE = [
+		'#3f8f79', // teal
+		'#5f9d8a', // sage
+		'#468499', // ocean
+		'#4f8f9e', // sky-teal
+		'#c0564f', // rose
+		'#c07a3e', // orange
+		'#b0864d', // amber
+		'#c56a8b', // pink
+		'#7a8986'  // slate
+	];
 
 	let name = $state('');
 	let color = $state('#6366f1');
@@ -30,6 +45,11 @@
 			rawBudgetLimit = category.budget_limit != null ? String(category.budget_limit) : '';
 		}
 	});
+
+	// Live-preview color. Calm picks pass through untouched (what-you-pick =
+	// what-renders); legacy forbidden hues (blue→indigo→violet) are neutralized
+	// to the calm fallback so the preview never shows an off-palette color.
+	const previewColor = $derived(getCategoryHue('', color));
 
 	function formatWithCommas(value: string): string {
 		const parts = value.split('.');
@@ -86,7 +106,7 @@
 	{/if}
 
 	<!-- Live Preview Chip -->
-	<div class="preview-chip" style="background: {color}12; border-color: {color}40">
+	<div class="preview-chip" style="background: {previewColor}12; border-color: {previewColor}40">
 		<span class="preview-icon">{icon}</span>
 		<span class="preview-name">{name || 'Category Name'}</span>
 		<span class="preview-type">{categoryType === 'income' ? 'Income' : 'Expense'}</span>
@@ -133,7 +153,7 @@
 		<label class="form-label">Color</label>
 		<div class="color-picker">
 			<div class="color-swatches">
-				{#each ['#ef4444','#f97316','#f59e0b','#10b981','#14b8a6','#3b82f6','#6366f1','#8b5cf6','#ec4899','#6b7280'] as c (c)}
+				{#each CALM_PALETTE as c (c)}
 					<button
 						type="button"
 						class="swatch"
@@ -144,12 +164,7 @@
 					></button>
 				{/each}
 			</div>
-			<div class="custom-color-wrap">
-				<label class="custom-label" for="cat-color" style="background: {color}">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3h.01"/><path d="M12 21h.01"/><path d="M3 12h.01"/><path d="M21 12h.01"/><path d="m3 21 6-6"/><path d="m21 3-6 6"/></svg>
-				</label>
-				<input type="color" id="cat-color" name="color" bind:value={color} class="color-input" />
-			</div>
+			<input type="hidden" name="color" value={color} />
 		</div>
 	</div>
 
@@ -346,31 +361,6 @@
 		border-color: var(--color-ink);
 		transform: scale(1.15);
 		box-shadow: var(--glow-card);
-	}
-
-	.custom-color-wrap {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-	}
-
-	.custom-label {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 32px;
-		height: 32px;
-		border-radius: var(--radius-full);
-		cursor: pointer;
-		color: rgba(255,255,255,0.7);
-	}
-
-	.color-input {
-		width: 0;
-		height: 0;
-		opacity: 0;
-		position: absolute;
-		pointer-events: none;
 	}
 
 	/* ─── Amount wrap (matches TransactionForm) ─── */

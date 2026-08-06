@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { enhance } from '$app/forms';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import Button from '$lib/components/Button.svelte';
   import CategoryList from '$lib/components/CategoryList.svelte';
   import type { EnrichedCategory } from '$lib/components/CategoryList.svelte';
   import CategoryForm from '$lib/components/CategoryForm.svelte';
@@ -10,6 +11,8 @@
   import PageBackground from '$lib/components/PageBackground.svelte';
   import MonthPicker from '$lib/components/MonthPicker.svelte';
   import SlideOver from '$lib/components/SlideOver.svelte';
+  import SearchFilterPill from '$lib/components/SearchFilterPill.svelte';
+  import ViewToggle from '$lib/components/ViewToggle.svelte';
   import { showSuccess, showError } from '$lib/stores/toast.svelte';
   import { formatCurrency, getCurrentMonth } from '$lib/utils/format';
 
@@ -46,29 +49,63 @@
   const categories = $derived(data.categories ?? []);
   const spendingMap = $derived(data.spending ?? ({} as Record<number, number>));
   const incomeMap = $derived(data.income ?? ({} as Record<number, number>));
+  const txnCounts = $derived(data.txnCounts ?? ({} as Record<number, number>));
+  const recurringCounts = $derived(data.recurringCounts ?? ({} as Record<number, number>));
+  const lastUsedMap = $derived(data.lastUsed ?? ({} as Record<number, string>));
 
-  // Enrich categories with budgeted/spent/earned
+  // Enrich categories with budgeted/spent/earned + management usage data
   const enriched = $derived<EnrichedCategory[]>(
     categories.map(cat => ({
       ...cat,
       budgeted: cat.budget_limit ?? 0,
       spent: spendingMap[cat.id] || 0,
       earned: incomeMap[cat.id] || 0,
+      txnCount: txnCounts[cat.id] || 0,
+      recurringCount: recurringCounts[cat.id] || 0,
+      lastUsed: lastUsedMap[cat.id] || null,
     }))
   );
+
+  // ─── Search + type filter + view mode ───
+  let searchInput = $state('');
+  let searchTerm = $state('');
+  let typeFilter = $state<'all' | 'income' | 'expense'>('all');
+  let filtersOpen = $state(false);
+  let compactView = $state(false);
+
+  // Debounced search term (same 250ms idle pattern as the list pages)
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      if (searchTerm !== searchInput) searchTerm = searchInput;
+    }, 250);
+    return () => { if (searchTimer) clearTimeout(searchTimer); };
+  });
+
+  const visibleCategories = $derived.by<EnrichedCategory[]>(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return enriched.filter((c) => {
+      if (typeFilter !== 'all' && c.type !== typeFilter) return false;
+      if (term && !c.name.toLowerCase().includes(term)) return false;
+      return true;
+    });
+  });
 
   // Slide-over state
   let showPanel = $state(false);
   let editingCategory = $state<EnrichedCategory | null>(null);
-  let deleteId = $state<number | null>(null);
+  let deleteTarget = $state<EnrichedCategory | null>(null);
 
-  // Monthly summary
+  // Monthly summary — ONE source for the stats strip AND the group headers
+  // (both derive from `categories` + `spendingMap`, so they can never drift).
+  const incomeCats = $derived(categories.filter(c => c.type === 'income'));
   const expenseCats = $derived(categories.filter(c => c.type === 'expense'));
   const totalBudgeted = $derived(
     expenseCats.reduce((sum, c) => sum + (c.budget_limit ?? 0), 0)
   );
   const totalSpent = $derived(
-    categories.reduce((sum, c) => sum + (spendingMap[c.id] || 0), 0)
+    expenseCats.reduce((sum, c) => sum + (spendingMap[c.id] || 0), 0)
   );
   const totalRemaining = $derived(totalBudgeted - totalSpent);
   const overBudgetCount = $derived(
@@ -97,15 +134,15 @@
 
 <PageBackground />
 
-<PageHeader title="Categories">
+<PageHeader title="Categories" flush borderless>
   {#snippet action()}
-    <button class="btn-add" onclick={openAdd}>
+    <Button variant="primary" onclick={openAdd}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <line x1="12" x2="12" y1="5" y2="19"/>
         <line x1="5" x2="19" y1="12" y2="12"/>
       </svg>
       Add Category
-    </button>
+    </Button>
   {/snippet}
 </PageHeader>
 
@@ -114,9 +151,24 @@
   <MonthPicker {selectedMonth} onChange={handleMonthChange} />
 </div>
 
-<!-- ═══ Monthly summary bar ═══ -->
-{#if expenseCats.length > 0}
+<!-- ═══ Category stats + monthly summary bar (one source: `categories`/maps) ═══ -->
+{#if categories.length > 0}
   <div class="summary-bar">
+    <div class="summary-stat">
+      <span class="summary-value">{categories.length}</span>
+      <span class="summary-label">Categories</span>
+    </div>
+    <div class="summary-divider"></div>
+    <div class="summary-stat">
+      <span class="summary-value">{expenseCats.length}</span>
+      <span class="summary-label">Expense</span>
+    </div>
+    <div class="summary-divider"></div>
+    <div class="summary-stat">
+      <span class="summary-value">{incomeCats.length}</span>
+      <span class="summary-label">Income</span>
+    </div>
+    <div class="summary-divider"></div>
     <div class="summary-stat">
       <span class="summary-value">{formatCurrency(totalBudgeted)}</span>
       <span class="summary-label">Budgeted</span>
@@ -143,11 +195,45 @@
   </div>
 {/if}
 
+<!-- ═══ Toolbar: search+filter pill (left) + view mode (right) ═══ -->
+<div class="cats-toolbar">
+  <SearchFilterPill
+    bind:value={searchInput}
+    bind:open={filtersOpen}
+    placeholder="Search categories…"
+    ariaLabel="Search categories"
+    filterAriaLabel="Filter categories"
+    activeFilterCount={typeFilter !== 'all' ? 1 : 0}
+  >
+    {#snippet panel(_mode, close)}
+      <div class="filter-chips">
+        <button class="filter-chip" class:active={typeFilter === 'all'} onclick={() => { typeFilter = 'all'; close(); }}>All</button>
+        <button class="filter-chip" class:active={typeFilter === 'income'} onclick={() => { typeFilter = 'income'; close(); }}>Income</button>
+        <button class="filter-chip" class:active={typeFilter === 'expense'} onclick={() => { typeFilter = 'expense'; close(); }}>Expense</button>
+      </div>
+    {/snippet}
+  </SearchFilterPill>
+  <ViewToggle
+    options={[
+      { value: 'card', icon: 'grid', label: 'Cards', ariaLabel: 'Card view' },
+      { value: 'compact', icon: 'table', label: 'Compact', ariaLabel: 'Compact view' },
+    ]}
+    value={compactView ? 'compact' : 'card'}
+    onSelect={(v) => (compactView = v === 'compact')}
+    ariaLabel="Category list view"
+    slidingThumb
+    stretch
+  />
+</div>
+
 <!-- ═══ Category list ═══ -->
 <CategoryList
-  categories={enriched}
+  categories={visibleCategories}
+  totalCount={categories.length}
+  compact={compactView}
+  onAdd={openAdd}
   onEdit={openEdit}
-  onDelete={(id) => deleteId = id}
+  onDelete={(cat) => deleteTarget = cat}
 />
 
 <!-- ═══ Slide-over panel for add/edit ═══ -->
@@ -164,9 +250,10 @@
     />
 </SlideOver>
 
-<!-- ═══ Delete confirmation ═══ -->
-{#if deleteId !== null}
-  <ModalDialog open={deleteId !== null} onclose={() => deleteId = null} title="Delete Category">
+<!-- ═══ Delete confirmation — usage-aware (Archive is a separate future feature) ═══ -->
+{#if deleteTarget}
+  {@const inUse = deleteTarget.txnCount > 0 || deleteTarget.recurringCount > 0}
+  <ModalDialog open={deleteTarget !== null} onclose={() => deleteTarget = null} title="Delete Category">
     <div class="modal-content">
       <div class="modal-icon">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -175,13 +262,16 @@
           <line x1="12" x2="12.01" y1="17" y2="17"/>
         </svg>
       </div>
-      <p>Are you sure you want to delete this category?</p>
-      <p class="warning-text">Categories with transactions cannot be deleted.</p>
+      <p>Delete "{deleteTarget.name}"?</p>
+      <p class="usage-text">{deleteTarget.txnCount || 0} transactions · {deleteTarget.recurringCount || 0} recurring schedules</p>
+      {#if inUse}
+        <p class="warning-text">This category is in use, so it can't be deleted. Retiring a used category will move to Archive, which keeps all history intact.</p>
+      {/if}
     </div>
     <form method="POST" action="?/delete" use:enhance={() => {
       return async ({ result, update }) => {
         if (result.type === 'success') {
-          deleteId = null;
+          deleteTarget = null;
           showSuccess('Category deleted successfully');
         } else if (result.type === 'failure') {
           showError((result.data as { error?: string })?.error || 'Failed to delete category');
@@ -189,10 +279,10 @@
         await update();
       };
     }}>
-      <input type="hidden" name="id" value={deleteId} />
+      <input type="hidden" name="id" value={deleteTarget.id} />
       <div class="modal-actions">
-        <button type="submit" class="btn btn-danger">Delete</button>
-        <button type="button" class="btn btn-secondary" onclick={() => deleteId = null}>Cancel</button>
+        <button type="submit" class="btn btn-danger" disabled={inUse}>Delete</button>
+        <button type="button" class="btn btn-secondary" onclick={() => deleteTarget = null}>Cancel</button>
       </div>
     </form>
   </ModalDialog>
@@ -206,32 +296,66 @@
     margin-bottom: var(--space-lg);
   }
 
-  /* ─── Add button ─── */
-  .btn-add {
-    display: inline-flex;
+  /* ─── Toolbar: search+filter pill (left) + view toggle (right) ─── */
+  .cats-toolbar {
+    display: flex;
     align-items: center;
-    gap: var(--space-xs);
-    padding: var(--space-sm) var(--space-md);
-    background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
-    color: white;
-    border: none;
-    border-radius: var(--radius-md);
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+  }
+
+  .cats-toolbar :global(.search-filter-pill) {
+    flex: 1 1 auto;
+    max-width: 420px;
+  }
+
+  .filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+  }
+
+  .filter-chip {
+    padding: var(--space-xs) var(--space-md);
+    border: 1px solid var(--color-hairline);
+    background: var(--color-cream);
+    border-radius: var(--radius-pill);
+    font-family: var(--font-body);
     font-size: var(--font-size-sm);
-    font-weight: 600;
+    font-weight: 500;
+    color: var(--color-text);
     cursor: pointer;
+    transition: all 200ms var(--bounce);
+    -webkit-tap-highlight-color: transparent;
     min-height: 44px;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-    transition: all var(--transition-fast);
   }
 
-  .btn-add:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+  .filter-chip:hover {
+    border-color: var(--color-teal);
+    background: var(--color-teal-bg);
   }
 
-  .header-subtitle {
+  .filter-chip.active {
+    background: var(--color-teal);
+    border-color: var(--color-teal);
+    color: white;
+    box-shadow: var(--glow-card);
+  }
+
+  /* ─── Delete modal usage text + disabled Delete ─── */
+  .usage-text {
+    margin: var(--space-sm) 0 0 !important;
+    color: var(--color-text-secondary) !important;
     font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
   }
 
   /* ─── Monthly summary bar ─── */
@@ -397,6 +521,16 @@
     .summary-stat {
       flex: 1;
       min-width: 80px;
+    }
+
+    .cats-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-sm);
+    }
+
+    .cats-toolbar :global(.search-filter-pill) {
+      max-width: none;
     }
   }
 </style>

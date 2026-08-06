@@ -26,7 +26,39 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 		incomeMap[s.category_id] = parseFloat(String(s.income));
 	}
 
-	return { categories, spending: expenseMap, income: incomeMap, selectedMonth };
+	// Per-category usage: all-time transaction count + last-used date, and
+	// recurring-schedule count. Feeds the management view + usage-aware delete.
+	const txnUsage = await queryMany<{ category_id: number; cnt: number; last_used: string | null }>(
+		`SELECT category_id, COUNT(*)::int as cnt, MAX(date) as last_used
+		 FROM transactions WHERE user_id = $1 GROUP BY category_id`,
+		[userId]
+	);
+	const recurringUsage = await queryMany<{ category_id: number; cnt: number }>(
+		`SELECT category_id, COUNT(*)::int as cnt
+		 FROM recurring_transactions WHERE user_id = $1 GROUP BY category_id`,
+		[userId]
+	);
+
+	const txnCountMap: Record<number, number> = {};
+	const recurringCountMap: Record<number, number> = {};
+	const lastUsedMap: Record<number, string> = {};
+	for (const u of txnUsage) {
+		txnCountMap[u.category_id] = u.cnt;
+		if (u.last_used) lastUsedMap[u.category_id] = u.last_used;
+	}
+	for (const r of recurringUsage) {
+		recurringCountMap[r.category_id] = r.cnt;
+	}
+
+	return {
+		categories,
+		spending: expenseMap,
+		income: incomeMap,
+		selectedMonth,
+		txnCounts: txnCountMap,
+		recurringCounts: recurringCountMap,
+		lastUsed: lastUsedMap,
+	};
 }
 
 export const actions = {

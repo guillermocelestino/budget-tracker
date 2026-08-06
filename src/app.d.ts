@@ -19,6 +19,9 @@ declare global {
 			totalPages?: number;
 			limit?: number;
 			categories?: Category[];
+			txnCounts?: Record<number, number>;
+			recurringCounts?: Record<number, number>;
+			lastUsed?: Record<number, string>;
 			recurring?: RecurringTransaction[];
 			activeCount?: number;
 			upcomingRecurring?: RecurringTransaction[];
