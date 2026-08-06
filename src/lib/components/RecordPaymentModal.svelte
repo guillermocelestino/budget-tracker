@@ -28,20 +28,22 @@
 	let previewValueEl = $state<HTMLElement | null>(null);
 	let prevPreviewValue = $state<number | null>(null);
 
-	const displayAmount = $derived(rawAmount ? formatWithCommas(rawAmount) : '');
-
-	// Live remaining preview
+	// Live remaining preview — derived from VALID input only, so it never overruns
 	const inputAmount = $derived(rawAmount ? parseFloat(rawAmount) || 0 : 0);
-	const remainingAfter = $derived(Math.max(lending.remaining - inputAmount, 0));
-	const newResolvedTotal = $derived(lending.resolved_total + inputAmount);
-	const progressPct = $derived(lending.amount > 0 ? Math.min((newResolvedTotal / lending.amount) * 100, 100) : 0);
+	const validAmount = $derived(inputAmount > 0 && inputAmount <= lending.remaining ? inputAmount : 0);
+	const remainingAfter = $derived(lending.remaining - validAmount);
+	const settledTotal = $derived(lending.cash_paid + lending.written_off + validAmount);
+	const progressPct = $derived(lending.amount > 0 ? Math.min((settledTotal / lending.amount) * 100, 100) : 0);
 
 	const isWriteOff = $derived(paymentType === 'write_off');
 	const showCreateTransaction = $derived(!isWriteOff);
+	// Settle only when the input is valid and matches the remaining balance to the cent
 	const isSettling = $derived(
-		inputAmount > 0 && lending.remaining > 0 && inputAmount <= lending.remaining && remainingAfter === 0
+		validAmount > 0 && Math.round(validAmount * 100) === Math.round(lending.remaining * 100)
 	);
 	const amountHelperInvalid = $derived(inputAmount > lending.remaining);
+	// Disable submit for empty / non-positive / over-remaining amounts or a missing date
+	const canSubmit = $derived(inputAmount > 0 && inputAmount <= lending.remaining && !!paymentDate);
 
 	const initials = $derived(
 		lending.borrower_name
@@ -50,6 +52,18 @@
 			.slice(0, 2)
 			.map((w) => w[0].toUpperCase())
 			.join('') || '?'
+	);
+
+	// Header subtitle (mode-adaptive)
+	const headerSubtitle = $derived(
+		direction === 'lent' ? 'Add a payment to this lending' : 'Add a payment to this borrowing'
+	);
+
+	// Footer reassurance line (mode-adaptive)
+	const reassuranceText = $derived(
+		isWriteOff
+			? 'This will be recorded as a write-off and cannot exceed the remaining balance.'
+			: 'This will be recorded as a payment and cannot exceed the remaining balance.'
 	);
 
 	// Contextual helper text — display only, validation is untouched
@@ -129,40 +143,74 @@
 	}
 </script>
 
-<ModalDialog open={true} onclose={submitting ? undefined : onclose} title="Record Payment">
-	<div class="modal-shell">
-		<!-- Header subtitle -->
-		<p class="modal-subtitle">
-			{direction === 'lent' ? 'Add a payment to this lending' : 'Record a repayment for this borrowing'}
-		</p>
+{#snippet headerIcon()}
+	<span class="header-icon-chip">
+		<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/>
+			<path d="M8 7h8M8 11h8M8 15h4"/>
+		</svg>
+	</span>
+{/snippet}
 
-		<!-- Borrower context card (replaces the old icon block) -->
+<ModalDialog open={true} onclose={submitting ? undefined : onclose} title="Record Payment" icon={headerIcon} subtitle={headerSubtitle}>
+	<div class="modal-shell">
+		<!-- Borrower context card -->
 		<div class="context-card">
 			<div class="ctx-avatar" class:borrowed={direction === 'borrowed'}>{initials}</div>
 			<div class="ctx-info">
 				<span class="ctx-name">{lending.borrower_name}</span>
 				<span class="ctx-meta">{direction === 'lent' ? 'Lent' : 'Borrowed'} • {formatDate(lending.date_lent)}</span>
 			</div>
-			<span class="ctx-loan-pill">Loan #{lending.id}</span>
+			<span class="ctx-loan-pill">{direction === 'lent' ? '#L-' : '#B-'}{lending.id}</span>
 		</div>
 
 		<!-- Summary context -->
 		<div class="payment-summary">
 			<div class="summary-row">
+				<span class="summary-chip">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="2" y="6" width="20" height="12" rx="2"/>
+						<circle cx="12" cy="12" r="2"/>
+						<path d="M6 12h.01M18 12h.01"/>
+					</svg>
+				</span>
 				<span class="summary-label">Original</span>
 				<span class="summary-value">{formatCurrency(lending.amount)}</span>
 			</div>
 			<div class="summary-row">
+				<span class="summary-chip">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M12 3v12"/>
+						<path d="m6 9 6 6 6-6"/>
+						<path d="M4 21h16"/>
+					</svg>
+				</span>
 				<span class="summary-label">{direction === 'lent' ? 'Collected' : 'Repaid'}</span>
 				<span class="summary-value muted">{formatCurrency(lending.cash_paid)}</span>
 			</div>
 			{#if lending.written_off > 0}
 				<div class="summary-row">
+					<span class="summary-chip">
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/>
+							<path d="M22 21H7"/>
+							<path d="m5 11 9 9"/>
+						</svg>
+					</span>
 					<span class="summary-label">Written Off</span>
 					<span class="summary-value muted">{formatCurrency(lending.written_off)}</span>
 				</div>
 			{/if}
 			<div class="summary-row remaining">
+				<span class="summary-chip">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/>
+						<path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/>
+						<path d="M7 21h10"/>
+						<path d="M12 3v18"/>
+						<path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>
+					</svg>
+				</span>
 				<span class="summary-label">Remaining</span>
 				<span class="summary-value" class:teal={direction === 'lent'} class:rose={direction === 'borrowed'}>
 					{formatCurrency(lending.remaining)}
@@ -180,25 +228,37 @@
 				<div class="payment-type-toggle" role="group" aria-label="Payment type">
 					<button
 						type="button"
+						class="mode-pay"
 						class:active={paymentType === 'payment'}
 						aria-pressed={paymentType === 'payment'}
 						onclick={() => paymentType = 'payment'}
 					>
+						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<rect x="2" y="6" width="20" height="12" rx="2"/>
+							<circle cx="12" cy="12" r="2"/>
+							<path d="M6 12h.01M18 12h.01"/>
+						</svg>
 						Payment
 					</button>
 					<button
 						type="button"
+						class="mode-off"
 						class:active={paymentType === 'write_off'}
 						aria-pressed={paymentType === 'write_off'}
 						onclick={() => { paymentType = 'write_off'; createTransaction = false; }}
 					>
+						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/>
+							<path d="M22 21H7"/>
+							<path d="m5 11 9 9"/>
+						</svg>
 						Write-off
 					</button>
 				</div>
 
 				<!-- Amount -->
 				<div class="form-group">
-					<label class="form-label" for="payment_amount">Payment Amount</label>
+					<label class="form-label" for="payment_amount">Payment Amount<span class="req">*</span></label>
 					<div class="amount-wrap">
 						<span class="amount-prefix">₱</span>
 						<input
@@ -207,7 +267,6 @@
 							inputmode="decimal"
 							required
 							placeholder="0.00"
-							value={displayAmount}
 							oninput={onAmountInput}
 							onfocus={onAmountFocus}
 							onblur={onAmountBlur}
@@ -223,34 +282,34 @@
 						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
 							<path d="M20 6L9 17l-5-5"/>
 						</svg>
-						{isWriteOff ? 'Loan will be fully written off' : 'Loan will be fully paid'}
+						This will fully settle the loan
 					</div>
 				{/if}
 
-				<!-- Live preview (updates as the amount changes) -->
+				<!-- Live preview (always compact — shows the current state at input 0) -->
 				<div class="remaining-preview">
 					<span class="preview-title">After this payment</span>
 					<div class="preview-body" aria-live="polite" role="status">
-						{#if inputAmount > 0}
-							<div class="preview-row">
-								<span class="preview-label">Remaining</span>
-								<span class="preview-value" bind:this={previewValueEl}>{formatCurrency(remainingAfter)}</span>
-							</div>
-							<div class="progress-track">
-								<div class="progress-fill" style="width: {progressPct}%;"></div>
-							</div>
-							<div class="progress-caption">
-								<span>{formatCurrency(newResolvedTotal)} of {formatCurrency(lending.amount)}</span>
-								<span>{Math.round(progressPct)}% paid</span>
-							</div>
-						{:else}
-							<p class="preview-empty">No changes yet</p>
-						{/if}
+						<div class="preview-row">
+							<span class="preview-label">Remaining</span>
+							<span
+								class="preview-value"
+								class:teal={direction === 'lent'}
+								class:rose={direction === 'borrowed'}
+								bind:this={previewValueEl}
+							>{formatCurrency(remainingAfter)}</span>
+						</div>
+						<div class="progress-track">
+							<div class="progress-fill" style="width: {progressPct}%;"></div>
+						</div>
+						<div class="progress-caption">
+							{formatCurrency(settledTotal)} of {formatCurrency(lending.amount)} ({Math.round(progressPct)}% settled)
+						</div>
 					</div>
 				</div>
 
 				<div class="form-group">
-					<label class="form-label" for="payment_date">Payment Date</label>
+					<label class="form-label" for="payment_date">Payment Date<span class="req">*</span></label>
 					<input
 						id="payment_date"
 						name="payment_date"
@@ -288,20 +347,31 @@
 				{/if}
 			</div>
 
-			<!-- Pinned footer — Cancel on the left, Primary on the right -->
+			<!-- Pinned footer — Cancel on the left, Primary on the right, reassurance below -->
 			<div class="modal-footer">
-				<Button variant="ghost" type="button" onclick={onclose} disabled={submitting}>Cancel</Button>
-				<div class="footer-primary-wrap">
-					<Button variant="teal" type="submit" disabled={submitting}>
-						{#if submitting}
-							<span class="btn-spinner" aria-hidden="true"></span>
-							<span>Recording...</span>
-						{:else}
-							<span>Record {isWriteOff ? 'Write-off' : 'Payment'}</span>
-							<span class="btn-amount" class:shown={inputAmount > 0}>• {formatCurrency(inputAmount)}</span>
-						{/if}
-					</Button>
+				<div class="footer-actions">
+					<Button variant="ghost" type="button" onclick={onclose} disabled={submitting}>Cancel</Button>
+					<div class="footer-primary-wrap">
+						<Button variant="teal" type="submit" disabled={submitting || !canSubmit}>
+							{#if submitting}
+								<span class="btn-spinner" aria-hidden="true"></span>
+								<span>Recording...</span>
+							{:else}
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M20 6L9 17l-5-5"/>
+								</svg>
+								<span>Record {isWriteOff ? 'Write-off' : 'Payment'}</span>
+							{/if}
+						</Button>
+					</div>
 				</div>
+				<p class="footer-note">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+						<path d="m9 12 2 2 4-4"/>
+					</svg>
+					<span>{reassuranceText}</span>
+				</p>
 			</div>
 		</form>
 	</div>
@@ -312,10 +382,9 @@
 	.modal-shell {
 		display: flex;
 		flex-direction: column;
-		max-height: calc(100dvh - 110px);
+		max-height: calc(100dvh - 130px);
 	}
 
-	.modal-shell > .modal-subtitle,
 	.modal-shell > .context-card,
 	.modal-shell > .payment-summary {
 		flex-shrink: 0;
@@ -335,11 +404,17 @@
 		overflow-x: hidden;
 	}
 
-	/* ═══ Header subtitle ═══ */
-	.modal-subtitle {
-		margin: 0 0 var(--space-md);
-		font-size: var(--font-size-sm);
-		color: var(--color-text-muted);
+	/* ═══ Header icon chip (rendered inside the modal header) ═══ */
+	.header-icon-chip {
+		width: 40px;
+		height: 40px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--mint-tint);
+		color: var(--teal-deep);
+		border-radius: var(--radius-md);
 	}
 
 	/* ═══ Borrower context card ═══ */
@@ -362,9 +437,9 @@
 		align-items: center;
 		justify-content: center;
 		flex-shrink: 0;
-		background: var(--color-teal-bg);
-		box-shadow: inset 0 0 0 2px var(--color-teal);
-		color: var(--color-teal);
+		background: var(--mint-tint);
+		box-shadow: inset 0 0 0 2px var(--teal-deep);
+		color: var(--teal-deep);
 		font-family: var(--font-display);
 		font-weight: var(--font-weight-bold);
 		font-size: var(--font-size-base);
@@ -397,25 +472,26 @@
 		color: var(--color-text-muted);
 	}
 
+	/* Mint mono loan-ID pill */
 	.ctx-loan-pill {
 		margin-left: auto;
 		padding: 2px var(--space-sm);
-		border: 1px solid var(--color-border);
+		background: var(--mint-tint);
+		color: var(--teal-deep);
 		border-radius: var(--radius-pill);
-		background: var(--color-bg);
-		color: var(--color-text-muted);
+		font-family: var(--font-mono);
 		font-size: var(--font-size-xs);
-		font-weight: var(--font-weight-semibold);
+		font-weight: var(--font-weight-bold);
 		white-space: nowrap;
 	}
 
-	/* ═══ Summary card ═══ */
+	/* ═══ Summary card — white card, per-row icon chips, mint accent on Remaining ═══ */
 	.payment-summary {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-xs);
 		padding: var(--space-sm) var(--space-md);
-		background: var(--color-bg);
+		background: var(--color-surface);
 		border: 1px solid var(--color-hairline);
 		border-radius: var(--radius-md);
 		margin-bottom: var(--space-md);
@@ -423,13 +499,26 @@
 
 	.summary-row {
 		display: flex;
-		justify-content: space-between;
 		align-items: center;
+		gap: var(--space-sm);
+	}
+
+	.summary-chip {
+		width: 28px;
+		height: 28px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--mint-tint);
+		color: var(--teal-deep);
+		border-radius: var(--radius-sm);
 	}
 
 	.summary-label {
 		font-size: var(--font-size-sm);
 		color: var(--color-text-muted);
+		margin-right: auto;
 	}
 
 	.summary-value {
@@ -446,9 +535,13 @@
 
 	.summary-row.remaining {
 		margin-top: var(--space-xs);
-		padding: 6px var(--space-sm);
-		background: var(--color-teal-bg);
+		padding: var(--space-xs) var(--space-sm);
+		background: var(--mint-tint);
 		border-radius: var(--radius-sm);
+	}
+
+	.summary-row.remaining .summary-chip {
+		background: var(--color-surface);
 	}
 
 	.summary-row.remaining .summary-value {
@@ -457,31 +550,35 @@
 	}
 
 	.summary-value.teal {
-		color: var(--color-teal);
+		color: var(--teal-deep);
 	}
 
 	.summary-value.rose {
 		color: var(--rose);
 	}
 
-	/* ═══ Payment / Write-off toggle ═══ */
+	/* ═══ Payment / Write-off toggle — tinted active, never a solid teal block ═══ */
 	.payment-type-toggle {
 		display: flex;
 		gap: var(--space-xs);
 		margin-bottom: var(--space-md);
 		padding: 4px;
-		background: var(--color-bg);
+		background: var(--color-surface);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
 	}
 
 	.payment-type-toggle button {
 		flex: 1;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-xs);
 		padding: var(--space-sm) var(--space-md);
 		border: none;
 		border-radius: var(--radius-sm);
 		background: transparent;
-		color: var(--color-text-secondary);
+		color: var(--muted);
 		font-weight: var(--font-weight-semibold);
 		font-size: var(--font-size-sm);
 		font-family: var(--font-body);
@@ -491,7 +588,7 @@
 	}
 
 	.payment-type-toggle button:hover {
-		background: var(--color-surface);
+		background: var(--color-surface-inset);
 		color: var(--color-text);
 	}
 
@@ -500,10 +597,14 @@
 		box-shadow: var(--focus);
 	}
 
-	.payment-type-toggle button.active {
-		background: linear-gradient(135deg, var(--color-teal) 0%, var(--color-teal-dark) 100%);
-		color: var(--color-ink-inverse);
-		box-shadow: var(--shadow-sm);
+	.payment-type-toggle button.mode-pay.active {
+		background: var(--mint-tint);
+		color: var(--teal-deep);
+	}
+
+	.payment-type-toggle button.mode-off.active {
+		background: var(--rose-soft);
+		color: var(--rose);
 	}
 
 	/* ═══ Form fields ═══ */
@@ -520,6 +621,11 @@
 		font-weight: var(--font-weight-semibold);
 		color: var(--color-text);
 		letter-spacing: 0.02em;
+	}
+
+	.form-label .req {
+		color: var(--rose);
+		margin-left: 2px;
 	}
 
 	.form-group input,
@@ -575,7 +681,7 @@
 	.amount-prefix {
 		display: flex;
 		align-items: center;
-		padding: 0 12px 0 16px;
+		padding: 0 var(--space-md) 0 var(--space-lg);
 		font-family: var(--font-display);
 		font-size: 22px;
 		font-weight: var(--font-weight-bold);
@@ -590,7 +696,7 @@
 		font-size: 24px;
 		font-weight: var(--font-weight-bold);
 		color: var(--color-text);
-		padding: 8px 16px 8px 0;
+		padding: 8px var(--space-lg) 8px 0;
 		min-height: 48px;
 		box-shadow: none !important;
 		letter-spacing: -0.01em;
@@ -617,21 +723,21 @@
 		gap: var(--space-xs);
 		padding: var(--space-xs) var(--space-md);
 		margin: 0 0 var(--space-md);
-		background: var(--color-teal-bg);
-		color: var(--color-teal-dark);
-		border: 1px solid var(--color-teal);
+		background: var(--mint-tint);
+		color: var(--teal-deep);
+		border: 1px solid var(--teal-deep);
 		border-radius: var(--radius-pill);
 		font-size: var(--font-size-xs);
 		font-weight: var(--font-weight-bold);
 	}
 
-	/* ═══ Live preview card ═══ */
+	/* ═══ Live preview card — compact, always rendered ═══ */
 	.remaining-preview {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-sm);
 		padding: var(--space-md);
-		background: var(--color-bg);
+		background: var(--color-surface);
 		border: 1px solid var(--color-hairline);
 		border-radius: var(--radius-md);
 		margin-bottom: var(--space-md);
@@ -644,13 +750,10 @@
 		color: var(--color-text);
 	}
 
-	/* Reserved height so the card never shifts between empty and full states */
 	.preview-body {
 		display: flex;
 		flex-direction: column;
-		justify-content: center;
 		gap: var(--space-sm);
-		min-height: 76px;
 	}
 
 	.preview-row {
@@ -666,12 +769,19 @@
 
 	.preview-value {
 		font-family: var(--font-mono);
-		font-size: var(--font-size-xl);
+		font-size: var(--font-size-lg);
 		font-weight: var(--font-weight-bold);
 		font-variant-numeric: tabular-nums;
-		color: var(--color-text);
 		line-height: 1.1;
 		transition: opacity 200ms var(--ease);
+	}
+
+	.preview-value.teal {
+		color: var(--teal-deep);
+	}
+
+	.preview-value.rose {
+		color: var(--rose);
 	}
 
 	.progress-track {
@@ -683,25 +793,16 @@
 
 	.progress-fill {
 		height: 100%;
-		background: var(--color-teal);
+		background: var(--teal-deep);
 		border-radius: var(--radius-pill);
 		transition: width 300ms var(--ease);
 	}
 
 	.progress-caption {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
 		font-family: var(--font-mono);
 		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
 		font-variant-numeric: tabular-nums;
-	}
-
-	.preview-empty {
-		margin: 0;
-		font-size: var(--font-size-sm);
-		color: var(--color-text-muted);
 	}
 
 	/* ═══ Create Transaction card ═══ */
@@ -710,7 +811,7 @@
 		align-items: flex-start;
 		gap: var(--space-sm);
 		padding: var(--space-sm) var(--space-md);
-		background: var(--color-bg);
+		background: var(--color-surface);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
 		cursor: pointer;
@@ -718,13 +819,13 @@
 	}
 
 	.create-tx-card:hover {
-		background: var(--color-teal-bg);
-		border-color: var(--color-teal);
+		background: var(--mint-tint);
+		border-color: var(--teal-deep);
 	}
 
 	.create-tx-card input {
 		margin-top: 2px;
-		accent-color: var(--color-teal);
+		accent-color: var(--teal-deep);
 		width: 18px;
 		height: 18px;
 		flex-shrink: 0;
@@ -754,10 +855,10 @@
 		font-size: var(--font-size-xs);
 	}
 
-	/* ═══ Pinned footer ═══ */
+	/* ═══ Pinned footer — buttons row + reassurance line ═══ */
 	.modal-footer {
 		display: flex;
-		align-items: center;
+		flex-direction: column;
 		gap: var(--space-sm);
 		flex-shrink: 0;
 		margin: var(--space-md) calc(-1 * var(--space-lg)) calc(-1 * var(--space-lg));
@@ -767,14 +868,20 @@
 		border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 	}
 
+	.footer-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+	}
+
 	.modal-footer :global(.btn-ghost) {
 		flex: 1;
-		color: var(--color-teal-dark);
-		border-color: var(--color-teal-dark);
+		color: var(--teal-deep);
+		border-color: var(--teal-deep);
 	}
 
 	.modal-footer :global(.btn-ghost:hover) {
-		background: var(--color-teal-bg);
+		background: var(--mint-tint);
 	}
 
 	.footer-primary-wrap {
@@ -785,7 +892,7 @@
 
 	.footer-primary-wrap :global(.btn-teal) {
 		flex: 1;
-		background: var(--color-teal);
+		background: var(--teal-deep);
 		color: var(--color-surface);
 		box-shadow: var(--shadow-sm);
 		white-space: nowrap;
@@ -795,6 +902,20 @@
 		background: var(--color-teal-dark);
 		box-shadow: var(--shadow-sm);
 		transform: translateY(-1px);
+	}
+
+	.footer-note {
+		display: flex;
+		align-items: center;
+		gap: var(--space-xs);
+		margin: 0;
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+	}
+
+	.footer-note svg {
+		flex-shrink: 0;
+		color: var(--teal-deep);
 	}
 
 	.btn-spinner {
@@ -810,19 +931,5 @@
 
 	@keyframes btn-spin {
 		to { transform: rotate(360deg); }
-	}
-
-	.btn-amount {
-		font-weight: var(--font-weight-normal);
-		font-size: var(--font-size-xs);
-		opacity: 0;
-		visibility: hidden;
-		white-space: nowrap;
-		transition: opacity var(--transition-fast);
-	}
-
-	.btn-amount.shown {
-		opacity: 1;
-		visibility: visible;
 	}
 </style>

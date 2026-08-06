@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 
-	let { open = false, title = 'Confirm', onclose, children, size = 'default' }: {
+	let { open = false, title = 'Confirm', onclose, children, size = 'default', icon, subtitle }: {
 		open?: boolean;
 		title?: string;
 		onclose?: () => void;
 		children?: import('svelte').Snippet;
 		size?: 'default' | 'wide';
+		icon?: import('svelte').Snippet;
+		subtitle?: string;
 	} = $props();
 
 	let modalCard = $state<HTMLElement | null>(null);
@@ -59,9 +61,18 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_interactive_supports_focus -->
 	<div class="modal-backdrop" tabindex="-1" onclick={handleBackdrop} role="dialog" aria-modal="true" aria-label={title}>
 		<div class="modal-card {size === 'wide' ? 'modal-card-wide' : ''}" bind:this={modalCard}>
-			<div class="modal-ribbon"></div>
 			<div class="modal-header">
-				<h3 class="modal-title">{title}</h3>
+				<div class="modal-heading">
+					{#if icon}
+						{@render icon()}
+					{/if}
+					<div class="modal-heading-text">
+						<h3 class="modal-title">{title}</h3>
+						{#if subtitle}
+							<p class="modal-subtitle">{subtitle}</p>
+						{/if}
+					</div>
+				</div>
 				<button class="modal-close" onclick={close} aria-label="Close">
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<line x1="18" x2="6" y1="6" y2="18"/>
@@ -89,7 +100,7 @@
 	}
 
 	.modal-card {
-		background: var(--color-cream);
+		background: var(--color-surface);
 		border-radius: var(--radius-xl);
 		box-shadow: var(--shadow-card);
 		min-width: 320px;
@@ -111,22 +122,27 @@
 		max-height: calc(100dvh - 200px);
 	}
 
-	.modal-ribbon {
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		height: 3px;
-		background: linear-gradient(90deg, var(--color-teal), var(--color-gold));
-	}
-
 	.modal-header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		gap: var(--space-sm);
 		padding: var(--space-md) var(--space-lg);
-		padding-top: calc(var(--space-md) + 3px);
 		border-bottom: 1px solid var(--color-border);
+	}
+
+	.modal-heading {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		min-width: 0;
+	}
+
+	.modal-heading-text {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		min-width: 0;
 	}
 
 	.modal-title {
@@ -136,6 +152,12 @@
 		color: var(--color-ink);
 		font-family: var(--font-display);
 		letter-spacing: var(--letter-spacing-tight);
+	}
+
+	.modal-subtitle {
+		margin: 0;
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
 	}
 
 	.modal-close {
