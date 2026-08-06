@@ -16,6 +16,7 @@
 	import CountChip from '$lib/components/CountChip.svelte';
 	import ModalDialog from '$lib/components/ModalDialog.svelte';
 	import SlideOver from '$lib/components/SlideOver.svelte';
+	import TransactionForm from '$lib/components/TransactionForm.svelte';
 	import RecurringForm from '$lib/components/RecurringForm.svelte';
 	import ImportWizard from '$lib/components/ImportWizard.svelte';
 	import { showSuccess, showError } from '$lib/stores/toast.svelte';
@@ -40,6 +41,45 @@
 	// Selection is always page-scoped; clearing happens on page/filter change.
 	let selectionMode = $state(false);
 	let selectedIds = $state(new Set<number>());
+
+	// Transaction Add/Edit SlideOver Drawer state
+	let isFormOpen = $state(false);
+	let editingTransaction = $state<Transaction | null>(null);
+
+	const spendingMap = $derived.by(() => {
+		const map: Record<number, number> = {};
+		const txns = data.allForBalance ?? data.transactions ?? [];
+		for (const t of txns) {
+			if (!map[t.category_id]) map[t.category_id] = 0;
+			map[t.category_id] += Number(t.amount);
+		}
+		return map;
+	});
+
+	const categoryTxnCounts = $derived.by(() => {
+		const map: Record<number, number> = {};
+		const txns = data.allForBalance ?? data.transactions ?? [];
+		for (const t of txns) {
+			if (!map[t.category_id]) map[t.category_id] = 0;
+			map[t.category_id] += 1;
+		}
+		return map;
+	});
+
+	function openAddForm() {
+		editingTransaction = null;
+		isFormOpen = true;
+	}
+
+	function openEditForm(txn: Transaction) {
+		editingTransaction = txn;
+		isFormOpen = true;
+	}
+
+	function closeForm() {
+		isFormOpen = false;
+		editingTransaction = null;
+	}
 
 	// ═════════════════════════════════════════════════════════════════
 	// FILTER STATE — initialized from URL, synced back via $effect
@@ -583,7 +623,7 @@
 	{/snippet}
 	{#snippet action()}
 		<span class="header-actions desktop-only">
-			<Button variant="primary" href="/transactions/new">
+			<Button variant="primary" href="/transactions/new" onclick={(e) => { e.preventDefault(); openAddForm(); }}>
 				<span class="btn-lead" aria-hidden="true">+</span>
 				Add Transaction
 			</Button>
@@ -677,7 +717,14 @@
 	{selectionMode}
 	{selectedIds}
 	onToggleSelection={toggleSelection}
-	onEdit={(id) => goto(`/transactions/${id}/edit`)}
+	onEdit={(id) => {
+		const found = (data.transactions ?? []).find(t => t.id === id);
+		if (found) {
+			openEditForm(found);
+		} else {
+			goto(`/transactions/${id}/edit`);
+		}
+	}}
 	onDelete={(id) => (deleteTarget = id)}
 	onDuplicate={handleDuplicate}
 	onMakeRecurring={openMakeRecurring}
@@ -698,6 +745,7 @@
 				description="Start by adding your first transaction or importing a CSV."
 				actionLabel="Add Transaction"
 				actionHref="/transactions/new"
+				onAction={openAddForm}
 				secondaryLabel="Import"
 				onSecondaryAction={() => (importWizardOpen = true)}
 			/>
@@ -813,6 +861,24 @@
 	templateHref="/templates/transactions.xlsx"
 	templateFilename="transactions-import-template.xlsx"
 />
+
+<!-- ═══ Add / Edit Transaction SlideOver ═══ -->
+{#if isFormOpen}
+	<SlideOver isOpen={isFormOpen} title={editingTransaction ? "Edit Transaction" : "Add Transaction"} onClose={closeForm}>
+		<TransactionForm
+			categories={data.categories ?? []}
+			transaction={editingTransaction ?? undefined}
+			action={editingTransaction ? `?/update` : `?/create`}
+			spendingMap={spendingMap}
+			categoryTxnCounts={categoryTxnCounts}
+			onCancel={closeForm}
+			onSuccess={() => {
+				closeForm();
+				invalidateAll();
+			}}
+		/>
+	</SlideOver>
+{/if}
 
 <!-- ═══ Create Recurring Schedule slide-over ═══ -->
 {#if makeRecurringTxn}

@@ -39,9 +39,6 @@
 </script>
 
 <div class="dash-hero flip7-card" class:accent-gold={true}>
-  <!-- Brand ribbon (teal→gold) — not semantic, identifies the hero -->
-  <div class="hero-ribbon"></div>
-
   <div class="hero-content">
     <!-- Row 1: Primary balance + Savings + Key Deltas -->
     <div class="hero-main-row">
@@ -125,15 +122,7 @@
     transform: translateY(-2px);
   }
 
-  /* Brand ribbon — teal→gold gradient, not semantic */
-  .hero-ribbon {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--color-teal), var(--color-gold));
-  }
+
 
   /* Gold left accent (net worth semantic) via .flip7-card.accent-gold */
   /* Dark mode: .flip7-card::before handles the glow */

@@ -57,7 +57,7 @@
 	<title>Dashboard — Finance Tracker</title>
 </svelte:head>
 
-<PageHeader title="Dashboard" flush>
+<PageHeader title="Dashboard" flush borderless>
 	{#snippet subtitle()}
 		<span class="context-subline">{contextSubline}</span>
 	{/snippet}

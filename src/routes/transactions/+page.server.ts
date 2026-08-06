@@ -99,6 +99,74 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 }
 
 export const actions = {
+	create: async ({ request, locals }) => {
+		const userId = locals.user!.userId;
+		const data = await request.formData();
+
+		const type = data.get('type') as string;
+		const amountStr = data.get('amount') as string;
+		const description = data.get('description') as string;
+		const date = data.get('date') as string;
+		const category_id = data.get('category_id') as string;
+
+		const errors: Record<string, string> = {};
+		if (!type || !['income', 'expense'].includes(type)) errors.type = 'Select a type';
+		if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) === 0) errors.amount = 'Enter a valid amount';
+		if (!description || description.trim().length === 0) errors.description = 'Enter a description';
+		if (!date) errors.date = 'Select a date';
+		if (!category_id || isNaN(parseInt(category_id))) errors.category_id = 'Select a category';
+
+		if (Object.keys(errors).length > 0) {
+			return fail(400, { errors, values: { type, amount: amountStr, description, date, category_id } });
+		}
+
+		await execute(
+			`INSERT INTO transactions (user_id, amount, description, date, category_id, type)
+			 VALUES ($1, $2, $3, $4, $5, $6)`,
+			[userId, parseFloat(amountStr), description.trim(), date, parseInt(category_id), type]
+		);
+
+		return { success: true };
+	},
+
+	update: async ({ request, locals }) => {
+		const userId = locals.user!.userId;
+		const data = await request.formData();
+
+		const idStr = data.get('id') as string;
+		const id = parseInt(idStr, 10);
+		if (isNaN(id)) return fail(400, { error: 'Invalid ID' });
+
+		const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
+		if (!existing) return fail(404, { error: 'Transaction not found' });
+
+		const type = data.get('type') as string;
+		const amountStr = data.get('amount') as string;
+		const description = data.get('description') as string;
+		const date = data.get('date') as string;
+		const category_id = data.get('category_id') as string;
+
+		const errors: Record<string, string> = {};
+		if (!type || !['income', 'expense'].includes(type)) errors.type = 'Select a type';
+		if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) === 0) errors.amount = 'Enter a valid amount';
+		if (!description || description.trim().length === 0) errors.description = 'Enter a description';
+		if (!date) errors.date = 'Select a date';
+		if (!category_id || isNaN(parseInt(category_id))) errors.category_id = 'Select a category';
+
+		if (Object.keys(errors).length > 0) {
+			return fail(400, { errors, values: { type, amount: amountStr, description, date, category_id } });
+		}
+
+		await execute(
+			`UPDATE transactions
+			 SET amount = $1, description = $2, date = $3, category_id = $4, type = $5, updated_at = NOW()
+			 WHERE user_id = $6 AND id = $7`,
+			[parseFloat(amountStr), description.trim(), date, parseInt(category_id), type, userId, id]
+		);
+
+		return { success: true };
+	},
+
 	delete: async ({ request, locals }) => {
 		const userId = locals.user!.userId;
 		const data = await request.formData();

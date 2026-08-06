@@ -2,9 +2,10 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import Button from '$lib/components/Button.svelte';
+	import LiveImpactPreview from '$lib/components/LiveImpactPreview.svelte';
 	import { themeState } from '$lib/stores/preferences.svelte';
 	import { getCategoryHue, getCategoryTint, getCategoryText } from '$lib/utils/categoryColors';
-	import { formatDateInput, formatWithCommas, handleAmountInput, handleAmountFocus, handleAmountBlur } from '$lib/utils/format';
+	import { formatDateInput, formatDate, formatCurrency, formatWithCommas, handleAmountInput, handleAmountFocus, handleAmountBlur } from '$lib/utils/format';
 	import { showSuccess } from '$lib/stores/toast.svelte';
 	import type { Category, Transaction, TransactionType } from '$lib/types';
 
@@ -13,11 +14,19 @@
 		transaction,
 		action,
 		errors = {},
+		spendingMap = {},
+		categoryTxnCounts = {},
+		onCancel,
+		onSuccess,
 	}: {
 		categories: Category[];
 		transaction?: Transaction;
 		action?: string;
 		errors?: Record<string, string>;
+		spendingMap?: Record<number, number>;
+		categoryTxnCounts?: Record<number, number>;
+		onCancel?: () => void;
+		onSuccess?: () => void;
 	} = $props();
 
 	let type = $state<TransactionType>('expense');
@@ -27,7 +36,6 @@
 	let category_id = $state<number | string>('');
 	let isRefund = $state(false);
 
-	// Theme-aware category tints (matches the category list chips)
 	const isDark = $derived(themeState.isDark);
 
 	$effect(() => {
@@ -38,6 +46,13 @@
 			date = transaction.date;
 			category_id = transaction.category_id;
 			isRefund = description.startsWith('[REFUND]');
+		} else {
+			type = 'expense';
+			rawAmount = '';
+			description = '';
+			date = formatDateInput();
+			category_id = '';
+			isRefund = false;
 		}
 	});
 
@@ -46,10 +61,33 @@
 	);
 
 	$effect(() => {
-		if (category_id && !filteredCategories.find(c => c.id === category_id)) {
+		if (category_id && !filteredCategories.find(c => c.id === Number(category_id))) {
 			category_id = '';
 		}
 	});
+
+	// ─── Selective Memoization (Svelte 5 Runes) ───
+	// Recomputed ONLY when category_id, type, rawAmount, isRefund, or spendingMap changes.
+	// Typing in description, date, or notes does NOT recompute these.
+	const selectedCategory = $derived(
+		categories.find(c => c.id === Number(category_id))
+	);
+
+	const currentCategoryTotal = $derived(
+		category_id ? (spendingMap[Number(category_id)] ?? 0) : 0
+	);
+
+	const currentTxnCount = $derived(
+		category_id ? (categoryTxnCounts[Number(category_id)] ?? 0) : 0
+	);
+
+	const numericAmount = $derived(rawAmount ? parseFloat(rawAmount) || 0 : 0);
+
+	const projectedCategoryTotal = $derived(
+		isRefund
+			? Math.max(0, currentCategoryTotal - numericAmount)
+			: currentCategoryTotal + numericAmount
+	);
 
 	function onAmountInput(e: Event) {
 		rawAmount = handleAmountInput(e);
@@ -72,14 +110,22 @@
 
 	function handleEnhance() {
 		return async ({ result, update }: { result: { type: string }; update: () => Promise<void> }) => {
-			if (result.type === 'redirect') {
+			if (result.type === 'redirect' || result.type === 'success') {
 				showSuccess(transaction ? 'Transaction updated successfully' : 'Transaction added successfully');
+				onSuccess?.();
 			}
 			await update();
 		};
 	}
 
-	// ─── Refund: prepend marker to description ───
+	function handleCancelClick() {
+		if (onCancel) {
+			onCancel();
+		} else {
+			goto('/transactions');
+		}
+	}
+
 	function getSubmitDescription(): string {
 		if (isRefund && !description.startsWith('[REFUND]')) {
 			return `[REFUND] ${description}`;
@@ -92,7 +138,11 @@
 </script>
 
 <form method="POST" {action} use:enhance={handleEnhance}>
+	{#if transaction?.id}
+		<input type="hidden" name="id" value={transaction.id} />
+	{/if}
 	<div class="form-grid">
+		<!-- 1. Type Toggle -->
 		<fieldset class="form-group">
 			<legend class="form-label">Type</legend>
 			<div class="type-toggle" role="radiogroup" aria-label="Transaction type">
@@ -116,17 +166,87 @@
 			{/if}
 		</fieldset>
 
-		<!-- ═══ Refund toggle ═══ -->
-		<div class="refund-toggle">
-			<label class="refund-label">
-				<input type="checkbox" bind:checked={isRefund} />
-				<span class="refund-text">Record as refund</span>
-				{#if isRefund}
-					<span class="refund-chip">↩ Refund</span>
+		<!-- 2. Category Selector -->
+		<div class="form-group">
+			<label class="form-label">Category</label>
+			<div class="category-section">
+				<input type="hidden" name="category_id" value={category_id} />
+				{#if filteredCategories.length > 0}
+					<div class="category-chips">
+						{#each filteredCategories as cat (cat.id)}
+							{@const hue = getCategoryHue('', cat.color)}
+							{@const tint = getCategoryTint('', hue, isDark)}
+							{@const fg = getCategoryText('', hue, isDark)}
+							<button type="button" class="cat-chip" class:active={Number(category_id) === cat.id}
+								onclick={() => category_id = cat.id}
+								aria-pressed={Number(category_id) === cat.id}
+							>
+								<span class="cat-chip-icon" style="background: {tint}; color: {fg}">{cat.icon}</span>
+								<span class="cat-chip-name">{cat.name}</span>
+							</button>
+						{/each}
+					</div>
+				{:else}
+					<div class="no-categories">
+						<span class="form-error">No {type} categories found. Create one in Categories first.</span>
+					</div>
 				{/if}
-			</label>
+				{#if errors.category_id && filteredCategories.length > 0}
+					<span class="form-error">{errors.category_id}</span>
+				{/if}
+			</div>
 		</div>
 
+		<!-- 3. Context Card (Appears immediately below Category selection) -->
+		<div class="context-card-container">
+			{#if transaction}
+				<!-- Edit Mode Context Card -->
+				<div class="context-card edit-mode">
+					<div class="context-card-header">
+						<span class="context-badge">Editing Transaction</span>
+						<span class="context-cat-title">{selectedCategory?.name ?? 'Transaction'}</span>
+					</div>
+					<div class="context-body">
+						<div class="context-row">
+							<span class="context-label">Original transaction</span>
+							<span class="context-val-highlight">
+								{formatCurrency(transaction.amount)} {transaction.type} • Created {formatDate(transaction.date)}
+							</span>
+						</div>
+						<div class="context-row">
+							<span class="context-label">This month</span>
+							<span class="context-val">
+								{currentTxnCount} {currentTxnCount === 1 ? 'transaction' : 'transactions'} • {formatCurrency(currentCategoryTotal)} {type === 'income' ? 'earned' : 'spent'}
+							</span>
+						</div>
+					</div>
+				</div>
+			{:else if selectedCategory}
+				<!-- Add Mode Context Card (Category Selected) -->
+				<div class="context-card add-mode">
+					<div class="context-card-header">
+						<span class="context-cat-icon">{selectedCategory.icon}</span>
+						<span class="context-cat-title">{selectedCategory.name}</span>
+					</div>
+					<div class="context-body">
+						<div class="context-stats-line">
+							<span class="stat-pill">{currentTxnCount} {currentTxnCount === 1 ? 'transaction' : 'transactions'} this month</span>
+							<span class="stat-pill primary">
+								{type === 'income' ? 'Income' : 'Spent'} this month: <strong>{formatCurrency(currentCategoryTotal)}</strong>
+							</span>
+						</div>
+					</div>
+				</div>
+			{:else}
+				<!-- Add Mode Context Card (No Category Selected) -->
+				<div class="context-card prompt-mode">
+					<span class="prompt-icon">💡</span>
+					<span class="prompt-text">Select a category to view monthly activity</span>
+				</div>
+			{/if}
+		</div>
+
+		<!-- 4. Amount Section -->
 		<div class="form-group">
 			<label class="form-label" for="amount">Amount</label>
 			<div class="amount-section">
@@ -159,6 +279,7 @@
 			{/if}
 		</div>
 
+		<!-- 5. Description Input -->
 		<div class="form-group">
 			<label class="form-label" for="description">Description</label>
 			<div class="desc-input-wrap">
@@ -174,13 +295,13 @@
 				></textarea>
 				<span class="char-count">{description.length}/500</span>
 			</div>
-			<!-- Pass potentially modified description with refund marker -->
 			<input type="hidden" name="description" value={getSubmitDescription()} />
 			{#if errors.description}
 				<span class="form-error">{errors.description}</span>
 			{/if}
 		</div>
 
+		<!-- 6. Date Picker -->
 		<div class="form-group">
 			<label class="form-label" for="date">Date</label>
 			<div class="date-input-row">
@@ -205,42 +326,36 @@
 			{/if}
 		</div>
 
-		<div class="form-group">
-			<label class="form-label">Category</label>
-			<div class="category-section">
-				<input type="hidden" name="category_id" value={category_id} />
-				{#if filteredCategories.length > 0}
-					<div class="category-chips">
-						{#each filteredCategories as cat (cat.id)}
-							{@const hue = getCategoryHue('', cat.color)}
-							{@const tint = getCategoryTint('', hue, isDark)}
-							{@const fg = getCategoryText('', hue, isDark)}
-							<button type="button" class="cat-chip" class:active={category_id === cat.id}
-								onclick={() => category_id = cat.id}
-								aria-pressed={category_id === cat.id}
-							>
-								<span class="cat-chip-icon" style="background: {tint}; color: {fg}">{cat.icon}</span>
-								<span class="cat-chip-name">{cat.name}</span>
-							</button>
-						{/each}
-					</div>
-				{:else}
-					<div class="no-categories">
-						<span class="form-error">No {type} categories found. Create one in Categories first.</span>
-					</div>
-				{/if}
-				{#if errors.category_id && filteredCategories.length > 0}
-					<span class="form-error">{errors.category_id}</span>
-				{/if}
+		<!-- 7. Refund Toggle (Moved below Date) -->
+		<div class="form-group refund-section">
+			<div class="refund-toggle">
+				<label class="refund-label">
+					<input type="checkbox" bind:checked={isRefund} />
+					<span class="refund-text">Record as refund</span>
+					{#if isRefund}
+						<span class="refund-chip">↩ Refund</span>
+					{/if}
+				</label>
 			</div>
+			<p class="refund-helper">Record this transaction as a refund or reimbursement.</p>
 		</div>
+
+		<!-- 8. Live Impact Preview (Display-only) -->
+		<LiveImpactPreview
+			currentTotal={currentCategoryTotal}
+			projectedTotal={projectedCategoryTotal}
+			type={type}
+			isRefund={isRefund}
+			categoryName={selectedCategory?.name ?? ''}
+		/>
 	</div>
 
+	<!-- 9. Footer (Equal 2-Column Grid) -->
 	<div class="form-actions">
 		<Button type="submit" variant="primary" fullWidth>
-			{transaction ? 'Update Transaction' : 'Add Transaction'}
+			{transaction ? 'Save Changes' : 'Add Transaction'}
 		</Button>
-		<Button variant="ghost" type="button" fullWidth onclick={() => goto('/transactions')}>
+		<Button variant="ghost" type="button" fullWidth onclick={handleCancelClick}>
 			Cancel
 		</Button>
 	</div>
@@ -323,7 +438,123 @@
 		font-weight: 500;
 	}
 
+	/* ── Context Card ── */
+	.context-card-container {
+		min-height: 52px;
+	}
+
+	.context-card {
+		background: var(--color-surface-inset);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+		padding: var(--space-md);
+		transition: all 200ms var(--ease);
+	}
+
+	.context-card.prompt-mode {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		background: rgba(43, 168, 162, 0.06);
+		border: 1px dashed var(--color-teal);
+		padding: var(--space-sm) var(--space-md);
+	}
+
+	.prompt-icon {
+		font-size: 16px;
+	}
+
+	.prompt-text {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		font-weight: 500;
+	}
+
+	.context-card-header {
+		display: flex;
+		align-items: center;
+		gap: var(--space-xs);
+		margin-bottom: var(--space-xs);
+	}
+
+	.context-badge {
+		font-family: var(--font-display);
+		font-size: 10px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		padding: 2px 8px;
+		background: var(--color-gold-bg);
+		color: var(--color-on-gold);
+		border-radius: var(--radius-pill);
+	}
+
+	.context-cat-title {
+		font-family: var(--font-display);
+		font-size: var(--font-size-sm);
+		font-weight: 700;
+		color: var(--color-text);
+	}
+
+	.context-body {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-xs);
+	}
+
+	.context-row {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.context-label {
+		font-size: 11px;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+	}
+
+	.context-val-highlight {
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		color: var(--color-coral);
+	}
+
+	.context-val {
+		font-size: var(--font-size-xs);
+		color: var(--color-text);
+		font-weight: 500;
+	}
+
+	.context-stats-line {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-xs);
+	}
+
+	.stat-pill {
+		font-size: var(--font-size-xs);
+		padding: 4px 10px;
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-pill);
+		color: var(--color-text-muted);
+	}
+
+	.stat-pill.primary {
+		color: var(--color-text);
+		border-color: var(--color-border);
+	}
+
 	/* ── Refund toggle ── */
+	.refund-section {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
 	.refund-toggle {
 		display: flex;
 		align-items: center;
@@ -340,6 +571,7 @@
 		transition: all 200ms var(--ease);
 		user-select: none;
 		min-height: 44px;
+		width: 100%;
 	}
 
 	.refund-label:has(input:checked) {
@@ -379,6 +611,12 @@
 		font-size: 10px;
 		font-weight: 700;
 		letter-spacing: 0.03em;
+	}
+
+	.refund-helper {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		margin: 2px 0 0 4px;
 	}
 
 	/* ── Type toggle ── */
@@ -633,7 +871,7 @@
 		align-items: center;
 		gap: var(--space-sm);
 		padding: 10px 14px;
-		border: 1px solid var(--line);
+		border: 1px solid var(--color-border);
 		border-radius: var(--radius-lg);
 		background: var(--color-surface);
 		cursor: pointer;
@@ -645,8 +883,8 @@
 	}
 
 	.cat-chip:hover {
-		border-color: var(--teal);
-		background: var(--row-hover-bg);
+		border-color: var(--color-teal);
+		background: var(--color-surface-inset);
 	}
 
 	.cat-chip:active {
@@ -654,9 +892,10 @@
 	}
 
 	.cat-chip.active {
-		background: var(--mint-tint);
-		border-color: var(--teal);
-		transform: scale(1.02);
+		background: var(--color-teal-bg);
+		border: 2px solid var(--color-teal);
+		transform: scale(1.01);
+		box-shadow: var(--shadow-sm);
 	}
 
 	.cat-chip-icon {
@@ -671,8 +910,8 @@
 	}
 
 	.cat-chip.active .cat-chip-name {
-		color: var(--teal-deep);
-		font-weight: var(--font-weight-bold);
+		color: var(--color-teal-dark);
+		font-weight: var(--font-weight-extrabold);
 	}
 
 	.cat-chip-name {

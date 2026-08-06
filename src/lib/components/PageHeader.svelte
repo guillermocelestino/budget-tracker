@@ -47,10 +47,7 @@
 		margin-bottom: var(--space-lg);
 		padding: var(--space-md) var(--space-lg);
 		background: var(--color-cream);
-		border: 3px dashed var(--color-teal);
-		border-left: none;
-		border-right: none;
-		border-top: none;
+		border: none;
 		backdrop-filter: blur(8px);
 		-webkit-backdrop-filter: blur(8px);
 		border-radius: 0;
@@ -96,8 +93,7 @@
 		min-width: 0;
 	}
 
-	/* borderless = drop the dashed bottom rule (used where a page defines its
-	   own title treatment and forbids dashed lines) */
+	/* borderless = drop bottom rule */
 	.page-header.borderless {
 		border: none;
 	}
