@@ -74,7 +74,7 @@ import SearchModal from '$lib/components/SearchModal.svelte';
 		{/if}
 		<div class="main-area" class:no-sidebar={isNoSidebar}>
 			<main class="main-content" class:navigating={$navigating} class:no-sidebar={isNoSidebar}>
-				{@render children()}
+				{@render children?.()}
 			</main>
 		</div>
 

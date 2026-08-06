@@ -220,7 +220,7 @@ const DEFAULT_CATEGORIES = [
 
 export async function initDb(): Promise<void> {
 	if (usePostgres) {
-		const client = await getPgPool().connect();
+		const client = await (await getPgPool()).connect();
 		try {
 			await client.query(POSTGRES_SCHEMA_SQL);
 
@@ -407,7 +407,7 @@ export async function initDb(): Promise<void> {
 	// Boot-time self-check: verify all tables exist
 	const requiredTables = ['users', 'categories', 'transactions', 'lendings', 'lending_payments', 'recurring_transactions'];
 	if (usePostgres) {
-		const client = await getPgPool().connect();
+		const client = await (await getPgPool()).connect();
 		try {
 			const missing: string[] = [];
 			for (const table of requiredTables) {

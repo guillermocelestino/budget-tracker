@@ -16,7 +16,7 @@ export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 			[userId]
 		);
 
-		const spendingMap = new Map(spending.map(s => [s.category_id, parseFloat(s.total)]));
+		const spendingMap = new Map(spending.map(s => [s.category_id, parseFloat(String(s.total))]));
 		return json({
 			categories,
 			spending: Object.fromEntries(spendingMap),

@@ -136,8 +136,8 @@
 
           // Build content
           const monthLabel = dps[0].label;
-          const incomeVal = dps.find((d: { dataset: { label: string } }) => d.dataset.label === 'Income');
-          const expenseVal = dps.find((d: { dataset: { label: string } }) => d.dataset.label === 'Expenses');
+          const incomeVal = dps.find((d: { dataset?: { label?: string } }) => d.dataset?.label === 'Income');
+          const expenseVal = dps.find((d: { dataset?: { label?: string } }) => d.dataset?.label === 'Expenses');
 
           const inc = incomeVal ? (incomeVal.parsed as { y: number }).y : 0;
           const exp = expenseVal ? (expenseVal.parsed as { y: number }).y : 0;

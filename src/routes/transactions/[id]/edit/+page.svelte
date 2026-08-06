@@ -14,7 +14,7 @@ import PageBackground from '$lib/components/PageBackground.svelte';
 
 <PageBackground />
 
-<PageHeader title="Edit Transaction" />
+<PageHeader title="Edit Transaction" flush borderless />
 
 <div class="form-container">
 	<TransactionForm

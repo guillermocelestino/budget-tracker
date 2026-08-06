@@ -1,5 +1,4 @@
 import { queryOne, queryMany, execute, withTransaction } from '$lib/database/query';
-import { getToday } from '$lib/utils/format';
 import type { Lending, LendingPayment, LendingWithPayments, PaymentType } from '$lib/types';
 
 /**

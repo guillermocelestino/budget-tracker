@@ -39,8 +39,8 @@
       },
       tooltip: {
         callbacks: {
-          label: (ctx: { parsed: { y: number }; dataset: { label: string } }) =>
-            `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}`,
+          label: (ctx: { parsed?: { y?: number }; dataset?: { label?: string } }) =>
+            `${ctx.dataset?.label ?? ''}: ${formatCurrency(ctx.parsed?.y ?? 0)}`,
         },
       },
     },
@@ -57,7 +57,8 @@
 
 <div class="sparkline-container">
   {#if labels.length > 0}
-    <Line data={chartData} options={chartOptions} />
+    <!-- eslint-disable-next-line @typescript-eslint/no-explicit-any -->
+    <Line data={chartData as any} options={chartOptions as any} />
   {:else}
     <div class="sparkline-empty">No data</div>
   {/if}

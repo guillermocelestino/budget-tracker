@@ -1,4 +1,4 @@
-import type { Transaction, Category, Lending, LendingWithPayments, RecurringTransaction, DashboardSummary, MonthlyReportItem, CategoryReportItem, NetWorthSnapshot } from '$lib/types';
+import type { Transaction, Category, LendingWithPayments, RecurringTransaction, DashboardSummary, MonthlyReportItem, CategoryReportItem, NetWorthSnapshot } from '$lib/types';
 
 declare global {
 	namespace App {

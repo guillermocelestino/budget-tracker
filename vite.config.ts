@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { sveltekit } from '@sveltejs/kit/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vite';
@@ -81,4 +82,5 @@ export default defineConfig({
 	test: {
 		include: ['src/**/*.{test,spec}.{js,ts}', 'tests/unit-test/**/*.{test,spec}.{js,ts}']
 	}
-});
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+} as any);

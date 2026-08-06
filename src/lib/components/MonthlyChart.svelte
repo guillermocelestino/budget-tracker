@@ -100,8 +100,8 @@
 				padding: 12,
 				cornerRadius: 12,
 				callbacks: {
-					label: (ctx: { parsed: { y: number }; dataset: { label: string } }) =>
-						`${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}`,
+					label: (ctx: { parsed?: { y?: number }; dataset?: { label?: string } }) =>
+						`${ctx.dataset?.label ?? ''}: ${formatCurrency(ctx.parsed?.y ?? 0)}`,
 				},
 			},
 		},
@@ -126,7 +126,8 @@
 
 <div class="chart-container">
 	{#if labels.length > 0}
-		<Bar data={chartData} options={chartOptions} />
+		<!-- eslint-disable-next-line @typescript-eslint/no-explicit-any -->
+		<Bar data={chartData as any} options={chartOptions as any} />
 	{:else}
 		<div class="chart-empty">No data available for this period</div>
 	{/if}

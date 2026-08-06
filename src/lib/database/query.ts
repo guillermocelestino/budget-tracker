@@ -64,7 +64,7 @@ function mapParamsForSqlite(params: unknown[], paramIndices: number[]): unknown[
 
 export async function queryOne<T>(text: string, params: unknown[] = []): Promise<T | undefined> {
 	if (usePostgres) {
-		const client = await getPgPool().connect();
+		const client = await (await getPgPool()).connect();
 		try {
 			const { rows } = await client.query(text, params);
 			return rows[0] as T | undefined;
@@ -83,7 +83,7 @@ export async function queryOne<T>(text: string, params: unknown[] = []): Promise
 
 export async function queryMany<T>(text: string, params: unknown[] = []): Promise<T[]> {
 	if (usePostgres) {
-		const client = await getPgPool().connect();
+		const client = await (await getPgPool()).connect();
 		try {
 			const { rows } = await client.query(text, params);
 			return rows as T[];
@@ -102,7 +102,7 @@ export async function queryMany<T>(text: string, params: unknown[] = []): Promis
 
 export async function execute(text: string, params: unknown[] = []): Promise<void> {
 	if (usePostgres) {
-		const client = await getPgPool().connect();
+		const client = await (await getPgPool()).connect();
 		try {
 			await client.query(text, params);
 		} finally {
@@ -141,7 +141,7 @@ export async function withTransaction<T>(
 	}) => Promise<T>
 ): Promise<T> {
 	if (usePostgres) {
-		const client = await getPgPool().connect();
+		const client = await (await getPgPool()).connect();
 		try {
 			await client.query('BEGIN');
 			const helpers = {

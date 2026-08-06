@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
+	import Button from '$lib/components/Button.svelte';
+	import { themeState } from '$lib/stores/preferences.svelte';
+	import { getCategoryHue, getCategoryTint, getCategoryText } from '$lib/utils/categoryColors';
 	import { formatDateInput, formatWithCommas, handleAmountInput, handleAmountFocus, handleAmountBlur } from '$lib/utils/format';
 	import { showSuccess } from '$lib/stores/toast.svelte';
 	import type { Category, Transaction, TransactionType } from '$lib/types';
@@ -23,6 +26,9 @@
 	let date = $state(formatDateInput());
 	let category_id = $state<number | string>('');
 	let isRefund = $state(false);
+
+	// Theme-aware category tints (matches the category list chips)
+	const isDark = $derived(themeState.isDark);
 
 	$effect(() => {
 		if (transaction) {
@@ -89,14 +95,20 @@
 	<div class="form-grid">
 		<fieldset class="form-group">
 			<legend class="form-label">Type</legend>
-			<div class="type-toggle">
+			<div class="type-toggle" role="radiogroup" aria-label="Transaction type">
 				<label class="type-option" class:active={type === 'expense'}>
 					<input type="radio" name="type" value="expense" bind:group={type} />
-					💸 Expense
+					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
+					</svg>
+					Expense
 				</label>
 				<label class="type-option" class:active={type === 'income'}>
 					<input type="radio" name="type" value="income" bind:group={type} />
-					💰 Income
+					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+					</svg>
+					Income
 				</label>
 			</div>
 			{#if errors.type}
@@ -108,12 +120,6 @@
 		<div class="refund-toggle">
 			<label class="refund-label">
 				<input type="checkbox" bind:checked={isRefund} />
-				<span class="refund-check">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-						<polyline points="23 4 23 10 17 10"/>
-						<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-					</svg>
-				</span>
 				<span class="refund-text">Record as refund</span>
 				{#if isRefund}
 					<span class="refund-chip">↩ Refund</span>
@@ -206,11 +212,14 @@
 				{#if filteredCategories.length > 0}
 					<div class="category-chips">
 						{#each filteredCategories as cat (cat.id)}
+							{@const hue = getCategoryHue('', cat.color)}
+							{@const tint = getCategoryTint('', hue, isDark)}
+							{@const fg = getCategoryText('', hue, isDark)}
 							<button type="button" class="cat-chip" class:active={category_id === cat.id}
 								onclick={() => category_id = cat.id}
-								style="--chip-color: {cat.color || 'var(--color-teal)'}"
+								aria-pressed={category_id === cat.id}
 							>
-								<span class="cat-chip-icon">{cat.icon}</span>
+								<span class="cat-chip-icon" style="background: {tint}; color: {fg}">{cat.icon}</span>
 								<span class="cat-chip-name">{cat.name}</span>
 							</button>
 						{/each}
@@ -228,12 +237,12 @@
 	</div>
 
 	<div class="form-actions">
-		<button type="submit" class="btn btn-submit">
+		<Button type="submit" variant="primary" fullWidth>
 			{transaction ? 'Update Transaction' : 'Add Transaction'}
-		</button>
-		<button type="button" class="btn btn-cancel" onclick={() => goto('/transactions')}>
+		</Button>
+		<Button variant="ghost" type="button" fullWidth onclick={() => goto('/transactions')}>
 			Cancel
-		</button>
+		</Button>
 	</div>
 </form>
 
@@ -326,40 +335,28 @@
 		gap: var(--space-sm);
 		cursor: pointer;
 		padding: var(--space-xs) var(--space-md);
-		border: 1px solid var(--color-hairline);
-		border-radius: var(--radius-pill);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
 		transition: all 200ms var(--ease);
 		user-select: none;
-		min-height: 40px;
+		min-height: 44px;
 	}
 
 	.refund-label:has(input:checked) {
-		background: rgba(93, 173, 226, 0.08);
-		border-color: var(--color-sky);
-		box-shadow: var(--glow-sky);
+		background: var(--mint-tint);
+		border-color: var(--teal);
 	}
 
 	.refund-label input {
-		display: none;
-	}
-
-	.refund-check {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 24px;
-		height: 24px;
-		border: 2px solid var(--color-hairline);
-		border-radius: var(--radius-sm);
-		transition: all 200ms var(--bounce);
+		width: 18px;
+		height: 18px;
 		flex-shrink: 0;
-		color: transparent;
-	}
-
-	.refund-label:has(input:checked) .refund-check {
-		background: var(--color-sky);
-		border-color: var(--color-sky);
-		color: white;
+		accent-color: var(--teal-deep);
+		appearance: auto;
+		-webkit-appearance: auto;
+		outline: none;
+		box-shadow: none;
+		cursor: pointer;
 	}
 
 	.refund-text {
@@ -369,14 +366,14 @@
 	}
 
 	.refund-label:has(input:checked) .refund-text {
-		color: var(--color-sky);
+		color: var(--teal-deep);
 	}
 
 	.refund-chip {
 		margin-left: auto;
 		padding: 2px 10px;
-		background: rgba(93, 173, 226, 0.15);
-		color: var(--color-sky);
+		background: var(--mint-tint-2);
+		color: var(--teal-deep);
 		border-radius: var(--radius-pill);
 		font-family: var(--font-display);
 		font-size: 10px;
@@ -387,31 +384,42 @@
 	/* ── Type toggle ── */
 	.type-toggle {
 		display: flex;
-		border-radius: var(--radius-pill);
-		background: var(--color-bg);
-		padding: 3px;
-		gap: 2px;
+		gap: var(--space-xs);
+		padding: 4px;
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
 	}
 
 	.type-option {
 		flex: 1;
-		display: flex;
+		display: inline-flex;
 		align-items: center;
 		justify-content: center;
 		gap: var(--space-xs);
-		padding: 8px var(--space-md);
-		border-radius: var(--radius-pill);
-		cursor: pointer;
-		font-family: var(--font-display);
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		color: var(--color-text-muted);
-		transition: all 300ms var(--bounce);
-		min-height: 44px;
+		padding: var(--space-sm) var(--space-md);
 		border: none;
+		border-radius: var(--radius-sm);
 		background: transparent;
+		color: var(--muted);
+		font-family: var(--font-body);
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
+		cursor: pointer;
+		min-height: 44px;
 		user-select: none;
 		-webkit-tap-highlight-color: transparent;
+		transition: background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+	}
+
+	.type-option:hover {
+		background: var(--color-surface-inset);
+		color: var(--color-text);
+	}
+
+	.type-option:focus-visible {
+		outline: none;
+		box-shadow: var(--focus);
 	}
 
 	.type-option input {
@@ -419,15 +427,13 @@
 	}
 
 	.type-option:first-child.active {
-		background: var(--color-coral);
-		color: white;
-		box-shadow: var(--glow-coral);
+		background: var(--rose-soft);
+		color: var(--rose);
 	}
 
 	.type-option:nth-child(2).active {
-		background: var(--color-teal);
-		color: white;
-		box-shadow: var(--glow-card);
+		background: var(--mint-tint);
+		color: var(--teal-deep);
 	}
 
 	/* ── Amount counter row ── */
@@ -496,8 +502,8 @@
 	}
 
 	.amount-display-wrap.refund-active {
-		border-color: var(--color-sky);
-		box-shadow: 0 0 0 4px rgba(93, 173, 226, 0.12);
+		border-color: var(--color-teal);
+		box-shadow: var(--focus);
 	}
 
 	.amount-prefix {
@@ -619,7 +625,7 @@
 	.category-chips {
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
-		gap: var(--space-sm);
+		gap: var(--space-md);
 	}
 
 	.cat-chip {
@@ -627,9 +633,9 @@
 		align-items: center;
 		gap: var(--space-sm);
 		padding: 10px 14px;
-		border: 1px solid var(--color-hairline);
+		border: 1px solid var(--line);
 		border-radius: var(--radius-lg);
-		background: var(--color-cream);
+		background: var(--color-surface);
 		cursor: pointer;
 		font-family: var(--font-body);
 		transition: all 200ms var(--bounce);
@@ -639,8 +645,8 @@
 	}
 
 	.cat-chip:hover {
-		border-color: var(--color-teal);
-		background: var(--color-teal-bg);
+		border-color: var(--teal);
+		background: var(--row-hover-bg);
 	}
 
 	.cat-chip:active {
@@ -648,10 +654,9 @@
 	}
 
 	.cat-chip.active {
-		background: var(--color-teal-bg);
-		border-color: var(--color-teal);
-		box-shadow: var(--glow-card);
-		transform: scale(1.05);
+		background: var(--mint-tint);
+		border-color: var(--teal);
+		transform: scale(1.02);
 	}
 
 	.cat-chip-icon {
@@ -662,12 +667,12 @@
 		justify-content: center;
 		border-radius: var(--radius-md);
 		font-size: 18px;
-		background: var(--color-teal-bg);
 		flex-shrink: 0;
 	}
 
-	.cat-chip.active .cat-chip-icon {
-		background: var(--color-teal);
+	.cat-chip.active .cat-chip-name {
+		color: var(--teal-deep);
+		font-weight: var(--font-weight-bold);
 	}
 
 	.cat-chip-name {
@@ -682,68 +687,38 @@
 
 	/* ── Buttons ── */
 	.form-actions {
-		display: flex;
-		gap: var(--space-sm);
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: var(--space-md);
 		margin-top: var(--space-xl);
+		width: 100%;
 	}
 
-	.btn {
-		padding: 12px var(--space-xl);
-		border-radius: var(--radius-pill);
-		font-family: var(--font-display);
-		font-size: var(--font-size-base);
-		font-weight: 700;
-		cursor: pointer;
-		border: none;
-		transition: all 200ms var(--bounce);
+	.form-actions :global(.btn) {
+		width: 100%;
+		height: 48px;
 		min-height: 48px;
-		flex: 1;
-		-webkit-tap-highlight-color: transparent;
+		border-radius: var(--radius-pill);
 	}
 
-	.btn-submit {
-		background: linear-gradient(135deg, var(--color-gold), var(--color-gold-light));
-		color: #14302E;
-		box-shadow: var(--glow-gold);
+	.form-actions :global(.btn:focus-visible) {
+		outline: none;
+		box-shadow: var(--focus);
 	}
 
-	.btn-submit:hover {
-		transform: translateY(-1px);
-		box-shadow: 0 6px 24px rgba(255, 210, 63, 0.55);
-	}
-
-	.btn-submit:active {
-		transform: translateY(0) scale(0.98);
-	}
-
-	.btn-cancel {
-		background: var(--color-bg);
-		color: var(--color-text-muted);
-		border: 1px solid var(--color-hairline);
-		font-weight: 600;
-	}
-
-	.btn-cancel:hover {
-		background: var(--color-cream);
-		border-color: var(--color-border);
-		color: var(--color-text);
-	}
-
-	@media (max-width: 480px) {
+	@media (max-width: 639px) {
 		.form-actions {
-			flex-direction: column;
-		}
-
-		.btn {
-			width: 100%;
-		}
-
-		.refund-label {
-			width: 100%;
+			grid-template-columns: 1fr;
 		}
 
 		.category-chips {
 			grid-template-columns: 1fr;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.refund-label {
+			width: 100%;
 		}
 
 		.amount-section {

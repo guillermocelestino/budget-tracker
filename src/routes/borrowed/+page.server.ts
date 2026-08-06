@@ -9,7 +9,6 @@ import {
 	recordPayment,
 	updatePayment,
 	deletePayment,
-	getPaymentHistory,
 	hasPayments,
 	deleteLinkedTransactions,
 } from '$lib/server/lendingPayments';
