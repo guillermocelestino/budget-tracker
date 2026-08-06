@@ -291,7 +291,8 @@
 		border-bottom: 1px solid var(--line);
 		position: relative;
 		cursor: pointer;
-		transition: background 140ms ease-out;
+		background: var(--color-surface);
+		transition: background 180ms var(--ease);
 		-webkit-tap-highlight-color: transparent;
 	}
 
@@ -300,10 +301,11 @@
 		border-radius: 0 0 22px 22px;
 	}
 
-	/* Row activates first — tinted mint, then the actions follow (Section 5) */
+	/* Row activates first — subtle teal tint (matches Transactions .txn-row:hover),
+	   then the actions follow (Section 5) */
 	.recurring-row:hover,
 	.recurring-row:focus-within {
-		background: rgba(217, 239, 231, 0.35);
+		background: var(--color-teal-bg);
 	}
 
 	.recurring-row:focus-visible {
