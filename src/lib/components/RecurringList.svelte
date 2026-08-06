@@ -31,6 +31,7 @@
 	} = $props();
 
 	let menuTxn = $state<RecurringTransaction | null>(null);
+	let menuAnchor = $state<HTMLElement | null>(null); // kebab el → anchors desktop popover
 
 	const frequencyLabels: Record<string, string> = {
 		daily: 'Daily',
@@ -160,7 +161,7 @@
 				/>
 			</div>
 
-			<button class="kebab-btn" aria-label="Actions for {rec.description}" onclick={(e) => { e.stopPropagation(); menuTxn = rec; }} type="button">
+			<button class="kebab-btn" aria-label="Actions for {rec.description}" onclick={(e) => { e.stopPropagation(); menuAnchor = e.currentTarget as HTMLElement; menuTxn = rec; }} type="button">
 				<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 					<circle cx="12" cy="12" r="1"/>
 					<circle cx="19" cy="12" r="1"/>
@@ -227,6 +228,7 @@
 		title={menuTxn.description || 'Recurring Transaction'}
 		amount={menuTxn.type === 'income' ? `+${formatCurrency(menuTxn.amount)}` : `-${formatCurrency(menuTxn.amount)}`}
 		tone={menuTxn.type === 'income' ? 'income' : 'expense'}
+		anchor={menuAnchor}
 		isActive={menuTxn.active}
 		onClose={() => (menuTxn = null)}
 		onEdit={() => { const rec = menuTxn!; menuTxn = null; onEdit?.(rec); }}
