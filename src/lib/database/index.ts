@@ -3,7 +3,15 @@ import path from 'node:path';
 import fs from 'node:fs';
 import type { Database } from 'better-sqlite3';
 
-export const usePostgres = process.env['POSTGRES_URL'] !== undefined;
+/**
+ * Canonical database connection string.
+ * `DATABASE_URL` is the canonical name; `POSTGRES_URL` is a deprecated alias
+ * kept for backwards compatibility during the Neon migration. Both point at
+ * the same Neon/Postgres connection (never hardcoded, always from the env).
+ */
+const databaseUrl = process.env['DATABASE_URL'] ?? process.env['POSTGRES_URL'];
+
+export const usePostgres = databaseUrl !== undefined;
 
 let pgPool: Pool | null = null;
 let sqliteDb: Database | null = null;
@@ -25,7 +33,7 @@ export async function getPgPool(): Promise<Pool> {
 	}
 	if (!pgPool) {
 		pgPool = new Pool({
-			connectionString: process.env['POSTGRES_URL']!
+			connectionString: databaseUrl!
 		});
 	}
 	return pgPool;
@@ -35,8 +43,8 @@ export async function getSQLiteDb(): Promise<Database> {
 	// Fail fast: SQLite is not available on Vercel's read-only filesystem
 	if (process.env['VERCEL'] && !usePostgres) {
 		throw new Error(
-			'POSTGRES_URL environment variable is not set. ' +
-			'SQLite is not available on Vercel. Set POSTGRES_URL in Vercel project settings.'
+			'DATABASE_URL (or the deprecated POSTGRES_URL alias) is not set. ' +
+			'SQLite is not available on Vercel. Set DATABASE_URL in Vercel project settings.'
 		);
 	}
 

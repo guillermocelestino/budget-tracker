@@ -2,9 +2,11 @@ import { verifyToken } from '$lib/auth';
 import type { Handle } from '@sveltejs/kit';
 
 // Validate critical env vars on Vercel before any request is served
-if (process.env['POSTGRES_URL'] && !process.env['JWT_SECRET']) {
+// DATABASE_URL is canonical; POSTGRES_URL is a deprecated alias.
+const databaseUrl = process.env['DATABASE_URL'] ?? process.env['POSTGRES_URL'];
+if (databaseUrl && !process.env['JWT_SECRET']) {
 	throw new Error(
-		'JWT_SECRET environment variable is required when POSTGRES_URL is set. ' +
+		'JWT_SECRET environment variable is required when DATABASE_URL is set. ' +
 		'Set it in Vercel project settings.'
 	);
 }

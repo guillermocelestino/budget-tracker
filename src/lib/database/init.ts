@@ -1,3 +1,23 @@
+/**
+ * Boot-time database initialization.
+ *
+ * What belongs HERE (idempotent, cheap, runs every boot as infrastructure
+ * verification — required because Vercel serverless instances must never hit
+ * missing tables even if a deploy-step migration was skipped):
+ *   • CREATE TABLE IF NOT EXISTS + indexes (schema ensure)
+ *   • guarded, cheap seeds: default users, default categories, repayment
+ *     categories (each guarded by COUNT=0 / NOT EXISTS)
+ *   • `lendings.direction` column ensure (one catalog query + one ALTER)
+ *
+ * What does NOT belong here (moved to numbered migrations in `drizzle/`,
+ * executed exactly once via `npm run db:migrate`):
+ *   • one-time DATA backfills — synthetic lending_payments backfill and the
+ *     lendings status-cache recalculation → `drizzle/0001_*.sql`
+ *   • future schema changes → `drizzle-kit generate`
+ *
+ * init.ts is NOT removed yet (Phase 2.5 keeps it until the migration path is
+ * proven). The SQLite dev path still runs its own equivalent boot logic.
+ */
 import { usePostgres, getPgPool, getSQLiteDb } from './index';
 import { hashPassword } from '../auth';
 
@@ -286,34 +306,13 @@ export async function initDb(): Promise<void> {
 				)
 			`);
 
-			// ── Migration: Backfill synthetic payments for legacy status='paid' records ──
-			await client.query(`
-				INSERT INTO lending_payments (lending_id, user_id, amount, payment_date, notes, payment_type)
-				SELECT l.id, l.user_id, l.amount, COALESCE(l.due_date, l.date_lent), 'Migrated', 'payment'
-				FROM lendings l
-				WHERE l.status = 'paid'
-				  AND NOT EXISTS (SELECT 1 FROM lending_payments p WHERE p.lending_id = l.id)
-			`);
-
-			// ── Migration: Recalculate status cache for all records ──
-			await client.query(`
-				UPDATE lendings SET status = 'paid'
-				WHERE COALESCE(
-					(SELECT SUM(amount) FROM lending_payments p
-					 WHERE p.lending_id = lendings.id
-					   AND p.payment_type IN ('payment', 'write_off')
-					), 0
-				) >= lendings.amount
-			`);
-			await client.query(`
-				UPDATE lendings SET status = 'active'
-				WHERE COALESCE(
-					(SELECT SUM(amount) FROM lending_payments p
-					 WHERE p.lending_id = lendings.id
-					   AND p.payment_type IN ('payment', 'write_off')
-					), 0
-				) < lendings.amount
-			`);
+			// ── One-time data backfills moved to migration `drizzle/0001_*.sql` ──
+			// Synthetic-payment backfill for legacy status='paid' records and the
+			// lendings status-cache recalculation previously ran here on EVERY boot.
+			// They are now a numbered migration executed exactly once via
+			// `npm run db:migrate`. Removed from boot so startup only verifies
+			// infrastructure and never re-runs expensive data migrations.
+			// (See Phase 2.5 of plans/neon-migration-audit.md.)
 		} finally {
 			client.release();
 		}
