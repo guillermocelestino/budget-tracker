@@ -35,3 +35,4 @@ test-results/
 # Generated reports and screenshots
 reports
 screenshots
+.env*

@@ -1,4 +1,8 @@
 import { queryOne, queryMany } from '$lib/database/query';
+import { usePostgres } from '$lib/database';
+import { getDrizzle } from '$lib/database/drizzle';
+import { transactions, lendings } from '$lib/database/schema';
+import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import type { NetWorthSnapshot, NetWorthLeg, CashTrendPoint, LegDelta } from '$lib/types';
 
 /**
@@ -13,6 +17,18 @@ import type { NetWorthSnapshot, NetWorthLeg, CashTrendPoint, LegDelta } from '$l
  * same underlying data.
  */
 async function getCashPosition(userId: number): Promise<number> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [row] = await db
+			.select({
+				income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+				expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
+			})
+			.from(transactions)
+			.where(eq(transactions.user_id, userId));
+		return parseFloat(row?.income ?? '0') - parseFloat(row?.expense ?? '0');
+	}
+
 	const row = await queryOne<{ income: string; expense: string }>(
 		`SELECT
 			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
@@ -28,6 +44,21 @@ async function getCashPosition(userId: number): Promise<number> {
  * Get all-time active lent (asset) — direction = 'lent', status = 'active'.
  */
 async function getLentPosition(userId: number): Promise<number> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [row] = await db
+			.select({
+				total: sql<string>`COALESCE(SUM(${lendings.amount}), 0)`
+			})
+			.from(lendings)
+			.where(and(
+				eq(lendings.user_id, userId),
+				eq(lendings.direction, 'lent'),
+				eq(lendings.status, 'active')
+			));
+		return parseFloat(row?.total ?? '0');
+	}
+
 	const row = await queryOne<{ total: string }>(
 		`SELECT COALESCE(SUM(amount), 0) as total
 		 FROM lendings
@@ -41,6 +72,21 @@ async function getLentPosition(userId: number): Promise<number> {
  * Get all-time active borrowed (liability) — direction = 'borrowed', status = 'active'.
  */
 async function getBorrowedPosition(userId: number): Promise<number> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [row] = await db
+			.select({
+				total: sql<string>`COALESCE(SUM(${lendings.amount}), 0)`
+			})
+			.from(lendings)
+			.where(and(
+				eq(lendings.user_id, userId),
+				eq(lendings.direction, 'borrowed'),
+				eq(lendings.status, 'active')
+			));
+		return parseFloat(row?.total ?? '0');
+	}
+
 	const row = await queryOne<{ total: string }>(
 		`SELECT COALESCE(SUM(amount), 0) as total
 		 FROM lendings
@@ -57,6 +103,25 @@ async function getBorrowedPosition(userId: number): Promise<number> {
  * NOT scoped to user_id — called from computeNetWorth which already scopes.
  */
 async function getMonthlyCashFlow(userId: number): Promise<{ month: string; net: number }[]> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const monthExpr = sql`to_char(${transactions.date}, 'YYYY-MM')`;
+		const rows = await db
+			.select({
+				month: sql<string>`to_char(${transactions.date}, 'YYYY-MM')`,
+				income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+				expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
+			})
+			.from(transactions)
+			.where(eq(transactions.user_id, userId))
+			.groupBy(monthExpr)
+			.orderBy(monthExpr);
+		return rows.map(r => ({
+			month: r.month,
+			net: parseFloat(r.income) - parseFloat(r.expense),
+		}));
+	}
+
 	// Use TO_CHAR for PG, translateQuery handles SQLite strftime
 	const rows = await queryMany<{ month: string; income: string; expense: string }>(
 		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
@@ -78,6 +143,22 @@ async function getMonthlyCashFlow(userId: number): Promise<{ month: string; net:
  * Get total borrowed amount that went due in the next N months (for projection).
  */
 async function getUpcomingBorrowedPayments(userId: number): Promise<number> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				total: sql<string>`COALESCE(SUM(${lendings.amount}), 0)`
+			})
+			.from(lendings)
+			.where(and(
+				eq(lendings.user_id, userId),
+				eq(lendings.direction, 'borrowed'),
+				eq(lendings.status, 'active'),
+				isNotNull(lendings.due_date)
+			));
+		return parseFloat(rows[0]?.total ?? '0');
+	}
+
 	const rows = await queryMany<{ total: string }>(
 		`SELECT COALESCE(SUM(amount), 0) as total
 		 FROM lendings
