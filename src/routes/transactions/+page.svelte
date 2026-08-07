@@ -7,7 +7,8 @@
 	import PageBackground from '$lib/components/PageBackground.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import TransactionSummary from '$lib/components/TransactionSummary.svelte';
-	import TransactionFilters from '$lib/components/TransactionFilters.svelte';
+	import TransactionFilterPanel from '$lib/components/TransactionFilterPanel.svelte';
+	import TransactionFilterToolbar from '$lib/components/TransactionFilterToolbar.svelte';
 	import TransactionList from '$lib/components/TransactionList.svelte';
 	import OverflowMenu from '$lib/components/OverflowMenu.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
@@ -97,10 +98,11 @@
 	// ─── Search input (debounced) + URL-synced ──────────────────────────
 
 	let searchInput = $state(filters.search);
-	let filtersOpen = $state(false);
-
-	// ─── Filter control: SearchFilterPill owns the popover (desktop) and
-	// the FiltersSheet bottom sheet (mobile) via its `open` binding. ──────
+	// Mobile only: SearchFilterPill owns the FiltersSheet bottom sheet via its
+	// `open` binding; the sheet's panel is TransactionFilterPanel (an in-sheet
+	// accordion, matching the borrowed/lending sheet). Desktop uses the
+	// unified TransactionFilterToolbar dock (self-contained). ──
+	let mobileFiltersOpen = $state(false);
 
 	// Sync the input from the URL on navigation (back/forward).
 	// untrack the searchInput read so this effect depends only on the URL —
@@ -654,31 +656,57 @@
 	onCardClick={handleCardClick}
 />
 
-<!-- ═══ Toolbar: unified search+filter pill (left) + view preference (right) ═══ -->
+<!-- ═══ Toolbar ═══
+     Desktop: one unified "filter dock" (embedded search + Date/Category/Type
+     segments + Clear All, each segment opening a shared menu as a clamped
+     popover) + view toggle. Mobile: unified search/filter pill → FiltersSheet
+     whose panel is the compact 3-chip dropdowns, so desktop and mobile share
+     one option source. Both toolbars are rendered and toggled via CSS —
+     hydration-safe (no SSR/client mismatch). -->
 <div class="txn-toolbar">
 	<div class="toolbar-left">
-		<SearchFilterPill
-			bind:value={searchInput}
-			bind:open={filtersOpen}
-			{activeFilterCount}
-			placeholder="Search transactions"
-			ariaLabel="Search transactions"
-			filterAriaLabel="Filter transactions"
-		>
-			{#snippet panel(mode, close)}
-				<TransactionFilters
-					{mode}
-					categories={data.categories ?? []}
-					activeFilters={{
-						date: filters.date,
-						category: filters.category,
-						type: filters.type,
-					}}
-					onFilterChange={handleFilterChange}
-					onApply={close}
-				/>
-			{/snippet}
-		</SearchFilterPill>
+		<div class="toolbar-desktop">
+			<TransactionFilterToolbar
+				bind:value={searchInput}
+				categories={data.categories ?? []}
+				activeFilters={{
+					date: filters.date,
+					category: filters.category,
+					type: filters.type,
+					customFrom: filters.customFrom,
+					customTo: filters.customTo,
+				}}
+				onFilterChange={handleFilterChange}
+				onClearAll={clearAllFilters}
+				placeholder="Search transactions"
+				ariaLabel="Search transactions"
+			/>
+		</div>
+		<div class="toolbar-mobile">
+			<SearchFilterPill
+				bind:value={searchInput}
+				bind:open={mobileFiltersOpen}
+				{activeFilterCount}
+				placeholder="Search transactions"
+				ariaLabel="Search transactions"
+				filterAriaLabel="Filter transactions"
+			>
+				{#snippet panel(_mode, _close)}
+					<TransactionFilterPanel
+						categories={data.categories ?? []}
+						activeFilters={{
+							date: filters.date,
+							category: filters.category,
+							type: filters.type,
+							customFrom: filters.customFrom,
+							customTo: filters.customTo,
+						}}
+						onFilterChange={handleFilterChange}
+						onClearAll={clearAllFilters}
+					/>
+				{/snippet}
+			</SearchFilterPill>
+		</div>
 	</div>
 	<div class="toolbar-right">
 		<ViewToggle {showFlatView} onChange={(flat) => showFlatView = flat} stretch />
@@ -972,24 +1000,38 @@
 	/* ─── Toolbar ─── */
 	/* Working controls for the list: sits below the KPI cards and hugs the
 	   register beneath it (tight bottom gap) so it reads as one unit.
-	   The grid mirrors .summary-cards' template at every breakpoint so the
-	   search pill (toolbar-left) is exactly as wide as the first KPI card,
-	   while the view toggle (toolbar-right) floats to the right edge of the
-	   register — no max-width cap, no dead whitespace. */
+	   Desktop: the unified filter dock fills the left, view toggle on the
+	   right. The dock wraps onto its own row on tablet rather than overflow —
+	   no horizontal scroll ever. Both .toolbar-desktop and .toolbar-mobile are
+	   rendered and toggled via CSS (hydration-safe breakpoint; see the toolbar
+	   markup). IMPORTANT: no transform/filter on these wrappers — the dock's
+	   menus are position:fixed and must stay anchored to the viewport. */
 	.txn-toolbar {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: var(--space-md);
+		display: flex;
 		align-items: center;
+		gap: var(--space-md);
 		margin-bottom: var(--space-md);
 	}
 
 	.toolbar-left {
-		grid-column: 1;
+		flex: 1;
 		min-width: 0;
 		display: flex;
 		align-items: center;
 		gap: var(--space-sm);
+	}
+
+	.toolbar-desktop {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: var(--space-sm);
+		flex: 1;
+		min-width: 0;
+	}
+
+	.toolbar-mobile {
+		display: none;
 	}
 
 	/* Header actions: overflow + add transaction, right side of header */
@@ -999,17 +1041,17 @@
 		gap: var(--space-sm);
 	}
 
-	/* ─── Search + Filter pill (`.search-filter-pill`) now lives in the
-	   shared SearchFilterPill component; this page only sizes its host
-	   column. ─── */
-
 	.toolbar-right {
-		grid-column: 3;
-		justify-self: end;
+		flex-shrink: 0;
 		display: flex;
 		align-items: center;
 		gap: var(--space-md);
 	}
+
+	/* Mobile filter sheet panel: TransactionFilterPanel is a self-contained
+	   in-sheet accordion (Date/Category/Type sections + Clear All). It owns its
+	   layout — no page-level overrides needed. The FiltersSheet body provides
+	   the horizontal padding and scrolls when a section is expanded. */
 
 	/* ─── Bulk selection action bar (Selection Mode only) ─── */
 	.bulk-bar {
@@ -1108,18 +1150,6 @@
 		display: none;
 	}
 
-	/* Mirror the summary-cards grid at the tablet breakpoint: 2 columns,
-	   toolbar-right pinned to the right edge of the second. */
-	@media (min-width: 769px) and (max-width: 1024px) {
-		.txn-toolbar {
-			grid-template-columns: repeat(2, 1fr);
-		}
-
-		.toolbar-right {
-			grid-column: 2;
-		}
-	}
-
 	@media (max-width: 768px) {
 		.desktop-only {
 			display: none !important;
@@ -1130,24 +1160,35 @@
 			align-items: center;
 		}
 
-		/* One 44px search+filter pill; the view toggle follows on a slim row.
-		   The toggle row sits flush against the register below so it reads as
-		   the list's own header control. */
+		/* Desktop toolbar (filter dock) is hidden; the toolbar stacks into two
+		   full-width rows — the unified search/filter pill first, the view
+		   toggle (a stretched 50/50 segmented control) below it — matching the
+		   borrowed/lending toolbar rhythm. */
+		.toolbar-desktop {
+			display: none;
+		}
+
+		.toolbar-mobile {
+			display: block;
+			width: 100%;
+		}
+
 		.txn-toolbar {
-			grid-template-columns: 1fr;
+			flex-direction: column;
+			align-items: stretch;
 			gap: var(--space-sm);
 			margin-bottom: var(--space-xs);
 		}
 
 		.toolbar-left {
-			grid-column: 1;
+			flex-direction: column;
+			align-items: stretch;
 			width: 100%;
 		}
 
 		.toolbar-right {
-			grid-column: 1;
-			justify-self: stretch;
 			justify-content: flex-start;
+			width: 100%;
 		}
 	}
 
