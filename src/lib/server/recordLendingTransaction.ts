@@ -1,4 +1,8 @@
 import { queryOne, execute } from '$lib/database/query';
+import { usePostgres } from '$lib/database';
+import { getDrizzle } from '$lib/database/drizzle';
+import { categories, transactions } from '$lib/database/schema';
+import { and, eq } from 'drizzle-orm';
 
 /**
  * Records a financial transaction linked to a lending/borrowing lifecycle event.
@@ -70,58 +74,134 @@ export async function recordLendingTransaction(
 	// Find or create category — fallback lookup chain for lending repayments
 	let categoryId: number;
 
-	if (event === 'repayment' && direction === 'lent') {
-		// Try canonical name "Loan Repayment" first
-		const canonicalCat = await queryOne<{ id: number }>(
-			'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
-			[userId, 'Loan Repayment']
-		);
-		if (canonicalCat) {
-			categoryId = canonicalCat.id;
-		} else {
-			// Fallback to legacy name "Lending Recovery"
-			const legacyCat = await queryOne<{ id: number }>(
-				'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
-				[userId, 'Lending Recovery']
-			);
-			if (legacyCat) {
-				categoryId = legacyCat.id;
+	if (usePostgres) {
+		const db = await getDrizzle();
+
+		if (event === 'repayment' && direction === 'lent') {
+			// Try canonical name "Loan Repayment" first
+			const [canonicalCat] = await db
+				.select({ id: categories.id })
+				.from(categories)
+				.where(and(eq(categories.user_id, userId), eq(categories.name, 'Loan Repayment')));
+			if (canonicalCat) {
+				categoryId = canonicalCat.id;
 			} else {
-				// Create "Loan Repayment"
+				// Fallback to legacy name "Lending Recovery"
+				const [legacyCat] = await db
+					.select({ id: categories.id })
+					.from(categories)
+					.where(and(eq(categories.user_id, userId), eq(categories.name, 'Lending Recovery')));
+				if (legacyCat) {
+					categoryId = legacyCat.id;
+				} else {
+					// Create "Loan Repayment"
+					const [newCat] = await db
+						.insert(categories)
+						.values({
+							user_id: userId,
+							name: 'Loan Repayment',
+							color: categoryColor,
+							icon: categoryIcon,
+							type: transactionType
+						})
+						.returning({ id: categories.id });
+					categoryId = newCat.id;
+				}
+			}
+		} else {
+			// Standard lookup for all other cases
+			const [existingCategory] = await db
+				.select({ id: categories.id })
+				.from(categories)
+				.where(and(eq(categories.user_id, userId), eq(categories.name, categoryName)));
+			if (existingCategory) {
+				categoryId = existingCategory.id;
+			} else {
+				const [newCat] = await db
+					.insert(categories)
+					.values({
+						user_id: userId,
+						name: categoryName,
+						color: categoryColor,
+						icon: categoryIcon,
+						type: transactionType
+					})
+					.returning({ id: categories.id });
+				categoryId = newCat.id;
+			}
+		}
+	} else {
+		// SQLite / raw query path (unchanged)
+		if (event === 'repayment' && direction === 'lent') {
+			// Try canonical name "Loan Repayment" first
+			const canonicalCat = await queryOne<{ id: number }>(
+				'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
+				[userId, 'Loan Repayment']
+			);
+			if (canonicalCat) {
+				categoryId = canonicalCat.id;
+			} else {
+				// Fallback to legacy name "Lending Recovery"
+				const legacyCat = await queryOne<{ id: number }>(
+					'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
+					[userId, 'Lending Recovery']
+				);
+				if (legacyCat) {
+					categoryId = legacyCat.id;
+				} else {
+					// Create "Loan Repayment"
+					await execute(
+						'INSERT INTO categories (user_id, name, color, icon, type) VALUES ($1, $2, $3, $4, $5)',
+						[userId, 'Loan Repayment', categoryColor, categoryIcon, transactionType]
+					);
+					const newCat = await queryOne<{ id: number }>(
+						'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
+						[userId, 'Loan Repayment']
+					);
+					categoryId = newCat!.id;
+				}
+			}
+		} else {
+			// Standard lookup for all other cases
+			const existingCategory = await queryOne<{ id: number }>(
+				'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
+				[userId, categoryName]
+			);
+
+			if (existingCategory) {
+				categoryId = existingCategory.id;
+			} else {
 				await execute(
 					'INSERT INTO categories (user_id, name, color, icon, type) VALUES ($1, $2, $3, $4, $5)',
-					[userId, 'Loan Repayment', categoryColor, categoryIcon, transactionType]
+					[userId, categoryName, categoryColor, categoryIcon, transactionType]
 				);
 				const newCat = await queryOne<{ id: number }>(
 					'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
-					[userId, 'Loan Repayment']
+					[userId, categoryName]
 				);
 				categoryId = newCat!.id;
 			}
 		}
-	} else {
-		// Standard lookup for all other cases
-		const existingCategory = await queryOne<{ id: number }>(
-			'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
-			[userId, categoryName]
-		);
-
-		if (existingCategory) {
-			categoryId = existingCategory.id;
-		} else {
-			await execute(
-				'INSERT INTO categories (user_id, name, color, icon, type) VALUES ($1, $2, $3, $4, $5)',
-				[userId, categoryName, categoryColor, categoryIcon, transactionType]
-			);
-			const newCat = await queryOne<{ id: number }>(
-				'SELECT id FROM categories WHERE user_id = $1 AND name = $2',
-				[userId, categoryName]
-			);
-			categoryId = newCat!.id;
-		}
 	}
 
 	// Insert transaction
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [newTx] = await db
+			.insert(transactions)
+			.values({
+				user_id: userId,
+				amount: String(amount),
+				description,
+				date,
+				category_id: categoryId,
+				type: transactionType
+			})
+			.returning({ id: transactions.id });
+		return newTx.id;
+	}
+
+	// SQLite path
 	await execute(
 		'INSERT INTO transactions (user_id, amount, description, date, category_id, type) VALUES ($1, $2, $3, $4, $5, $6)',
 		[userId, amount, description, date, categoryId, transactionType]
