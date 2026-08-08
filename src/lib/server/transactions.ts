@@ -947,3 +947,151 @@ export async function getCategoryUsage(
 		last_used: r.last_used
 	}));
 }
+
+/** Get detailed category report including zero-spending categories. */
+export async function getCategorySpendingReport(
+	userId: number,
+	month: string, // YYYY-MM
+	type: 'income' | 'expense'
+): Promise<CategoryReportItem[]> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				category_id: categories.id,
+				category_name: categories.name,
+				category_color: categories.color,
+				total: sql<string>`COALESCE(SUM(${transactions.amount}), 0)`
+			})
+			.from(categories)
+			.leftJoin(
+				transactions,
+				and(
+					eq(transactions.category_id, categories.id),
+					sql`TO_CHAR(${transactions.date}, 'YYYY-MM') = ${month}`,
+					eq(transactions.type, type)
+				)
+			)
+			.where(and(
+				eq(categories.user_id, userId),
+				eq(categories.type, type)
+			))
+			.groupBy(categories.id, categories.name, categories.color)
+			.orderBy(desc(sql`COALESCE(SUM(${transactions.amount}), 0)`));
+
+		return rows.map((r) => ({
+			category_id: r.category_id,
+			category_name: r.category_name,
+			category_color: r.category_color,
+			total: parseFloat(r.total ?? '0')
+		}));
+	}
+
+	// SQLite path
+	const rows = await queryMany<{ category_id: number; category_name: string; category_color: string; total: string }>(
+		`SELECT c.id as category_id, c.name as category_name, c.color as category_color,
+				COALESCE(SUM(t.amount), 0) as total
+		 FROM categories c
+		 LEFT JOIN transactions t ON t.category_id = c.id AND TO_CHAR(t.date, 'YYYY-MM') = $1 AND t.type = $2
+		 WHERE c.user_id = $3 AND c.type = $2
+		 GROUP BY c.id, c.name, c.color
+		 ORDER BY total DESC`,
+		[month, type, userId]
+	);
+
+	return rows.map(r => ({
+		category_id: r.category_id,
+		category_name: r.category_name,
+		category_color: r.category_color,
+		total: parseFloat(String(r.total))
+	}));
+}
+
+/** Get transaction count for a specific user and month. */
+export async function getTransactionCountForMonth(
+	userId: number,
+	month: string // YYYY-MM
+): Promise<number> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [{ count }] = await db
+			.select({ count: sql<number>`count(*)` })
+			.from(transactions)
+			.where(and(
+				eq(transactions.user_id, userId),
+				sql`TO_CHAR(${transactions.date}, 'YYYY-MM') = ${month}`
+			));
+		return Number(count);
+	}
+
+	// SQLite path
+	const row = await queryOne<{ count: string }>(
+		`SELECT COUNT(*) as count
+		 FROM transactions
+		 WHERE user_id = $1 AND TO_CHAR(date, 'YYYY-MM') = $2`,
+		[userId, month]
+	);
+	return parseInt(row?.count ?? '0', 10);
+}
+
+/** Get all-time transaction count for a specific user. */
+export async function getAllTimeTransactionCount(
+	userId: number
+): Promise<number> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [{ count }] = await db
+			.select({ count: sql<number>`count(*)` })
+			.from(transactions)
+			.where(eq(transactions.user_id, userId));
+		return Number(count);
+	}
+
+	// SQLite path
+	const row = await queryOne<{ count: string }>(
+		`SELECT COUNT(*) as count FROM transactions WHERE user_id = $1`,
+		[userId]
+	);
+	return parseInt(row?.count ?? '0', 10);
+}
+
+/** Get YTD summary for income and expense up to a given month number. */
+export async function getYTDSummary(
+	userId: number,
+	year: number,
+	endMonthNum: number
+): Promise<{ income: number; expense: number }> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [row] = await db
+			.select({
+				income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+				expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
+			})
+			.from(transactions)
+			.where(and(
+				eq(transactions.user_id, userId),
+				sql`EXTRACT(YEAR FROM ${transactions.date}) = ${year}`,
+				sql`EXTRACT(MONTH FROM ${transactions.date}) <= ${endMonthNum}`
+			));
+		return {
+			income: parseFloat(row?.income ?? '0'),
+			expense: parseFloat(row?.expense ?? '0')
+		};
+	}
+
+	// SQLite path
+	const row = await queryOne<{ income: string; expense: string }>(
+		`SELECT
+			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+		 FROM transactions
+		 WHERE user_id = $1 AND EXTRACT(YEAR FROM date) = $2::int AND EXTRACT(MONTH FROM date) <= $3::int`,
+		[userId, year, endMonthNum]
+	);
+
+	return {
+		income: parseFloat(row?.income ?? '0'),
+		expense: parseFloat(row?.expense ?? '0')
+	};
+}

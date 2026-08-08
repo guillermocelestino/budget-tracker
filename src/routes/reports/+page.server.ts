@@ -1,6 +1,13 @@
-import { queryMany, queryOne } from '$lib/database/query';
-import type { MonthlyReportItem, CategoryReportItem } from '$lib/types';
+import { queryOne } from '$lib/database/query';
 import { getCurrentMonth } from '$lib/utils/format';
+import {
+	getMonthlyReport,
+	getCategorySpendingReport,
+	getMonthlySummary,
+	getTransactionCountForMonth,
+	getAllTimeTransactionCount,
+	getYTDSummary
+} from '$lib/server/transactions';
 
 export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -17,97 +24,31 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	// Compute YTD range: Jan to selected month
 	const selectedMonthNum = parseInt(month.split('-')[1]);
 
-	const monthlyData = await queryMany<MonthlyReportItem>(
-		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
-				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		 FROM transactions
-		 WHERE user_id = $1 AND EXTRACT(YEAR FROM date) = $2::int
-		 GROUP BY month
-		 ORDER BY month ASC`,
-		[userId, parseInt(year)]
-	);
+	const monthlyData = await getMonthlyReport(userId, parseInt(year));
 
-	const expenseData = await queryMany<CategoryReportItem>(
-		`SELECT c.id as category_id, c.name as category_name, c.color as category_color,
-				COALESCE(SUM(t.amount), 0) as total
-		 FROM categories c
-		 LEFT JOIN transactions t ON t.category_id = c.id AND TO_CHAR(t.date, 'YYYY-MM') = $1 AND t.type = 'expense'
-		 WHERE c.user_id = $2 AND c.type = 'expense'
-		 GROUP BY c.id, c.name, c.color
-		 ORDER BY total DESC`,
-		[month, userId]
-	);
+	const expenseData = await getCategorySpendingReport(userId, month, 'expense');
+	const incomeData = await getCategorySpendingReport(userId, month, 'income');
 
-	const incomeData = await queryMany<CategoryReportItem>(
-		`SELECT c.id as category_id, c.name as category_name, c.color as category_color,
-				COALESCE(SUM(t.amount), 0) as total
-		 FROM categories c
-		 LEFT JOIN transactions t ON t.category_id = c.id AND TO_CHAR(t.date, 'YYYY-MM') = $1 AND t.type = 'income'
-		 WHERE c.user_id = $2 AND c.type = 'income'
-		 GROUP BY c.id, c.name, c.color
-		 ORDER BY total DESC`,
-		[month, userId]
-	);
+	const monthSummary = await getMonthlySummary(userId, month);
 
-	const monthSummary = await queryOne<{ income: string; expense: string }>(
-		`SELECT
-			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		 FROM transactions
-		 WHERE user_id = $1 AND TO_CHAR(date, 'YYYY-MM') = $2`,
-		[userId, month]
-	);
-
-	const countResult = await queryOne<{ count: string }>(
-		`SELECT COUNT(*) as count
-		 FROM transactions
-		 WHERE user_id = $1 AND TO_CHAR(date, 'YYYY-MM') = $2`,
-		[userId, month]
-	);
-	const transactionCount = parseInt(countResult?.count ?? '0');
+	const transactionCount = await getTransactionCountForMonth(userId, month);
 
 	// All-time count for E1 vs E2 empty-state distinction
-	const allTimeResult = await queryOne<{ count: string }>(
-		`SELECT COUNT(*) as count FROM transactions WHERE user_id = $1`,
-		[userId]
-	);
-	const allTimeCount = parseInt(allTimeResult?.count ?? '0');
+	const allTimeCount = await getAllTimeTransactionCount(userId);
 
 	// YoY: Previous year same month
-	const prevYearSummary = await queryOne<{ income: string; expense: string }>(
-		`SELECT
-			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		 FROM transactions
-		 WHERE user_id = $1 AND TO_CHAR(date, 'YYYY-MM') = $2`,
-		[userId, prevYearMonth]
-	);
+	const prevMonthSummary = await getMonthlySummary(userId, prevYearMonth);
 
 	// YoY: Current year YTD
-	const currentYTD = await queryOne<{ income: string; expense: string }>(
-		`SELECT
-			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		 FROM transactions
-		 WHERE user_id = $1 AND EXTRACT(YEAR FROM date) = $2::int AND EXTRACT(MONTH FROM date) <= $3::int`,
-		[userId, parseInt(year), selectedMonthNum]
-	);
+	const currentYTD = await getYTDSummary(userId, parseInt(year), selectedMonthNum);
 
 	// YoY: Previous year YTD
-	const previousYTD = await queryOne<{ income: string; expense: string }>(
-		`SELECT
-			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		 FROM transactions
-		 WHERE user_id = $1 AND EXTRACT(YEAR FROM date) = $2::int AND EXTRACT(MONTH FROM date) <= $3::int`,
-		[userId, parseInt(prevYear), selectedMonthNum]
-	);
+	const previousYTD = await getYTDSummary(userId, parseInt(prevYear), selectedMonthNum);
 
-	const prevIncome = parseFloat(prevYearSummary?.income ?? '0');
-	const prevExpense = parseFloat(prevYearSummary?.expense ?? '0');
-	const currIncome = parseFloat(monthSummary?.income ?? '0');
-	const currExpense = parseFloat(monthSummary?.expense ?? '0');
+	const prevIncome = prevMonthSummary.totalIncome;
+	const prevExpense = prevMonthSummary.totalExpenses;
+	const currIncome = monthSummary.totalIncome;
+	const currExpense = monthSummary.totalExpenses;
 
 	const lendingSummary = await queryOne<{ totalLent: string; totalRecovered: string }>(
 		`SELECT
@@ -119,10 +60,10 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 		[userId]
 	);
 
-	const currYTDIncome = parseFloat(currentYTD?.income ?? '0');
-	const currYTDExpense = parseFloat(currentYTD?.expense ?? '0');
-	const prevYTDIncome = parseFloat(previousYTD?.income ?? '0');
-	const prevYTDExpense = parseFloat(previousYTD?.expense ?? '0');
+	const currYTDIncome = currentYTD.income;
+	const currYTDExpense = currentYTD.expense;
+	const prevYTDIncome = previousYTD.income;
+	const prevYTDExpense = previousYTD.expense;
 
 	function pctChange(curr: number, prev: number): number {
 		if (prev === 0) return curr > 0 ? 100 : 0;

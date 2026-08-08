@@ -56,6 +56,10 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 	let searchTransactions: typeof import('$lib/server/transactions').searchTransactions;
 	let getCategorySpending: typeof import('$lib/server/transactions').getCategorySpending;
 	let getCategoryUsage: typeof import('$lib/server/transactions').getCategoryUsage;
+	let getCategorySpendingReport: typeof import('$lib/server/transactions').getCategorySpendingReport;
+	let getTransactionCountForMonth: typeof import('$lib/server/transactions').getTransactionCountForMonth;
+	let getAllTimeTransactionCount: typeof import('$lib/server/transactions').getAllTimeTransactionCount;
+	let getYTDSummary: typeof import('$lib/server/transactions').getYTDSummary;
 
 	beforeAll(async () => {
 		vi.doMock('$lib/database', () => ({
@@ -154,6 +158,10 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 		searchTransactions = svc.searchTransactions;
 		getCategorySpending = svc.getCategorySpending;
 		getCategoryUsage = svc.getCategoryUsage;
+		getCategorySpendingReport = svc.getCategorySpendingReport;
+		getTransactionCountForMonth = svc.getTransactionCountForMonth;
+		getAllTimeTransactionCount = svc.getAllTimeTransactionCount;
+		getYTDSummary = svc.getYTDSummary;
 	});
 
 	function createUser(username: string): number {
@@ -515,6 +523,62 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 		expect(usage[0].cnt).toBe(1);
 		expect(usage[0].last_used).toBe('2026-08-01');
 	});
+
+	it('handles getCategorySpendingReport correctly', async () => {
+		const userA = createUser(`user_csr_${sequence++}`);
+		const catA = createCategory(userA, 'Food', 'expense');
+		const catB = createCategory(userA, 'Utilities', 'expense');
+
+		// Only category A gets a transaction
+		addTransaction(userA, 100, 'T1', '2026-08-01', catA, 'expense');
+
+		const report = await getCategorySpendingReport(userA, '2026-08', 'expense');
+		// Both categories must be returned (LEFT JOIN behavior)
+		expect(report).toHaveLength(2);
+		
+		const reportA = report.find(r => r.category_id === catA);
+		const reportB = report.find(r => r.category_id === catB);
+		expect(reportA?.total).toBe(100);
+		expect(reportB?.total).toBe(0);
+	});
+
+	it('handles getTransactionCountForMonth correctly', async () => {
+		const userA = createUser(`user_tcm_${sequence++}`);
+		const catA = createCategory(userA, 'Food');
+
+		addTransaction(userA, 10, 'T1', '2026-08-01', catA, 'expense');
+		addTransaction(userA, 20, 'T2', '2026-08-15', catA, 'expense');
+		addTransaction(userA, 30, 'T3', '2026-09-01', catA, 'expense');
+
+		const count = await getTransactionCountForMonth(userA, '2026-08');
+		expect(count).toBe(2);
+	});
+
+	it('handles getAllTimeTransactionCount correctly', async () => {
+		const userA = createUser(`user_att_${sequence++}`);
+		const catA = createCategory(userA, 'Food');
+
+		addTransaction(userA, 10, 'T1', '2026-08-01', catA, 'expense');
+		addTransaction(userA, 20, 'T2', '2026-09-01', catA, 'expense');
+
+		const count = await getAllTimeTransactionCount(userA);
+		expect(count).toBe(2);
+	});
+
+	it('handles getYTDSummary correctly', async () => {
+		const userA = createUser(`user_ytd_${sequence++}`);
+		const catA = createCategory(userA, 'Food', 'expense');
+		const catB = createCategory(userA, 'Salary', 'income');
+
+		addTransaction(userA, 10, 'T1', '2026-01-15', catA, 'expense');
+		addTransaction(userA, 100, 'T2', '2026-02-15', catB, 'income');
+		addTransaction(userA, 20, 'T3', '2026-03-15', catA, 'expense');
+		addTransaction(userA, 50, 'T4', '2026-04-15', catA, 'expense');
+
+		const ytd = await getYTDSummary(userA, 2026, 3);
+		expect(ytd.income).toBe(100);
+		expect(ytd.expense).toBe(30);
+	});
 });
 
 describe('transactions service — Drizzle / Postgres path (recorded fake client)', () => {
@@ -532,6 +596,10 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 	let searchTransactions: typeof import('$lib/server/transactions').searchTransactions;
 	let getCategorySpending: typeof import('$lib/server/transactions').getCategorySpending;
 	let getCategoryUsage: typeof import('$lib/server/transactions').getCategoryUsage;
+	let getCategorySpendingReport: typeof import('$lib/server/transactions').getCategorySpendingReport;
+	let getTransactionCountForMonth: typeof import('$lib/server/transactions').getTransactionCountForMonth;
+	let getAllTimeTransactionCount: typeof import('$lib/server/transactions').getAllTimeTransactionCount;
+	let getYTDSummary: typeof import('$lib/server/transactions').getYTDSummary;
 
 	let calls: {
 		selects: number;
@@ -636,6 +704,10 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 		searchTransactions = svc.searchTransactions;
 		getCategorySpending = svc.getCategorySpending;
 		getCategoryUsage = svc.getCategoryUsage;
+		getCategorySpendingReport = svc.getCategorySpendingReport;
+		getTransactionCountForMonth = svc.getTransactionCountForMonth;
+		getAllTimeTransactionCount = svc.getAllTimeTransactionCount;
+		getYTDSummary = svc.getYTDSummary;
 	});
 
 	beforeEach(() => {
@@ -748,5 +820,39 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 		expect(usage[0].category_id).toBe(5);
 		expect(usage[0].cnt).toBe(1);
 		expect(usage[0].last_used).toBe('2026-08-01');
+	});
+
+	it('selects category spending report via Drizzle', async () => {
+		selectRows = [
+			{ category_id: 1, category_name: 'Food', category_color: '#fff', total: '100' },
+			{ category_id: 2, category_name: 'Utilities', category_color: '#000', total: '0' }
+		];
+
+		const report = await getCategorySpendingReport(12, '2026-08', 'expense');
+		expect(report).toHaveLength(2);
+		expect(report[0].total).toBe(100);
+		expect(report[1].total).toBe(0);
+	});
+
+	it('gets transaction count for month via Drizzle', async () => {
+		selectRows = [{ count: 5 }];
+
+		const count = await getTransactionCountForMonth(12, '2026-08');
+		expect(count).toBe(5);
+	});
+
+	it('gets all-time transaction count via Drizzle', async () => {
+		selectRows = [{ count: 12 }];
+
+		const count = await getAllTimeTransactionCount(12);
+		expect(count).toBe(12);
+	});
+
+	it('gets YTD summary via Drizzle', async () => {
+		selectRows = [{ income: '500', expense: '200' }];
+
+		const ytd = await getYTDSummary(12, 2026, 3);
+		expect(ytd.income).toBe(500);
+		expect(ytd.expense).toBe(200);
 	});
 });
