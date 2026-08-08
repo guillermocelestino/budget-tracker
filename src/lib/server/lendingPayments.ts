@@ -10,6 +10,43 @@ import {
 import { and, eq, sql, desc, isNotNull } from 'drizzle-orm';
 import type { Lending, LendingPayment, LendingWithPayments, PaymentType } from '$lib/types';
 
+/** Drizzle client type returned by getDrizzle(). */
+type DrizzleDb = Awaited<ReturnType<typeof getDrizzle>>;
+
+/** Transaction object passed to `db.transaction(...)` — derived so it stays in sync with Drizzle. */
+type DrizzleTransaction = Parameters<Parameters<DrizzleDb['transaction']>[0]>[0];
+
+/**
+ * Raw row shape produced by the Drizzle `select` in getLendingsWithPayments /
+ * getLendingWithPayments. Postgres NUMERIC columns arrive as strings, so the
+ * monetary fields are typed `string` and coerced via parseFloat in the mapper.
+ */
+interface LendingRowWithPayments {
+	id: number;
+	user_id: number;
+	borrower_name: string;
+	amount: string;
+	interest_rate: string | null;
+	date_lent: string;
+	due_date: string | null;
+	status: string;
+	notes: string | null;
+	direction: string;
+	created_at: Date;
+	updated_at: Date;
+	cash_paid: string;
+	written_off: string;
+}
+
+/**
+ * Format a Postgres timestamp (JS Date) as the 'YYYY-MM-DD HH:MM:SS' UTC string
+ * SQLite stores via `datetime('now')`, so both backends emit identical values.
+ */
+function toSqliteTimestamp(d: Date): string {
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+}
+
 /**
  * Find or create a repayment category within a transaction context (SQLite path).
  * Uses the fallback lookup chain: "Loan Repayment" → "Lending Recovery" → create.
@@ -60,7 +97,7 @@ async function findOrCreateRepaymentCategory(
  * Find or create a repayment category within a Drizzle transaction context.
  */
 async function findOrCreateRepaymentCategoryDrizzle(
-	tx: any,
+	tx: DrizzleTransaction,
 	userId: number,
 	direction: 'lent' | 'borrowed'
 ): Promise<number> {
@@ -102,7 +139,7 @@ async function findOrCreateRepaymentCategoryDrizzle(
 	return created![0].id;
 }
 
-function toLendingWithPayments(row: any): LendingWithPayments {
+function toLendingWithPayments(row: LendingRowWithPayments): LendingWithPayments {
 	const cash_paid = parseFloat(String(row.cash_paid ?? '0'));
 	const written_off = parseFloat(String(row.written_off ?? '0'));
 	const resolved_total = cash_paid + written_off;
@@ -118,8 +155,8 @@ function toLendingWithPayments(row: any): LendingWithPayments {
 		status: row.status as 'active' | 'paid',
 		notes: row.notes,
 		direction: row.direction as 'lent' | 'borrowed',
-		created_at: row.created_at,
-		updated_at: row.updated_at,
+		created_at: toSqliteTimestamp(row.created_at),
+		updated_at: toSqliteTimestamp(row.updated_at),
 		cash_paid,
 		written_off,
 		resolved_total,

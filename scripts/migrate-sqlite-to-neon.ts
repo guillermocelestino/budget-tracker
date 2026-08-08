@@ -273,19 +273,10 @@ for (const t of TABLES) {
 }
 
 // ── Migration (single transaction) ──────────────────────────────────────────
-let userMap = new Map<number, number>();
-let catMap = new Map<number, number>();
-let catKeyMap = new Map<string, number>();
-let lendingMap = new Map<number, number>();
-
-const idColumn: Record<string, string> = {
-	users: 'id',
-	categories: 'id',
-	transactions: 'id',
-	lendings: 'id',
-	lending_payments: 'id',
-	recurring_transactions: 'id',
-};
+const userMap = new Map<number, number>();
+const catMap = new Map<number, number>();
+const catKeyMap = new Map<string, number>();
+const lendingMap = new Map<number, number>();
 
 async function verifyAll(): Promise<void> {
 	// Row counts match source exactly.
