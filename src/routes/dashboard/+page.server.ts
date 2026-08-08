@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
-import { queryOne, queryMany, execute } from '$lib/database/query';
-import { getMonthlySummary, getRecentTransactions } from '$lib/server/transactions';
-import type { CategoryReportItem, RecurringTransaction } from '$lib/types';
+import { queryOne, queryMany } from '$lib/database/query';
+import { getMonthlySummary, getRecentTransactions, getCategoryReport, getMonthlyTrends, deleteTransaction } from '$lib/server/transactions';
+import type { RecurringTransaction } from '$lib/types';
 import { getCurrentMonth } from '$lib/utils/format';
 import { computeNetWorth } from '$lib/server/networth';
 import { processRecurringTransactions } from '$lib/server/recurringScheduler';
@@ -13,9 +13,6 @@ export async function load({ locals }: { locals: App.Locals }) {
 	await processRecurringTransactions(userId);
 	const currentMonthStr = getCurrentMonth();
 	const currentMonth = new Date(currentMonthStr + '-01');
-	const firstDay = `${currentMonthStr}-01`;
-	const lastDayDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
-	const lastDay = `${currentMonthStr}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
 
 	const monthlySummary = await getMonthlySummary(userId, currentMonthStr);
 	const totalIncome = monthlySummary.totalIncome;
@@ -52,16 +49,7 @@ export async function load({ locals }: { locals: App.Locals }) {
 	const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0;
 
 	// Category expense data for donut chart
-	const categoryExpenses = await queryMany<CategoryReportItem>(
-		`SELECT c.id as category_id, c.name as category_name, c.color as category_color,
-				COALESCE(SUM(t.amount), 0) as total
-		 FROM transactions t
-		 JOIN categories c ON t.category_id = c.id
-		 WHERE t.user_id = $1 AND t.type = 'expense' AND t.date >= $2 AND t.date <= $3
-		 GROUP BY c.id, c.name, c.color
-		 ORDER BY total DESC`,
-		[userId, firstDay, lastDay]
-	);
+	const categoryExpenses = await getCategoryReport(userId, currentMonthStr, 'expense');
 
 	// Budget totals for Safe-to-Spend widget
 	const monthlyBudgeted = await queryOne<{ totalbudgeted: string }>(
@@ -73,15 +61,9 @@ export async function load({ locals }: { locals: App.Locals }) {
 	const totalBudgeted = parseFloat(monthlyBudgeted?.totalbudgeted ?? '0');
 
 	// Monthly trend data for sparklines (last 6 months)
-	const trendData = await queryMany<{ month: string; income: string; expense: string }>(
-		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
-				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		 FROM transactions
-		 WHERE user_id = $1 AND date >= $2
-		 GROUP BY month
-		 ORDER BY month ASC`,
-		[userId, `${currentMonth.getFullYear() - 1}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-01`]
+	const trendData = await getMonthlyTrends(
+		userId,
+		`${currentMonth.getFullYear() - 1}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-01`
 	);
 
 	// Net worth for the dashboard teaser (same snapshot as /net-worth)
@@ -151,12 +133,10 @@ export const actions = {
 			return fail(400, { error: 'Invalid transaction ID' });
 		}
 
-		const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
-		if (!existing) {
+		const deleted = await deleteTransaction(userId, id);
+		if (!deleted) {
 			return fail(404, { error: 'Transaction not found' });
 		}
-
-		await execute('DELETE FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
 
 		return { success: true };
 	},

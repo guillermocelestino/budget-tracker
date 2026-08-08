@@ -60,6 +60,10 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 	let getTransactionCountForMonth: typeof import('$lib/server/transactions').getTransactionCountForMonth;
 	let getAllTimeTransactionCount: typeof import('$lib/server/transactions').getAllTimeTransactionCount;
 	let getYTDSummary: typeof import('$lib/server/transactions').getYTDSummary;
+	let getMonthlyTrends: typeof import('$lib/server/transactions').getMonthlyTrends;
+	let getCashBalance: typeof import('$lib/server/transactions').getCashBalance;
+	let getMonthlyCashFlows: typeof import('$lib/server/transactions').getMonthlyCashFlows;
+	let getTransactionsForDuplicateCheck: typeof import('$lib/server/transactions').getTransactionsForDuplicateCheck;
 
 	beforeAll(async () => {
 		vi.doMock('$lib/database', () => ({
@@ -162,6 +166,10 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 		getTransactionCountForMonth = svc.getTransactionCountForMonth;
 		getAllTimeTransactionCount = svc.getAllTimeTransactionCount;
 		getYTDSummary = svc.getYTDSummary;
+		getMonthlyTrends = svc.getMonthlyTrends;
+		getCashBalance = svc.getCashBalance;
+		getMonthlyCashFlows = svc.getMonthlyCashFlows;
+		getTransactionsForDuplicateCheck = svc.getTransactionsForDuplicateCheck;
 	});
 
 	function createUser(username: string): number {
@@ -579,6 +587,61 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 		expect(ytd.income).toBe(100);
 		expect(ytd.expense).toBe(30);
 	});
+
+	it('handles getMonthlyTrends correctly', async () => {
+		const userA = createUser(`user_mt_${sequence++}`);
+		const catA = createCategory(userA, 'Food');
+
+		addTransaction(userA, 10, 'T1', '2026-08-01', catA, 'income');
+		addTransaction(userA, 20, 'T2', '2026-08-15', catA, 'expense');
+		addTransaction(userA, 50, 'T3', '2026-09-01', catA, 'expense');
+
+		const trends = await getMonthlyTrends(userA, '2026-08-01');
+		expect(trends).toHaveLength(2);
+		expect(trends[0].month).toBe('2026-08');
+		expect(trends[0].income).toBe(10);
+		expect(trends[0].expense).toBe(20);
+	});
+
+	it('handles getCashBalance correctly', async () => {
+		const userA = createUser(`user_cb_${sequence++}`);
+		const catA = createCategory(userA, 'Food');
+
+		addTransaction(userA, 100, 'Income T1', '2026-08-01', catA, 'income');
+		addTransaction(userA, 30, 'Expense T2', '2026-08-15', catA, 'expense');
+
+		const balance = await getCashBalance(userA);
+		expect(balance).toBe(70);
+	});
+
+	it('handles getMonthlyCashFlows correctly', async () => {
+		const userA = createUser(`user_mcf_${sequence++}`);
+		const catA = createCategory(userA, 'Food');
+
+		addTransaction(userA, 100, 'T1', '2026-08-01', catA, 'income');
+		addTransaction(userA, 30, 'T2', '2026-08-15', catA, 'expense');
+		addTransaction(userA, 50, 'T3', '2026-09-01', catA, 'income');
+
+		const flows = await getMonthlyCashFlows(userA);
+		expect(flows).toHaveLength(2);
+		expect(flows[0].month).toBe('2026-08');
+		expect(flows[0].net).toBe(70);
+		expect(flows[1].month).toBe('2026-09');
+		expect(flows[1].net).toBe(50);
+	});
+
+	it('handles getTransactionsForDuplicateCheck correctly', async () => {
+		const userA = createUser(`user_dc_${sequence++}`);
+		const catA = createCategory(userA, 'Food');
+
+		addTransaction(userA, 100, 'Walmart', '2026-08-01', catA, 'expense');
+
+		const dups = await getTransactionsForDuplicateCheck(userA);
+		expect(dups).toHaveLength(1);
+		expect(dups[0].description).toBe('Walmart');
+		expect(dups[0].amount).toBe(100);
+		expect(dups[0].category_id).toBe(catA);
+	});
 });
 
 describe('transactions service — Drizzle / Postgres path (recorded fake client)', () => {
@@ -600,6 +663,10 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 	let getTransactionCountForMonth: typeof import('$lib/server/transactions').getTransactionCountForMonth;
 	let getAllTimeTransactionCount: typeof import('$lib/server/transactions').getAllTimeTransactionCount;
 	let getYTDSummary: typeof import('$lib/server/transactions').getYTDSummary;
+	let getMonthlyTrends: typeof import('$lib/server/transactions').getMonthlyTrends;
+	let getCashBalance: typeof import('$lib/server/transactions').getCashBalance;
+	let getMonthlyCashFlows: typeof import('$lib/server/transactions').getMonthlyCashFlows;
+	let getTransactionsForDuplicateCheck: typeof import('$lib/server/transactions').getTransactionsForDuplicateCheck;
 
 	let calls: {
 		selects: number;
@@ -708,6 +775,10 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 		getTransactionCountForMonth = svc.getTransactionCountForMonth;
 		getAllTimeTransactionCount = svc.getAllTimeTransactionCount;
 		getYTDSummary = svc.getYTDSummary;
+		getMonthlyTrends = svc.getMonthlyTrends;
+		getCashBalance = svc.getCashBalance;
+		getMonthlyCashFlows = svc.getMonthlyCashFlows;
+		getTransactionsForDuplicateCheck = svc.getTransactionsForDuplicateCheck;
 	});
 
 	beforeEach(() => {
@@ -854,5 +925,45 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 		const ytd = await getYTDSummary(12, 2026, 3);
 		expect(ytd.income).toBe(500);
 		expect(ytd.expense).toBe(200);
+	});
+
+	it('selects monthly trends via Drizzle', async () => {
+		selectRows = [{ month: '2026-08', income: '100', expense: '50' }];
+
+		const trends = await getMonthlyTrends(12, '2026-08-01');
+		expect(trends).toHaveLength(1);
+		expect(trends[0].month).toBe('2026-08');
+		expect(trends[0].income).toBe(100);
+		expect(trends[0].expense).toBe(50);
+		expect(calls.selects).toBe(1);
+	});
+
+	it('selects cash balance via Drizzle', async () => {
+		selectRows = [{ income: '500', expense: '200' }];
+
+		const balance = await getCashBalance(12);
+		expect(balance).toBe(300);
+		expect(calls.selects).toBe(1);
+	});
+
+	it('selects monthly cash flows via Drizzle', async () => {
+		selectRows = [{ month: '2026-08', income: '100', expense: '40' }];
+
+		const flows = await getMonthlyCashFlows(12);
+		expect(flows).toHaveLength(1);
+		expect(flows[0].month).toBe('2026-08');
+		expect(flows[0].net).toBe(60);
+		expect(calls.selects).toBe(1);
+	});
+
+	it('selects transactions for duplicate check via Drizzle', async () => {
+		selectRows = [{ date: '2026-08-01', amount: '100', description: 'T1', category_id: 5 }];
+
+		const dups = await getTransactionsForDuplicateCheck(12);
+		expect(dups).toHaveLength(1);
+		expect(dups[0].description).toBe('T1');
+		expect(dups[0].amount).toBe(100);
+		expect(dups[0].category_id).toBe(5);
+		expect(calls.selects).toBe(1);
 	});
 });

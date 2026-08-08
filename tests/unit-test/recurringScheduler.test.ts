@@ -397,24 +397,16 @@ describe('recurringScheduler — Drizzle / Postgres path (recorded fake client)'
 		return {
 			select() {
 				calls.selects += 1;
-				return {
-					from() {
-						return {
-							where() {
-								// The where() result is thenable (resolves to rows)
-								// and also supports .orderBy() for processRecurringTransactions.
-								const chain: any = {
-									orderBy() {
-										return Promise.resolve(recurringRows);
-									}
-								};
-								chain.then = (onFulfilled: any, onRejected: any) =>
-									Promise.resolve(recurringRows).then(onFulfilled, onRejected);
-								return chain;
-							}
-						};
-					}
-				};
+				const chain: any = {};
+				const methods = ['from', 'where', 'orderBy', 'limit'];
+				for (const m of methods) {
+					chain[m] = function() {
+						return chain;
+					};
+				}
+				chain.then = (onFulfilled: any, onRejected: any) =>
+					Promise.resolve(recurringRows).then(onFulfilled, onRejected);
+				return chain;
 			},
 			insert() {
 				return {
@@ -495,7 +487,7 @@ describe('recurringScheduler — Drizzle / Postgres path (recorded fake client)'
 		const count = await processRecurring(42);
 
 		expect(count).toBe(1);
-		expect(calls.selects).toBe(1);
+		expect(calls.selects).toBe(2);
 		expect(calls.inserts).toHaveLength(1);
 		expect(calls.inserts[0]!.amount).toBe('100');
 		expect(calls.inserts[0]!.date).toBe('2026-08-01');

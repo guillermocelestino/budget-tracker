@@ -1095,3 +1095,157 @@ export async function getYTDSummary(
 		expense: parseFloat(row?.expense ?? '0')
 	};
 }
+
+/** Get monthly income and expense trends starting from a specific date string. */
+export async function getMonthlyTrends(
+	userId: number,
+	dateFrom: string
+): Promise<{ month: string; income: number; expense: number }[]> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const monthExpr = sql`TO_CHAR(${transactions.date}, 'YYYY-MM')`;
+		const rows = await db
+			.select({
+				month: monthExpr,
+				income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+				expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
+			})
+			.from(transactions)
+			.where(and(
+				eq(transactions.user_id, userId),
+				gte(transactions.date, dateFrom)
+			))
+			.groupBy(monthExpr)
+			.orderBy(asc(monthExpr));
+
+		return rows.map((r) => ({
+			month: r.month,
+			income: parseFloat(r.income),
+			expense: parseFloat(r.expense)
+		}));
+	}
+
+	// SQLite path
+	const rows = await queryMany<{ month: string; income: string; expense: string }>(
+		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
+				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+		 FROM transactions
+		 WHERE user_id = $1 AND date >= $2
+		 GROUP BY month
+		 ORDER BY month ASC`,
+		[userId, dateFrom]
+	);
+
+	return rows.map((r) => ({
+		month: r.month,
+		income: parseFloat(String(r.income)),
+		expense: parseFloat(String(r.expense))
+	}));
+}
+
+/** Calculate the user's cash position from all-time transaction net income/expense flow. */
+export async function getCashBalance(userId: number): Promise<number> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [row] = await db
+			.select({
+				income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+				expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
+			})
+			.from(transactions)
+			.where(eq(transactions.user_id, userId));
+		return parseFloat(row?.income ?? '0') - parseFloat(row?.expense ?? '0');
+	}
+
+	// SQLite path
+	const row = await queryOne<{ income: string; expense: string }>(
+		`SELECT
+			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+		 FROM transactions
+		 WHERE user_id = $1`,
+		[userId]
+	);
+	return parseFloat(row?.income ?? '0') - parseFloat(row?.expense ?? '0');
+}
+
+/** Get monthly cash flow net income/expense for all-time transactions. */
+export async function getMonthlyCashFlows(
+	userId: number
+): Promise<{ month: string; net: number }[]> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const monthExpr = sql`TO_CHAR(${transactions.date}, 'YYYY-MM')`;
+		const rows = await db
+			.select({
+				month: monthExpr,
+				income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+				expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
+			})
+			.from(transactions)
+			.where(eq(transactions.user_id, userId))
+			.groupBy(monthExpr)
+			.orderBy(asc(monthExpr));
+
+		return rows.map((r) => ({
+			month: r.month,
+			net: parseFloat(r.income) - parseFloat(r.expense)
+		}));
+	}
+
+	// SQLite path
+	const rows = await queryMany<{ month: string; income: string; expense: string }>(
+		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
+				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+		 FROM transactions
+		 WHERE user_id = $1
+		 GROUP BY month
+		 ORDER BY month ASC`,
+		[userId]
+	);
+
+	return rows.map((r) => ({
+		month: r.month,
+		net: parseFloat(r.income) - parseFloat(r.expense)
+	}));
+}
+
+/** Retrieve minimal transaction records for duplicate checking during import. */
+export async function getTransactionsForDuplicateCheck(
+	userId: number
+): Promise<{ date: string; amount: number; description: string; category_id: number }[]> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				date: transactions.date,
+				amount: transactions.amount,
+				description: transactions.description,
+				category_id: transactions.category_id
+			})
+			.from(transactions)
+			.where(eq(transactions.user_id, userId));
+
+		return rows.map((r) => ({
+			date: r.date,
+			amount: parseFloat(String(r.amount)),
+			description: r.description,
+			category_id: r.category_id
+		}));
+	}
+
+	// SQLite path
+	const rows = await queryMany<{ date: string; amount: string; description: string; category_id: number }>(
+		`SELECT date, amount, description, category_id FROM transactions WHERE user_id = $1`,
+		[userId]
+	);
+
+	return rows.map((r) => ({
+		date: r.date,
+		amount: parseFloat(String(r.amount)),
+		description: r.description,
+		category_id: r.category_id
+	}));
+}

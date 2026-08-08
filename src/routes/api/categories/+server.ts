@@ -1,6 +1,8 @@
 import { json } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
 import type { Category } from '$lib/types';
+import { getCurrentMonth } from '$lib/utils/format';
+import { getCategorySpending } from '$lib/server/transactions';
 
 export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -8,15 +10,8 @@ export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 
 	const withSpending = url.searchParams.get('with_spending') === 'true';
 	if (withSpending) {
-		const spending = await queryMany<{ category_id: number; total: number }>(
-			`SELECT category_id, SUM(amount) as total
-			 FROM transactions
-			 WHERE type = 'expense' AND user_id = $1 AND TO_CHAR(date, 'YYYY-MM') = TO_CHAR(CURRENT_DATE, 'YYYY-MM')
-			 GROUP BY category_id`,
-			[userId]
-		);
-
-		const spendingMap = new Map(spending.map(s => [s.category_id, parseFloat(String(s.total))]));
+		const spending = await getCategorySpending(userId, getCurrentMonth());
+		const spendingMap = new Map(spending.map(s => [s.category_id, s.expense]));
 		return json({
 			categories,
 			spending: Object.fromEntries(spendingMap),

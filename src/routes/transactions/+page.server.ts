@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
-import { queryOne, queryMany, execute } from '$lib/database/query';
-import { listTransactions, createTransaction, updateTransaction, deleteTransaction, deleteTransactions } from '$lib/server/transactions';
+import { queryOne, queryMany } from '$lib/database/query';
+import { listTransactions, createTransaction, updateTransaction, deleteTransaction, deleteTransactions, getTransactionsForDuplicateCheck } from '$lib/server/transactions';
 import type { Category } from '$lib/types';
 import {
 	detectDuplicates,
@@ -241,16 +241,7 @@ export const actions = {
 			return fail(400, { error: 'Validation failed: no valid rows to import', details: errors });
 		}
 
-		// Fetch existing transactions for duplicate detection
-		const existingTransactions = await queryMany<{
-			date: string;
-			amount: number;
-			description: string;
-			category_id: number;
-		}>(
-			`SELECT date, amount, description, category_id FROM transactions WHERE user_id = $1`,
-			[userId]
-		);
+		const existingTransactions = await getTransactionsForDuplicateCheck(userId);
 
 		// Detect duplicates
 		const dupIndices = await detectDuplicates(userId, validRows, existingTransactions, userCategories);
@@ -288,11 +279,13 @@ export const actions = {
 				continue;
 			}
 
-			await execute(
-				`INSERT INTO transactions (user_id, amount, description, date, category_id, type)
-				 VALUES ($1, $2, $3, $4, $5, $6)`,
-				[userId, row.amount, row.description.trim(), row.date, cat.id, row.type]
-			);
+			await createTransaction(userId, {
+				type: row.type,
+				amount: row.amount,
+				description: row.description.trim(),
+				date: row.date,
+				category_id: cat.id
+			});
 			inserted++;
 		}
 

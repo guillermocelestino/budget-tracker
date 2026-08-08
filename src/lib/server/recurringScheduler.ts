@@ -1,8 +1,9 @@
 import { queryMany, execute, queryOne } from '$lib/database/query';
 import { usePostgres } from '$lib/database';
 import { getDrizzle } from '$lib/database/drizzle';
-import { recurringTransactions, transactions } from '$lib/database/schema';
+import { recurringTransactions } from '$lib/database/schema';
 import { and, eq, lte, gte, or, isNull, asc } from 'drizzle-orm';
+import { createTransaction } from '$lib/server/transactions';
 import type { RecurringTransaction } from '$lib/types';
 import { calculateNextRun, generatePreview } from '$lib/utils/recurring';
 import { getToday } from '$lib/utils/format';
@@ -77,13 +78,12 @@ export async function processRecurringTransactions(userId: number): Promise<numb
 			if (!shouldProcess(recurring as unknown as RecurringTransaction, today)) continue;
 
 			// Create the actual transaction
-			await db.insert(transactions).values({
-				user_id: userId,
-				amount: String(recurring.amount),
+			await createTransaction(userId, {
+				type: recurring.type as 'income' | 'expense',
+				amount: parseFloat(String(recurring.amount)),
 				description: recurring.description,
 				date: recurring.next_run,
-				category_id: recurring.category_id,
-				type: recurring.type
+				category_id: recurring.category_id
 			});
 
 			// Calculate next run
@@ -139,11 +139,13 @@ export async function processRecurringTransactions(userId: number): Promise<numb
 		if (!shouldProcess(recurring, today)) continue;
 
 		// Create the actual transaction
-		await execute(
-			`INSERT INTO transactions (user_id, amount, description, date, category_id, type)
-			 VALUES ($1, $2, $3, $4, $5, $6)`,
-			[userId, recurring.amount, recurring.description, recurring.next_run, recurring.category_id, recurring.type]
-		);
+		await createTransaction(userId, {
+			type: recurring.type as 'income' | 'expense',
+			amount: parseFloat(String(recurring.amount)),
+			description: recurring.description,
+			date: recurring.next_run,
+			category_id: recurring.category_id
+		});
 
 		// Calculate next run
 		const nextRun = calculateNextRun(
@@ -197,13 +199,12 @@ export async function runRecurringNow(userId: number, recurringId: number): Prom
 		const transactionDate = recurring.next_run;
 
 		// Create the transaction
-		await db.insert(transactions).values({
-			user_id: userId,
-			amount: String(recurring.amount),
+		await createTransaction(userId, {
+			type: recurring.type as 'income' | 'expense',
+			amount: parseFloat(String(recurring.amount)),
 			description: recurring.description,
 			date: transactionDate,
-			category_id: recurring.category_id,
-			type: recurring.type
+			category_id: recurring.category_id
 		});
 
 		return { success: true };
@@ -226,11 +227,13 @@ export async function runRecurringNow(userId: number, recurringId: number): Prom
 	const transactionDate = recurring.next_run;
 
 	// Create the transaction
-	await execute(
-		`INSERT INTO transactions (user_id, amount, description, date, category_id, type)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		[userId, recurring.amount, recurring.description, transactionDate, recurring.category_id, recurring.type]
-	);
+	await createTransaction(userId, {
+		type: recurring.type as 'income' | 'expense',
+		amount: parseFloat(String(recurring.amount)),
+		description: recurring.description,
+		date: transactionDate,
+		category_id: recurring.category_id
+	});
 
 	return { success: true };
 }

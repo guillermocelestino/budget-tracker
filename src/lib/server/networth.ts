@@ -1,9 +1,10 @@
 import { queryOne, queryMany } from '$lib/database/query';
 import { usePostgres } from '$lib/database';
 import { getDrizzle } from '$lib/database/drizzle';
-import { transactions, lendings } from '$lib/database/schema';
+import { lendings } from '$lib/database/schema';
 import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import type { NetWorthSnapshot, NetWorthLeg, CashTrendPoint, LegDelta } from '$lib/types';
+import { getCashBalance, getMonthlyCashFlows } from '$lib/server/transactions';
 
 /**
  * Get the user's implied cash position from all-time transaction flow.
@@ -17,27 +18,7 @@ import type { NetWorthSnapshot, NetWorthLeg, CashTrendPoint, LegDelta } from '$l
  * same underlying data.
  */
 async function getCashPosition(userId: number): Promise<number> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const [row] = await db
-			.select({
-				income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
-				expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
-			})
-			.from(transactions)
-			.where(eq(transactions.user_id, userId));
-		return parseFloat(row?.income ?? '0') - parseFloat(row?.expense ?? '0');
-	}
-
-	const row = await queryOne<{ income: string; expense: string }>(
-		`SELECT
-			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		 FROM transactions
-		 WHERE user_id = $1`,
-		[userId]
-	);
-	return parseFloat(row?.income ?? '0') - parseFloat(row?.expense ?? '0');
+	return getCashBalance(userId);
 }
 
 /**
@@ -103,40 +84,7 @@ async function getBorrowedPosition(userId: number): Promise<number> {
  * NOT scoped to user_id — called from computeNetWorth which already scopes.
  */
 async function getMonthlyCashFlow(userId: number): Promise<{ month: string; net: number }[]> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const monthExpr = sql`to_char(${transactions.date}, 'YYYY-MM')`;
-		const rows = await db
-			.select({
-				month: sql<string>`to_char(${transactions.date}, 'YYYY-MM')`,
-				income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
-				expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
-			})
-			.from(transactions)
-			.where(eq(transactions.user_id, userId))
-			.groupBy(monthExpr)
-			.orderBy(monthExpr);
-		return rows.map(r => ({
-			month: r.month,
-			net: parseFloat(r.income) - parseFloat(r.expense),
-		}));
-	}
-
-	// Use TO_CHAR for PG, translateQuery handles SQLite strftime
-	const rows = await queryMany<{ month: string; income: string; expense: string }>(
-		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
-				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		 FROM transactions
-		 WHERE user_id = $1
-		 GROUP BY month
-		 ORDER BY month ASC`,
-		[userId]
-	);
-	return rows.map(r => ({
-		month: r.month,
-		net: parseFloat(r.income) - parseFloat(r.expense),
-	}));
+	return getMonthlyCashFlows(userId);
 }
 
 /**
