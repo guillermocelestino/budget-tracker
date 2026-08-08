@@ -286,50 +286,6 @@ export async function getTransaction(userId: number, id: number): Promise<Transa
 }
 
 /**
- * Get all transactions for a user ordered by date ASC, id ASC for running balance calculation.
- * Returns minimal fields needed for balance computation.
- */
-export async function getAllForBalance(
-	userId: number
-): Promise<{ amount: number; type: TransactionType; date: string; id: number }[]> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const rows = await db
-			.select({
-				amount: transactions.amount,
-				type: transactions.type,
-				date: transactions.date,
-				id: transactions.id,
-			})
-			.from(transactions)
-			.where(eq(transactions.user_id, userId))
-			.orderBy(asc(transactions.date), asc(transactions.id));
-
-		return rows.map((r) => ({
-			amount: parseFloat(String(r.amount)),
-			type: r.type as TransactionType,
-			date: r.date,
-			id: r.id,
-		}));
-	}
-
-	const rows = await queryMany<{ amount: string; type: TransactionType; date: string; id: number }>(
-		`SELECT amount, type, date, id
-		 FROM transactions
-		 WHERE user_id = $1
-		 ORDER BY date ASC, id ASC`,
-		[userId]
-	);
-
-	return rows.map((r) => ({
-		amount: parseFloat(String(r.amount)),
-		type: r.type,
-		date: r.date,
-		id: r.id,
-	}));
-}
-
-/**
  * Validate transaction input fields.
  * Returns error object if validation fails, undefined if valid.
  */

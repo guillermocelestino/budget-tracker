@@ -44,7 +44,6 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 
 	let listTransactions: typeof import('$lib/server/transactions').listTransactions;
 	let getTransaction: typeof import('$lib/server/transactions').getTransaction;
-	let getAllForBalance: typeof import('$lib/server/transactions').getAllForBalance;
 	let createTransaction: typeof import('$lib/server/transactions').createTransaction;
 	let updateTransaction: typeof import('$lib/server/transactions').updateTransaction;
 	let deleteTransaction: typeof import('$lib/server/transactions').deleteTransaction;
@@ -150,7 +149,6 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 		const svc = await import('$lib/server/transactions');
 		listTransactions = svc.listTransactions;
 		getTransaction = svc.getTransaction;
-		getAllForBalance = svc.getAllForBalance;
 		createTransaction = svc.createTransaction;
 		updateTransaction = svc.updateTransaction;
 		deleteTransaction = svc.deleteTransaction;
@@ -290,34 +288,6 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 		// Nonexistent ID: null
 		const tNone = await getTransaction(userA, 99999);
 		expect(tNone).toBeNull();
-	});
-
-	it('handles getAllForBalance with ascending date order and user scoping', async () => {
-		const userA = createUser(`user_bal_${sequence++}`);
-		const userB = createUser(`user_bal_${sequence++}`);
-		const catA = createCategory(userA, 'Cat A');
-		const catB = createCategory(userB, 'Cat B');
-
-		const id1 = addTransaction(userA, 100, 'Tx 1', '2026-08-03', catA, 'expense');
-		const id2 = addTransaction(userA, 200, 'Tx 2', '2026-08-01', catA, 'expense');
-		const id3 = addTransaction(userA, 50, 'Tx 3', '2026-08-02', catA, 'expense');
-		// Add tie-breaker on date
-		const id4 = addTransaction(userA, 300, 'Tx 4', '2026-08-02', catA, 'income');
-
-		addTransaction(userB, 999, 'Tx B', '2026-08-01', catB, 'expense');
-
-		const res = await getAllForBalance(userA);
-		expect(res).toHaveLength(4);
-		// Sorted by date ASC: Tx 2 (08-01) -> Tx 3 (08-02) -> Tx 4 (08-02, tie-breaker id ASC) -> Tx 1 (08-03)
-		expect(res[0].id).toBe(id2);
-		expect(res[1].id).toBe(id3);
-		expect(res[2].id).toBe(id4);
-		expect(res[3].id).toBe(id1);
-
-		// Assert minimal fields are mapped
-		expect(res[0].amount).toBe(200);
-		expect(res[0].type).toBe('expense');
-		expect(res[0].date).toBe('2026-08-01');
 	});
 
 	it('enforces validation and category ownership on createTransaction', async () => {
@@ -647,7 +617,6 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 describe('transactions service — Drizzle / Postgres path (recorded fake client)', () => {
 	let listTransactions: typeof import('$lib/server/transactions').listTransactions;
 	let getTransaction: typeof import('$lib/server/transactions').getTransaction;
-	let getAllForBalance: typeof import('$lib/server/transactions').getAllForBalance;
 	let createTransaction: typeof import('$lib/server/transactions').createTransaction;
 	let updateTransaction: typeof import('$lib/server/transactions').updateTransaction;
 	let deleteTransaction: typeof import('$lib/server/transactions').deleteTransaction;
@@ -759,7 +728,6 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 		const svc = await import('$lib/server/transactions');
 		listTransactions = svc.listTransactions;
 		getTransaction = svc.getTransaction;
-		getAllForBalance = svc.getAllForBalance;
 		createTransaction = svc.createTransaction;
 		updateTransaction = svc.updateTransaction;
 		deleteTransaction = svc.deleteTransaction;
