@@ -1,12 +1,12 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { queryMany } from '$lib/database/query';
-import type { Category, TransactionType, RecurringFrequency } from '$lib/types';
+import type { TransactionType, RecurringFrequency } from '$lib/types';
 import { createRecurringTransaction } from '$lib/server/recurringService';
 import type { RecurringInput } from '$lib/server/recurringService';
+import { getCategories } from '$lib/server/categories';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;
-	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
+	const categories = await getCategories(userId);
 	return { categories };
 }
 

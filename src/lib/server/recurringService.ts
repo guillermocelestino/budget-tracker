@@ -2,7 +2,7 @@ import { queryOne, queryMany, execute } from '$lib/database/query';
 import { usePostgres } from '$lib/database';
 import { getDrizzle } from '$lib/database/drizzle';
 import { categories, recurringTransactions } from '$lib/database/schema';
-import { and, eq, asc, gte } from 'drizzle-orm';
+import { and, eq, asc, gte, or, ilike, sql } from 'drizzle-orm';
 import type { RecurringTransaction, RecurringFrequency, TransactionType } from '$lib/types';
 import { calculateNextRun } from '$lib/utils/recurring';
 
@@ -326,6 +326,298 @@ export async function updateRecurringTransaction(
 	await updateRecurring(id, userId, input, next_run);
 
 	return { success: true };
+}
+
+/** Raw row shape for recurring transaction queries with category join. */
+interface RecurringRowWithCategory {
+	id: number;
+	user_id: number;
+	type: string;
+	amount: string | number;
+	description: string;
+	category_id: number;
+	frequency: string;
+	interval: number;
+	day_of_week: number | null;
+	day_of_month: number | null;
+	month_of_year: number | null;
+	start_date: string;
+	end_date: string | null;
+	next_run: string;
+	last_generated_at: Date | string | null;
+	active: boolean;
+	created_at: Date | string;
+	updated_at: Date | string;
+	category_name: string | null;
+	category_color: string | null;
+}
+
+/** Map a raw recurring row (with category join) to the RecurringTransaction type. */
+function mapRecurringRow(row: RecurringRowWithCategory): RecurringTransaction {
+	const toISO = (val: Date | string | null): string | null => {
+		if (val === null || val === undefined) return null;
+		return val instanceof Date ? val.toISOString() : String(val);
+	};
+	const toISORequired = (val: Date | string): string =>
+		val instanceof Date ? val.toISOString() : String(val);
+
+	return {
+		id: row.id,
+		user_id: row.user_id,
+		type: row.type as TransactionType,
+		amount: parseFloat(String(row.amount)),
+		description: row.description,
+		category_id: row.category_id,
+		frequency: row.frequency as RecurringFrequency,
+		interval: row.interval,
+		day_of_week: row.day_of_week,
+		day_of_month: row.day_of_month,
+		month_of_year: row.month_of_year,
+		start_date: row.start_date,
+		end_date: row.end_date,
+		next_run: row.next_run,
+		last_generated_at: toISO(row.last_generated_at),
+		active: row.active,
+		created_at: toISORequired(row.created_at),
+		updated_at: toISORequired(row.updated_at),
+		category_name: row.category_name ?? undefined,
+		category_color: row.category_color ?? undefined,
+	};
+}
+
+/** Filters for listing recurring transactions. */
+export interface RecurringFilters {
+	search?: string;
+	type?: 'income' | 'expense';
+	frequency?: 'daily' | 'weekly' | 'monthly' | 'yearly';
+	status?: 'active' | 'paused';
+	category_id?: number;
+}
+
+/**
+ * List recurring transactions for a user with optional filters and pagination.
+ * Neon/Postgres → Drizzle; SQLite → the raw query layer (unchanged).
+ */
+export async function listRecurringTransactions(
+	userId: number,
+	filters: RecurringFilters = {},
+	page = 1,
+	limit = 20
+): Promise<{ items: RecurringTransaction[]; total: number; page: number; totalPages: number }> {
+	const safePage = Math.max(1, page);
+	const safeLimit = Math.min(100, Math.max(1, limit));
+
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const conditions = [eq(recurringTransactions.user_id, userId)];
+
+		if (filters.type && (filters.type === 'income' || filters.type === 'expense')) {
+			conditions.push(eq(recurringTransactions.type, filters.type));
+		}
+		if (filters.frequency && ['daily', 'weekly', 'monthly', 'yearly'].includes(filters.frequency)) {
+			conditions.push(eq(recurringTransactions.frequency, filters.frequency));
+		}
+		if (filters.status === 'active') {
+			conditions.push(eq(recurringTransactions.active, true));
+		} else if (filters.status === 'paused') {
+			conditions.push(eq(recurringTransactions.active, false));
+		}
+		if (filters.category_id) {
+			conditions.push(eq(recurringTransactions.category_id, filters.category_id));
+		}
+		if (filters.search && filters.search.trim()) {
+			const like = `%${filters.search.trim()}%`;
+			conditions.push(
+				or(
+					ilike(recurringTransactions.description, like),
+					ilike(categories.name, like)
+				)!
+			);
+		}
+
+		const where = and(...conditions);
+
+		const [{ count }] = await db
+			.select({ count: sql<number>`count(*)` })
+			.from(recurringTransactions)
+			.leftJoin(categories, eq(recurringTransactions.category_id, categories.id))
+			.where(where);
+
+		const total = Number(count);
+		const totalPages = Math.ceil(total / safeLimit);
+		const safePageClamped = Math.max(1, Math.min(safePage, totalPages || 1));
+		const offsetClamped = (safePageClamped - 1) * safeLimit;
+
+		const rows = await db
+			.select({
+				id: recurringTransactions.id,
+				user_id: recurringTransactions.user_id,
+				type: recurringTransactions.type,
+				amount: recurringTransactions.amount,
+				description: recurringTransactions.description,
+				category_id: recurringTransactions.category_id,
+				frequency: recurringTransactions.frequency,
+				interval: recurringTransactions.interval,
+				day_of_week: recurringTransactions.day_of_week,
+				day_of_month: recurringTransactions.day_of_month,
+				month_of_year: recurringTransactions.month_of_year,
+				start_date: recurringTransactions.start_date,
+				end_date: recurringTransactions.end_date,
+				next_run: recurringTransactions.next_run,
+				last_generated_at: recurringTransactions.last_generated_at,
+				active: recurringTransactions.active,
+				created_at: recurringTransactions.created_at,
+				updated_at: recurringTransactions.updated_at,
+				category_name: categories.name,
+				category_color: categories.color,
+			})
+			.from(recurringTransactions)
+			.leftJoin(categories, eq(recurringTransactions.category_id, categories.id))
+			.where(where)
+			.orderBy(asc(recurringTransactions.next_run), asc(recurringTransactions.id))
+			.limit(safeLimit)
+			.offset(offsetClamped);
+
+		return {
+			items: rows.map((r) => mapRecurringRow(r as unknown as RecurringRowWithCategory)),
+			total,
+			page: safePageClamped,
+			totalPages,
+		};
+	}
+
+	// SQLite path
+	const conditions: string[] = ['rt.user_id = $1'];
+	const params: (string | number)[] = [userId];
+
+	if (filters.type && (filters.type === 'income' || filters.type === 'expense')) {
+		conditions.push('rt.type = $' + (params.length + 1));
+		params.push(filters.type);
+	}
+	if (filters.frequency && ['daily', 'weekly', 'monthly', 'yearly'].includes(filters.frequency)) {
+		conditions.push('rt.frequency = $' + (params.length + 1));
+		params.push(filters.frequency);
+	}
+	if (filters.status === 'active') {
+		conditions.push('rt.active = true');
+	} else if (filters.status === 'paused') {
+		conditions.push('rt.active = false');
+	}
+	if (filters.category_id) {
+		conditions.push('rt.category_id = $' + (params.length + 1));
+		params.push(filters.category_id);
+	}
+	if (filters.search && filters.search.trim()) {
+		const like = `%${filters.search.trim()}%`;
+		conditions.push(`(rt.description ILIKE $${params.length + 1} OR c.name ILIKE $${params.length + 2})`);
+		params.push(like, like);
+	}
+
+	const where = 'WHERE ' + conditions.join(' AND ');
+
+	const countRow = await queryOne<{ total: number }>(
+		`SELECT COUNT(*)::int as total
+		 FROM recurring_transactions rt
+		 LEFT JOIN categories c ON rt.category_id = c.id
+		 ${where}`,
+		params
+	);
+
+	const total = countRow?.total ?? 0;
+	const totalPages = Math.ceil(total / safeLimit);
+	const safePageClamped = Math.max(1, Math.min(safePage, totalPages || 1));
+	const offsetClamped = (safePageClamped - 1) * safeLimit;
+
+	const rows = await queryMany<RecurringRowWithCategory>(
+		`SELECT rt.*, c.name as category_name, c.color as category_color
+		 FROM recurring_transactions rt
+		 LEFT JOIN categories c ON rt.category_id = c.id
+		 ${where}
+		 ORDER BY rt.next_run ASC, rt.id ASC
+		 LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+		[...params, safeLimit, offsetClamped]
+	);
+
+	return {
+		items: rows.map(mapRecurringRow),
+		total,
+		page: safePageClamped,
+		totalPages,
+	};
+}
+
+/**
+ * Get the count of active recurring transactions for a user.
+ * Neon/Postgres → Drizzle; SQLite → the raw query layer (unchanged).
+ */
+export async function getActiveRecurringCount(userId: number): Promise<number> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [{ count }] = await db
+			.select({ count: sql<number>`count(*)` })
+			.from(recurringTransactions)
+			.where(and(eq(recurringTransactions.user_id, userId), eq(recurringTransactions.active, true)));
+		return Number(count);
+	}
+
+	const row = await queryOne<{ total: number }>(
+		`SELECT COUNT(*)::int as total FROM recurring_transactions WHERE user_id = $1 AND active = true`,
+		[userId]
+	);
+	return row?.total ?? 0;
+}
+
+/**
+ * Get a single recurring transaction by ID with category join, verifying ownership.
+ * Returns null if not found or not owned by the user.
+ * Neon/Postgres → Drizzle; SQLite → the raw query layer (unchanged).
+ */
+export async function getRecurringById(
+	userId: number,
+	id: number
+): Promise<RecurringTransaction | null> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				id: recurringTransactions.id,
+				user_id: recurringTransactions.user_id,
+				type: recurringTransactions.type,
+				amount: recurringTransactions.amount,
+				description: recurringTransactions.description,
+				category_id: recurringTransactions.category_id,
+				frequency: recurringTransactions.frequency,
+				interval: recurringTransactions.interval,
+				day_of_week: recurringTransactions.day_of_week,
+				day_of_month: recurringTransactions.day_of_month,
+				month_of_year: recurringTransactions.month_of_year,
+				start_date: recurringTransactions.start_date,
+				end_date: recurringTransactions.end_date,
+				next_run: recurringTransactions.next_run,
+				last_generated_at: recurringTransactions.last_generated_at,
+				active: recurringTransactions.active,
+				created_at: recurringTransactions.created_at,
+				updated_at: recurringTransactions.updated_at,
+				category_name: categories.name,
+				category_color: categories.color,
+			})
+			.from(recurringTransactions)
+			.leftJoin(categories, eq(recurringTransactions.category_id, categories.id))
+			.where(and(eq(recurringTransactions.user_id, userId), eq(recurringTransactions.id, id)))
+			.limit(1);
+
+		return rows.length > 0 ? mapRecurringRow(rows[0] as unknown as RecurringRowWithCategory) : null;
+	}
+
+	const row = await queryOne<RecurringRowWithCategory>(
+		`SELECT rt.*, c.name as category_name, c.color as category_color
+		 FROM recurring_transactions rt
+		 LEFT JOIN categories c ON rt.category_id = c.id
+		 WHERE rt.id = $1 AND rt.user_id = $2`,
+		[id, userId]
+	);
+
+	return row ? mapRecurringRow(row) : null;
 }
 
 /** Raw row shape for the upcoming-recurring (dashboard teaser) query. */

@@ -1,26 +1,20 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { queryMany, queryOne } from '$lib/database/query';
-import type { Category, RecurringTransaction, TransactionType, RecurringFrequency } from '$lib/types';
-import { updateRecurringTransaction } from '$lib/server/recurringService';
+import type { TransactionType, RecurringFrequency } from '$lib/types';
+import { updateRecurringTransaction, getRecurringById } from '$lib/server/recurringService';
 import type { RecurringInput } from '$lib/server/recurringService';
+import { getCategories } from '$lib/server/categories';
 
 export async function load({ params, locals }: { params: { id: string }; locals: App.Locals }) {
 	const userId = locals.user!.userId;
 	const id = parseInt(params.id, 10);
 
-	const recurring = await queryOne<RecurringTransaction>(
-		`SELECT rt.*, c.name as category_name, c.color as category_color
-		 FROM recurring_transactions rt
-		 LEFT JOIN categories c ON rt.category_id = c.id
-		 WHERE rt.id = $1 AND rt.user_id = $2`,
-		[id, userId]
-	);
+	const recurring = await getRecurringById(userId, id);
 
 	if (!recurring) {
 		return fail(404, { error: 'Recurring transaction not found' });
 	}
 
-	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
+	const categories = await getCategories(userId);
 
 	return { recurring, categories };
 }
