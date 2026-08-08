@@ -1,10 +1,11 @@
 import { fail } from '@sveltejs/kit';
-import { queryOne, queryMany } from '$lib/database/query';
 import { getMonthlySummary, getRecentTransactions, getCategoryReport, getMonthlyTrends, deleteTransaction } from '$lib/server/transactions';
-import type { RecurringTransaction } from '$lib/types';
 import { getCurrentMonth } from '$lib/utils/format';
 import { computeNetWorth } from '$lib/server/networth';
 import { processRecurringTransactions } from '$lib/server/recurringScheduler';
+import { getLendingTotals } from '$lib/server/lendingPayments';
+import { getTotalBudgeted } from '$lib/server/categories';
+import { getUpcomingRecurring } from '$lib/server/recurringService';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -20,31 +21,14 @@ export async function load({ locals }: { locals: App.Locals }) {
 
 	const recentTransactions = await getRecentTransactions(userId, 5);
 
-	const lendingSummary = await queryOne<{ totalLent: string; totalRecovered: string }>(
-			`SELECT
-				COALESCE(SUM(l.amount), 0) as "totalLent",
-				COALESCE(SUM(CASE WHEN p.payment_type = 'payment' THEN p.amount ELSE 0 END), 0) as "totalRecovered"
-			 FROM lendings l
-			 LEFT JOIN lending_payments p ON p.lending_id = l.id
-			 WHERE l.user_id = $1 AND l.direction = 'lent'`,
-			[userId]
-		);
-
-	const totalLent = parseFloat(lendingSummary?.totalLent ?? '0');
-	const totalRecovered = parseFloat(lendingSummary?.totalRecovered ?? '0');
+	const lentTotals = await getLendingTotals(userId, 'lent');
+	const totalLent = lentTotals.total;
+	const totalRecovered = lentTotals.cashPaid;
 
 	// Borrowed stats for mobile rail
-	const borrowedSummary = await queryOne<{ totalBorrowed: string; totalRepaid: string }>(
-		`SELECT
-			COALESCE(SUM(l.amount), 0) as "totalBorrowed",
-			COALESCE(SUM(CASE WHEN p.payment_type = 'payment' THEN p.amount ELSE 0 END), 0) as "totalRepaid"
-		 FROM lendings l
-		 LEFT JOIN lending_payments p ON p.lending_id = l.id
-		 WHERE l.user_id = $1 AND l.direction = 'borrowed'`,
-		[userId]
-	);
-	const totalBorrowed = parseFloat(borrowedSummary?.totalBorrowed ?? '0');
-	const totalRepaid = parseFloat(borrowedSummary?.totalRepaid ?? '0');
+	const borrowedTotals = await getLendingTotals(userId, 'borrowed');
+	const totalBorrowed = borrowedTotals.total;
+	const totalRepaid = borrowedTotals.cashPaid;
 
 	const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0;
 
@@ -52,13 +36,7 @@ export async function load({ locals }: { locals: App.Locals }) {
 	const categoryExpenses = await getCategoryReport(userId, currentMonthStr, 'expense');
 
 	// Budget totals for Safe-to-Spend widget
-	const monthlyBudgeted = await queryOne<{ totalbudgeted: string }>(
-		`SELECT COALESCE(SUM(budget_limit), 0) as totalbudgeted
-		 FROM categories
-		 WHERE user_id = $1 AND type = 'expense'`,
-		[userId]
-	);
-	const totalBudgeted = parseFloat(monthlyBudgeted?.totalbudgeted ?? '0');
+	const totalBudgeted = await getTotalBudgeted(userId);
 
 	// Monthly trend data for sparklines (last 6 months)
 	const trendData = await getMonthlyTrends(
@@ -70,18 +48,7 @@ export async function load({ locals }: { locals: App.Locals }) {
 	const netWorth = await computeNetWorth(userId);
 
 	// Upcoming recurring transactions (next 3)
-	const today = new Date().toISOString().split('T')[0];
-	const upcomingRecurring = await queryMany<RecurringTransaction>(
-		`SELECT rt.*, c.name as category_name, c.color as category_color
-		 FROM recurring_transactions rt
-		 LEFT JOIN categories c ON rt.category_id = c.id
-		 WHERE rt.user_id = $1
-		 AND rt.active = true
-		 AND rt.next_run >= $2
-		 ORDER BY rt.next_run ASC
-		 LIMIT 3`,
-		[userId, today]
-	);
+	const upcomingRecurring = await getUpcomingRecurring(userId, 3);
 
 	return {
 		summary: {

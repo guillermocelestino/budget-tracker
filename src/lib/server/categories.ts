@@ -238,6 +238,28 @@ export async function deleteCategory(userId: number, id: number): Promise<boolea
 	return true;
 }
 
+/** Get the total budgeted amount for a user's expense categories. */
+export async function getTotalBudgeted(userId: number): Promise<number> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [row] = await db
+			.select({
+				total: sql<string>`COALESCE(SUM(${categories.budget_limit}), 0)`
+			})
+			.from(categories)
+			.where(and(eq(categories.user_id, userId), eq(categories.type, 'expense')));
+		return parseFloat(row?.total ?? '0');
+	}
+
+	const row = await queryOne<{ total: string }>(
+		`SELECT COALESCE(SUM(budget_limit), 0) as total
+		 FROM categories
+		 WHERE user_id = $1 AND type = 'expense'`,
+		[userId]
+	);
+	return parseFloat(row?.total ?? '0');
+}
+
 /** Get recurring transaction counts per category for a user. */
 export async function getRecurringCountsByCategory(userId: number): Promise<Record<number, number>> {
 	if (usePostgres) {

@@ -1,8 +1,8 @@
-import { queryOne, execute } from '$lib/database/query';
+import { queryOne, queryMany, execute } from '$lib/database/query';
 import { usePostgres } from '$lib/database';
 import { getDrizzle } from '$lib/database/drizzle';
 import { categories, recurringTransactions } from '$lib/database/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, asc, gte } from 'drizzle-orm';
 import type { RecurringTransaction, RecurringFrequency, TransactionType } from '$lib/types';
 import { calculateNextRun } from '$lib/utils/recurring';
 
@@ -326,4 +326,125 @@ export async function updateRecurringTransaction(
 	await updateRecurring(id, userId, input, next_run);
 
 	return { success: true };
+}
+
+/** Raw row shape for the upcoming-recurring (dashboard teaser) query. */
+interface UpcomingRecurringRow {
+	id: number;
+	user_id: number;
+	type: string;
+	amount: string | number;
+	description: string;
+	category_id: number;
+	frequency: string;
+	interval: number;
+	day_of_week: number | null;
+	day_of_month: number | null;
+	month_of_year: number | null;
+	start_date: string;
+	end_date: string | null;
+	next_run: string;
+	last_generated_at: Date | string | null;
+	active: boolean;
+	created_at: Date | string;
+	updated_at: Date | string;
+	category_name: string | null;
+	category_color: string | null;
+}
+
+/** Map a raw upcoming-recurring row to the RecurringTransaction shape the dashboard expects. */
+function mapUpcomingRow(row: UpcomingRecurringRow): RecurringTransaction {
+	const toISO = (val: Date | string | null): string | null => {
+		if (val === null || val === undefined) return null;
+		return val instanceof Date ? val.toISOString() : String(val);
+	};
+	const toISORequired = (val: Date | string): string =>
+		val instanceof Date ? val.toISOString() : String(val);
+
+	return {
+		id: row.id,
+		user_id: row.user_id,
+		type: row.type as TransactionType,
+		amount: parseFloat(String(row.amount)),
+		description: row.description,
+		category_id: row.category_id,
+		frequency: row.frequency as RecurringFrequency,
+		interval: row.interval,
+		day_of_week: row.day_of_week,
+		day_of_month: row.day_of_month,
+		month_of_year: row.month_of_year,
+		start_date: row.start_date,
+		end_date: row.end_date,
+		next_run: row.next_run,
+		last_generated_at: toISO(row.last_generated_at),
+		active: row.active,
+		created_at: toISORequired(row.created_at),
+		updated_at: toISORequired(row.updated_at),
+		category_name: row.category_name ?? undefined,
+		category_color: row.category_color ?? undefined,
+	};
+}
+
+/**
+ * Get the next `limit` active recurring transactions for a user, ordered by
+ * next_run ascending, with category join. Used by the dashboard teaser.
+ * Neon/Postgres → Drizzle; SQLite → the raw query layer (unchanged).
+ */
+export async function getUpcomingRecurring(
+	userId: number,
+	limit: number
+): Promise<RecurringTransaction[]> {
+	const today = new Date().toISOString().split('T')[0];
+
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				id: recurringTransactions.id,
+				user_id: recurringTransactions.user_id,
+				type: recurringTransactions.type,
+				amount: recurringTransactions.amount,
+				description: recurringTransactions.description,
+				category_id: recurringTransactions.category_id,
+				frequency: recurringTransactions.frequency,
+				interval: recurringTransactions.interval,
+				day_of_week: recurringTransactions.day_of_week,
+				day_of_month: recurringTransactions.day_of_month,
+				month_of_year: recurringTransactions.month_of_year,
+				start_date: recurringTransactions.start_date,
+				end_date: recurringTransactions.end_date,
+				next_run: recurringTransactions.next_run,
+				last_generated_at: recurringTransactions.last_generated_at,
+				active: recurringTransactions.active,
+				created_at: recurringTransactions.created_at,
+				updated_at: recurringTransactions.updated_at,
+				category_name: categories.name,
+				category_color: categories.color,
+			})
+			.from(recurringTransactions)
+			.leftJoin(categories, eq(recurringTransactions.category_id, categories.id))
+			.where(and(
+				eq(recurringTransactions.user_id, userId),
+				eq(recurringTransactions.active, true),
+				gte(recurringTransactions.next_run, today)
+			))
+			.orderBy(asc(recurringTransactions.next_run))
+			.limit(limit);
+
+		return rows.map((r) => mapUpcomingRow(r as unknown as UpcomingRecurringRow));
+	}
+
+	const rows = await queryMany<UpcomingRecurringRow>(
+		`SELECT rt.*, c.name as category_name, c.color as category_color
+		 FROM recurring_transactions rt
+		 LEFT JOIN categories c ON rt.category_id = c.id
+		 WHERE rt.user_id = $1
+		 AND rt.active = true
+		 AND rt.next_run >= $2
+		 ORDER BY rt.next_run ASC
+		 LIMIT $3`,
+		[userId, today, limit]
+	);
+
+	return rows.map(mapUpcomingRow);
 }
