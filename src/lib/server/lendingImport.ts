@@ -1,5 +1,9 @@
 import { fail } from '@sveltejs/kit';
 import { queryMany, queryOne, execute } from '$lib/database/query';
+import { usePostgres } from '$lib/database';
+import { getDrizzle } from '$lib/database/drizzle';
+import { lendings, lendingPayments } from '$lib/database/schema';
+import { eq } from 'drizzle-orm';
 import { normName, type ImportMappingConfig, autoMap } from '$lib/utils/importValidation';
 import {
 	detectLendingDuplicates,
@@ -70,10 +74,28 @@ export async function importLendingsForUser(
 	}
 
 	// Existing lendings for dedup + existing people
-	const existingLendings = await queryMany<{ borrower_name: string; date_lent: string; amount: number; direction: string }>(
-		'SELECT borrower_name, date_lent, amount, direction FROM lendings WHERE user_id = $1',
-		[userId]
-	);
+	let existingLendings: { borrower_name: string; date_lent: string; amount: number; direction: string }[];
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				borrower_name: lendings.borrower_name,
+				date_lent: lendings.date_lent,
+				amount: lendings.amount,
+				direction: lendings.direction
+			})
+			.from(lendings)
+			.where(eq(lendings.user_id, userId));
+		existingLendings = rows.map(r => ({
+			...r,
+			amount: parseFloat(r.amount)
+		}));
+	} else {
+		existingLendings = await queryMany<{ borrower_name: string; date_lent: string; amount: number; direction: string }>(
+			'SELECT borrower_name, date_lent, amount, direction FROM lendings WHERE user_id = $1',
+			[userId]
+		);
+	}
 	const existingPeople = Array.from(new Set(existingLendings.map(l => l.borrower_name)));
 
 	// Dedup — key (user_id, person, date_lent, amount, direction)
@@ -105,25 +127,60 @@ export async function importLendingsForUser(
 	// computed from payment history. No transaction is created for imported payments.
 	let inserted = 0;
 	for (const row of rowsToInsert) {
-		await execute(
-			`INSERT INTO lendings (user_id, borrower_name, amount, interest_rate, date_lent, due_date, notes, direction, status)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-			[userId, row.person_name, row.amount, row.interest_rate, row.date_lent, row.due_date || null, row.notes, direction, row.status]
-		);
+		let newLendingId: number;
+		if (usePostgres) {
+			const db = await getDrizzle();
+			const [newLending] = await db
+				.insert(lendings)
+				.values({
+					user_id: userId,
+					borrower_name: row.person_name,
+					amount: String(row.amount),
+					interest_rate: String(row.interest_rate),
+					date_lent: row.date_lent,
+					due_date: row.due_date || null,
+					notes: row.notes,
+					direction: direction,
+					status: row.status
+				})
+				.returning({ id: lendings.id });
+			newLendingId = newLending.id;
+		} else {
+			await execute(
+				`INSERT INTO lendings (user_id, borrower_name, amount, interest_rate, date_lent, due_date, notes, direction, status)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+				[userId, row.person_name, row.amount, row.interest_rate, row.date_lent, row.due_date || null, row.notes, direction, row.status]
+			);
+
+			// If recovered_amount > 0, create a historical payment row
+			if (row.recovered_amount > 0) {
+				const newLending = await queryOne<{ id: number }>(
+					'SELECT id FROM lendings WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
+					[userId]
+				);
+				if (newLending) {
+					await execute(
+						`INSERT INTO lending_payments (lending_id, user_id, amount, payment_date, notes, payment_type)
+						 VALUES ($1, $2, $3, $4, $5, 'payment')`,
+						[newLending.id, userId, row.recovered_amount, row.date_lent, 'Imported']
+					);
+				}
+			}
+			inserted++;
+			continue;
+		}
 
 		// If recovered_amount > 0, create a historical payment row
 		if (row.recovered_amount > 0) {
-			const newLending = await queryOne<{ id: number }>(
-				'SELECT id FROM lendings WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
-				[userId]
-			);
-			if (newLending) {
-				await execute(
-					`INSERT INTO lending_payments (lending_id, user_id, amount, payment_date, notes, payment_type)
-					 VALUES ($1, $2, $3, $4, $5, 'payment')`,
-					[newLending.id, userId, row.recovered_amount, row.date_lent, 'Imported']
-				);
-			}
+			const db = await getDrizzle();
+			await db.insert(lendingPayments).values({
+				lending_id: newLendingId,
+				user_id: userId,
+				amount: String(row.recovered_amount),
+				payment_date: row.date_lent,
+				notes: 'Imported',
+				payment_type: 'payment'
+			});
 		}
 
 		inserted++;

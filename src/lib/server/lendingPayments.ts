@@ -1,8 +1,17 @@
 import { queryOne, queryMany, execute, withTransaction } from '$lib/database/query';
+import { usePostgres } from '$lib/database';
+import { getDrizzle } from '$lib/database/drizzle';
+import {
+	categories,
+	lendings,
+	lendingPayments,
+	transactions
+} from '$lib/database/schema';
+import { and, eq, sql, desc, isNotNull } from 'drizzle-orm';
 import type { Lending, LendingPayment, LendingWithPayments, PaymentType } from '$lib/types';
 
 /**
- * Find or create a repayment category within a transaction context.
+ * Find or create a repayment category within a transaction context (SQLite path).
  * Uses the fallback lookup chain: "Loan Repayment" → "Lending Recovery" → create.
  */
 async function findOrCreateRepaymentCategory(
@@ -48,22 +57,76 @@ async function findOrCreateRepaymentCategory(
 }
 
 /**
- * Lending Payments — Server Helper
- *
- * The lending_payments table is the authoritative settlement ledger and source
- * of truth for all loan and debt resolution.
- *
- * Canonical derived state formula:
- *   cash_paid       = SUM(payment.amount WHERE payment_type = 'payment')
- *   written_off     = SUM(payment.amount WHERE payment_type = 'write_off')
- *   resolved_total  = cash_paid + written_off
- *   remaining       = original_amount - resolved_total
- *   status          = remaining > 0 ? 'active' : 'paid'
- *
- * Status cache rule:
- *   Users never edit status. Imports never edit status. Forms never edit status.
- *   Only recalcStatusCache() writes status.
+ * Find or create a repayment category within a Drizzle transaction context.
  */
+async function findOrCreateRepaymentCategoryDrizzle(
+	tx: any,
+	userId: number,
+	direction: 'lent' | 'borrowed'
+): Promise<number> {
+	const transactionType = direction === 'lent' ? 'income' : 'expense';
+	const canonicalName = direction === 'lent' ? 'Loan Repayment' : 'Debt Repayment';
+	const legacyName = direction === 'lent' ? 'Lending Recovery' : null;
+	const color = direction === 'lent' ? '#8b5cf6' : '#ef4444';
+	const icon = direction === 'lent' ? '💳' : '💸';
+
+	// Try canonical name first
+	const canonical = await tx
+		.select({ id: categories.id })
+		.from(categories)
+		.where(and(eq(categories.user_id, userId), eq(categories.name, canonicalName)));
+	if (canonical[0]) return canonical[0].id;
+
+	// Fallback to legacy name (lending only)
+	if (legacyName) {
+		const legacy = await tx
+			.select({ id: categories.id })
+			.from(categories)
+			.where(and(eq(categories.user_id, userId), eq(categories.name, legacyName)));
+		if (legacy[0]) return legacy[0].id;
+	}
+
+	// Create new
+	await tx.insert(categories).values({
+		user_id: userId,
+		name: canonicalName,
+		color,
+		icon,
+		type: transactionType
+	});
+
+	const created = await tx
+		.select({ id: categories.id })
+		.from(categories)
+		.where(and(eq(categories.user_id, userId), eq(categories.name, canonicalName)));
+	return created![0].id;
+}
+
+function toLendingWithPayments(row: any): LendingWithPayments {
+	const cash_paid = parseFloat(String(row.cash_paid ?? '0'));
+	const written_off = parseFloat(String(row.written_off ?? '0'));
+	const resolved_total = cash_paid + written_off;
+	const remaining = parseFloat(String(row.amount)) - resolved_total;
+	return {
+		id: row.id,
+		user_id: row.user_id,
+		borrower_name: row.borrower_name,
+		amount: parseFloat(String(row.amount)),
+		interest_rate: parseFloat(String(row.interest_rate ?? '0')),
+		date_lent: row.date_lent,
+		due_date: row.due_date,
+		status: row.status as 'active' | 'paid',
+		notes: row.notes,
+		direction: row.direction as 'lent' | 'borrowed',
+		created_at: row.created_at,
+		updated_at: row.updated_at,
+		cash_paid,
+		written_off,
+		resolved_total,
+		remaining,
+		derived_status: remaining <= 0 ? ('paid' as const) : ('active' as const)
+	};
+}
 
 /**
  * Compute derived state for many lendings (single query with LEFT JOIN + GROUP BY).
@@ -72,6 +135,34 @@ export async function getLendingsWithPayments(
 	userId: number,
 	direction: 'lent' | 'borrowed'
 ): Promise<LendingWithPayments[]> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				id: lendings.id,
+				user_id: lendings.user_id,
+				borrower_name: lendings.borrower_name,
+				amount: lendings.amount,
+				interest_rate: lendings.interest_rate,
+				date_lent: lendings.date_lent,
+				due_date: lendings.due_date,
+				status: lendings.status,
+				notes: lendings.notes,
+				direction: lendings.direction,
+				created_at: lendings.created_at,
+				updated_at: lendings.updated_at,
+				cash_paid: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'payment' THEN ${lendingPayments.amount} ELSE 0 END), 0)`,
+				written_off: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'write_off' THEN ${lendingPayments.amount} ELSE 0 END), 0)`
+			})
+			.from(lendings)
+			.leftJoin(lendingPayments, eq(lendingPayments.lending_id, lendings.id))
+			.where(and(eq(lendings.user_id, userId), eq(lendings.direction, direction)))
+			.groupBy(lendings.id)
+			.orderBy(desc(lendings.created_at));
+
+		return rows.map(toLendingWithPayments);
+	}
+
 	const rows = await queryMany<Lending & { cash_paid: string; written_off: string }>(
 		`SELECT l.*,
 			COALESCE(SUM(CASE WHEN p.payment_type = 'payment'  THEN p.amount ELSE 0 END), 0) as cash_paid,
@@ -84,7 +175,7 @@ export async function getLendingsWithPayments(
 		[userId, direction]
 	);
 
-	return rows.map(row => {
+	return rows.map((row) => {
 		const cash_paid = parseFloat(String(row.cash_paid ?? '0'));
 		const written_off = parseFloat(String(row.written_off ?? '0'));
 		const resolved_total = cash_paid + written_off;
@@ -95,7 +186,7 @@ export async function getLendingsWithPayments(
 			written_off,
 			resolved_total,
 			remaining,
-			derived_status: remaining <= 0 ? 'paid' as const : 'active' as const,
+			derived_status: remaining <= 0 ? 'paid' as const : 'active' as const
 		};
 	});
 }
@@ -107,6 +198,34 @@ export async function getLendingWithPayments(
 	userId: number,
 	lendingId: number
 ): Promise<LendingWithPayments | undefined> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [row] = await db
+			.select({
+				id: lendings.id,
+				user_id: lendings.user_id,
+				borrower_name: lendings.borrower_name,
+				amount: lendings.amount,
+				interest_rate: lendings.interest_rate,
+				date_lent: lendings.date_lent,
+				due_date: lendings.due_date,
+				status: lendings.status,
+				notes: lendings.notes,
+				direction: lendings.direction,
+				created_at: lendings.created_at,
+				updated_at: lendings.updated_at,
+				cash_paid: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'payment' THEN ${lendingPayments.amount} ELSE 0 END), 0)`,
+				written_off: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'write_off' THEN ${lendingPayments.amount} ELSE 0 END), 0)`
+			})
+			.from(lendings)
+			.leftJoin(lendingPayments, eq(lendingPayments.lending_id, lendings.id))
+			.where(and(eq(lendings.user_id, userId), eq(lendings.id, lendingId)))
+			.groupBy(lendings.id);
+
+		if (!row) return undefined;
+		return toLendingWithPayments(row);
+	}
+
 	const row = await queryOne<Lending & { cash_paid: string; written_off: string }>(
 		`SELECT l.*,
 			COALESCE(SUM(CASE WHEN p.payment_type = 'payment'  THEN p.amount ELSE 0 END), 0) as cash_paid,
@@ -131,7 +250,7 @@ export async function getLendingWithPayments(
 		written_off,
 		resolved_total,
 		remaining,
-		derived_status: remaining <= 0 ? 'paid' as const : 'active' as const,
+		derived_status: remaining <= 0 ? 'paid' as const : 'active' as const
 	};
 }
 
@@ -143,6 +262,31 @@ export async function recalcStatusCache(
 	userId: number,
 	lendingId: number
 ): Promise<'active' | 'paid'> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [row] = await db
+			.select({
+				amount: lendings.amount,
+				resolved: sql<string>`COALESCE((SELECT SUM(p.amount) FROM ${lendingPayments} p WHERE p.lending_id = ${lendings.id} AND p.payment_type IN ('payment', 'write_off')), 0)`
+			})
+			.from(lendings)
+			.where(and(eq(lendings.user_id, userId), eq(lendings.id, lendingId)))
+			.limit(1);
+
+		if (!row) return 'active';
+
+		const amount = parseFloat(String(row.amount));
+		const resolved = parseFloat(String(row.resolved ?? '0'));
+		const status = amount - resolved <= 0 ? 'paid' : 'active';
+
+		await db
+			.update(lendings)
+			.set({ status, updated_at: new Date() })
+			.where(and(eq(lendings.user_id, userId), eq(lendings.id, lendingId)));
+
+		return status as 'active' | 'paid';
+	}
+
 	const row = await queryOne<{ amount: string; resolved: string }>(
 		`SELECT l.amount,
 			COALESCE(
@@ -194,6 +338,94 @@ export async function recordPayment(
 
 	// Write-offs never create transactions
 	const shouldCreateTransaction = createTransaction && paymentType === 'payment';
+
+	if (usePostgres) {
+		const db = await getDrizzle();
+		return db.transaction(async (tx) => {
+			// 1. Get the lending and verify it exists
+			const [lending] = await tx
+				.select()
+				.from(lendings)
+				.where(and(eq(lendings.user_id, userId), eq(lendings.id, lendingId)));
+			if (!lending) throw new Error('Lending record not found');
+
+			// 2. Atomically check remaining balance
+			const [balanceRow] = await tx
+				.select({
+					resolved: sql<string>`COALESCE((SELECT SUM(p.amount) FROM ${lendingPayments} p WHERE p.lending_id = ${lendingId} AND p.payment_type IN ('payment', 'write_off')), 0)`
+				})
+				.from(lendings)
+				.where(eq(lendings.id, lendingId))
+				.limit(1);
+			const resolved = parseFloat(String(balanceRow?.resolved ?? '0'));
+			const remaining = parseFloat(String(lending.amount)) - resolved;
+
+			if (amount > remaining) {
+				throw new Error(
+					`Payment amount cannot exceed remaining balance of ₱${remaining.toFixed(2)}`
+				);
+			}
+
+			// 3. Insert the payment row
+			const [payment] = await tx
+				.insert(lendingPayments)
+				.values({
+					lending_id: lendingId,
+					user_id: userId,
+					amount: String(amount),
+					payment_date: paymentDate,
+					notes,
+					payment_type: paymentType
+				})
+				.returning({ id: lendingPayments.id });
+			const paymentId = payment.id;
+
+			// 4. Create linked transaction (if requested) — within the transaction context
+			let transactionId: number | null = null;
+			if (shouldCreateTransaction) {
+				// Find or create the repayment category within the transaction
+				const categoryId = await findOrCreateRepaymentCategoryDrizzle(tx, userId, lending.direction as 'lent' | 'borrowed');
+
+				// Determine transaction type and description
+				const transactionType = lending.direction === 'lent' ? 'income' : 'expense';
+				const description = lending.direction === 'lent'
+					? `Repayment from ${lending.borrower_name}`
+					: `Repaid to ${lending.borrower_name}`;
+
+				// Insert the transaction within the transaction context
+				const [newTx] = await tx
+					.insert(transactions)
+					.values({
+						user_id: userId,
+						amount: String(amount),
+						description,
+						date: paymentDate,
+						category_id: categoryId,
+						type: transactionType
+					})
+					.returning({ id: transactions.id });
+				transactionId = newTx?.id ?? null;
+
+				// 5. Update the payment's transaction_id
+				if (transactionId) {
+					await tx
+						.update(lendingPayments)
+						.set({ transaction_id: transactionId })
+						.where(eq(lendingPayments.id, paymentId));
+				}
+			}
+
+			// 6. Recalculate status cache
+			const newResolved = resolved + amount;
+			const newStatus = parseFloat(String(lending.amount)) - newResolved <= 0 ? 'paid' : 'active';
+			await tx
+				.update(lendings)
+				.set({ status: newStatus, updated_at: new Date() })
+				.where(and(eq(lendings.user_id, userId), eq(lendings.id, lendingId)));
+
+			return { paymentId, transactionId };
+		});
+	}
 
 	return withTransaction(async (tx) => {
 		// 1. Get the lending and verify it exists
@@ -298,6 +530,64 @@ export async function updatePayment(
 ): Promise<void> {
 	const { amount, paymentDate, notes } = params;
 
+	if (usePostgres) {
+		const db = await getDrizzle();
+		return db.transaction(async (tx) => {
+			// 1. Get the payment and verify ownership
+			const [payment] = await tx
+				.select()
+				.from(lendingPayments)
+				.where(and(eq(lendingPayments.user_id, userId), eq(lendingPayments.id, paymentId)));
+			if (!payment) throw new Error('Payment not found');
+
+			// 2. Get the lending
+			const [lending] = await tx
+				.select()
+				.from(lendings)
+				.where(and(eq(lendings.user_id, userId), eq(lendings.id, payment.lending_id)));
+			if (!lending) throw new Error('Lending record not found');
+
+			// 3. Check remaining (excluding this payment's current contribution)
+			const [balanceRow] = await tx
+				.select({
+					resolved: sql<string>`COALESCE((SELECT SUM(p.amount) FROM ${lendingPayments} p WHERE p.lending_id = ${payment.lending_id} AND p.payment_type IN ('payment', 'write_off') AND p.id != ${paymentId}), 0)`
+				})
+				.from(lendings)
+				.where(eq(lendings.id, payment.lending_id))
+				.limit(1);
+			const otherResolved = parseFloat(String(balanceRow?.resolved ?? '0'));
+			const remaining = parseFloat(String(lending.amount)) - otherResolved;
+
+			if (amount > remaining) {
+				throw new Error(
+					`Payment amount cannot exceed remaining balance of ₱${remaining.toFixed(2)}`
+				);
+			}
+
+			// 4. Update the payment
+			await tx
+				.update(lendingPayments)
+				.set({ amount: String(amount), payment_date: paymentDate, notes, updated_at: new Date() })
+				.where(and(eq(lendingPayments.user_id, userId), eq(lendingPayments.id, paymentId)));
+
+			// 5. Sync linked transaction (amount + date ONLY, category/memo untouched)
+			if (payment.transaction_id) {
+				await tx
+					.update(transactions)
+					.set({ amount: String(amount), date: paymentDate, updated_at: new Date() })
+					.where(and(eq(transactions.user_id, userId), eq(transactions.id, payment.transaction_id)));
+			}
+
+			// 6. Recalculate status cache
+			const newResolved = otherResolved + amount;
+			const newStatus = parseFloat(String(lending.amount)) - newResolved <= 0 ? 'paid' : 'active';
+			await tx
+				.update(lendings)
+				.set({ status: newStatus, updated_at: new Date() })
+				.where(and(eq(lendings.user_id, userId), eq(lendings.id, payment.lending_id)));
+		});
+	}
+
 	return withTransaction(async (tx) => {
 		// 1. Get the payment and verify ownership
 		const payment = await tx.queryOne<LendingPayment>(
@@ -366,6 +656,50 @@ export async function deletePayment(
 	userId: number,
 	paymentId: number
 ): Promise<void> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		return db.transaction(async (tx) => {
+			// 1. Get the payment and verify ownership
+			const [payment] = await tx
+				.select()
+				.from(lendingPayments)
+				.where(and(eq(lendingPayments.user_id, userId), eq(lendingPayments.id, paymentId)));
+			if (!payment) throw new Error('Payment not found');
+
+			// 2. Delete linked transaction (if any)
+			if (payment.transaction_id) {
+				await tx
+					.delete(transactions)
+					.where(and(eq(transactions.user_id, userId), eq(transactions.id, payment.transaction_id)));
+			}
+
+			// 3. Delete the payment
+			await tx
+				.delete(lendingPayments)
+				.where(and(eq(lendingPayments.user_id, userId), eq(lendingPayments.id, paymentId)));
+
+			// 4. Recalculate status cache
+			const [balanceRow] = await tx
+				.select({
+					amount: lendings.amount,
+					resolved: sql<string>`COALESCE((SELECT SUM(p.amount) FROM ${lendingPayments} p WHERE p.lending_id = ${lendings.id} AND p.payment_type IN ('payment', 'write_off')), 0)`
+				})
+				.from(lendings)
+				.where(and(eq(lendings.user_id, userId), eq(lendings.id, payment.lending_id)))
+				.limit(1);
+
+			if (balanceRow) {
+				const amt = parseFloat(String(balanceRow.amount));
+				const resolved = parseFloat(String(balanceRow.resolved ?? '0'));
+				const newStatus = amt - resolved <= 0 ? 'paid' : 'active';
+				await tx
+					.update(lendings)
+					.set({ status: newStatus, updated_at: new Date() })
+					.where(and(eq(lendings.user_id, userId), eq(lendings.id, payment.lending_id)));
+			}
+		});
+	}
+
 	return withTransaction(async (tx) => {
 		// 1. Get the payment and verify ownership
 		const payment = await tx.queryOne<LendingPayment>(
@@ -421,6 +755,29 @@ export async function getPaymentHistory(
 	userId: number,
 	lendingId: number
 ): Promise<LendingPayment[]> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select()
+			.from(lendingPayments)
+			.where(and(eq(lendingPayments.user_id, userId), eq(lendingPayments.lending_id, lendingId)))
+			.orderBy(desc(lendingPayments.payment_date), desc(lendingPayments.created_at), desc(lendingPayments.id));
+
+		return rows.map((row) => ({
+			id: row.id,
+			lending_id: row.lending_id,
+			user_id: row.user_id,
+			amount: parseFloat(String(row.amount)),
+			payment_date: row.payment_date,
+			notes: row.notes,
+			transaction_id: row.transaction_id,
+			payment_type: row.payment_type as PaymentType,
+			reference: row.reference,
+			created_at: row.created_at.toISOString(),
+			updated_at: row.updated_at.toISOString()
+		})) as LendingPayment[];
+	}
+
 	return queryMany<LendingPayment>(
 		`SELECT * FROM lending_payments
 		 WHERE user_id = $1 AND lending_id = $2
@@ -433,6 +790,15 @@ export async function getPaymentHistory(
  * Check if a lending has any payments.
  */
 export async function hasPayments(userId: number, lendingId: number): Promise<boolean> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [row] = await db
+			.select({ count: sql<number>`count(*)` })
+			.from(lendingPayments)
+			.where(and(eq(lendingPayments.user_id, userId), eq(lendingPayments.lending_id, lendingId)));
+		return (row?.count ?? 0) > 0;
+	}
+
 	const row = await queryOne<{ count: string }>(
 		'SELECT COUNT(*) as count FROM lending_payments WHERE user_id = $1 AND lending_id = $2',
 		[userId, lendingId]
@@ -444,6 +810,23 @@ export async function hasPayments(userId: number, lendingId: number): Promise<bo
  * Delete all linked transactions for a lending (used before deleting the lending itself).
  */
 export async function deleteLinkedTransactions(userId: number, lendingId: number): Promise<void> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const payments = await db
+			.select({ transaction_id: lendingPayments.transaction_id })
+			.from(lendingPayments)
+			.where(and(eq(lendingPayments.lending_id, lendingId), isNotNull(lendingPayments.transaction_id)));
+
+		for (const p of payments) {
+			if (p.transaction_id) {
+				await db
+					.delete(transactions)
+					.where(and(eq(transactions.user_id, userId), eq(transactions.id, p.transaction_id)));
+			}
+		}
+		return;
+	}
+
 	const payments = await queryMany<{ transaction_id: number | null }>(
 		'SELECT transaction_id FROM lending_payments WHERE lending_id = $1 AND transaction_id IS NOT NULL',
 		[lendingId]
@@ -465,6 +848,26 @@ export async function getLendingTotals(
 	userId: number,
 	direction: 'lent' | 'borrowed'
 ): Promise<{ total: number; cashPaid: number; writtenOff: number; outstanding: number }> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [row] = await db
+			.select({
+				total: sql<string>`COALESCE(SUM(${lendings.amount}), 0)`,
+				cash_paid: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'payment' THEN ${lendingPayments.amount} ELSE 0 END), 0)`,
+				written_off: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'write_off' THEN ${lendingPayments.amount} ELSE 0 END), 0)`
+			})
+			.from(lendings)
+			.leftJoin(lendingPayments, eq(lendingPayments.lending_id, lendings.id))
+			.where(and(eq(lendings.user_id, userId), eq(lendings.direction, direction)));
+
+		const total = parseFloat(String(row?.total ?? '0'));
+		const cashPaid = parseFloat(String(row?.cash_paid ?? '0'));
+		const writtenOff = parseFloat(String(row?.written_off ?? '0'));
+		const outstanding = total - cashPaid - writtenOff;
+
+		return { total, cashPaid, writtenOff, outstanding };
+	}
+
 	const row = await queryOne<{ total: string; cash_paid: string; written_off: string }>(
 		`SELECT
 			COALESCE(SUM(l.amount), 0) as total,
