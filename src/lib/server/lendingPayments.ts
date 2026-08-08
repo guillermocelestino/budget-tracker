@@ -304,7 +304,7 @@ export async function recalcStatusCache(
 		const [row] = await db
 			.select({
 				amount: lendings.amount,
-				resolved: sql<string>`COALESCE((SELECT SUM(p.amount) FROM ${lendingPayments} p WHERE p.lending_id = ${lendings.id} AND p.payment_type IN ('payment', 'write_off')), 0)`
+				resolved: sql<string>`COALESCE((SELECT SUM(p.amount) FROM ${lendingPayments} p WHERE p.lending_id = ${lendingId} AND p.payment_type IN ('payment', 'write_off')), 0)`
 			})
 			.from(lendings)
 			.where(and(eq(lendings.user_id, userId), eq(lendings.id, lendingId)))
@@ -719,7 +719,7 @@ export async function deletePayment(
 			const [balanceRow] = await tx
 				.select({
 					amount: lendings.amount,
-					resolved: sql<string>`COALESCE((SELECT SUM(p.amount) FROM ${lendingPayments} p WHERE p.lending_id = ${lendings.id} AND p.payment_type IN ('payment', 'write_off')), 0)`
+					resolved: sql<string>`COALESCE((SELECT SUM(p.amount) FROM ${lendingPayments} p WHERE p.lending_id = ${payment.lending_id} AND p.payment_type IN ('payment', 'write_off')), 0)`
 				})
 				.from(lendings)
 				.where(and(eq(lendings.user_id, userId), eq(lendings.id, payment.lending_id)))
@@ -889,7 +889,7 @@ export async function getLendingTotals(
 		const db = await getDrizzle();
 		const [row] = await db
 			.select({
-				total: sql<string>`COALESCE(SUM(${lendings.amount}), 0)`,
+				total: sql<string>`COALESCE((SELECT SUM(li.amount) FROM ${lendings} li WHERE li.user_id = ${userId} AND li.direction = ${direction}), 0)`,
 				cash_paid: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'payment' THEN ${lendingPayments.amount} ELSE 0 END), 0)`,
 				written_off: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'write_off' THEN ${lendingPayments.amount} ELSE 0 END), 0)`
 			})
@@ -907,7 +907,7 @@ export async function getLendingTotals(
 
 	const row = await queryOne<{ total: string; cash_paid: string; written_off: string }>(
 		`SELECT
-			COALESCE(SUM(l.amount), 0) as total,
+			COALESCE((SELECT SUM(l2.amount) FROM lendings l2 WHERE l2.user_id = $1 AND l2.direction = $2), 0) as total,
 			COALESCE(SUM(CASE WHEN p.payment_type = 'payment'  THEN p.amount ELSE 0 END), 0) as cash_paid,
 			COALESCE(SUM(CASE WHEN p.payment_type = 'write_off' THEN p.amount ELSE 0 END), 0) as written_off
 		 FROM lendings l

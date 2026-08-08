@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import Database from 'better-sqlite3';
 import { queryOne, queryMany, execute, withTransaction } from '$lib/database/query';
 import { usePostgres } from '$lib/database';
 import { getDrizzle } from '$lib/database/drizzle';
@@ -638,5 +639,180 @@ describe('lendingPayments - Drizzle/Postgres path', () => {
 		await deletePayment(1, 1);
 
 		expect(db.transaction).toHaveBeenCalled();
+	});
+});
+
+/**
+ * Real in-memory SQLite regression tests for the two lendingPayments defects
+ * fixed in Checkpoint 2 (see plans/fix-lending-recalc-totals.md).
+ *
+ * The mocks declared at the top of this file fully stub `$lib/database/query`,
+ * so those suites never execute real SQL. These two tests instead re-point the
+ * raw query layer at a real in-memory better-sqlite3 database (the same pattern
+ * as recurringService.test.ts) and exercise the actual SQLite branches:
+ *
+ *   • Bug B — getLendingTotals must not multiply each lending amount by its
+ *     payment-row count (JOIN-multiplication defect).
+ *   • Bug A — deletePayment / recalcStatusCache must recompute the resolved
+ *     amount against only this lending's payments, so deleting one of two
+ *     settling payments reopens the loan (status back to 'active').
+ */
+describe('lendingPayments — real in-memory SQLite (Checkpoint 2 regressions)', () => {
+	// Minimal fixture schema — mirrors init.ts DDL for the tables these
+	// functions touch (users, categories, transactions, lendings, lending_payments).
+	const SQLITE_FIXTURE_SCHEMA = `
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE categories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT '#6366f1',
+  icon TEXT NOT NULL DEFAULT '📁',
+  type TEXT NOT NULL DEFAULT 'expense',
+  budget_limit REAL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_id, name)
+);
+CREATE TABLE transactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount REAL NOT NULL,
+  description TEXT NOT NULL,
+  date TEXT NOT NULL,
+  category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
+  type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE lendings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  borrower_name TEXT NOT NULL,
+  amount REAL NOT NULL,
+  interest_rate REAL DEFAULT 0,
+  date_lent TEXT NOT NULL,
+  due_date TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  notes TEXT,
+  direction TEXT NOT NULL DEFAULT 'lent' CHECK (direction IN ('lent', 'borrowed')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE lending_payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  lending_id INTEGER NOT NULL REFERENCES lendings(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount REAL NOT NULL,
+  payment_date TEXT NOT NULL,
+  notes TEXT,
+  transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL,
+  payment_type TEXT NOT NULL DEFAULT 'payment' CHECK (payment_type IN ('payment', 'write_off')),
+  reference TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`;
+
+	const sqlite = new Database(':memory:');
+	sqlite.pragma('foreign_keys = ON');
+	sqlite.exec(SQLITE_FIXTURE_SCHEMA);
+
+	let lp: typeof import('$lib/server/lendingPayments');
+	let sequence = 0;
+
+	beforeAll(async () => {
+		// Override the file-level mocks: keep the REAL $lib/database/query
+		// module (real translatePgToSQLite + withTransaction) but point it at
+		// the in-memory DB instead of the on-disk data/budget.db.
+		vi.doMock('$lib/database', () => ({
+			usePostgres: false,
+			getPgPool: () => Promise.reject(new Error('getPgPool should not be called on SQLite path')),
+			getSQLiteDb: () => Promise.resolve(sqlite),
+			initDb: async () => {},
+			closeDb: async () => {}
+		}));
+		vi.doMock('$lib/database/query', async (importOriginal) => {
+			return await importOriginal();
+		});
+
+		vi.resetModules();
+		lp = await import('$lib/server/lendingPayments');
+	});
+
+	function createUser(): number {
+		const username = `regression_user_${++sequence}`;
+		const info = sqlite
+			.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)')
+			.run(username, 'hash');
+		return Number(info.lastInsertRowid);
+	}
+
+	function createLending(userId: number, amount: number, direction: 'lent' | 'borrowed'): number {
+		const info = sqlite
+			.prepare(
+				`INSERT INTO lendings (user_id, borrower_name, amount, interest_rate, date_lent, status, direction)
+				 VALUES (?, ?, ?, 0, '2026-01-01', 'active', ?)`
+			)
+			.run(userId, `borrower_${sequence}`, amount, direction);
+		return Number(info.lastInsertRowid);
+	}
+
+	function insertPayment(
+		userId: number,
+		lendingId: number,
+		amount: number,
+		paymentType: 'payment' | 'write_off'
+	): number {
+		const info = sqlite
+			.prepare(
+				`INSERT INTO lending_payments (lending_id, user_id, amount, payment_date, payment_type)
+				 VALUES (?, ?, ?, '2026-01-15', ?)`
+			)
+			.run(lendingId, userId, amount, paymentType);
+		return Number(info.lastInsertRowid);
+	}
+
+	it('getLendingTotals does not multiply lending amount by payment-row count (Bug B)', async () => {
+		const userId = createUser();
+		const lendingId = createLending(userId, 1000, 'lent');
+		insertPayment(userId, lendingId, 400, 'payment');
+		insertPayment(userId, lendingId, 200, 'payment');
+
+		const totals = await lp.getLendingTotals(userId, 'lent');
+
+		expect(totals.total).toBe(1000);
+		expect(totals.cashPaid).toBe(600);
+		expect(totals.writtenOff).toBe(0);
+		expect(totals.outstanding).toBe(400);
+	});
+
+	it('deletePayment reopens a settled loan; recalcStatusCache returns active (Bug A parity)', async () => {
+		const userId = createUser();
+		const lendingId = createLending(userId, 1000, 'lent');
+		const p1 = insertPayment(userId, lendingId, 600, 'payment');
+		insertPayment(userId, lendingId, 400, 'payment');
+		// Fully settled (600 + 400 = 1000): cache the status as paid.
+		sqlite.prepare("UPDATE lendings SET status = 'paid' WHERE id = ?").run(lendingId);
+
+		await lp.deletePayment(userId, p1);
+
+		// Only the 400 payment remains → resolved 400 → remaining 600 → active.
+		const cached = sqlite.prepare('SELECT status FROM lendings WHERE id = ?').get(lendingId) as {
+			status: string;
+		};
+		expect(cached.status).toBe('active');
+
+		const status = await lp.recalcStatusCache(userId, lendingId);
+		expect(status).toBe('active');
+
+		const after = sqlite.prepare('SELECT status FROM lendings WHERE id = ?').get(lendingId) as {
+			status: string;
+		};
+		expect(after.status).toBe('active');
 	});
 });
