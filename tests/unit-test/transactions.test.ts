@@ -51,6 +51,8 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 	let deleteTransactions: typeof import('$lib/server/transactions').deleteTransactions;
 	let getMonthlySummary: typeof import('$lib/server/transactions').getMonthlySummary;
 	let getRecentTransactions: typeof import('$lib/server/transactions').getRecentTransactions;
+	let getMonthlyReport: typeof import('$lib/server/transactions').getMonthlyReport;
+	let getCategoryReport: typeof import('$lib/server/transactions').getCategoryReport;
 
 	beforeAll(async () => {
 		vi.doMock('$lib/database', () => ({
@@ -144,6 +146,8 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 		deleteTransactions = svc.deleteTransactions;
 		getMonthlySummary = svc.getMonthlySummary;
 		getRecentTransactions = svc.getRecentTransactions;
+		getMonthlyReport = svc.getMonthlyReport;
+		getCategoryReport = svc.getCategoryReport;
 	});
 
 	function createUser(username: string): number {
@@ -435,6 +439,39 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 		expect(recent[0].description).toBe('T3'); // date DESC
 		expect(recent[1].description).toBe('T2');
 	});
+
+	it('handles getMonthlyReport correctly', async () => {
+		const userA = createUser(`user_mr_${sequence++}`);
+		const catA = createCategory(userA, 'Cat A');
+
+		addTransaction(userA, 100, 'T1', '2026-08-01', catA, 'income');
+		addTransaction(userA, 50, 'T2', '2026-08-15', catA, 'expense');
+		addTransaction(userA, 300, 'T3', '2027-08-01', catA, 'income'); // other year
+
+		const report = await getMonthlyReport(userA, 2026);
+		expect(report).toHaveLength(1);
+		expect(report[0].month).toBe('2026-08');
+		expect(report[0].income).toBe(100);
+		expect(report[0].expense).toBe(50);
+	});
+
+	it('handles getCategoryReport correctly', async () => {
+		const userA = createUser(`user_cr_${sequence++}`);
+		const catA = createCategory(userA, 'Food');
+		const catB = createCategory(userA, 'Utilities');
+
+		addTransaction(userA, 100, 'T1', '2026-08-01', catA, 'expense');
+		addTransaction(userA, 200, 'T2', '2026-08-02', catB, 'expense');
+		addTransaction(userA, 300, 'T3', '2026-08-03', catA, 'expense');
+
+		const report = await getCategoryReport(userA, '2026-08', 'expense');
+		expect(report).toHaveLength(2);
+		// Sorted by total DESC: catA total is 400, catB total is 200
+		expect(report[0].category_name).toBe('Food');
+		expect(report[0].total).toBe(400);
+		expect(report[1].category_name).toBe('Utilities');
+		expect(report[1].total).toBe(200);
+	});
 });
 
 describe('transactions service — Drizzle / Postgres path (recorded fake client)', () => {
@@ -447,6 +484,8 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 	let deleteTransactions: typeof import('$lib/server/transactions').deleteTransactions;
 	let getMonthlySummary: typeof import('$lib/server/transactions').getMonthlySummary;
 	let getRecentTransactions: typeof import('$lib/server/transactions').getRecentTransactions;
+	let getMonthlyReport: typeof import('$lib/server/transactions').getMonthlyReport;
+	let getCategoryReport: typeof import('$lib/server/transactions').getCategoryReport;
 
 	let calls: {
 		selects: number;
@@ -463,65 +502,20 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 	function fakeDb() {
 		const builder = {
 			select(fields?: unknown) {
-				return {
-					from(table?: unknown) {
-						return {
-							leftJoin() {
-								return {
-									where(condition?: unknown) {
-										return {
-											orderBy(...args: unknown[]) {
-												return {
-													limit(n: number) {
-														return {
-															offset(o: number) {
-																calls.selects += 1;
-																return Promise.resolve(selectRows);
-															},
-															then(onfulfilled: any) {
-																calls.selects += 1;
-																return Promise.resolve(selectRows).then(onfulfilled);
-															}
-														};
-													},
-													then(onfulfilled: any) {
-														calls.selects += 1;
-														return Promise.resolve(selectRows).then(onfulfilled);
-													}
-												};
-											},
-											then(onfulfilled: any) {
-												calls.selects += 1;
-												return Promise.resolve(selectRows).then(onfulfilled);
-											}
-										};
-									},
-									whereCondition: null
-								};
-							},
-							where(condition?: unknown) {
-								return {
-									orderBy(...args: unknown[]) {
-										return {
-											then(onfulfilled: any) {
-												calls.selects += 1;
-												return Promise.resolve(selectRows).then(onfulfilled);
-											}
-										};
-									},
-									limit(n: number) {
-										calls.selects += 1;
-										return Promise.resolve(selectRows);
-									},
-									then(onfulfilled: any) {
-										calls.selects += 1;
-										return Promise.resolve(selectRows).then(onfulfilled);
-									}
-								};
-							}
-						};
-					}
+				const selectChain: any = {};
+				const methods = [
+					'from', 'leftJoin', 'innerJoin', 'join', 'where', 'groupBy', 'orderBy', 'limit', 'offset'
+				];
+				for (const m of methods) {
+					selectChain[m] = function() {
+						return selectChain;
+					};
+				}
+				selectChain.then = function(onfulfilled: any) {
+					calls.selects += 1;
+					return Promise.resolve(selectRows).then(onfulfilled);
 				};
+				return selectChain;
 			},
 			insert(table: unknown) {
 				return {
@@ -591,6 +585,8 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 		deleteTransactions = svc.deleteTransactions;
 		getMonthlySummary = svc.getMonthlySummary;
 		getRecentTransactions = svc.getRecentTransactions;
+		getMonthlyReport = svc.getMonthlyReport;
+		getCategoryReport = svc.getCategoryReport;
 	});
 
 	beforeEach(() => {
@@ -653,5 +649,27 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 		const recent = await getRecentTransactions(12, 2);
 		expect(recent).toHaveLength(2);
 		expect(recent[0].description).toBe('T2');
+	});
+
+	it('selects monthly report via Drizzle', async () => {
+		selectRows = [{ month: '2026-08', income: '100', expense: '50' }];
+
+		const report = await getMonthlyReport(12, 2026);
+		expect(report).toHaveLength(1);
+		expect(report[0].month).toBe('2026-08');
+		expect(report[0].income).toBe(100);
+		expect(report[0].expense).toBe(50);
+	});
+
+	it('selects category report via Drizzle', async () => {
+		selectRows = [
+			{ category_id: 1, category_name: 'Food', category_color: '#fff', total: '400' },
+			{ category_id: 2, category_name: 'Utilities', category_color: '#000', total: '200' }
+		];
+
+		const report = await getCategoryReport(12, '2026-08', 'expense');
+		expect(report).toHaveLength(2);
+		expect(report[0].category_name).toBe('Food');
+		expect(report[0].total).toBe(400);
 	});
 });

@@ -686,3 +686,120 @@ export async function getRecentTransactions(
 
 	return rows.map(mapTransactionRow);
 }
+
+export interface MonthlyReportItem {
+	month: string;
+	income: number;
+	expense: number;
+}
+
+/** Get monthly summary for a specific year. */
+export async function getMonthlyReport(
+	userId: number,
+	year: number
+): Promise<MonthlyReportItem[]> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				month: sql<string>`TO_CHAR(${transactions.date}, 'YYYY-MM')`,
+				income: sql<string>`SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END)`,
+				expense: sql<string>`SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END)`
+			})
+			.from(transactions)
+			.where(and(
+				eq(transactions.user_id, userId),
+				sql`EXTRACT(YEAR FROM ${transactions.date}) = ${year}`
+			))
+			.groupBy(sql`month`)
+			.orderBy(sql`month ASC`);
+
+		return rows.map(r => ({
+			month: r.month,
+			income: parseFloat(r.income ?? '0'),
+			expense: parseFloat(r.expense ?? '0')
+		}));
+	}
+
+	// SQLite path
+	const rows = await queryMany<{ month: string; income: string; expense: string }>(
+		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
+				SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
+				SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense
+		 FROM transactions
+		 WHERE user_id = $1 AND EXTRACT(YEAR FROM date) = $2::int
+		 GROUP BY month
+		 ORDER BY month ASC`,
+		[userId, year]
+	);
+
+	return rows.map(r => ({
+		month: r.month,
+		income: parseFloat(String(r.income)),
+		expense: parseFloat(String(r.expense))
+	}));
+}
+
+export interface CategoryReportItem {
+	category_id: number;
+	category_name: string;
+	category_color: string;
+	total: number;
+}
+
+/** Get transaction total by category for a specific month and type. */
+export async function getCategoryReport(
+	userId: number,
+	month: string, // YYYY-MM
+	type: 'income' | 'expense'
+): Promise<CategoryReportItem[]> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				category_id: categories.id,
+				category_name: categories.name,
+				category_color: categories.color,
+				total: sql<string>`SUM(${transactions.amount})`
+			})
+			.from(transactions)
+			.innerJoin(categories, eq(transactions.category_id, categories.id))
+			.where(and(
+				eq(transactions.user_id, userId),
+				sql`TO_CHAR(${transactions.date}, 'YYYY-MM') = ${month}`,
+				eq(transactions.type, type)
+			))
+			.groupBy(categories.id, categories.name, categories.color)
+			.orderBy(desc(sql`SUM(${transactions.amount})`));
+
+		return (rows as {
+			category_id: number;
+			category_name: string;
+			category_color: string;
+			total: string | null;
+		}[]).map((r) => ({
+			category_id: r.category_id,
+			category_name: r.category_name,
+			category_color: r.category_color,
+			total: parseFloat(r.total ?? '0')
+		}));
+	}
+
+	// SQLite path
+	const rows = await queryMany<{ category_id: number; category_name: string; category_color: string; total: string }>(
+		`SELECT c.id as category_id, c.name as category_name, c.color as category_color, SUM(t.amount) as total
+		 FROM transactions t
+		 JOIN categories c ON t.category_id = c.id
+		 WHERE t.user_id = $1 AND TO_CHAR(t.date, 'YYYY-MM') = $2 AND t.type = $3
+		 GROUP BY t.category_id, c.id, c.name, c.color
+		 ORDER BY total DESC`,
+		[userId, month, type]
+	);
+
+	return rows.map(r => ({
+		category_id: r.category_id,
+		category_name: r.category_name,
+		category_color: r.category_color,
+		total: parseFloat(String(r.total))
+	}));
+}
