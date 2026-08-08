@@ -803,3 +803,147 @@ export async function getCategoryReport(
 		total: parseFloat(String(r.total))
 	}));
 }
+
+/** Search transactions by description or amount text. */
+export async function searchTransactions(
+	userId: number,
+	q: string
+): Promise<Transaction[]> {
+	const pattern = `%${q}%`;
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				id: transactions.id,
+				amount: transactions.amount,
+				description: transactions.description,
+				date: transactions.date,
+				category_id: transactions.category_id,
+				type: transactions.type,
+				created_at: transactions.created_at,
+				updated_at: transactions.updated_at,
+				category_name: categories.name,
+				category_color: categories.color,
+			})
+			.from(transactions)
+			.leftJoin(categories, eq(transactions.category_id, categories.id))
+			.where(and(
+				eq(transactions.user_id, userId),
+				or(
+					ilike(transactions.description, pattern),
+					sql`CAST(${transactions.amount} AS TEXT) LIKE ${pattern}`
+				)
+			))
+			.orderBy(desc(transactions.date))
+			.limit(10);
+
+		return rows.map((r) => mapTransactionRow(r as unknown as TransactionRowWithCategory));
+	}
+
+	// SQLite path
+	const rows = await queryMany<TransactionRowWithCategory>(
+		`SELECT t.*, c.name as category_name, c.color as category_color
+		 FROM transactions t
+		 LEFT JOIN categories c ON t.category_id = c.id
+		 WHERE t.user_id = $1 AND (t.description ILIKE $2 OR CAST(t.amount AS TEXT) LIKE $3)
+		 ORDER BY t.date DESC
+		 LIMIT 10`,
+		[userId, pattern, pattern]
+	);
+
+	return rows.map(mapTransactionRow);
+}
+
+export interface CategorySpending {
+	category_id: number;
+	income: number;
+	expense: number;
+}
+
+/** Get income/expense totals per category for a specific month. */
+export async function getCategorySpending(
+	userId: number,
+	month: string // YYYY-MM
+): Promise<CategorySpending[]> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				category_id: transactions.category_id,
+				income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+				expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
+			})
+			.from(transactions)
+			.where(and(
+				eq(transactions.user_id, userId),
+				sql`TO_CHAR(${transactions.date}, 'YYYY-MM') = ${month}`
+			))
+			.groupBy(transactions.category_id);
+
+		return (rows as { category_id: number | null; income: string; expense: string }[]).map(r => ({
+			category_id: r.category_id ?? 0,
+			income: parseFloat(r.income ?? '0'),
+			expense: parseFloat(r.expense ?? '0')
+		}));
+	}
+
+	// SQLite path
+	const rows = await queryMany<{ category_id: number | null; income: string; expense: string }>(
+		`SELECT category_id,
+				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+		 FROM transactions
+		 WHERE TO_CHAR(date, 'YYYY-MM') = $1 AND user_id = $2
+		 GROUP BY category_id`,
+		[month, userId]
+	);
+
+	return rows.map(r => ({
+		category_id: r.category_id ?? 0,
+		income: parseFloat(String(r.income)),
+		expense: parseFloat(String(r.expense))
+	}));
+}
+
+export interface CategoryUsage {
+	category_id: number;
+	cnt: number;
+	last_used: string | null;
+}
+
+/** Get transaction counts and last used dates per category. */
+export async function getCategoryUsage(
+	userId: number
+): Promise<CategoryUsage[]> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				category_id: transactions.category_id,
+				cnt: sql<number>`COUNT(*)::int`,
+				last_used: sql<string | null>`MAX(${transactions.date})`
+			})
+			.from(transactions)
+			.where(eq(transactions.user_id, userId))
+			.groupBy(transactions.category_id);
+
+		return (rows as { category_id: number | null; cnt: number; last_used: string | null }[]).map(r => ({
+			category_id: r.category_id ?? 0,
+			cnt: Number(r.cnt ?? 0),
+			last_used: r.last_used
+		}));
+	}
+
+	// SQLite path
+	const rows = await queryMany<{ category_id: number | null; cnt: number; last_used: string | null }>(
+		`SELECT category_id, COUNT(*)::int as cnt, MAX(date) as last_used
+		 FROM transactions WHERE user_id = $1 GROUP BY category_id`,
+		[userId]
+	);
+
+	return rows.map(r => ({
+		category_id: r.category_id ?? 0,
+		cnt: Number(r.cnt ?? 0),
+		last_used: r.last_used
+	}));
+}

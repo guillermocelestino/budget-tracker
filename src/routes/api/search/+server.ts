@@ -1,5 +1,6 @@
 import { queryMany } from '$lib/database/query';
-import type { Transaction, Lending } from '$lib/types';
+import { searchTransactions } from '$lib/server/transactions';
+import type { Lending } from '$lib/types';
 
 export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -14,16 +15,8 @@ export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 
 	const pattern = `%${q}%`;
 
-	// Search transactions by description
-	const transactions = await queryMany<Transaction>(
-		`SELECT t.*, c.name as category_name, c.color as category_color
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 WHERE t.user_id = $1 AND (t.description ILIKE $2 OR CAST(t.amount AS TEXT) LIKE $3)
-		 ORDER BY t.date DESC
-		 LIMIT 10`,
-		[userId, pattern, `%${q}%`]
-	);
+	// Search transactions by description or amount
+	const transactions = await searchTransactions(userId, q);
 
 	// Search lendings by borrower name
 	let lendingsSql = `SELECT * FROM lendings WHERE user_id = $1 AND borrower_name ILIKE $2`;

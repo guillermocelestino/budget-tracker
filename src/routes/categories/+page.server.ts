@@ -1,5 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
+import { getCategorySpending, getCategoryUsage } from '$lib/server/transactions';
 import type { Category } from '$lib/types';
 
 export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
@@ -9,30 +10,18 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	);
 	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
 
-	const spending = await queryMany<{ category_id: number; income: number; expense: number }>(
-		`SELECT category_id,
-				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		 FROM transactions
-		 WHERE TO_CHAR(date, 'YYYY-MM') = $1 AND user_id = $2
-		 GROUP BY category_id`,
-		[selectedMonth, userId]
-	);
+	const spending = await getCategorySpending(userId, selectedMonth);
 
 	const expenseMap: Record<number, number> = {};
 	const incomeMap: Record<number, number> = {};
 	for (const s of spending) {
-		expenseMap[s.category_id] = parseFloat(String(s.expense));
-		incomeMap[s.category_id] = parseFloat(String(s.income));
+		expenseMap[s.category_id] = s.expense;
+		incomeMap[s.category_id] = s.income;
 	}
 
 	// Per-category usage: all-time transaction count + last-used date, and
 	// recurring-schedule count. Feeds the management view + usage-aware delete.
-	const txnUsage = await queryMany<{ category_id: number; cnt: number; last_used: string | null }>(
-		`SELECT category_id, COUNT(*)::int as cnt, MAX(date) as last_used
-		 FROM transactions WHERE user_id = $1 GROUP BY category_id`,
-		[userId]
-	);
+	const txnUsage = await getCategoryUsage(userId);
 	const recurringUsage = await queryMany<{ category_id: number; cnt: number }>(
 		`SELECT category_id, COUNT(*)::int as cnt
 		 FROM recurring_transactions WHERE user_id = $1 GROUP BY category_id`,

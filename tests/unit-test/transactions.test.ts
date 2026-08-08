@@ -53,6 +53,9 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 	let getRecentTransactions: typeof import('$lib/server/transactions').getRecentTransactions;
 	let getMonthlyReport: typeof import('$lib/server/transactions').getMonthlyReport;
 	let getCategoryReport: typeof import('$lib/server/transactions').getCategoryReport;
+	let searchTransactions: typeof import('$lib/server/transactions').searchTransactions;
+	let getCategorySpending: typeof import('$lib/server/transactions').getCategorySpending;
+	let getCategoryUsage: typeof import('$lib/server/transactions').getCategoryUsage;
 
 	beforeAll(async () => {
 		vi.doMock('$lib/database', () => ({
@@ -148,6 +151,9 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 		getRecentTransactions = svc.getRecentTransactions;
 		getMonthlyReport = svc.getMonthlyReport;
 		getCategoryReport = svc.getCategoryReport;
+		searchTransactions = svc.searchTransactions;
+		getCategorySpending = svc.getCategorySpending;
+		getCategoryUsage = svc.getCategoryUsage;
 	});
 
 	function createUser(username: string): number {
@@ -472,6 +478,43 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 		expect(report[1].category_name).toBe('Utilities');
 		expect(report[1].total).toBe(200);
 	});
+
+	it('handles searchTransactions correctly', async () => {
+		const userA = createUser(`user_st_${sequence++}`);
+		const catA = createCategory(userA, 'Food');
+		addTransaction(userA, 250, 'Walmart grocery buy', '2026-08-01', catA, 'expense');
+
+		const results = await searchTransactions(userA, 'walmart');
+		expect(results).toHaveLength(1);
+		expect(results[0].description).toBe('Walmart grocery buy');
+	});
+
+	it('handles getCategorySpending correctly', async () => {
+		const userA = createUser(`user_cs_${sequence++}`);
+		const catA = createCategory(userA, 'Food');
+
+		addTransaction(userA, 150, 'T1', '2026-08-01', catA, 'income');
+		addTransaction(userA, 50, 'T2', '2026-08-15', catA, 'expense');
+
+		const spending = await getCategorySpending(userA, '2026-08');
+		expect(spending).toHaveLength(1);
+		expect(spending[0].category_id).toBe(catA);
+		expect(spending[0].income).toBe(150);
+		expect(spending[0].expense).toBe(50);
+	});
+
+	it('handles getCategoryUsage correctly', async () => {
+		const userA = createUser(`user_cu_${sequence++}`);
+		const catA = createCategory(userA, 'Food');
+
+		addTransaction(userA, 150, 'T1', '2026-08-01', catA, 'income');
+
+		const usage = await getCategoryUsage(userA);
+		expect(usage).toHaveLength(1);
+		expect(usage[0].category_id).toBe(catA);
+		expect(usage[0].cnt).toBe(1);
+		expect(usage[0].last_used).toBe('2026-08-01');
+	});
 });
 
 describe('transactions service — Drizzle / Postgres path (recorded fake client)', () => {
@@ -486,6 +529,9 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 	let getRecentTransactions: typeof import('$lib/server/transactions').getRecentTransactions;
 	let getMonthlyReport: typeof import('$lib/server/transactions').getMonthlyReport;
 	let getCategoryReport: typeof import('$lib/server/transactions').getCategoryReport;
+	let searchTransactions: typeof import('$lib/server/transactions').searchTransactions;
+	let getCategorySpending: typeof import('$lib/server/transactions').getCategorySpending;
+	let getCategoryUsage: typeof import('$lib/server/transactions').getCategoryUsage;
 
 	let calls: {
 		selects: number;
@@ -587,6 +633,9 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 		getRecentTransactions = svc.getRecentTransactions;
 		getMonthlyReport = svc.getMonthlyReport;
 		getCategoryReport = svc.getCategoryReport;
+		searchTransactions = svc.searchTransactions;
+		getCategorySpending = svc.getCategorySpending;
+		getCategoryUsage = svc.getCategoryUsage;
 	});
 
 	beforeEach(() => {
@@ -671,5 +720,33 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 		expect(report).toHaveLength(2);
 		expect(report[0].category_name).toBe('Food');
 		expect(report[0].total).toBe(400);
+	});
+
+	it('searches transactions via Drizzle', async () => {
+		selectRows = [{ id: 1, amount: '250', description: 'Walmart buy', date: '2026-08-01', type: 'expense' }];
+
+		const results = await searchTransactions(12, 'walmart');
+		expect(results).toHaveLength(1);
+		expect(results[0].description).toBe('Walmart buy');
+	});
+
+	it('selects category spending via Drizzle', async () => {
+		selectRows = [{ category_id: 5, income: '150', expense: '50' }];
+
+		const spending = await getCategorySpending(12, '2026-08');
+		expect(spending).toHaveLength(1);
+		expect(spending[0].category_id).toBe(5);
+		expect(spending[0].income).toBe(150);
+		expect(spending[0].expense).toBe(50);
+	});
+
+	it('selects category usage via Drizzle', async () => {
+		selectRows = [{ category_id: 5, cnt: 1, last_used: '2026-08-01' }];
+
+		const usage = await getCategoryUsage(12);
+		expect(usage).toHaveLength(1);
+		expect(usage[0].category_id).toBe(5);
+		expect(usage[0].cnt).toBe(1);
+		expect(usage[0].last_used).toBe('2026-08-01');
 	});
 });
