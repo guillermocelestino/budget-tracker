@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
-import type { Transaction, Category } from '$lib/types';
+import { listTransactions } from '$lib/server/transactions';
+import type { Category } from '$lib/types';
 import {
 	detectDuplicates,
 	normCategoryName,
@@ -23,76 +24,34 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const date_to = url.searchParams.get('date_to');
 	const search = url.searchParams.get('search');
 
-	const conditions: string[] = ['t.user_id = $1'];
-	const params: (string | number)[] = [userId];
+	const filters = {
+		type: type && ['income', 'expense'].includes(type) ? (type as 'income' | 'expense') : undefined,
+		category_id: category_id ? parseInt(category_id, 10) : undefined,
+		date_from: date_from || undefined,
+		date_to: date_to || undefined,
+		search: search || undefined
+	};
 
-	if (type && (type === 'income' || type === 'expense')) {
-		conditions.push('t.type = $' + (params.length + 1));
-		params.push(type);
-	}
-	if (category_id) {
-		conditions.push('t.category_id = $' + (params.length + 1));
-		params.push(parseInt(category_id));
-	}
-	if (date_from) {
-		conditions.push('t.date >= $' + (params.length + 1));
-		params.push(date_from);
-	}
-	if (date_to) {
-		conditions.push('t.date <= $' + (params.length + 1));
-		params.push(date_to);
-	}
-	if (search && search.trim()) {
-		const like = `%${search.trim()}%`;
-		conditions.push(`(t.description ILIKE $${params.length + 1} OR c.name ILIKE $${params.length + 2})`);
-		params.push(like, like);
-	}
+	let result = await listTransactions(userId, filters, page, limit);
 
-	const where = 'WHERE ' + conditions.join(' AND ');
-
-	const countRow = await queryOne<{ total: number }>(
-		`SELECT COUNT(*)::int as total
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 ${where}`,
-		params
-	);
-
-	const total = countRow?.total ?? 0;
-	const totalPages = Math.ceil(total / limit);
-	// Clamp out-of-range pages to the last available page (NaN already → 1 above).
-	page = Math.min(page, Math.max(totalPages, 1));
-	const offset = (page - 1) * limit;
-
-	const transactions = await queryMany<Transaction>(
-		`SELECT t.*, c.name as category_name, c.color as category_color
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 ${where}
-		 ORDER BY t.date DESC, t.id DESC
-		 LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-		[...params, limit, offset]
-	);
+	// Clamp out-of-range pages to the last available page
+	if (page > result.totalPages && result.totalPages > 0) {
+		page = result.totalPages;
+		result = await listTransactions(userId, filters, page, limit);
+	}
 
 	// Fetch ALL transactions matching the current filter (no pagination) for running balance computation
-	// This ensures the running balance column is correct across pages
-	const allForBalance = await queryMany<Transaction>(
-		`SELECT t.*, c.name as category_name, c.color as category_color
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 ${where}
-		 ORDER BY t.date ASC, t.id ASC`,
-		params
-	);
+	const unpaginatedResult = await listTransactions(userId, filters);
+	const allForBalance = [...unpaginatedResult.items].reverse();
 
 	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
 
 	return {
-		transactions,
+		transactions: result.items,
 		allForBalance,
-		total,
+		total: result.total,
 		page,
-		totalPages,
+		totalPages: result.totalPages,
 		limit,
 		categories,
 	};
