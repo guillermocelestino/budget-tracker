@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
-import { listTransactions } from '$lib/server/transactions';
+import { listTransactions, createTransaction, updateTransaction, deleteTransaction, deleteTransactions } from '$lib/server/transactions';
 import type { Category } from '$lib/types';
 import {
 	detectDuplicates,
@@ -79,11 +79,24 @@ export const actions = {
 			return fail(400, { errors, values: { type, amount: amountStr, description, date, category_id } });
 		}
 
-		await execute(
-			`INSERT INTO transactions (user_id, amount, description, date, category_id, type)
-			 VALUES ($1, $2, $3, $4, $5, $6)`,
-			[userId, parseFloat(amountStr), description.trim(), date, parseInt(category_id), type]
-		);
+		try {
+			await createTransaction(userId, {
+				type: type as 'income' | 'expense',
+				amount: parseFloat(amountStr),
+				description,
+				date,
+				category_id: parseInt(category_id, 10),
+			});
+		} catch (err: unknown) {
+			const message = err instanceof Error ? err.message : String(err);
+			if (message === 'Category not found') {
+				return fail(400, {
+					errors: { category_id: 'Category not found' },
+					values: { type, amount: amountStr, description, date, category_id }
+				});
+			}
+			return fail(400, { error: message });
+		}
 
 		return { success: true };
 	},
@@ -95,9 +108,6 @@ export const actions = {
 		const idStr = data.get('id') as string;
 		const id = parseInt(idStr, 10);
 		if (isNaN(id)) return fail(400, { error: 'Invalid ID' });
-
-		const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
-		if (!existing) return fail(404, { error: 'Transaction not found' });
 
 		const type = data.get('type') as string;
 		const amountStr = data.get('amount') as string;
@@ -116,12 +126,27 @@ export const actions = {
 			return fail(400, { errors, values: { type, amount: amountStr, description, date, category_id } });
 		}
 
-		await execute(
-			`UPDATE transactions
-			 SET amount = $1, description = $2, date = $3, category_id = $4, type = $5, updated_at = NOW()
-			 WHERE user_id = $6 AND id = $7`,
-			[parseFloat(amountStr), description.trim(), date, parseInt(category_id), type, userId, id]
-		);
+		try {
+			const success = await updateTransaction(userId, id, {
+				type: type as 'income' | 'expense',
+				amount: parseFloat(amountStr),
+				description,
+				date,
+				category_id: parseInt(category_id, 10),
+			});
+			if (!success) {
+				return fail(404, { error: 'Transaction not found' });
+			}
+		} catch (err: unknown) {
+			const message = err instanceof Error ? err.message : String(err);
+			if (message === 'Category not found') {
+				return fail(400, {
+					errors: { category_id: 'Category not found' },
+					values: { type, amount: amountStr, description, date, category_id }
+				});
+			}
+			return fail(400, { error: message });
+		}
 
 		return { success: true };
 	},
@@ -141,27 +166,18 @@ export const actions = {
 
 		if (ids.length === 1) {
 			const id = ids[0];
-			const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
-			if (!existing) {
+			const success = await deleteTransaction(userId, id);
+			if (!success) {
 				return fail(404, { error: 'Transaction not found' });
 			}
-			await execute('DELETE FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
 			return { success: true, deleted: 1 };
 		}
 
-		const placeholders = ids.map((_, i) => `$${i + 2}`).join(', ');
-		const existing = await queryMany<{ id: number }>(
-			`SELECT id FROM transactions WHERE user_id = $1 AND id IN (${placeholders})`,
-			[userId, ...ids]
-		);
-		if (existing.length === 0) {
+		const deletedCount = await deleteTransactions(userId, ids);
+		if (deletedCount === 0) {
 			return fail(404, { error: 'Transaction not found' });
 		}
-		await execute(
-			`DELETE FROM transactions WHERE user_id = $1 AND id IN (${placeholders})`,
-			[userId, ...ids]
-		);
-		return { success: true, deleted: existing.length };
+		return { success: true, deleted: deletedCount };
 	},
 
 	import: async ({ request, locals }) => {
