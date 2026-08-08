@@ -1,0 +1,601 @@
+import { usePostgres } from '$lib/database';
+import { queryOne, queryMany, execute, withTransaction } from '$lib/database/query';
+import { getDrizzle } from '$lib/database/drizzle';
+import { transactions, categories } from '$lib/database/schema';
+import { and, eq, ilike, or, desc, asc, sql, gte, lte, inArray } from 'drizzle-orm';
+import type { Transaction, TransactionType } from '$lib/types';
+
+
+/** Raw row shape produced by database queries for mapping. */
+interface TransactionRowWithCategory {
+	id: number;
+	amount: string | number;
+	description: string;
+	date: string;
+	category_id: number;
+	type: string;
+	created_at: Date | string;
+	updated_at: Date | string;
+	category_name: string | null;
+	category_color: string | null;
+}
+
+/** Pagination and filter options for listTransactions. */
+export interface TransactionFilters {
+	type?: 'income' | 'expense';
+	category_id?: number;
+	date_from?: string;
+	date_to?: string;
+	search?: string;
+	ids?: number[];
+	sort?: 'date' | 'amount';
+	order?: 'asc' | 'desc';
+}
+
+export interface ListResult<T> {
+	items: T[];
+	total: number;
+	page: number;
+	totalPages: number;
+}
+
+export interface CreateTransactionInput {
+	type: TransactionType;
+	amount: number;
+	description: string;
+	date: string; // YYYY-MM-DD
+	category_id: number;
+}
+
+export interface UpdateTransactionInput {
+	type?: TransactionType;
+	amount?: number;
+	description?: string;
+	date?: string;
+	category_id?: number;
+}
+
+/**
+ * Format a Postgres timestamp (JS Date) as the 'YYYY-MM-DD HH:MM:SS' UTC string.
+ * SQLite stores via `datetime('now')`, so both backends emit identical values.
+ */
+function toSqliteTimestamp(d: Date): string {
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+}
+
+/**
+ * Map a raw transaction row (with category join) to the public Transaction type.
+ * Handles Postgres NUMERIC → number conversion and date string normalization.
+ */
+function mapTransactionRow(row: TransactionRowWithCategory): Transaction {
+	return {
+		id: row.id,
+		amount: parseFloat(String(row.amount)),
+		description: row.description,
+		date: row.date,
+		category_id: row.category_id,
+		type: row.type as TransactionType,
+		created_at: row.created_at instanceof Date ? toSqliteTimestamp(row.created_at) : String(row.created_at),
+		updated_at: row.updated_at instanceof Date ? toSqliteTimestamp(row.updated_at) : String(row.updated_at),
+		category_name: row.category_name ?? undefined,
+		category_color: row.category_color ?? undefined,
+	};
+}
+
+/**
+ * Build the WHERE conditions for transaction list queries.
+ * Returns the SQL fragment and parameter array for raw SQL path,
+ * and the Drizzle where conditions for the Drizzle path.
+ */
+function buildTransactionWhere(
+	userId: number,
+	filters: TransactionFilters
+): {
+	sqlWhere: string;
+	sqlParams: (string | number)[];
+	drizzleWhere: ReturnType<typeof and> | undefined;
+} {
+	const sqlConditions: string[] = ['t.user_id = $1'];
+	const sqlParams: (string | number)[] = [userId];
+	const drizzleConditions: ReturnType<typeof eq | typeof and | typeof ilike | typeof or | typeof gte | typeof lte | typeof inArray>[] = [eq(transactions.user_id, userId)];
+
+	if (filters.type && (filters.type === 'income' || filters.type === 'expense')) {
+		sqlConditions.push(`t.type = $${sqlParams.length + 1}`);
+		sqlParams.push(filters.type);
+		drizzleConditions.push(eq(transactions.type, filters.type));
+	}
+
+	if (filters.category_id && !isNaN(filters.category_id)) {
+		sqlConditions.push(`t.category_id = $${sqlParams.length + 1}`);
+		sqlParams.push(filters.category_id);
+		drizzleConditions.push(eq(transactions.category_id, filters.category_id));
+	}
+
+	if (filters.date_from) {
+		sqlConditions.push(`t.date >= $${sqlParams.length + 1}`);
+		sqlParams.push(filters.date_from);
+		drizzleConditions.push(gte(transactions.date, filters.date_from));
+	}
+
+	if (filters.date_to) {
+		sqlConditions.push(`t.date <= $${sqlParams.length + 1}`);
+		sqlParams.push(filters.date_to);
+		drizzleConditions.push(lte(transactions.date, filters.date_to));
+	}
+
+	if (filters.search && filters.search.trim()) {
+		const like = `%${filters.search.trim()}%`;
+		sqlConditions.push(`(t.description ILIKE $${sqlParams.length + 1} OR c.name ILIKE $${sqlParams.length + 2})`);
+		sqlParams.push(like, like);
+		drizzleConditions.push(
+			or(
+				ilike(transactions.description, like),
+				ilike(categories.name, like)
+			)!
+		);
+	}
+
+	if (filters.ids && filters.ids.length > 0) {
+		const placeholders = filters.ids.map((_, i) => `$${sqlParams.length + i + 1}`).join(', ');
+		sqlConditions.push(`t.id IN (${placeholders})`);
+		sqlParams.push(...filters.ids);
+		drizzleConditions.push(inArray(transactions.id, filters.ids));
+	}
+
+	const sqlWhere = sqlConditions.length > 0 ? `WHERE ${sqlConditions.join(' AND ')}` : '';
+	const drizzleWhere = drizzleConditions.length > 0 ? and(...drizzleConditions) : undefined;
+
+	return { sqlWhere, sqlParams, drizzleWhere };
+}
+
+/**
+ * List transactions with pagination and filtering.
+ * Supports optional pagination (page/limit) for export use cases.
+ */
+export async function listTransactions(
+	userId: number,
+	filters: TransactionFilters = {},
+	page?: number,
+	limit?: number
+): Promise<ListResult<Transaction>> {
+	const shouldPaginate = page !== undefined || limit !== undefined;
+	const safePage = page !== undefined ? Math.max(1, page) : 1;
+	const safeLimit = limit !== undefined ? Math.min(100, Math.max(1, limit)) : 20;
+	const offset = (safePage - 1) * safeLimit;
+
+	const { sqlWhere, sqlParams, drizzleWhere } = buildTransactionWhere(userId, filters);
+
+	if (usePostgres) {
+		const db = await getDrizzle();
+
+		// COUNT query
+		const [{ count }] = await db
+			.select({ count: sql<number>`count(*)` })
+			.from(transactions)
+			.leftJoin(categories, eq(transactions.category_id, categories.id))
+			.where(drizzleWhere);
+
+		// Data query
+		const sortField = filters.sort === 'amount' ? transactions.amount : transactions.date;
+		const orderByExpression = filters.order === 'asc' 
+			? [asc(sortField), asc(transactions.id)] 
+			: [desc(sortField), desc(transactions.id)];
+
+		const query = db
+			.select({
+				id: transactions.id,
+				amount: transactions.amount,
+				description: transactions.description,
+				date: transactions.date,
+				category_id: transactions.category_id,
+				type: transactions.type,
+				created_at: transactions.created_at,
+				updated_at: transactions.updated_at,
+				category_name: categories.name,
+				category_color: categories.color,
+			})
+			.from(transactions)
+			.leftJoin(categories, eq(transactions.category_id, categories.id))
+			.where(drizzleWhere)
+			.orderBy(...orderByExpression);
+
+		const rows = shouldPaginate
+			? await query.limit(safeLimit).offset(offset)
+			: await query;
+
+		// Map rows to Transaction type (which does not contain user_id)
+		const items = rows.map((r) => mapTransactionRow(r as unknown as TransactionRowWithCategory));
+		const total = Number(count);
+		const totalPages = shouldPaginate ? Math.ceil(total / safeLimit) : 1;
+
+		return { items, total, page: safePage, totalPages };
+	}
+
+	// SQLite path
+	const countRow = await queryOne<{ total: number }>(
+		`SELECT COUNT(*)::int as total
+		 FROM transactions t
+		 LEFT JOIN categories c ON t.category_id = c.id
+		 ${sqlWhere}`,
+		sqlParams
+	);
+
+	const sortCol = filters.sort === 'amount' ? 'amount' : 'date';
+	const sortOrder = filters.order === 'asc' ? 'ASC' : 'DESC';
+
+	let querySql = `SELECT t.*, c.name as category_name, c.color as category_color
+		 FROM transactions t
+		 LEFT JOIN categories c ON t.category_id = c.id
+		 ${sqlWhere}
+		 ORDER BY t.${sortCol} ${sortOrder}, t.id ${sortOrder}`;
+
+	const queryParams = [...sqlParams];
+
+	if (shouldPaginate) {
+		querySql += ` LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+		queryParams.push(safeLimit, offset);
+	}
+
+	const rows = await queryMany<TransactionRowWithCategory>(querySql, queryParams);
+
+	const items = rows.map(mapTransactionRow);
+	const total = countRow?.total ?? 0;
+	const totalPages = shouldPaginate ? Math.ceil(total / safeLimit) : 1;
+
+	return { items, total, page: safePage, totalPages };
+}
+
+/**
+ * Get a single transaction by ID with category join.
+ * Returns null if not found or not owned by user.
+ */
+export async function getTransaction(userId: number, id: number): Promise<Transaction | null> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [row] = await db
+			.select({
+				id: transactions.id,
+				amount: transactions.amount,
+				description: transactions.description,
+				date: transactions.date,
+				category_id: transactions.category_id,
+				type: transactions.type,
+				created_at: transactions.created_at,
+				updated_at: transactions.updated_at,
+				category_name: categories.name,
+				category_color: categories.color,
+			})
+			.from(transactions)
+			.leftJoin(categories, eq(transactions.category_id, categories.id))
+			.where(and(eq(transactions.user_id, userId), eq(transactions.id, id)))
+			.limit(1);
+
+		return row ? mapTransactionRow(row as unknown as TransactionRowWithCategory) : null;
+	}
+
+	const row = await queryOne<TransactionRowWithCategory>(
+		`SELECT t.*, c.name as category_name, c.color as category_color
+		 FROM transactions t
+		 LEFT JOIN categories c ON t.category_id = c.id
+		 WHERE t.user_id = $1 AND t.id = $2`,
+		[userId, id]
+	);
+
+	return row ? mapTransactionRow(row) : null;
+}
+
+/**
+ * Get all transactions for a user ordered by date ASC, id ASC for running balance calculation.
+ * Returns minimal fields needed for balance computation.
+ */
+export async function getAllForBalance(
+	userId: number
+): Promise<{ amount: number; type: TransactionType; date: string; id: number }[]> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				amount: transactions.amount,
+				type: transactions.type,
+				date: transactions.date,
+				id: transactions.id,
+			})
+			.from(transactions)
+			.where(eq(transactions.user_id, userId))
+			.orderBy(asc(transactions.date), asc(transactions.id));
+
+		return rows.map((r) => ({
+			amount: parseFloat(String(r.amount)),
+			type: r.type as TransactionType,
+			date: r.date,
+			id: r.id,
+		}));
+	}
+
+	const rows = await queryMany<{ amount: string; type: TransactionType; date: string; id: number }>(
+		`SELECT amount, type, date, id
+		 FROM transactions
+		 WHERE user_id = $1
+		 ORDER BY date ASC, id ASC`,
+		[userId]
+	);
+
+	return rows.map((r) => ({
+		amount: parseFloat(String(r.amount)),
+		type: r.type,
+		date: r.date,
+		id: r.id,
+	}));
+}
+
+/**
+ * Validate transaction input fields.
+ * Returns error object if validation fails, undefined if valid.
+ */
+function validateTransactionInput(
+	input: CreateTransactionInput | UpdateTransactionInput,
+	requireAll: boolean
+): Record<string, string> | undefined {
+	const errors: Record<string, string> = {};
+
+	if (requireAll || input.type !== undefined) {
+		if (!input.type || !['income', 'expense'].includes(input.type)) {
+			errors.type = 'Select a type';
+		}
+	}
+
+	if (requireAll || input.amount !== undefined) {
+		if (input.amount === undefined || typeof input.amount !== 'number' || isNaN(input.amount) || input.amount === 0) {
+			errors.amount = 'Enter a valid amount';
+		}
+	}
+
+	if (requireAll || input.description !== undefined) {
+		if (!input.description || typeof input.description !== 'string' || input.description.trim().length === 0) {
+			errors.description = 'Enter a description';
+		}
+	}
+
+	if (requireAll || input.date !== undefined) {
+		if (!input.date || typeof input.date !== 'string') {
+			errors.date = 'Select a date';
+		}
+	}
+
+	if (requireAll || input.category_id !== undefined) {
+		if (input.category_id === undefined || typeof input.category_id !== 'number' || isNaN(input.category_id)) {
+			errors.category_id = 'Select a category';
+		}
+	}
+
+	return Object.keys(errors).length > 0 ? errors : undefined;
+}
+
+/**
+ * Verify that a category belongs to the user.
+ * Returns true if category exists and is owned by user.
+ */
+async function verifyCategoryOwnership(
+	userId: number,
+	categoryId: number
+): Promise<boolean> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [cat] = await db
+			.select({ id: categories.id })
+			.from(categories)
+			.where(and(eq(categories.user_id, userId), eq(categories.id, categoryId)))
+			.limit(1);
+		return !!cat;
+	}
+
+	const cat = await queryOne<{ id: number }>(
+		'SELECT id FROM categories WHERE user_id = $1 AND id = $2',
+		[userId, categoryId]
+	);
+	return !!cat;
+}
+
+/**
+ * Create a new transaction.
+ * Validates input, verifies category ownership, inserts transaction.
+ * Returns the created transaction ID.
+ */
+export async function createTransaction(
+	userId: number,
+	input: CreateTransactionInput
+): Promise<number> {
+	const errors = validateTransactionInput(input, true);
+	if (errors) {
+		throw new Error(JSON.stringify(errors));
+	}
+
+	// Verify category ownership
+	const ownsCategory = await verifyCategoryOwnership(userId, input.category_id);
+	if (!ownsCategory) {
+		throw new Error('Category not found');
+	}
+
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [row] = await db
+			.insert(transactions)
+			.values({
+				user_id: userId,
+				amount: String(input.amount),
+				description: input.description.trim(),
+				date: input.date,
+				category_id: input.category_id,
+				type: input.type,
+			})
+			.returning({ id: transactions.id });
+		return row.id;
+	}
+
+	await execute(
+		`INSERT INTO transactions (user_id, amount, description, date, category_id, type)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		[userId, input.amount, input.description.trim(), input.date, input.category_id, input.type]
+	);
+
+	const created = await queryOne<{ id: number }>(
+		`SELECT id FROM transactions WHERE user_id = $1 ORDER BY id DESC LIMIT 1`,
+		[userId]
+	);
+	return created!.id;
+}
+
+/**
+ * Update an existing transaction.
+ * Validates input, verifies ownership and category ownership, updates transaction.
+ * Returns true on success, false if not found.
+ */
+export async function updateTransaction(
+	userId: number,
+	id: number,
+	input: UpdateTransactionInput
+): Promise<boolean> {
+	const errors = validateTransactionInput(input, false);
+	if (errors) {
+		throw new Error(JSON.stringify(errors));
+	}
+
+	// Verify transaction exists and belongs to user
+	const existing = await getTransaction(userId, id);
+	if (!existing) {
+		return false;
+	}
+
+	// Verify category ownership if category is being changed
+	if (input.category_id !== undefined && input.category_id !== existing.category_id) {
+		const ownsCategory = await verifyCategoryOwnership(userId, input.category_id);
+		if (!ownsCategory) {
+			throw new Error('Category not found');
+		}
+	}
+
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const updateData: Record<string, unknown> = {
+			updated_at: new Date(),
+		};
+
+		if (input.type !== undefined) updateData.type = input.type;
+		if (input.amount !== undefined) updateData.amount = String(input.amount);
+		if (input.description !== undefined) updateData.description = input.description.trim();
+		if (input.date !== undefined) updateData.date = input.date;
+		if (input.category_id !== undefined) updateData.category_id = input.category_id;
+
+		await db
+			.update(transactions)
+			.set(updateData)
+			.where(and(eq(transactions.user_id, userId), eq(transactions.id, id)));
+
+		return true;
+	}
+
+	const updateParts: string[] = ['updated_at = NOW()'];
+	const params: (string | number)[] = [];
+
+	if (input.type !== undefined) {
+		updateParts.push(`type = $${params.length + 1}`);
+		params.push(input.type);
+	}
+	if (input.amount !== undefined) {
+		updateParts.push(`amount = $${params.length + 1}`);
+		params.push(input.amount);
+	}
+	if (input.description !== undefined) {
+		updateParts.push(`description = $${params.length + 1}`);
+		params.push(input.description.trim());
+	}
+	if (input.date !== undefined) {
+		updateParts.push(`date = $${params.length + 1}`);
+		params.push(input.date);
+	}
+	if (input.category_id !== undefined) {
+		updateParts.push(`category_id = $${params.length + 1}`);
+		params.push(input.category_id);
+	}
+
+	params.push(userId, id);
+
+	await execute(
+		`UPDATE transactions SET ${updateParts.join(', ')} WHERE user_id = $${params.length - 1} AND id = $${params.length}`,
+		params
+	);
+
+	return true;
+}
+
+/**
+ * Delete a single transaction by ID.
+ * Returns true if deleted, false if not found.
+ */
+export async function deleteTransaction(userId: number, id: number): Promise<boolean> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const result = await db
+			.delete(transactions)
+			.where(and(eq(transactions.user_id, userId), eq(transactions.id, id)))
+			.returning({ id: transactions.id });
+		return result.length > 0;
+	}
+
+	const existing = await queryOne<{ id: number }>(
+		'SELECT id FROM transactions WHERE user_id = $1 AND id = $2',
+		[userId, id]
+	);
+	if (!existing) {
+		return false;
+	}
+
+	await execute('DELETE FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
+	return true;
+}
+
+/**
+ * Delete multiple transactions by IDs atomically.
+ * Returns the actual number of rows deleted.
+ */
+export async function deleteTransactions(userId: number, ids: number[]): Promise<number> {
+	if (ids.length === 0) {
+		return 0;
+	}
+
+	if (usePostgres) {
+		const db = await getDrizzle();
+		return db.transaction(async (tx) => {
+			const result = await tx
+				.delete(transactions)
+				.where(and(eq(transactions.user_id, userId), inArray(transactions.id, ids)))
+				.returning({ id: transactions.id });
+			return result.length;
+		});
+	}
+
+	// SQLite path - use withTransaction for atomicity
+	return withTransaction(async (tx) => {
+		const placeholders = ids.map((_, i) => `$${i + 2}`).join(', ');
+
+		const existing = await tx.queryMany<{ id: number }>(
+			`SELECT id FROM transactions WHERE user_id = $1 AND id IN (${placeholders})`,
+			[userId, ...ids]
+		);
+
+		if (existing.length === 0) {
+			return 0;
+		}
+
+		const deletePlaceholders = existing.map((_, i) => `$${i + 2}`).join(', ');
+		const deleteIds = existing.map((e) => e.id);
+
+		await tx.execute(
+			`DELETE FROM transactions WHERE user_id = $1 AND id IN (${deletePlaceholders})`,
+			[userId, ...deleteIds]
+		);
+
+		return existing.length;
+	});
+}

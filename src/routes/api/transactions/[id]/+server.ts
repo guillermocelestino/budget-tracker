@@ -1,19 +1,12 @@
 import { json } from '@sveltejs/kit';
-import { queryOne, execute } from '$lib/database/query';
-import type { Transaction } from '$lib/types';
+import { getTransaction, updateTransaction, deleteTransaction } from '$lib/server/transactions';
 
 export async function GET({ params, locals }: { params: { id: string }; locals: App.Locals }) {
 	const userId = locals.user!.userId;
 	const id = parseInt(params.id);
 	if (isNaN(id)) return json({ error: 'Invalid ID' }, { status: 400 });
 
-	const transaction = await queryOne<Transaction>(
-		`SELECT t.*, c.name as category_name, c.color as category_color
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 WHERE t.id = $1 AND t.user_id = $2`,
-		[id, userId]
-	);
+	const transaction = await getTransaction(userId, id);
 
 	if (!transaction) {
 		return json({ error: 'Transaction not found' }, { status: 404 });
@@ -46,27 +39,28 @@ export async function PUT({ params, request, locals }: { params: { id: string };
 		return json({ error: 'Category is required' }, { status: 400 });
 	}
 
-	const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
-	if (!existing) {
-		return json({ error: 'Transaction not found' }, { status: 404 });
+	try {
+		const success = await updateTransaction(userId, id, {
+			type,
+			amount,
+			description,
+			date,
+			category_id
+		});
+
+		if (!success) {
+			return json({ error: 'Transaction not found' }, { status: 404 });
+		}
+
+		const transaction = await getTransaction(userId, id);
+		return json(transaction);
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		if (message === 'Category not found') {
+			return json({ error: 'Category not found' }, { status: 400 });
+		}
+		return json({ error: message }, { status: 400 });
 	}
-
-	await execute(
-		`UPDATE transactions
-		 SET amount = $1, description = $2, date = $3, category_id = $4, type = $5, updated_at = NOW()
-		 WHERE user_id = $6 AND id = $7`,
-		[amount, description.trim(), date, category_id, type, userId, id]
-	);
-
-	const transaction = await queryOne<Transaction>(
-		`SELECT t.*, c.name as category_name, c.color as category_color
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 WHERE t.id = $1 AND t.user_id = $2`,
-		[id, userId]
-	);
-
-	return json(transaction);
 }
 
 export async function DELETE({ params, locals }: { params: { id: string }; locals: App.Locals }) {
@@ -74,11 +68,10 @@ export async function DELETE({ params, locals }: { params: { id: string }; local
 	const id = parseInt(params.id);
 	if (isNaN(id)) return json({ error: 'Invalid ID' }, { status: 400 });
 
-	const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
-	if (!existing) {
+	const success = await deleteTransaction(userId, id);
+	if (!success) {
 		return json({ error: 'Transaction not found' }, { status: 404 });
 	}
 
-	await execute('DELETE FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
 	return new Response(null, { status: 204 });
 }
