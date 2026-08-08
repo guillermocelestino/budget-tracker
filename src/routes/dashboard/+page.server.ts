@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany, execute } from '$lib/database/query';
-import type { Transaction, CategoryReportItem, RecurringTransaction } from '$lib/types';
+import { getMonthlySummary, getRecentTransactions } from '$lib/server/transactions';
+import type { CategoryReportItem, RecurringTransaction } from '$lib/types';
 import { getCurrentMonth } from '$lib/utils/format';
 import { computeNetWorth } from '$lib/server/networth';
 import { processRecurringTransactions } from '$lib/server/recurringScheduler';
@@ -16,24 +17,11 @@ export async function load({ locals }: { locals: App.Locals }) {
 	const lastDayDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
 	const lastDay = `${currentMonthStr}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
 
-	const summary = await queryOne<{ totalincome: string; totalexpenses: string }>(
-		`SELECT
-			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as totalincome,
-			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as totalexpenses
-		 FROM transactions
-		 WHERE user_id = $1 AND date >= $2 AND date <= $3`,
-		[userId, firstDay, lastDay]
-	);
+	const monthlySummary = await getMonthlySummary(userId, currentMonthStr);
+	const totalIncome = monthlySummary.totalIncome;
+	const totalExpenses = monthlySummary.totalExpenses;
 
-	const recentTransactions = await queryMany<Transaction>(
-		`SELECT t.*, c.name as category_name, c.color as category_color
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 WHERE t.user_id = $1
-		 ORDER BY t.date DESC, t.id DESC
-		 LIMIT 5`,
-		[userId]
-	);
+	const recentTransactions = await getRecentTransactions(userId, 5);
 
 	const lendingSummary = await queryOne<{ totalLent: string; totalRecovered: string }>(
 			`SELECT
@@ -61,8 +49,6 @@ export async function load({ locals }: { locals: App.Locals }) {
 	const totalBorrowed = parseFloat(borrowedSummary?.totalBorrowed ?? '0');
 	const totalRepaid = parseFloat(borrowedSummary?.totalRepaid ?? '0');
 
-	const totalIncome = parseFloat(summary?.totalincome ?? '0');
-	const totalExpenses = parseFloat(summary?.totalexpenses ?? '0');
 	const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0;
 
 	// Category expense data for donut chart

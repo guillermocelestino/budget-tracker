@@ -49,6 +49,8 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 	let updateTransaction: typeof import('$lib/server/transactions').updateTransaction;
 	let deleteTransaction: typeof import('$lib/server/transactions').deleteTransaction;
 	let deleteTransactions: typeof import('$lib/server/transactions').deleteTransactions;
+	let getMonthlySummary: typeof import('$lib/server/transactions').getMonthlySummary;
+	let getRecentTransactions: typeof import('$lib/server/transactions').getRecentTransactions;
 
 	beforeAll(async () => {
 		vi.doMock('$lib/database', () => ({
@@ -140,6 +142,8 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 		updateTransaction = svc.updateTransaction;
 		deleteTransaction = svc.deleteTransaction;
 		deleteTransactions = svc.deleteTransactions;
+		getMonthlySummary = svc.getMonthlySummary;
+		getRecentTransactions = svc.getRecentTransactions;
 	});
 
 	function createUser(username: string): number {
@@ -403,6 +407,34 @@ describe('transactions service — SQLite / raw query path (in-memory better-sql
 		expect(await getTransaction(userA, id2)).toBeNull();
 		expect(await getTransaction(userB, idB)).not.toBeNull();
 	});
+
+	it('handles getMonthlySummary correctly', async () => {
+		const userA = createUser(`user_ms_${sequence++}`);
+		const catA = createCategory(userA, 'Cat A');
+
+		addTransaction(userA, 100, 'T1', '2026-08-01', catA, 'income');
+		addTransaction(userA, 50, 'T2', '2026-08-15', catA, 'expense');
+		addTransaction(userA, 20, 'T3', '2026-08-31', catA, 'expense');
+		addTransaction(userA, 300, 'T4', '2026-09-01', catA, 'income'); // other month
+
+		const summary = await getMonthlySummary(userA, '2026-08');
+		expect(summary.totalIncome).toBe(100);
+		expect(summary.totalExpenses).toBe(70);
+	});
+
+	it('handles getRecentTransactions correctly without count queries', async () => {
+		const userA = createUser(`user_rt_${sequence++}`);
+		const catA = createCategory(userA, 'Cat A');
+
+		addTransaction(userA, 10, 'T1', '2026-08-01', catA, 'expense');
+		addTransaction(userA, 20, 'T2', '2026-08-02', catA, 'expense');
+		addTransaction(userA, 30, 'T3', '2026-08-03', catA, 'expense');
+
+		const recent = await getRecentTransactions(userA, 2);
+		expect(recent).toHaveLength(2);
+		expect(recent[0].description).toBe('T3'); // date DESC
+		expect(recent[1].description).toBe('T2');
+	});
 });
 
 describe('transactions service — Drizzle / Postgres path (recorded fake client)', () => {
@@ -413,6 +445,8 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 	let updateTransaction: typeof import('$lib/server/transactions').updateTransaction;
 	let deleteTransaction: typeof import('$lib/server/transactions').deleteTransaction;
 	let deleteTransactions: typeof import('$lib/server/transactions').deleteTransactions;
+	let getMonthlySummary: typeof import('$lib/server/transactions').getMonthlySummary;
+	let getRecentTransactions: typeof import('$lib/server/transactions').getRecentTransactions;
 
 	let calls: {
 		selects: number;
@@ -443,6 +477,10 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 															offset(o: number) {
 																calls.selects += 1;
 																return Promise.resolve(selectRows);
+															},
+															then(onfulfilled: any) {
+																calls.selects += 1;
+																return Promise.resolve(selectRows).then(onfulfilled);
 															}
 														};
 													},
@@ -474,6 +512,10 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 									limit(n: number) {
 										calls.selects += 1;
 										return Promise.resolve(selectRows);
+									},
+									then(onfulfilled: any) {
+										calls.selects += 1;
+										return Promise.resolve(selectRows).then(onfulfilled);
 									}
 								};
 							}
@@ -547,6 +589,8 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 		updateTransaction = svc.updateTransaction;
 		deleteTransaction = svc.deleteTransaction;
 		deleteTransactions = svc.deleteTransactions;
+		getMonthlySummary = svc.getMonthlySummary;
+		getRecentTransactions = svc.getRecentTransactions;
 	});
 
 	beforeEach(() => {
@@ -590,5 +634,24 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 		const count = await deleteTransactions(12, [1, 2]);
 		expect(count).toBe(2);
 		expect(calls.transactions).toBe(1);
+	});
+
+	it('selects monthly summary via Drizzle', async () => {
+		selectRows = [{ totalIncome: '100', totalExpenses: '70' }];
+
+		const summary = await getMonthlySummary(12, '2026-08');
+		expect(summary.totalIncome).toBe(100);
+		expect(summary.totalExpenses).toBe(70);
+	});
+
+	it('selects recent transactions via Drizzle', async () => {
+		selectRows = [
+			{ id: 2, amount: '50', description: 'T2', date: '2026-08-02', type: 'expense' },
+			{ id: 1, amount: '100', description: 'T1', date: '2026-08-01', type: 'income' }
+		];
+
+		const recent = await getRecentTransactions(12, 2);
+		expect(recent).toHaveLength(2);
+		expect(recent[0].description).toBe('T2');
 	});
 });

@@ -599,3 +599,90 @@ export async function deleteTransactions(userId: number, ids: number[]): Promise
 		return existing.length;
 	});
 }
+
+/** Get monthly income and expense totals for the dashboard. */
+export async function getMonthlySummary(
+	userId: number,
+	month: string // YYYY-MM
+): Promise<{ totalIncome: number; totalExpenses: number }> {
+	const firstDay = `${month}-01`;
+	const date = new Date(firstDay);
+	const lastDayDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+	const lastDay = `${month}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
+
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const [row] = await db
+			.select({
+				totalIncome: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+				totalExpenses: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
+			})
+			.from(transactions)
+			.where(and(
+				eq(transactions.user_id, userId),
+				gte(transactions.date, firstDay),
+				lte(transactions.date, lastDay)
+			));
+		return {
+			totalIncome: parseFloat(row?.totalIncome ?? '0'),
+			totalExpenses: parseFloat(row?.totalExpenses ?? '0')
+		};
+	}
+
+	// SQLite path
+	const row = await queryOne<{ totalincome: string; totalexpenses: string }>(
+		`SELECT
+			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as totalincome,
+			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as totalexpenses
+		 FROM transactions
+		 WHERE user_id = $1 AND date >= $2 AND date <= $3`,
+		[userId, firstDay, lastDay]
+	);
+	return {
+		totalIncome: parseFloat(row?.totalincome ?? '0'),
+		totalExpenses: parseFloat(row?.totalexpenses ?? '0')
+	};
+}
+
+/** Get recent transactions for the dashboard. */
+export async function getRecentTransactions(
+	userId: number,
+	limit: number
+): Promise<Transaction[]> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				id: transactions.id,
+				amount: transactions.amount,
+				description: transactions.description,
+				date: transactions.date,
+				category_id: transactions.category_id,
+				type: transactions.type,
+				created_at: transactions.created_at,
+				updated_at: transactions.updated_at,
+				category_name: categories.name,
+				category_color: categories.color,
+			})
+			.from(transactions)
+			.leftJoin(categories, eq(transactions.category_id, categories.id))
+			.where(eq(transactions.user_id, userId))
+			.orderBy(desc(transactions.date), desc(transactions.id))
+			.limit(limit);
+
+		return rows.map((r) => mapTransactionRow(r as unknown as TransactionRowWithCategory));
+	}
+
+	// SQLite path
+	const rows = await queryMany<TransactionRowWithCategory>(
+		`SELECT t.*, c.name as category_name, c.color as category_color
+		 FROM transactions t
+		 LEFT JOIN categories c ON t.category_id = c.id
+		 WHERE t.user_id = $1
+		 ORDER BY t.date DESC, t.id DESC
+		 LIMIT $2`,
+		[userId, limit]
+	);
+
+	return rows.map(mapTransactionRow);
+}
