@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { formatCurrency, formatDate, getToday } from '$lib/utils/format';
+  import { formatCurrency, formatDate, dateToString, getToday } from '$lib/utils/format';
   import RowActionsMenu from '$lib/components/RowActionsMenu.svelte';
   import RowHoverActions from '$lib/components/RowHoverActions.svelte';
   import type { LendingWithPayments } from '$lib/types';
@@ -78,8 +78,10 @@
 
   function computeState(iou: LendingWithPayments): State {
     if (iou.status === 'paid') return 'paid';
-    if (!iou.due_date) return 'later';
-    const due = new Date(iou.due_date + 'T00:00:00');
+    // Postgres returns `date` columns as Date objects — normalize to string.
+    const dueStr = dateToString(iou.due_date);
+    if (!dueStr) return 'later';
+    const due = new Date(dueStr + 'T00:00:00');
     const diffMs = due.getTime() - today.getTime();
     const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
     if (diffDays < 0) return 'overdue';
@@ -87,9 +89,10 @@
     return 'later';
   }
 
-  function daysUntilDue(dueDate: string | null): number | null {
-    if (!dueDate) return null;
-    const due = new Date(dueDate + 'T00:00:00');
+  function daysUntilDue(dueDate: string | Date | null): number | null {
+    const dueStr = dateToString(dueDate);
+    if (!dueStr) return null;
+    const due = new Date(dueStr + 'T00:00:00');
     const diffMs = due.getTime() - today.getTime();
     return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   }

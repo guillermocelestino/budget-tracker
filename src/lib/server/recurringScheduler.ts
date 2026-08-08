@@ -11,7 +11,10 @@ import { getToday } from '$lib/utils/format';
  * Parse a YYYY-MM-DD date string into a local Date object.
  * Avoids the UTC-parsing pitfall of `new Date('YYYY-MM-DD')`.
  */
-function parseDateLocal(dateStr: string): Date {
+function parseDateLocal(dateStr: string | Date): Date {
+	if (dateStr instanceof Date) {
+		return new Date(dateStr.getFullYear(), dateStr.getMonth(), dateStr.getDate());
+	}
 	const [y, m, d] = dateStr.split('-').map(Number);
 	return new Date(y, m - 1, d);
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatCurrency, formatDate, formatDateShort, formatSignedCurrency, getToday } from '$lib/utils/format';
+  import { formatCurrency, formatDate, formatDateShort, formatSignedCurrency, dateToString, getToday } from '$lib/utils/format';
   import RowActionsMenu from '$lib/components/RowActionsMenu.svelte';
   import RowHoverActions from '$lib/components/RowHoverActions.svelte';
   import DateHeaderBand from '$lib/components/DateHeaderBand.svelte';
@@ -105,10 +105,13 @@
 
   type TxnWithBalance = Transaction & { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean };
 
+  // Postgres returns `date` columns as Date objects; normalize to 'YYYY-MM-DD'
+  // strings so sorting, day-group keys, and API payloads stay string-based.
   const transactionsWithBalance = $derived.by(() => {
-    const source = (allTransactionsForBalance && allTransactionsForBalance.length > 0)
+    const rawSource = (allTransactionsForBalance && allTransactionsForBalance.length > 0)
       ? allTransactionsForBalance
       : transactions;
+    const source = rawSource.map((t) => ({ ...t, date: dateToString(t.date) ?? t.date }));
 
     const sorted = [...source].sort((a, b) => {
       const dateCmp = a.date.localeCompare(b.date);
@@ -152,8 +155,11 @@
       });
     }
 
+    // Keep the prop's display order (newest first) but attach balance fields and
+    // normalize dates to strings so grouping keys never see a Postgres Date.
     return transactions.map(txn => ({
       ...txn,
+      date: dateToString(txn.date) ?? txn.date,
       ...balanceMap.get(txn.id)!,
     }));
   });
@@ -234,7 +240,7 @@
         data.category_id = categoryId;
         data.type = txn.type;
         data.description = txn.description;
-        data.date = txn.date;
+        data.date = dateToString(txn.date) ?? txn.date;
         data.amount = txn.amount;
       }
 

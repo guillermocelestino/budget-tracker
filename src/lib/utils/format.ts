@@ -41,7 +41,8 @@ export function formatPlainAmount(amount: number): string {
 	});
 }
 
-export function formatDate(dateStr: string): string {
+export function formatDate(dateStr: string | Date | null | undefined): string {
+	if (dateStr == null) return '';
 	const date = parseDate(dateStr);
 	// Determine the format based on user preference
 	const format = prefs?.dateFormat ?? 'MMM DD, YYYY';
@@ -57,7 +58,8 @@ export function formatDate(dateStr: string): string {
 	return new Intl.DateTimeFormat('en-US', options).format(date);
 }
 
-export function formatDateShort(dateStr: string): string {
+export function formatDateShort(dateStr: string | Date | null | undefined): string {
+	if (dateStr == null) return '';
 	const date = parseDate(dateStr);
 	return new Intl.DateTimeFormat('en-US', {
 		month: 'short',
@@ -65,7 +67,13 @@ export function formatDateShort(dateStr: string): string {
 	}).format(date);
 }
 
-export function parseDate(dateStr: string): Date {
+export function parseDate(dateStr: string | Date): Date {
+	// Postgres returns `date` columns as JS Date objects (SQLite returns
+	// 'YYYY-MM-DD' strings). Normalize both to a local-midnight Date so
+	// Intl formatting and comparisons behave the same on either backend.
+	if (dateStr instanceof Date) {
+		return new Date(dateStr.getFullYear(), dateStr.getMonth(), dateStr.getDate());
+	}
 	const [y, m, d] = dateStr.split('-').map(Number);
 	return new Date(y, m - 1, d);
 }
@@ -75,6 +83,16 @@ export function formatDateInput(date: Date = new Date()): string {
 	const m = String(date.getMonth() + 1).padStart(2, '0');
 	const d = String(date.getDate()).padStart(2, '0');
 	return `${y}-${m}-${d}`;
+}
+
+/**
+ * Normalize a date value to a 'YYYY-MM-DD' string. Postgres returns `date`
+ * columns as JS Date objects (SQLite returns strings), so DB-backed dates
+ * reach components as either. Returns null for nullish input.
+ */
+export function dateToString(date: string | Date | null | undefined): string | null {
+	if (date == null) return null;
+	return date instanceof Date ? formatDateInput(date) : date;
 }
 
 /**

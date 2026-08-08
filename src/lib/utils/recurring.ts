@@ -1,12 +1,16 @@
 import type { RecurringFrequency } from '$lib/types';
 
 /**
- * Parse a YYYY-MM-DD date string into a local Date object.
- * Avoids the UTC-parsing pitfall of `new Date('YYYY-MM-DD')` which
- * interprets the string as UTC midnight, causing off-by-one errors
- * in negative-UTC timezones when local getters are used.
+ * Parse a YYYY-MM-DD date string (or a Date — Postgres returns `date` columns
+ * as JS Date objects) into a local Date object. The string path avoids the
+ * UTC-parsing pitfall of `new Date('YYYY-MM-DD')` which interprets the string
+ * as UTC midnight, causing off-by-one errors in negative-UTC timezones when
+ * local getters are used.
  */
-function parseDateLocal(dateStr: string): Date {
+function parseDateLocal(dateStr: string | Date): Date {
+	if (dateStr instanceof Date) {
+		return new Date(dateStr.getFullYear(), dateStr.getMonth(), dateStr.getDate());
+	}
 	const [y, m, d] = dateStr.split('-').map(Number);
 	return new Date(y, m - 1, d);
 }
@@ -26,7 +30,7 @@ function formatDateLocal(date: Date): string {
  * This is a client-safe version that can be used in components
  */
 export function calculateNextRun(
-	currentRun: string,
+	currentRun: string | Date,
 	frequency: RecurringFrequency,
 	interval: number,
 	dayOfWeek: number | null,

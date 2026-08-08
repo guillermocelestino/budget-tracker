@@ -145,7 +145,8 @@
 - `DeletePaymentConfirmModal.svelte` — Confirmation modal for deleting a payment record
 
 ## Database (`src/lib/database/`)
-- **`index.ts`** — Lazy-init gate. Detects `POSTGRES_URL` → `usePostgres` boolean. Exposes `getPgPool()` and `getSQLiteDb()`, both auto-run `initDb()` once. SQLite DB at `data/budget.db` (WAL mode, foreign keys on)
+- **`index.ts`** — Lazy-init gate. Detects `POSTGRES_URL` → `usePostgres` boolean. Exposes `getPgPool()` and `getSQLiteDb()`, both auto-run `initDb()` once. SQLite DB at `data/budget.db` (WAL mode, foreign keys on). Registers `pg.types.setTypeParser(1700, parseFloat)` so Postgres `NUMERIC` columns return JS numbers (SQLite already does); also `date` columns return JS `Date` objects on Postgres — handle both via `dateToString()`/`parseDate()`
+- **`loadEnv.ts`** — Dev-only, imported first by `index.ts`. SvelteKit dev doesn't load `.env` into `process.env`, so in development it wires `LOCAL_DEV_DATABASE_URL` → `process.env.DATABASE_URL` (+ dev `JWT_SECRET` fallback) → `npm run dev` uses the local-dev Neon branch. Inert in production, when `SEED_DEMO=1` (e2e stays on SQLite), and when `DATABASE_URL` is already exported in the shell
 - **`query.ts`** — Four cross-DB functions: `queryOne<T>()`, `queryMany<T>()`, `execute()`, `withTransaction()`. All SQL written in **Postgres dialect**; `translatePgToSQLite()` auto-converts `$1→?`, `::type` removal, `TO_CHAR→strftime`, `EXTRACT→strftime`, `NOW→datetime`, `CURRENT_DATE→date`
 - **`init.ts`** — Schema: **6 tables** with equivalent Postgres/SQLite DDL + indexes:
   - `users` (id, username, password_hash, created_at)

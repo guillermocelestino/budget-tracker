@@ -1,4 +1,11 @@
-import { Pool } from '@neondatabase/serverless';
+import './loadEnv'; // dev-only: wire LOCAL_DEV_DATABASE_URL → DATABASE_URL (see loadEnv.ts)
+import { Pool, types } from '@neondatabase/serverless';
+
+// Postgres returns NUMERIC (OID 1700) columns as strings to avoid precision
+// loss; SQLite returns them as JS numbers. Coerce to numbers so both backends
+// behave identically (the app's types are `number`). Registered once at module
+// load; affects every connection from the shared Pool.
+types.setTypeParser(1700, (value: string) => parseFloat(value));
 import path from 'node:path';
 import fs from 'node:fs';
 import type { Database } from 'better-sqlite3';

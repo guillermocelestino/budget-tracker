@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatCurrency, formatDate, getToday } from '$lib/utils/format';
+	import { formatCurrency, formatDate, dateToString, getToday } from '$lib/utils/format';
 	import RowActionsMenu from '$lib/components/RowActionsMenu.svelte';
 	import RowHoverActions from '$lib/components/RowHoverActions.svelte';
 	import { getCategoryHue, getCategoryText, getCategoryTint } from '$lib/utils/categoryColors';
@@ -40,13 +40,15 @@
 		yearly: 'Yearly'
 	};
 
-	function formatNextRun(dateStr: string): string {
+	function formatNextRun(dateStr: string | Date): string {
+		// Postgres returns `date` columns as Date objects — normalize to string.
+		const s = dateToString(dateStr) ?? '';
 		const today = getToday();
 		const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
-		const date = new Date(dateStr + 'T00:00:00');
+		const date = new Date(s + 'T00:00:00');
 
-		if (dateStr === today) return 'Today';
-		if (dateStr === tomorrow) return 'Tomorrow';
+		if (s === today) return 'Today';
+		if (s === tomorrow) return 'Tomorrow';
 
 		const diffDays = Math.ceil((date.getTime() - new Date(today + 'T00:00:00').getTime()) / 86_400_000);
 		if (diffDays > 0 && diffDays <= 7) {
@@ -56,14 +58,15 @@
 			return `${Math.abs(diffDays)} day${Math.abs(diffDays) > 1 ? 's' : ''} ago`;
 		}
 
-		return formatDate(dateStr);
+		return formatDate(s);
 	}
 
 	function getStatusBadge(rec: RecurringTransaction): { label: string; class: string } {
 		if (!rec.active) {
 			return { label: 'Paused', class: 'status-paused' };
 		}
-		const nextRun = new Date(rec.next_run + 'T00:00:00');
+		const nextRunStr = dateToString(rec.next_run) ?? '';
+		const nextRun = new Date(nextRunStr + 'T00:00:00');
 		const today = new Date(getToday() + 'T00:00:00');
 		if (nextRun < today) {
 			return { label: 'Overdue', class: 'status-overdue' };

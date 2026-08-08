@@ -26,7 +26,7 @@ export default defineConfig({
 		},
 	],
 	webServer: {
-		command: 'SEED_DEMO=1 npx tsx scripts/seed-demo.ts && npx vite dev --port 5188',
+		command: 'SEED_DEMO=1 npx tsx scripts/seed-demo.ts && SEED_DEMO=1 npx vite dev --port 5188',
 		port: 5188,
 		reuseExistingServer: !process.env.CI,
 		timeout: 120000,
