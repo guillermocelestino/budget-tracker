@@ -1,19 +1,14 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { queryOne, queryMany, execute } from '$lib/database/query';
-import type { Transaction, Category } from '$lib/types';
+import { queryMany } from '$lib/database/query';
+import { getTransaction, updateTransaction } from '$lib/server/transactions';
+import type { Category } from '$lib/types';
 
 export async function load({ params, locals }: { params: { id: string }; locals: App.Locals }) {
 	const userId = locals.user!.userId;
 	const id = parseInt(params.id);
 	if (isNaN(id)) error(400, 'Invalid ID');
 
-	const transaction = await queryOne<Transaction>(
-		`SELECT t.*, c.name as category_name, c.color as category_color
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 WHERE t.id = $1 AND t.user_id = $2`,
-		[id, userId]
-	);
+	const transaction = await getTransaction(userId, id);
 
 	if (!transaction) error(404, 'Transaction not found');
 
@@ -27,9 +22,6 @@ export const actions = {
 		const userId = locals.user!.userId;
 		const id = parseInt(params.id);
 		if (isNaN(id)) return fail(400, { error: 'Invalid ID' });
-
-		const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
-		if (!existing) return fail(404, { error: 'Transaction not found' });
 
 		const data = await request.formData();
 		const type = data.get('type') as string;
@@ -49,12 +41,27 @@ export const actions = {
 			return fail(400, { errors, values: { type, amount: amountStr, description, date, category_id } });
 		}
 
-		await execute(
-			`UPDATE transactions
-			 SET amount = $1, description = $2, date = $3, category_id = $4, type = $5, updated_at = NOW()
-			 WHERE user_id = $6 AND id = $7`,
-			[parseFloat(amountStr), description.trim(), date, parseInt(category_id), type, userId, id]
-		);
+		try {
+			const success = await updateTransaction(userId, id, {
+				type: type as 'income' | 'expense',
+				amount: parseFloat(amountStr),
+				description,
+				date,
+				category_id: parseInt(category_id, 10),
+			});
+			if (!success) {
+				return fail(404, { error: 'Transaction not found' });
+			}
+		} catch (err: unknown) {
+			const message = err instanceof Error ? err.message : String(err);
+			if (message === 'Category not found') {
+				return fail(400, {
+					errors: { category_id: 'Category not found' },
+					values: { type, amount: amountStr, description, date, category_id }
+				});
+			}
+			return fail(400, { error: message });
+		}
 
 		redirect(303, '/transactions');
 	},
