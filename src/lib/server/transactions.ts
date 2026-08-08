@@ -1059,7 +1059,7 @@ export async function getMonthlyTrends(
 ): Promise<{ month: string; income: number; expense: number }[]> {
 	if (usePostgres) {
 		const db = await getDrizzle();
-		const monthExpr = sql`TO_CHAR(${transactions.date}, 'YYYY-MM')`;
+		const monthExpr = sql<string>`TO_CHAR(${transactions.date}, 'YYYY-MM')`;
 		const rows = await db
 			.select({
 				month: monthExpr,
@@ -1132,7 +1132,7 @@ export async function getMonthlyCashFlows(
 ): Promise<{ month: string; net: number }[]> {
 	if (usePostgres) {
 		const db = await getDrizzle();
-		const monthExpr = sql`TO_CHAR(${transactions.date}, 'YYYY-MM')`;
+		const monthExpr = sql<string>`TO_CHAR(${transactions.date}, 'YYYY-MM')`;
 		const rows = await db
 			.select({
 				month: monthExpr,
