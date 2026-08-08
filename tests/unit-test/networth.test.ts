@@ -8,6 +8,7 @@ CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL
 CREATE TABLE categories (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, color TEXT NOT NULL DEFAULT '#6366f1', icon TEXT NOT NULL DEFAULT '📁', type TEXT NOT NULL DEFAULT 'expense', budget_limit REAL, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (user_id, name));
 CREATE TABLE transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, amount REAL NOT NULL, description TEXT NOT NULL, date TEXT NOT NULL, category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT, type TEXT NOT NULL CHECK(type IN ('income', 'expense')), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
 CREATE TABLE lendings (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, borrower_name TEXT NOT NULL, amount REAL NOT NULL, interest_rate REAL, date_lent TEXT NOT NULL, due_date TEXT, status TEXT NOT NULL DEFAULT 'active', notes TEXT, direction TEXT NOT NULL DEFAULT 'lent', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE TABLE lending_payments (id INTEGER PRIMARY KEY AUTOINCREMENT, lending_id INTEGER NOT NULL REFERENCES lendings(id) ON DELETE CASCADE, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, amount REAL NOT NULL, payment_date TEXT NOT NULL, notes TEXT, transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL, payment_type TEXT NOT NULL DEFAULT 'payment' CHECK (payment_type IN ('payment', 'write_off')), reference TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
 `;
 
 describe('networth — SQLite / raw query path (in-memory better-sqlite3)', () => {
@@ -168,6 +169,19 @@ describe('networth — Drizzle / Postgres path (recorded fake client)', () => {
 	let calls: { selects: { table: string; cols: string[] }[] };
 
 	function fakeDb() {
+		// Generic thenable query chain. Every builder method returns the same
+		// chain so Drizzle's fluent API (from/leftJoin/on/where/groupBy/orderBy/
+		// limit) keeps working; awaiting the chain resolves to an empty row set.
+		const chain: any = {
+			leftJoin() { return chain; },
+			on() { return chain; },
+			where() { return chain; },
+			groupBy() { return chain; },
+			orderBy() { return chain; },
+			limit() { return chain; }
+		};
+		chain.then = (onFulfilled: any, onRejected: any) =>
+			Promise.resolve([]).then(onFulfilled, onRejected);
 		return {
 			select(cols?: Record<string, unknown>) {
 				const colNames = cols ? Object.keys(cols) : [];
@@ -175,17 +189,7 @@ describe('networth — Drizzle / Postgres path (recorded fake client)', () => {
 					from(table: { name?: string }) {
 						const tableName = table?.name ?? 'unknown';
 						calls.selects.push({ table: tableName, cols: colNames });
-						return {
-							where() {
-								const chain: any = {
-									orderBy() { return Promise.resolve([]); },
-									groupBy() { return { orderBy() { return Promise.resolve([]); } }; }
-								};
-								chain.then = (onFulfilled: any, onRejected: any) =>
-									Promise.resolve([]).then(onFulfilled, onRejected);
-								return chain;
-							}
-						};
+						return chain;
 					}
 				};
 			}
