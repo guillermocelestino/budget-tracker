@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { queryOne, execute } from '$lib/database/query';
+import { queryOne } from '$lib/database/query';
 import type { Lending } from '$lib/types';
 import { importLendingsForUser } from '$lib/server/lendingImport';
 import {
@@ -8,9 +8,9 @@ import {
 	recordPayment,
 	updatePayment,
 	deletePayment,
-	hasPayments,
 	deleteLending,
 	createLending,
+	updateLending,
 } from '$lib/server/lendingPayments';
 import { getToday } from '$lib/utils/format';
 
@@ -83,29 +83,21 @@ export const actions = {
 		if (!borrower_name) return fail(400, { error: 'Lender name is required' });
 		if (!date_lent) return fail(400, { error: 'Date borrowed is required' });
 
-		// Check if payments exist — if so, lock amount, direction, date_lent
-		const paymentExists = await hasPayments(userId, id);
-
-		if (paymentExists) {
-			// Lock amount, direction, date_lent — only update metadata
-			await execute(
-				`UPDATE lendings SET borrower_name = $1, interest_rate = $2, due_date = $3, notes = $4, updated_at = NOW()
-				 WHERE user_id = $5 AND id = $6`,
-				[borrower_name, interest_rate, due_date || null, notes, userId, id]
-			);
-		} else {
-			// No payments — amount is editable
-			if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0) {
-				return fail(400, { error: 'Amount must be a positive number' });
-			}
-			await execute(
-				`UPDATE lendings SET borrower_name = $1, amount = $2, interest_rate = $3, date_lent = $4, due_date = $5, notes = $6, updated_at = NOW()
-				 WHERE user_id = $7 AND id = $8`,
-				[borrower_name, parseFloat(amountStr), interest_rate, date_lent, due_date || null, notes, userId, id]
-			);
+		// updateLending owns the payment-lock rules: amount/date_lent are
+		// immutable once payments exist, and status is never client-settable.
+		try {
+			await updateLending(userId, id, {
+				borrowerName: borrower_name,
+				amount: parseFloat(amountStr) || 0,
+				interestRate: interest_rate,
+				dateLent: date_lent,
+				dueDate: due_date || null,
+				notes
+			});
+			return { success: true };
+		} catch (e) {
+			return fail(400, { error: (e as Error).message });
 		}
-
-		return { success: true };
 	},
 
 	recordPayment: async ({ request, locals }) => {

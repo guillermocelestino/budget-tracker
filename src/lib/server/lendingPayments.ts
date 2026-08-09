@@ -994,7 +994,8 @@ export async function deleteLending(userId: number, lendingId: number): Promise<
  * When recordAsTransaction is false the lending is still created transactionally,
  * but no ledger transaction or category is written.
  *
- * Returns { success: true } on success; throws (rolling everything back) on failure.
+ * Returns { success: true, id } (the new lending's id) on success; throws
+ * (rolling everything back) on failure.
  */
 export async function createLending(
 	userId: number,
@@ -1008,20 +1009,23 @@ export async function createLending(
 		direction: 'lent' | 'borrowed';
 		recordAsTransaction: boolean;
 	}
-): Promise<{ success: true }> {
+): Promise<{ success: true; id: number }> {
 	if (usePostgres) {
 		const db = await getDrizzle();
 		return db.transaction(async (tx) => {
-			await tx.insert(lendings).values({
-				user_id: userId,
-				borrower_name: input.borrowerName,
-				amount: String(input.amount),
-				interest_rate: String(input.interestRate),
-				date_lent: input.dateLent,
-				due_date: input.dueDate,
-				notes: input.notes,
-				direction: input.direction
-			});
+			const [created] = await tx
+				.insert(lendings)
+				.values({
+					user_id: userId,
+					borrower_name: input.borrowerName,
+					amount: String(input.amount),
+					interest_rate: String(input.interestRate),
+					date_lent: input.dateLent,
+					due_date: input.dueDate,
+					notes: input.notes,
+					direction: input.direction
+				})
+				.returning({ id: lendings.id });
 
 			if (input.recordAsTransaction) {
 				await recordLendingTransactionInTxDrizzle(tx, userId, {
@@ -1033,7 +1037,7 @@ export async function createLending(
 				});
 			}
 
-			return { success: true as const };
+			return { success: true as const, id: created.id };
 		});
 	}
 
@@ -1052,6 +1056,126 @@ export async function createLending(
 				partyName: input.borrowerName,
 				date: input.dateLent
 			});
+		}
+
+		const created = await tx.queryOne<{ id: number }>(
+			'SELECT id FROM lendings WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
+			[userId]
+		);
+		return { success: true as const, id: created!.id };
+	});
+}
+
+/**
+ * Update an existing lending, applying the payment lock.
+ *
+ * One source of truth for the lending-update rules shared by the lending/
+ * borrowed page actions and the API PUT:
+ *   - Ownership is enforced inside the transaction (throws 'Lending not found').
+ *   - If any payments exist, amount and date_lent are LOCKED — only metadata
+ *     (borrower_name, interest_rate, due_date, notes) is updated. The caller's
+ *     amount/dateLent values are ignored, matching the page-action behavior.
+ *   - If no payments exist, amount and date_lent are editable (amount must be
+ *     a positive number).
+ *   - `status` is never part of the input: it is a system-maintained cache
+ *     derived from payment history and cannot be set by the client. A lending
+ *     update never writes status — with no payments the remaining balance is
+ *     amount > 0, so the derived status stays 'active', which the cache already
+ *     holds; with payments the amount is locked so the derived status is
+ *     unchanged too.
+ *
+ * Option-C transaction pattern: the public function owns ONE transaction and
+ * every read/write runs through the supplied transaction context — never the
+ * global db, which on Postgres would use another pooled connection and escape
+ * the transaction.
+ */
+export async function updateLending(
+	userId: number,
+	lendingId: number,
+	input: {
+		borrowerName: string;
+		amount: number;
+		interestRate: number;
+		dateLent: string;
+		dueDate: string | null;
+		notes: string | null;
+	}
+): Promise<{ success: true }> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		return db.transaction(async (tx) => {
+			// Enforce ownership inside the transaction.
+			const [existing] = await tx
+				.select()
+				.from(lendings)
+				.where(and(eq(lendings.user_id, userId), eq(lendings.id, lendingId)));
+			if (!existing) throw new Error('Lending not found');
+
+			// Payment lock: if any payments exist, amount/date_lent are immutable.
+			const [paymentsRow] = await tx
+				.select({ count: sql<number>`count(*)` })
+				.from(lendingPayments)
+				.where(and(eq(lendingPayments.user_id, userId), eq(lendingPayments.lending_id, lendingId)));
+			const hasPayments = (paymentsRow?.count ?? 0) > 0;
+
+			if (hasPayments) {
+				await tx
+					.update(lendings)
+					.set({
+						borrower_name: input.borrowerName,
+						interest_rate: String(input.interestRate),
+						due_date: input.dueDate,
+						notes: input.notes,
+						updated_at: new Date()
+					})
+					.where(and(eq(lendings.user_id, userId), eq(lendings.id, lendingId)));
+			} else {
+				if (!(input.amount > 0)) throw new Error('Amount must be a positive number');
+				await tx
+					.update(lendings)
+					.set({
+						borrower_name: input.borrowerName,
+						amount: String(input.amount),
+						interest_rate: String(input.interestRate),
+						date_lent: input.dateLent,
+						due_date: input.dueDate,
+						notes: input.notes,
+						updated_at: new Date()
+					})
+					.where(and(eq(lendings.user_id, userId), eq(lendings.id, lendingId)));
+			}
+
+			return { success: true as const };
+		});
+	}
+
+	return withTransaction(async (tx) => {
+		const existing = await tx.queryOne<Lending>(
+			'SELECT * FROM lendings WHERE user_id = $1 AND id = $2',
+			[userId, lendingId]
+		);
+		if (!existing) throw new Error('Lending not found');
+
+		const paymentsRow = await tx.queryOne<{ count: string }>(
+			'SELECT COUNT(*) as count FROM lending_payments WHERE user_id = $1 AND lending_id = $2',
+			[userId, lendingId]
+		);
+		const hasPayments = parseInt(String(paymentsRow?.count ?? '0')) > 0;
+
+		if (hasPayments) {
+			// Payment lock — amount, date_lent (and status) stay untouched.
+			await tx.execute(
+				`UPDATE lendings SET borrower_name = $1, interest_rate = $2, due_date = $3, notes = $4, updated_at = NOW()
+				 WHERE user_id = $5 AND id = $6`,
+				[input.borrowerName, input.interestRate, input.dueDate, input.notes, userId, lendingId]
+			);
+		} else {
+			if (!(input.amount > 0)) throw new Error('Amount must be a positive number');
+			await tx.execute(
+				`UPDATE lendings SET borrower_name = $1, amount = $2, interest_rate = $3, date_lent = $4, due_date = $5, notes = $6, updated_at = NOW()
+				 WHERE user_id = $7 AND id = $8`,
+				[input.borrowerName, input.amount, input.interestRate, input.dateLent, input.dueDate, input.notes, userId, lendingId]
+			);
 		}
 
 		return { success: true as const };

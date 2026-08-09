@@ -154,7 +154,7 @@ describe('createLending — SQLite production implementation (in-memory better-s
 			notes: 'friend'
 		}));
 
-		expect(result).toEqual({ success: true });
+		expect(result.success).toBe(true);
 
 		const lending = sqlite.prepare('SELECT * FROM lendings WHERE user_id = ?').get(uid) as Record<string, unknown>;
 		expect(lending).toBeDefined();
@@ -190,7 +190,7 @@ describe('createLending — SQLite production implementation (in-memory better-s
 			direction: 'borrowed'
 		}));
 
-		expect(result).toEqual({ success: true });
+		expect(result.success).toBe(true);
 
 		const lending = sqlite.prepare('SELECT * FROM lendings WHERE user_id = ?').get(uid) as Record<string, unknown>;
 		expect(lending.borrower_name).toBe('Bob');
@@ -212,7 +212,7 @@ describe('createLending — SQLite production implementation (in-memory better-s
 		const originalCatId = (sqlite.prepare('SELECT id FROM categories WHERE user_id = ? AND name = ?').get(uid, 'Lending Recovery') as { id: number }).id;
 
 		const result = await createLending(uid, baseInput({ borrowerName: 'Alice' }));
-		expect(result).toEqual({ success: true });
+		expect(result.success).toBe(true);
 
 		// Exactly one category row, and the transaction points at it.
 		expect(count('SELECT COUNT(*) AS c FROM categories WHERE user_id = ? AND name = ?', uid, 'Lending Recovery')).toBe(1);
@@ -279,7 +279,7 @@ describe('createLending — SQLite production implementation (in-memory better-s
 			recordAsTransaction: false
 		}));
 
-		expect(result).toEqual({ success: true });
+		expect(result.success).toBe(true);
 
 		const lending = sqlite.prepare('SELECT * FROM lendings WHERE user_id = ?').get(uid) as Record<string, unknown>;
 		expect(lending).toBeDefined();
@@ -338,7 +338,7 @@ describe('createLending — SQLite production implementation (in-memory better-s
 
 			// A fresh CREATE on the same connection commits.
 			const ok = await createLending(uid, baseInput({ borrowerName: 'Survivor', recordAsTransaction: false }));
-			expect(ok).toEqual({ success: true });
+			expect(ok.success).toBe(true);
 			expect(count('SELECT COUNT(*) AS c FROM lendings WHERE user_id = ?', uid)).toBe(1);
 		} finally {
 			sqlite.exec('DROP TRIGGER IF EXISTS block_category_create_2');
@@ -399,7 +399,7 @@ describe('createLending — Drizzle/Postgres structural (tx used, global db neve
 			direction: 'lent', recordAsTransaction: true
 		});
 
-		expect(result).toEqual({ success: true });
+		expect(result.success).toBe(true);
 		expect(db.transaction).toHaveBeenCalledTimes(1);
 		// lending INSERT + category INSERT + transaction INSERT all via tx
 		expect(tx.insert).toHaveBeenCalledTimes(3);
@@ -421,7 +421,7 @@ describe('createLending — Drizzle/Postgres structural (tx used, global db neve
 			direction: 'borrowed', recordAsTransaction: false
 		});
 
-		expect(result).toEqual({ success: true });
+		expect(result.success).toBe(true);
 		expect(db.transaction).toHaveBeenCalledTimes(1);
 		expect(tx.insert).toHaveBeenCalledTimes(1);
 		expect(tx.select).not.toHaveBeenCalled();
