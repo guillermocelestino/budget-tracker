@@ -879,6 +879,105 @@ export async function deleteLinkedTransactions(userId: number, lendingId: number
 }
 
 /**
+ * Delete a lending's linked transactions inside an existing Drizzle transaction.
+ *
+ * Uses the supplied transaction context ONLY — never the global db, which on
+ * Postgres can use another pooled connection and silently escape the
+ * transaction. Must NOT be called outside a transaction; it does not open one.
+ */
+async function deleteLinkedTransactionsInTxDrizzle(
+	tx: DrizzleTransaction,
+	userId: number,
+	lendingId: number
+): Promise<void> {
+	const payments = await tx
+		.select({ transaction_id: lendingPayments.transaction_id })
+		.from(lendingPayments)
+		.where(and(eq(lendingPayments.lending_id, lendingId), isNotNull(lendingPayments.transaction_id)));
+
+	for (const p of payments) {
+		if (p.transaction_id) {
+			await tx
+				.delete(transactions)
+				.where(and(eq(transactions.user_id, userId), eq(transactions.id, p.transaction_id)));
+		}
+	}
+}
+
+/**
+ * Delete a lending's linked transactions inside an existing SQLite transaction.
+ *
+ * Uses the supplied tx helpers ONLY — never the global query layer, and does
+ * not rely on SQLite's single-connection implicit participation. Must NOT be
+ * called outside a transaction; it does not open one.
+ */
+async function deleteLinkedTransactionsInTx(
+	tx: {
+		queryMany: <U>(text: string, params?: unknown[]) => Promise<U[]>;
+		execute: (text: string, params?: unknown[]) => Promise<void>;
+	},
+	userId: number,
+	lendingId: number
+): Promise<void> {
+	const payments = await tx.queryMany<{ transaction_id: number | null }>(
+		'SELECT transaction_id FROM lending_payments WHERE lending_id = $1 AND transaction_id IS NOT NULL',
+		[lendingId]
+	);
+	for (const p of payments) {
+		if (p.transaction_id) {
+			await tx.execute(
+				'DELETE FROM transactions WHERE user_id = $1 AND id = $2',
+				[userId, p.transaction_id]
+			);
+		}
+	}
+}
+
+/**
+ * Delete a lending AND its linked transactions atomically.
+ *
+ * Mirrors the existing Option-C transaction pattern (recordPayment/updatePayment/
+ * deletePayment): the public function owns ONE transaction and every internal
+ * operation runs through the supplied transaction context. If any step fails,
+ * the whole delete — linked transactions plus the lending (and its cascaded
+ * lending_payments) — rolls back together.
+ *
+ * Returns true if the lending existed and was deleted, false if it did not
+ * exist. Callers preserve the existing "delete always reports success" route
+ * behavior and may ignore the boolean.
+ */
+export async function deleteLending(userId: number, lendingId: number): Promise<boolean> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		return db.transaction(async (tx) => {
+			await deleteLinkedTransactionsInTxDrizzle(tx, userId, lendingId);
+
+			const [row] = await tx
+				.delete(lendings)
+				.where(and(eq(lendings.user_id, userId), eq(lendings.id, lendingId)))
+				.returning({ id: lendings.id });
+			return !!row;
+		});
+	}
+
+	return withTransaction(async (tx) => {
+		await deleteLinkedTransactionsInTx(tx, userId, lendingId);
+
+		// SQLite execute() exposes no affected-row count here, so follow the
+		// existing SELECT-then-DELETE pattern to detect a missing lending.
+		const existing = await tx.queryOne<{ id: number }>(
+			'SELECT id FROM lendings WHERE user_id = $1 AND id = $2',
+			[userId, lendingId]
+		);
+		if (!existing) {
+			return false;
+		}
+		await tx.execute('DELETE FROM lendings WHERE user_id = $1 AND id = $2', [userId, lendingId]);
+		return true;
+	});
+}
+
+/**
  * Get aggregate totals for summary cards (payment-driven, not status-driven).
  */
 export async function getLendingTotals(

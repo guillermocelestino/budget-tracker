@@ -10,7 +10,7 @@ import {
 	updatePayment,
 	deletePayment,
 	hasPayments,
-	deleteLinkedTransactions,
+	deleteLending,
 } from '$lib/server/lendingPayments';
 import { getToday } from '$lib/utils/format';
 
@@ -234,9 +234,8 @@ export const actions = {
 		const id = parseInt(data.get('id') as string);
 		if (isNaN(id)) return fail(400, { error: 'Invalid ID' });
 
-		// Delete all linked transactions first, then the lending (cascades to payments)
-		await deleteLinkedTransactions(userId, id);
-		await execute('DELETE FROM lendings WHERE user_id = $1 AND id = $2', [userId, id]);
+		// Delete linked transactions and the lending atomically (cascades to payments).
+		await deleteLending(userId, id);
 		return { success: true };
 	},
 
