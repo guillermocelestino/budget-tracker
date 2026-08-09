@@ -1,5 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import { queryOne, queryMany } from '$lib/database/query';
+import { getCategories } from '$lib/server/categories';
 import { listTransactions, createTransaction, updateTransaction, deleteTransaction, deleteTransactions, getTransactionsForDuplicateCheck } from '$lib/server/transactions';
 import type { Category } from '$lib/types';
 import {
@@ -44,7 +45,7 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const unpaginatedResult = await listTransactions(userId, filters);
 	const allForBalance = [...unpaginatedResult.items].reverse();
 
-	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
+	const categories = await getCategories(userId);
 
 	return {
 		transactions: result.items,

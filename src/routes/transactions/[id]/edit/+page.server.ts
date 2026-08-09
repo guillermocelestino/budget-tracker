@@ -1,7 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { queryMany } from '$lib/database/query';
 import { getTransaction, updateTransaction } from '$lib/server/transactions';
-import type { Category } from '$lib/types';
+import { getCategories } from '$lib/server/categories';
 
 export async function load({ params, locals }: { params: { id: string }; locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -12,7 +11,7 @@ export async function load({ params, locals }: { params: { id: string }; locals:
 
 	if (!transaction) error(404, 'Transaction not found');
 
-	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
+	const categories = await getCategories(userId);
 
 	return { transaction, categories };
 }

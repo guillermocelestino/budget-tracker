@@ -1,5 +1,5 @@
-import { queryOne } from '$lib/database/query';
 import { getCurrentMonth } from '$lib/utils/format';
+import { getLendingTotals } from '$lib/server/lendingPayments';
 import {
 	getMonthlyReport,
 	getCategorySpendingReport,
@@ -50,15 +50,7 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const currIncome = monthSummary.totalIncome;
 	const currExpense = monthSummary.totalExpenses;
 
-	const lendingSummary = await queryOne<{ totalLent: string; totalRecovered: string }>(
-		`SELECT
-			COALESCE(SUM(l.amount), 0) as "totalLent",
-			COALESCE(SUM(CASE WHEN p.payment_type = 'payment' THEN p.amount ELSE 0 END), 0) as "totalRecovered"
-		 FROM lendings l
-		 LEFT JOIN lending_payments p ON p.lending_id = l.id
-		 WHERE l.user_id = $1 AND l.direction = 'lent'`,
-		[userId]
-	);
+	const lendingTotals = await getLendingTotals(userId, 'lent');
 
 	const currYTDIncome = currentYTD.income;
 	const currYTDExpense = currentYTD.expense;
@@ -97,9 +89,13 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 			},
 		},
 		lendingSummary: {
-			totalLent: parseFloat(lendingSummary?.totalLent ?? '0'),
-			totalRecovered: parseFloat(lendingSummary?.totalRecovered ?? '0'),
-			outstanding: parseFloat(lendingSummary?.totalLent ?? '0') - parseFloat(lendingSummary?.totalRecovered ?? '0'),
+			totalLent: lendingTotals.total,
+			totalRecovered: lendingTotals.cashPaid,
+			// Preserve the existing report formula (total − cash paid). The
+			// service's `outstanding` also subtracts write-offs; adopting it
+			// would change the reports number whenever write-offs exist, so it
+			// is intentionally not used here.
+			outstanding: lendingTotals.total - lendingTotals.cashPaid,
 		},
 	};
 }

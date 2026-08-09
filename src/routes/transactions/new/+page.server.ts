@@ -1,11 +1,10 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { queryMany } from '$lib/database/query';
 import { createTransaction } from '$lib/server/transactions';
-import type { Category } from '$lib/types';
+import { getCategories } from '$lib/server/categories';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;
-	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
+	const categories = await getCategories(userId);
 	return { categories };
 }
 
