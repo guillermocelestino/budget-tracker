@@ -1,18 +1,7 @@
 import { fail } from '@sveltejs/kit';
-import { queryOne, queryMany } from '$lib/database/query';
 import { getCategories } from '$lib/server/categories';
-import { listTransactions, createTransaction, updateTransaction, deleteTransaction, deleteTransactions, getTransactionsForDuplicateCheck } from '$lib/server/transactions';
-import type { Category } from '$lib/types';
-import {
-	detectDuplicates,
-	normCategoryName,
-	type ImportMappingConfig,
-	autoMap,
-	buildMappedRows,
-	validateAllRows,
-	DEFAULT_IMPORT_FIELDS,
-} from '$lib/utils/importValidation';
-import { parseImportFile } from '$lib/utils/fileImport';
+import { listTransactions, createTransaction, updateTransaction, deleteTransaction, deleteTransactions } from '$lib/server/transactions';
+import { importTransactionsForUser } from '$lib/server/transactionImport';
 
 export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -182,124 +171,10 @@ export const actions = {
 	},
 
 	import: async ({ request, locals }) => {
-		const userId = locals.user!.userId;
 		const formData = await request.formData();
 		const file = formData.get('file') as File;
 		const configJson = formData.get('config') as string;
 
-		console.log('[Import] Received file:', file?.name, file?.size, file?.type);
-
-		if (!file) {
-			return fail(400, { error: 'No file provided' });
-		}
-
-		const config: ImportMappingConfig = { dateFormat: 'YYYY-MM-DD', typeRule: 'sign' };
-		try {
-			const parsed = configJson ? JSON.parse(configJson) : {};
-			if (typeof parsed.dateFormat === 'string' && parsed.dateFormat) {
-				config.dateFormat = parsed.dateFormat;
-			}
-			if (['sign', 'column', 'debit_credit'].includes(parsed.typeRule)) {
-				config.typeRule = parsed.typeRule;
-			}
-		} catch {
-			// keep safe defaults
-		}
-
-		// Parse the file (same utility as client preview)
-		const { headers, rows } = await parseImportFile(file);
-
-		if (headers.length < 2) {
-			return fail(400, { error: 'File must have a header row and at least one data row' });
-		}
-
-		// Auto-map headers using default transaction fields
-		const mapping = autoMap(headers, DEFAULT_IMPORT_FIELDS);
-
-		// Required guard
-		const requiredUnmapped = DEFAULT_IMPORT_FIELDS
-			.filter(f => f.required)
-			.filter(f => !Object.values(mapping).includes(f.key));
-
-		if (requiredUnmapped.length > 0) {
-			const labels = requiredUnmapped.map(f => f.label).join(', ');
-			return fail(400, { error: `Could not auto-map required column(s): ${labels}. Download the template.` });
-		}
-
-		// Build and validate
-		const mappedRows = buildMappedRows(rows, headers, mapping, config);
-
-		// Fetch user categories for validation + duplicate detection
-		const userCategories = await queryMany<Category>(
-			'SELECT id, name, type FROM categories WHERE user_id = $1 ORDER BY name ASC',
-			[userId]
-		);
-
-		const { validRows, invalidRows, unknownCategories } = validateAllRows(mappedRows, userCategories, config);
-
-		if (validRows.length === 0) {
-			const errors = invalidRows.flatMap(({ errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`));
-			return fail(400, { error: 'Validation failed: no valid rows to import', details: errors });
-		}
-
-		const existingTransactions = await getTransactionsForDuplicateCheck(userId);
-
-		// Detect duplicates
-		const dupIndices = await detectDuplicates(userId, validRows, existingTransactions, userCategories);
-
-		// Filter out duplicates
-		const rowsToInsert = validRows.filter((_, i) => !dupIndices.includes(i));
-		const skippedDuplicateCount = dupIndices.length;
-
-		if (rowsToInsert.length === 0) {
-			return {
-				success: true,
-				imported: 0,
-				total: validRows.length,
-				skippedDuplicates: skippedDuplicateCount,
-				skippedInvalid: invalidRows.length,
-				unknownCategories,
-			};
-		}
-
-		// Insert valid, non-duplicate rows
-		let inserted = 0;
-		const insertErrors: string[] = [];
-
-		for (let i = 0; i < rowsToInsert.length; i++) {
-			const row = rowsToInsert[i];
-			const catName = normCategoryName(row.category_name);
-
-			const cat = await queryOne<{ id: number }>(
-				'SELECT id FROM categories WHERE user_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2))',
-				[userId, catName]
-			);
-
-			if (!cat) {
-				insertErrors.push(`Row ${i + 1}: Category "${catName}" not found`);
-				continue;
-			}
-
-			await createTransaction(userId, {
-				type: row.type,
-				amount: row.amount,
-				description: row.description.trim(),
-				date: row.date,
-				category_id: cat.id
-			});
-			inserted++;
-		}
-
-		return {
-			success: true,
-			imported: inserted,
-			total: validRows.length,
-			skippedDuplicates: skippedDuplicateCount,
-			skippedInvalid: invalidRows.length,
-			unknownCategories,
-			details: [...insertErrors, ...invalidRows.flatMap(({ errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`))].length > 0
-				? [...insertErrors, ...invalidRows.flatMap(({ errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`))]
-				: undefined,
-		};
+		return importTransactionsForUser(locals.user!.userId, file, configJson);
 	},
 };
