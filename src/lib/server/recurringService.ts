@@ -620,6 +620,33 @@ export async function getRecurringById(
 	return row ? mapRecurringRow(row) : null;
 }
 
+/**
+ * Delete a recurring transaction owned by the user.
+ * Returns true if a row was deleted, false if none matched (not found).
+ * Neon/Postgres → Drizzle; SQLite → the raw query layer (unchanged).
+ */
+export async function deleteRecurringTransaction(userId: number, id: number): Promise<boolean> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const result = await db
+			.delete(recurringTransactions)
+			.where(and(eq(recurringTransactions.user_id, userId), eq(recurringTransactions.id, id)))
+			.returning({ id: recurringTransactions.id });
+		return result.length > 0;
+	}
+
+	const existing = await queryOne<{ id: number }>(
+		'SELECT id FROM recurring_transactions WHERE user_id = $1 AND id = $2',
+		[userId, id]
+	);
+	if (!existing) {
+		return false;
+	}
+
+	await execute('DELETE FROM recurring_transactions WHERE user_id = $1 AND id = $2', [userId, id]);
+	return true;
+}
+
 /** Raw row shape for the upcoming-recurring (dashboard teaser) query. */
 interface UpcomingRecurringRow {
 	id: number;

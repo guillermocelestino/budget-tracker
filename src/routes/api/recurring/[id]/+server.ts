@@ -1,20 +1,13 @@
-import { queryOne, execute } from '$lib/database/query';
-import type { RecurringTransaction, TransactionType, RecurringFrequency } from '$lib/types';
+import type { TransactionType, RecurringFrequency } from '$lib/types';
 import { runRecurringNow, toggleRecurringStatus, duplicateRecurringTransaction } from '$lib/server/recurringScheduler';
-import { updateRecurringTransaction } from '$lib/server/recurringService';
+import { getRecurringById, updateRecurringTransaction, deleteRecurringTransaction } from '$lib/server/recurringService';
 import type { RecurringInput } from '$lib/server/recurringService';
 
 export async function GET({ params, locals }: { params: { id: string }; locals: App.Locals }) {
 	const userId = locals.user!.userId;
 	const id = parseInt(params.id, 10);
 
-	const recurring = await queryOne<RecurringTransaction>(
-		`SELECT rt.*, c.name as category_name, c.color as category_color
-		 FROM recurring_transactions rt
-		 LEFT JOIN categories c ON rt.category_id = c.id
-		 WHERE rt.id = $1 AND rt.user_id = $2`,
-		[id, userId]
-	);
+	const recurring = await getRecurringById(userId, id);
 
 	if (!recurring) {
 		return new Response(JSON.stringify({ error: 'Recurring transaction not found' }), {
@@ -76,19 +69,15 @@ export async function DELETE({ params, locals }: { params: { id: string }; local
 	const userId = locals.user!.userId;
 	const id = parseInt(params.id, 10);
 
-	const existing = await queryOne<{ id: number }>(
-		`SELECT id FROM recurring_transactions WHERE user_id = $1 AND id = $2`,
-		[userId, id]
-	);
+	const deleted = await deleteRecurringTransaction(userId, id);
 
-	if (!existing) {
+	if (!deleted) {
 		return new Response(JSON.stringify({ error: 'Recurring transaction not found' }), {
 			status: 404,
 			headers: { 'Content-Type': 'application/json' }
 		});
 	}
 
-	await execute('DELETE FROM recurring_transactions WHERE user_id = $1 AND id = $2', [userId, id]);
 	return new Response(JSON.stringify({ success: true, deleted: 1 }), {
 		headers: { 'Content-Type': 'application/json' }
 	});
