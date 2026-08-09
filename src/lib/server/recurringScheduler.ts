@@ -1,9 +1,13 @@
-import { queryMany, execute, queryOne } from '$lib/database/query';
+import { queryMany, execute, queryOne, withTransaction } from '$lib/database/query';
 import { usePostgres } from '$lib/database';
 import { getDrizzle } from '$lib/database/drizzle';
 import { recurringTransactions } from '$lib/database/schema';
 import { and, eq, lte, gte, or, isNull, asc } from 'drizzle-orm';
-import { createTransaction } from '$lib/server/transactions';
+import {
+	createTransaction,
+	createTransactionInTx,
+	createTransactionInTxDrizzle
+} from '$lib/server/transactions';
 import type { RecurringTransaction } from '$lib/types';
 import { calculateNextRun, generatePreview } from '$lib/utils/recurring';
 import { getToday } from '$lib/utils/format';
@@ -77,16 +81,7 @@ export async function processRecurringTransactions(userId: number): Promise<numb
 			// active/next_run/end_date which are type-compatible.
 			if (!shouldProcess(recurring as unknown as RecurringTransaction, today)) continue;
 
-			// Create the actual transaction
-			await createTransaction(userId, {
-				type: recurring.type as 'income' | 'expense',
-				amount: parseFloat(String(recurring.amount)),
-				description: recurring.description,
-				date: recurring.next_run,
-				category_id: recurring.category_id
-			});
-
-			// Calculate next run
+			// Calculate next run (pure computation — no DB access)
 			const nextRun = calculateNextRun(
 				recurring.next_run,
 				recurring.frequency as RecurringTransaction['frequency'],
@@ -100,16 +95,31 @@ export async function processRecurringTransactions(userId: number): Promise<numb
 			// Check if next run exceeds end_date
 			const shouldDeactivate = recurring.end_date && parseDateLocal(nextRun) > parseDateLocal(recurring.end_date);
 
-			// Update the recurring transaction
-			await db
-				.update(recurringTransactions)
-				.set({
-					next_run: nextRun,
-					last_generated_at: new Date(today),
-					active: !shouldDeactivate,
-					updated_at: new Date()
-				})
-				.where(and(eq(recurringTransactions.id, recurring.id), eq(recurringTransactions.user_id, userId)));
+			// Create the transaction AND advance the schedule atomically — one
+			// transaction per due item, so a failure on this item rolls back both
+			// the generated transaction and the schedule update (next_run stays put
+			// and the item is retried on the next run). Earlier items that already
+			// committed are untouched.
+			await db.transaction(async (tx) => {
+				await createTransactionInTxDrizzle(tx, userId, {
+					type: recurring.type as 'income' | 'expense',
+					amount: parseFloat(String(recurring.amount)),
+					description: recurring.description,
+					date: recurring.next_run,
+					category_id: recurring.category_id
+				});
+
+				// Update the recurring transaction
+				await tx
+					.update(recurringTransactions)
+					.set({
+						next_run: nextRun,
+						last_generated_at: new Date(today),
+						active: !shouldDeactivate,
+						updated_at: new Date()
+					})
+					.where(and(eq(recurringTransactions.id, recurring.id), eq(recurringTransactions.user_id, userId)));
+			});
 
 			generated++;
 		}
@@ -138,16 +148,7 @@ export async function processRecurringTransactions(userId: number): Promise<numb
 		// Double-check it should still be processed (idempotency)
 		if (!shouldProcess(recurring, today)) continue;
 
-		// Create the actual transaction
-		await createTransaction(userId, {
-			type: recurring.type as 'income' | 'expense',
-			amount: parseFloat(String(recurring.amount)),
-			description: recurring.description,
-			date: recurring.next_run,
-			category_id: recurring.category_id
-		});
-
-		// Calculate next run
+		// Calculate next run (pure computation — no DB access)
 		const nextRun = calculateNextRun(
 			recurring.next_run,
 			recurring.frequency,
@@ -161,13 +162,28 @@ export async function processRecurringTransactions(userId: number): Promise<numb
 		// Check if next run exceeds end_date
 		const shouldDeactivate = recurring.end_date && parseDateLocal(nextRun) > parseDateLocal(recurring.end_date);
 
-		// Update the recurring transaction
-		await execute(
-			`UPDATE recurring_transactions
-			 SET next_run = $1, last_generated_at = $2, active = $3, updated_at = NOW()
-			 WHERE id = $4 AND user_id = $5`,
-			[nextRun, today, !shouldDeactivate ? 1 : 0, recurring.id, userId]
-		);
+		// Create the transaction AND advance the schedule atomically — one
+		// transaction per due item, so a failure on this item rolls back both
+		// the generated transaction and the schedule update (next_run stays put
+		// and the item is retried on the next run). Earlier items that already
+		// committed are untouched.
+		await withTransaction(async (tx) => {
+			await createTransactionInTx(tx, userId, {
+				type: recurring.type as 'income' | 'expense',
+				amount: parseFloat(String(recurring.amount)),
+				description: recurring.description,
+				date: recurring.next_run,
+				category_id: recurring.category_id
+			});
+
+			// Update the recurring transaction
+			await tx.execute(
+				`UPDATE recurring_transactions
+				 SET next_run = $1, last_generated_at = $2, active = $3, updated_at = NOW()
+				 WHERE id = $4 AND user_id = $5`,
+				[nextRun, today, !shouldDeactivate ? 1 : 0, recurring.id, userId]
+			);
+		});
 
 		generated++;
 	}

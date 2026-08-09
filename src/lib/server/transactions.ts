@@ -402,6 +402,106 @@ export async function createTransaction(
 	return created!.id;
 }
 
+/** Drizzle client type returned by getDrizzle(). */
+type DrizzleDb = Awaited<ReturnType<typeof getDrizzle>>;
+
+/** Transaction object passed to `db.transaction(...)` — derived so it stays in sync with Drizzle. */
+type DrizzleTransaction = Parameters<Parameters<DrizzleDb['transaction']>[0]>[0];
+
+/** Raw/query tx-helper shape used by createTransactionInTx(). */
+type CreateTransactionRawTx = {
+	queryOne: <U>(text: string, params?: unknown[]) => Promise<U | undefined>;
+	execute: (text: string, params?: unknown[]) => Promise<void>;
+};
+
+/**
+ * Transaction-aware variant of createTransaction() for the SQLite path.
+ *
+ * Runs the same validation + category ownership check + transaction INSERT
+ * entirely through the supplied transaction context (tx.queryOne / tx.execute) —
+ * never the global query layer, which on SQLite would only appear transactional
+ * because of the single shared connection. Must be called from inside an open
+ * withTransaction(); it does not open its own transaction.
+ *
+ * Returns the created transaction's ID.
+ */
+export async function createTransactionInTx(
+	tx: CreateTransactionRawTx,
+	userId: number,
+	input: CreateTransactionInput
+): Promise<number> {
+	const errors = validateTransactionInput(input, true);
+	if (errors) {
+		throw new Error(JSON.stringify(errors));
+	}
+
+	// Verify category ownership
+	const cat = await tx.queryOne<{ id: number }>(
+		'SELECT id FROM categories WHERE user_id = $1 AND id = $2',
+		[userId, input.category_id]
+	);
+	if (!cat) {
+		throw new Error('Category not found');
+	}
+
+	await tx.execute(
+		`INSERT INTO transactions (user_id, amount, description, date, category_id, type)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		[userId, input.amount, input.description.trim(), input.date, input.category_id, input.type]
+	);
+
+	const created = await tx.queryOne<{ id: number }>(
+		`SELECT id FROM transactions WHERE user_id = $1 ORDER BY id DESC LIMIT 1`,
+		[userId]
+	);
+	return created!.id;
+}
+
+/**
+ * Transaction-aware variant of createTransaction() for the Postgres/Drizzle path.
+ *
+ * Runs the same validation + category ownership check + transaction INSERT
+ * entirely through the supplied Drizzle transaction context (tx.select / tx.insert)
+ * — never getDrizzle()'s global db, which would use a different pooled connection
+ * and escape the outer transaction. Must be called from inside a db.transaction();
+ * it does not open its own transaction.
+ *
+ * Returns the created transaction's ID.
+ */
+export async function createTransactionInTxDrizzle(
+	tx: DrizzleTransaction,
+	userId: number,
+	input: CreateTransactionInput
+): Promise<number> {
+	const errors = validateTransactionInput(input, true);
+	if (errors) {
+		throw new Error(JSON.stringify(errors));
+	}
+
+	// Verify category ownership
+	const [cat] = await tx
+		.select({ id: categories.id })
+		.from(categories)
+		.where(and(eq(categories.user_id, userId), eq(categories.id, input.category_id)))
+		.limit(1);
+	if (!cat) {
+		throw new Error('Category not found');
+	}
+
+	const [row] = await tx
+		.insert(transactions)
+		.values({
+			user_id: userId,
+			amount: String(input.amount),
+			description: input.description.trim(),
+			date: input.date,
+			category_id: input.category_id,
+			type: input.type,
+		})
+		.returning({ id: transactions.id });
+	return row.id;
+}
+
 /**
  * Update an existing transaction.
  * Validates input, verifies ownership and category ownership, updates transaction.

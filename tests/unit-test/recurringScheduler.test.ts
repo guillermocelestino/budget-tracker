@@ -275,6 +275,82 @@ describe('recurringScheduler — SQLite / raw query path (in-memory better-sqlit
 			expect(count2).toBe(0);
 			expect(countTransactions(userId)).toBe(1);
 		});
+
+		it('ROLLs BACK the generated transaction when the schedule UPDATE fails — next_run unchanged', async () => {
+			const userId = createUser();
+			const catId = createCategory(userId);
+			const recId = createRecurring(userId, catId, {
+				next_run: '2026-08-01',
+				description: 'blockme'
+			});
+
+			// The transaction INSERT runs first inside the item's transaction;
+			// blocking the schedule UPDATE that follows must roll both back.
+			sqlite.exec(`
+				CREATE TRIGGER block_schedule_update
+				BEFORE UPDATE ON recurring_transactions
+				WHEN NEW.description = 'blockme'
+				BEGIN
+					SELECT RAISE(ABORT, 'forced schedule failure');
+				END
+			`);
+			try {
+				await expect(processRecurring(userId)).rejects.toThrow('forced schedule failure');
+
+				// Nothing persisted: no transaction, next_run untouched, no activity.
+				expect(countTransactions(userId)).toBe(0);
+				const rec = getRecurring(recId)!;
+				expect(rec.next_run).toBe('2026-08-01');
+				expect(rec.last_generated_at).toBeNull();
+				expect(rec.active).toBe(1);
+			} finally {
+				sqlite.exec('DROP TRIGGER IF EXISTS block_schedule_update');
+			}
+		});
+
+		it('two due items are independent — the first commits, the second rolls back', async () => {
+			const userId = createUser();
+			const catId = createCategory(userId);
+			// First item is due earlier — processes cleanly.
+			const recOk = createRecurring(userId, catId, {
+				next_run: '2026-07-01',
+				description: 'ok-item'
+			});
+			// Second item is due later — its schedule UPDATE is forced to fail.
+			const recBad = createRecurring(userId, catId, {
+				next_run: '2026-08-01',
+				description: 'blockme'
+			});
+
+			sqlite.exec(`
+				CREATE TRIGGER block_schedule_update_2
+				BEFORE UPDATE ON recurring_transactions
+				WHEN NEW.description = 'blockme'
+				BEGIN
+					SELECT RAISE(ABORT, 'forced schedule failure');
+				END
+			`);
+			try {
+				await expect(processRecurring(userId)).rejects.toThrow('forced schedule failure');
+
+				// First item committed: transaction created + schedule advanced.
+				const txns = sqlite
+					.prepare('SELECT description FROM transactions WHERE user_id = ?')
+					.all(userId) as { description: string }[];
+				expect(txns).toHaveLength(1);
+				expect(txns[0]!.description).toBe('ok-item');
+				const ok = getRecurring(recOk)!;
+				expect(ok.next_run).not.toBe('2026-07-01');
+				expect(ok.last_generated_at).toBe(getToday());
+
+				// Second item rolled back: no transaction, next_run untouched.
+				const bad = getRecurring(recBad)!;
+				expect(bad.next_run).toBe('2026-08-01');
+				expect(bad.last_generated_at).toBeNull();
+			} finally {
+				sqlite.exec('DROP TRIGGER IF EXISTS block_schedule_update_2');
+			}
+		});
 	});
 
 	describe('runRecurringNow', () => {
@@ -386,32 +462,48 @@ describe('recurringScheduler — Drizzle / Postgres path (recorded fake client)'
 	let toggle: typeof import('$lib/server/recurringScheduler').toggleRecurringStatus;
 	let duplicate: typeof import('$lib/server/recurringScheduler').duplicateRecurringTransaction;
 	let calls: {
-		selects: number;
-		inserts: Record<string, unknown>[];
-		updates: Record<string, unknown>[];
+		selects: number; // db.select — the due query (outside any transaction)
+		txSelects: number; // tx.select — inside db.transaction
+		inserts: Record<string, unknown>[]; // db.insert — global writes
+		txInserts: Record<string, unknown>[]; // tx.insert — inside db.transaction
+		updates: Record<string, unknown>[]; // db.update — global writes
+		txUpdates: Record<string, unknown>[]; // tx.update — inside db.transaction
 		returningIds: number[];
+		transactions: number; // db.transaction calls
 	};
 	let recurringRows: Record<string, unknown>[];
+	let categoryRows: Record<string, unknown>[];
 
-	function fakeDb() {
+	function makeQueryClient(counters: {
+		select: () => void;
+		insert: (values: Record<string, unknown>) => void;
+		update: (values: Record<string, unknown>) => void;
+	}) {
 		return {
 			select() {
-				calls.selects += 1;
+				counters.select();
 				const chain: any = {};
 				const methods = ['from', 'where', 'orderBy', 'limit'];
 				for (const m of methods) {
-					chain[m] = function() {
+					chain[m] = function (table?: { name?: string }) {
+						if (m === 'from') chain.__table = table?.name ?? 'unknown';
 						return chain;
 					};
 				}
-				chain.then = (onFulfilled: any, onRejected: any) =>
-					Promise.resolve(recurringRows).then(onFulfilled, onRejected);
+				chain.then = (onFulfilled: any, onRejected: any) => {
+					// Drizzle schema tables expose `.name`; the scheduler queries
+					// recurring_transactions while createTransactionInTxDrizzle queries
+					// categories — key the fake's response off the FROM table so the
+					// category ownership check passes for the tx path.
+					const data = chain.__table === 'categories' ? categoryRows : recurringRows;
+					return Promise.resolve(data).then(onFulfilled, onRejected);
+				};
 				return chain;
 			},
 			insert() {
 				return {
 					values(values: Record<string, unknown>) {
-						calls.inserts.push(values);
+						counters.insert(values);
 						return {
 							returning() {
 								const id = calls.returningIds.length + 1;
@@ -427,12 +519,35 @@ describe('recurringScheduler — Drizzle / Postgres path (recorded fake client)'
 					set(values: Record<string, unknown>) {
 						return {
 							where() {
-								calls.updates.push(values);
+								counters.update(values);
 								return Promise.resolve(undefined);
 							}
 						};
 					}
 				};
+			}
+		};
+	}
+
+	function fakeDb() {
+		// Two distinct clients: the global `db` (outside any transaction) and the
+		// `tx` handed to the db.transaction callback. The scheduler may only touch
+		// the global db for the due-recurring SELECT; every write must go through tx.
+		const db = makeQueryClient({
+			select: () => { calls.selects += 1; },
+			insert: (values) => { calls.inserts.push(values); },
+			update: (values) => { calls.updates.push(values); }
+		});
+		const tx = makeQueryClient({
+			select: () => { calls.txSelects += 1; },
+			insert: (values) => { calls.txInserts.push(values); },
+			update: (values) => { calls.txUpdates.push(values); }
+		});
+		return {
+			...db,
+			transaction(cb: (t: ReturnType<typeof makeQueryClient>) => unknown) {
+				calls.transactions += 1;
+				return cb(tx);
 			}
 		};
 	}
@@ -458,11 +573,21 @@ describe('recurringScheduler — Drizzle / Postgres path (recorded fake client)'
 	});
 
 	beforeEach(() => {
-		calls = { selects: 0, inserts: [], updates: [], returningIds: [] };
+		calls = {
+			selects: 0,
+			txSelects: 0,
+			inserts: [],
+			txInserts: [],
+			updates: [],
+			txUpdates: [],
+			returningIds: [],
+			transactions: 0
+		};
 		recurringRows = [];
+		categoryRows = [{ id: 5 }];
 	});
 
-	it('processRecurringTransactions issues SELECT + INSERT + UPDATE with correct values', async () => {
+	it('processRecurringTransactions wraps each due item in db.transaction and uses tx only', async () => {
 		recurringRows = [{
 			id: 1,
 			user_id: 42,
@@ -487,17 +612,78 @@ describe('recurringScheduler — Drizzle / Postgres path (recorded fake client)'
 		const count = await processRecurring(42);
 
 		expect(count).toBe(1);
-		expect(calls.selects).toBe(2);
-		expect(calls.inserts).toHaveLength(1);
-		expect(calls.inserts[0]!.amount).toBe('100');
-		expect(calls.inserts[0]!.date).toBe('2026-08-01');
-		expect(calls.inserts[0]!.user_id).toBe(42);
-		expect(calls.updates).toHaveLength(1);
-		expect(calls.updates[0]!.next_run).toBe(
+		// One transaction per due item.
+		expect(calls.transactions).toBe(1);
+		// The due-recurring query ran on the global db...
+		expect(calls.selects).toBe(1);
+		// ...but the transaction INSERT, category ownership check, and schedule
+		// UPDATE all ran through the supplied tx.
+		expect(calls.txSelects).toBe(1);
+		expect(calls.txInserts).toHaveLength(1);
+		expect(calls.txInserts[0]!.amount).toBe('100');
+		expect(calls.txInserts[0]!.date).toBe('2026-08-01');
+		expect(calls.txInserts[0]!.user_id).toBe(42);
+		expect(calls.txUpdates).toHaveLength(1);
+		expect(calls.txUpdates[0]!.next_run).toBe(
 			calculateNextRun('2026-08-01', 'monthly', 1, null, null, null, '2026-08-01')
 		);
-		expect(calls.updates[0]!.last_generated_at).toBeInstanceOf(Date);
-		expect(calls.updates[0]!.active).toBe(true);
+		expect(calls.txUpdates[0]!.last_generated_at).toBeInstanceOf(Date);
+		expect(calls.txUpdates[0]!.active).toBe(true);
+		// The global db was never written inside the transaction.
+		expect(calls.inserts).toHaveLength(0);
+		expect(calls.updates).toHaveLength(0);
+	});
+
+	it('processRecurringTransactions wraps EACH due item in its own transaction (two items → two transactions)', async () => {
+		recurringRows = [{
+			id: 1,
+			user_id: 42,
+			type: 'expense',
+			amount: '100',
+			description: 'Netflix A',
+			category_id: 5,
+			frequency: 'monthly',
+			interval: 1,
+			day_of_week: null,
+			day_of_month: null,
+			month_of_year: null,
+			start_date: '2026-08-01',
+			end_date: null,
+			next_run: '2026-07-01',
+			last_generated_at: null,
+			active: true,
+			created_at: new Date(),
+			updated_at: new Date()
+		}, {
+			id: 2,
+			user_id: 42,
+			type: 'expense',
+			amount: '250',
+			description: 'Netflix B',
+			category_id: 5,
+			frequency: 'monthly',
+			interval: 1,
+			day_of_week: null,
+			day_of_month: null,
+			month_of_year: null,
+			start_date: '2026-08-01',
+			end_date: null,
+			next_run: '2026-08-01',
+			last_generated_at: null,
+			active: true,
+			created_at: new Date(),
+			updated_at: new Date()
+		}];
+
+		const count = await processRecurring(42);
+
+		expect(count).toBe(2);
+		expect(calls.transactions).toBe(2);
+		expect(calls.txInserts).toHaveLength(2);
+		expect(calls.txUpdates).toHaveLength(2);
+		expect(calls.selects).toBe(1);
+		expect(calls.inserts).toHaveLength(0);
+		expect(calls.updates).toHaveLength(0);
 	});
 
 	it('processRecurringTransactions returns 0 when no due records', async () => {
@@ -506,6 +692,7 @@ describe('recurringScheduler — Drizzle / Postgres path (recorded fake client)'
 		const count = await processRecurring(42);
 
 		expect(count).toBe(0);
+		expect(calls.transactions).toBe(0);
 		expect(calls.inserts).toHaveLength(0);
 		expect(calls.updates).toHaveLength(0);
 	});
