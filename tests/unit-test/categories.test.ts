@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, sql, asc, ilike } from 'drizzle-orm';
 
 let sequence = 0;
 
@@ -242,6 +242,71 @@ describe('categories — SQLite / raw query path (in-memory better-sqlite3)', ()
 		createCategory(userId, { name: 'Food' });
 		const exists = await svc.checkCategoryNameExists(userId, '  Food  ');
 		expect(exists).toBe(true);
+	});
+
+	describe('searchCategories', () => {
+		it('searches categories by name substring', async () => {
+			const userId = createUser();
+			createCategory(userId, { name: 'Groceries', icon: '🛒', color: '#27ae60' });
+			createCategory(userId, { name: 'Electronics', icon: '📱', color: '#3498db' });
+			createCategory(userId, { name: 'Rent', icon: '🏠', color: '#e74c3c' });
+
+			const results = await svc.searchCategories(userId, 'gro');
+
+			expect(results).toHaveLength(1);
+			expect(results[0].name).toBe('Groceries');
+			expect(results[0].icon).toBe('🛒');
+			expect(results[0].color).toBe('#27ae60');
+			expect(results[0].type).toBe('expense');
+		});
+
+		it('returns empty array when no matches', async () => {
+			const userId = createUser();
+			createCategory(userId, { name: 'Food' });
+
+			const results = await svc.searchCategories(userId, 'xyz');
+
+			expect(results).toHaveLength(0);
+		});
+
+		it('orders by name ASC and limits to 5', async () => {
+			const userId = createUser();
+			createCategory(userId, { name: 'Zebra' });
+			createCategory(userId, { name: 'Alpha' });
+			createCategory(userId, { name: 'Beta' });
+			createCategory(userId, { name: 'Gamma' });
+			createCategory(userId, { name: 'Delta' });
+			createCategory(userId, { name: 'Epsilon' });
+
+			const results = await svc.searchCategories(userId, '');
+
+			expect(results).toHaveLength(5);
+			expect(results.map(r => r.name)).toEqual(['Alpha', 'Beta', 'Delta', 'Epsilon', 'Gamma']);
+		});
+
+		it('is user-isolated', async () => {
+			const userA = createUser();
+			const userB = createUser();
+			createCategory(userA, { name: 'Food' });
+			createCategory(userB, { name: 'Food' });
+
+			const results = await svc.searchCategories(userA, 'foo');
+
+			expect(results).toHaveLength(1);
+			expect(results[0].name).toBe('Food');
+		});
+
+		it('returns only id, name, icon, color, type (no budget_limit or created_at)', async () => {
+			const userId = createUser();
+			createCategory(userId, { name: 'Test', budget_limit: 1000 });
+
+			const results = await svc.searchCategories(userId, 'test');
+
+			expect(results).toHaveLength(1);
+			expect(Object.keys(results[0]).sort()).toEqual(['color', 'icon', 'id', 'name', 'type']);
+			expect(results[0]).not.toHaveProperty('budget_limit');
+			expect(results[0]).not.toHaveProperty('created_at');
+		});
 	});
 
 	it('createCategory creates with defaults (color/icon/type) and returns the new id', async () => {
@@ -776,5 +841,57 @@ describe('categories — Drizzle / Postgres path (recorded fake client)', () => 
 		selectRowsByCols['category_id,cnt'] = [];
 		const counts = await svc.getRecurringCountsByCategory(42);
 		expect(counts).toEqual({});
+	});
+
+	describe('searchCategories', () => {
+		it('searches categories via Drizzle with ilike and orders by name ASC', async () => {
+			selectRowsByCols['color,icon,id,name,type'] = [{
+				id: 1,
+				name: 'Groceries',
+				icon: '🛒',
+				color: '#27ae60',
+				type: 'expense'
+			}];
+
+			const results = await svc.searchCategories(42, 'gro');
+
+			expect(calls.selects).toHaveLength(1);
+			expect(calls.selects[0]!.table).toBe('categories');
+			expect(calls.selects[0]!.cols).toBe('color,icon,id,name,type');
+			expect(calls.selects[0]!.whereArgs).toEqual([
+				and(eq(categoriesTable.user_id, 42), ilike(categoriesTable.name, '%gro%'))
+			]);
+			expect(calls.selects[0]!.orderBy).toBe(true);
+			expect(calls.selects[0]!.limit).toBe(true);
+			expect(results).toHaveLength(1);
+			expect(results[0].name).toBe('Groceries');
+			expect(results[0].icon).toBe('🛒');
+			expect(results[0].color).toBe('#27ae60');
+			expect(results[0].type).toBe('expense');
+		});
+
+		it('returns empty array when no matches', async () => {
+			selectRowsByCols['color,icon,id,name,type'] = [];
+
+			const results = await svc.searchCategories(42, 'xyz');
+
+			expect(results).toHaveLength(0);
+		});
+
+		it('limits to 5 results', async () => {
+			selectRowsByCols['color,icon,id,name,type'] = [];
+
+			await svc.searchCategories(42, 'test');
+
+			expect(calls.selects[0]!.limit).toBe(true);
+		});
+
+		it('selects only the five specified fields', async () => {
+			selectRowsByCols['color,icon,id,name,type'] = [];
+
+			await svc.searchCategories(42, 'test');
+
+			expect(calls.selects[0]!.cols).toBe('color,icon,id,name,type');
+		});
 	});
 });

@@ -20,7 +20,8 @@ import {
 	getPaymentHistory,
 	hasPayments,
 	deleteLinkedTransactions,
-	getLendingTotals
+	getLendingTotals,
+	searchLendings
 } from '$lib/server/lendingPayments';
 import type { Lending, LendingPayment, LendingWithPayments, PaymentType } from '$lib/types';
 
@@ -491,6 +492,75 @@ describe('lendingPayments - SQLite path', () => {
 			expect(result.outstanding).toBe(0);
 		});
 	});
+
+	describe('searchLendings', () => {
+		it('searches lendings by borrower name substring', async () => {
+			const mockRows = [
+				{
+					id: 1,
+					user_id: 1,
+					borrower_name: 'John Smith',
+					amount: 1000,
+					interest_rate: 5.5,
+					date_lent: '2024-01-01',
+					due_date: '2024-02-01',
+					status: 'active',
+					notes: null,
+					direction: 'lent',
+					created_at: '2024-01-01T00:00:00Z',
+					updated_at: '2024-01-01T00:00:00Z'
+				}
+			];
+			(queryMany as any).mockResolvedValue(mockRows);
+
+			const results = await searchLendings(1, 'john');
+
+			expect(queryMany).toHaveBeenCalled();
+			const call = (queryMany as any).mock.calls[0];
+			expect(call[0]).toContain('borrower_name LIKE');
+			expect(call[1]).toEqual([1, '%john%']);
+			expect(results).toHaveLength(1);
+			expect(results[0].borrower_name).toBe('John Smith');
+			expect(results[0].amount).toBe(1000);
+			expect(results[0].interest_rate).toBe(5.5);
+		});
+
+		it('returns empty array when no matches', async () => {
+			(queryMany as any).mockResolvedValue([]);
+
+			const results = await searchLendings(1, 'xyz');
+
+			expect(results).toHaveLength(0);
+		});
+
+		it('filters by direction when provided', async () => {
+			(queryMany as any).mockResolvedValue([]);
+
+			await searchLendings(1, 'john', 'lent');
+
+			const call = (queryMany as any).mock.calls[0];
+			expect(call[0]).toContain('direction = $3');
+			expect(call[1]).toEqual([1, '%john%', 'lent']);
+		});
+
+		it('orders by date_lent DESC and limits to 5', async () => {
+			(queryMany as any).mockResolvedValue([]);
+
+			await searchLendings(1, 'john');
+
+			const call = (queryMany as any).mock.calls[0];
+			expect(call[0]).toContain('ORDER BY date_lent DESC LIMIT 5');
+		});
+
+		it('is user-isolated', async () => {
+			(queryMany as any).mockResolvedValue([]);
+
+			await searchLendings(2, 'john');
+
+			const call = (queryMany as any).mock.calls[0];
+			expect(call[1][0]).toBe(2);
+		});
+	});
 });
 
 describe('lendingPayments - Drizzle/Postgres path', () => {
@@ -506,7 +576,7 @@ describe('lendingPayments - Drizzle/Postgres path', () => {
 		const chain: any = {};
 		const methods = [
 			'select', 'from', 'where', 'leftJoin', 'groupBy', 'orderBy',
-			'limit', 'insert', 'values', 'update', 'set', 'delete', 'returning'
+			'limit', 'insert', 'values', 'update', 'set', 'delete', 'returning', 'ilike'
 		];
 		for (const m of methods) {
 			chain[m] = vi.fn(function() { return chain; });
@@ -639,6 +709,58 @@ describe('lendingPayments - Drizzle/Postgres path', () => {
 		await deletePayment(1, 1);
 
 		expect(db.transaction).toHaveBeenCalled();
+	});
+
+	describe('searchLendings', () => {
+		it('searches lendings via Drizzle with ilike and orders by date_lent DESC', async () => {
+			const mockData = [{
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John Smith',
+				amount: '1000',
+				interest_rate: 5.5,
+				date_lent: '2024-01-01',
+				due_date: '2024-02-01',
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			}];
+
+			const chain = makeDrizzleData(mockData);
+			const db = { select: vi.fn(() => chain) };
+			(getDrizzle as any).mockResolvedValue(db);
+
+			const results = await searchLendings(1, 'john');
+
+			expect(getDrizzle).toHaveBeenCalled();
+			expect(db.select).toHaveBeenCalled();
+			expect(results).toHaveLength(1);
+			expect(results[0].borrower_name).toBe('John Smith');
+			expect(results[0].amount).toBe(1000);
+			expect(results[0].interest_rate).toBe(5.5);
+		});
+
+		it('filters by direction when provided', async () => {
+			const chain = makeDrizzleData([]);
+			const db = { select: vi.fn(() => chain) };
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await searchLendings(1, 'john', 'lent');
+
+			expect(db.select).toHaveBeenCalled();
+		});
+
+		it('limits to 5 results', async () => {
+			const chain = makeDrizzleData([]);
+			const db = { select: vi.fn(() => chain) };
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await searchLendings(1, 'john');
+
+			expect(chain.limit).toHaveBeenCalledWith(5);
+		});
 	});
 });
 

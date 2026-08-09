@@ -2,7 +2,7 @@ import { usePostgres } from '$lib/database';
 import { queryOne, queryMany, execute } from '$lib/database/query';
 import { getDrizzle } from '$lib/database/drizzle';
 import { categories, recurringTransactions } from '$lib/database/schema';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, sql, asc, ilike } from 'drizzle-orm';
 import type { Category } from '$lib/types';
 
 /** Raw row shape for category queries. */
@@ -295,4 +295,45 @@ export async function getRecurringCountsByCategory(userId: number): Promise<Reco
 		map[r.category_id] = r.cnt;
 	}
 	return map;
+}
+
+/**
+ * Search categories by name (substring, case-insensitive).
+ * Returns up to 5 results ordered by name ASC.
+ * Returns only: id, name, icon, color, type
+ */
+export async function searchCategories(
+	userId: number,
+	q: string
+): Promise<Pick<Category, 'id' | 'name' | 'icon' | 'color' | 'type'>[]> {
+	const pattern = `%${q}%`;
+
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				id: categories.id,
+				name: categories.name,
+				icon: categories.icon,
+				color: categories.color,
+				type: categories.type,
+			})
+			.from(categories)
+			.where(and(
+				eq(categories.user_id, userId),
+				ilike(categories.name, pattern)
+			))
+			.orderBy(asc(categories.name))
+			.limit(5);
+		return rows as Pick<Category, 'id' | 'name' | 'icon' | 'color' | 'type'>[];
+	}
+
+	const rows = await queryMany<{ id: number; name: string; icon: string; color: string; type: string }>(
+		`SELECT id, name, icon, color, type FROM categories
+		 WHERE user_id = $1 AND name LIKE $2
+		 ORDER BY name ASC
+		 LIMIT 5`,
+		[userId, pattern]
+	);
+	return rows as Pick<Category, 'id' | 'name' | 'icon' | 'color' | 'type'>[];
 }

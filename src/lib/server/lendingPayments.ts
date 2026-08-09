@@ -7,7 +7,7 @@ import {
 	lendingPayments,
 	transactions
 } from '$lib/database/schema';
-import { and, eq, sql, desc, isNotNull } from 'drizzle-orm';
+import { and, eq, sql, desc, isNotNull, ilike } from 'drizzle-orm';
 import type { Lending, LendingPayment, LendingWithPayments, PaymentType } from '$lib/types';
 import {
 	recordLendingTransactionInTx,
@@ -1226,4 +1226,80 @@ export async function getLendingTotals(
 	const outstanding = total - cashPaid - writtenOff;
 
 	return { total, cashPaid, writtenOff, outstanding };
+}
+
+/**
+ * Map a Drizzle `lendings` row (Postgres path) to the app's `Lending` shape.
+ * Postgres NUMERIC columns arrive as strings and timestamp columns as JS Date
+ * objects, so monetary fields are parsed and timestamps converted to ISO strings.
+ * interest_rate is nullable in the DB but `Lending.interest_rate` is a number —
+ * null is coerced to 0 (the column's DEFAULT '0'), matching `toLendingWithPayments`.
+ */
+function mapLendingRow(row: typeof lendings.$inferSelect): Lending {
+	return {
+		id: row.id,
+		user_id: row.user_id,
+		borrower_name: row.borrower_name,
+		amount: parseFloat(String(row.amount)),
+		interest_rate: parseFloat(String(row.interest_rate ?? '0')),
+		date_lent: row.date_lent,
+		due_date: row.due_date,
+		status: row.status as 'active' | 'paid',
+		notes: row.notes,
+		created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+		updated_at: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+		direction: row.direction as 'lent' | 'borrowed',
+	};
+}
+
+/**
+ * Search lendings by borrower name (substring, case-insensitive).
+ * Returns up to 5 results ordered by date_lent DESC.
+ */
+export async function searchLendings(
+	userId: number,
+	q: string,
+	direction?: 'lent' | 'borrowed'
+): Promise<Lending[]> {
+	const pattern = `%${q}%`;
+
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const conditions = and(
+			eq(lendings.user_id, userId),
+			ilike(lendings.borrower_name, pattern)
+		);
+
+		if (direction && ['lent', 'borrowed'].includes(direction)) {
+			const rows = await db
+				.select()
+				.from(lendings)
+				.where(and(conditions, eq(lendings.direction, direction)))
+				.orderBy(desc(lendings.date_lent))
+				.limit(5);
+			return rows.map(mapLendingRow);
+		}
+
+		const rows = await db
+			.select()
+			.from(lendings)
+			.where(conditions)
+			.orderBy(desc(lendings.date_lent))
+			.limit(5);
+		return rows.map(mapLendingRow);
+	}
+
+	// SQLite path
+	let sql = `SELECT * FROM lendings WHERE user_id = $1 AND borrower_name LIKE $2`;
+	const params: unknown[] = [userId, pattern];
+
+	if (direction && ['lent', 'borrowed'].includes(direction)) {
+		sql += ` AND direction = $3`;
+		params.push(direction);
+	}
+
+	sql += ` ORDER BY date_lent DESC LIMIT 5`;
+
+	const rows = await queryMany<Lending>(sql, params);
+	return rows;
 }
