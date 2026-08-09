@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { queryMany, queryOne, execute } from '$lib/database/query';
+import { queryMany, withTransaction } from '$lib/database/query';
 import { usePostgres } from '$lib/database';
 import { getDrizzle } from '$lib/database/drizzle';
 import { lendings, lendingPayments } from '$lib/database/schema';
@@ -125,65 +125,73 @@ export async function importLendingsForUser(
 	// amount creates a payment row in lending_payments (the authoritative ledger).
 	// Imports never directly populate derived balance fields — derived state is
 	// computed from payment history. No transaction is created for imported payments.
+	//
+	// The whole write phase is ONE atomic transaction (a single user action): every
+	// lending + recovered-payment insert commits together or rolls back together, so
+	// a failure on any row undoes the entire import — no partial or orphaned records.
 	let inserted = 0;
-	for (const row of rowsToInsert) {
-		let newLendingId: number;
-		if (usePostgres) {
-			const db = await getDrizzle();
-			const [newLending] = await db
-				.insert(lendings)
-				.values({
-					user_id: userId,
-					borrower_name: row.person_name,
-					amount: String(row.amount),
-					interest_rate: String(row.interest_rate),
-					date_lent: row.date_lent,
-					due_date: row.due_date || null,
-					notes: row.notes,
-					direction: direction,
-					status: row.status
-				})
-				.returning({ id: lendings.id });
-			newLendingId = newLending.id;
-		} else {
-			await execute(
-				`INSERT INTO lendings (user_id, borrower_name, amount, interest_rate, date_lent, due_date, notes, direction, status)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-				[userId, row.person_name, row.amount, row.interest_rate, row.date_lent, row.due_date || null, row.notes, direction, row.status]
-			);
 
-			// If recovered_amount > 0, create a historical payment row
-			if (row.recovered_amount > 0) {
-				const newLending = await queryOne<{ id: number }>(
-					'SELECT id FROM lendings WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
-					[userId]
-				);
-				if (newLending) {
-					await execute(
-						`INSERT INTO lending_payments (lending_id, user_id, amount, payment_date, notes, payment_type)
-						 VALUES ($1, $2, $3, $4, $5, 'payment')`,
-						[newLending.id, userId, row.recovered_amount, row.date_lent, 'Imported']
-					);
+	if (usePostgres) {
+		const db = await getDrizzle();
+		await db.transaction(async (tx) => {
+			for (const row of rowsToInsert) {
+				const [newLending] = await tx
+					.insert(lendings)
+					.values({
+						user_id: userId,
+						borrower_name: row.person_name,
+						amount: String(row.amount),
+						interest_rate: String(row.interest_rate),
+						date_lent: row.date_lent,
+						due_date: row.due_date || null,
+						notes: row.notes,
+						direction: direction,
+						status: row.status
+					})
+					.returning({ id: lendings.id });
+
+				// If recovered_amount > 0, create a historical payment row
+				if (row.recovered_amount > 0) {
+					await tx.insert(lendingPayments).values({
+						lending_id: newLending.id,
+						user_id: userId,
+						amount: String(row.recovered_amount),
+						payment_date: row.date_lent,
+						notes: 'Imported',
+						payment_type: 'payment'
+					});
 				}
+
+				inserted++;
 			}
-			inserted++;
-			continue;
-		}
+		});
+	} else {
+		await withTransaction(async (tx) => {
+			for (const row of rowsToInsert) {
+				await tx.execute(
+					`INSERT INTO lendings (user_id, borrower_name, amount, interest_rate, date_lent, due_date, notes, direction, status)
+					 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+					[userId, row.person_name, row.amount, row.interest_rate, row.date_lent, row.due_date || null, row.notes, direction, row.status]
+				);
 
-		// If recovered_amount > 0, create a historical payment row
-		if (row.recovered_amount > 0) {
-			const db = await getDrizzle();
-			await db.insert(lendingPayments).values({
-				lending_id: newLendingId,
-				user_id: userId,
-				amount: String(row.recovered_amount),
-				payment_date: row.date_lent,
-				notes: 'Imported',
-				payment_type: 'payment'
-			});
-		}
+				// If recovered_amount > 0, create a historical payment row
+				if (row.recovered_amount > 0) {
+					const newLending = await tx.queryOne<{ id: number }>(
+						'SELECT id FROM lendings WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
+						[userId]
+					);
+					if (newLending) {
+						await tx.execute(
+							`INSERT INTO lending_payments (lending_id, user_id, amount, payment_date, notes, payment_type)
+							 VALUES ($1, $2, $3, $4, $5, 'payment')`,
+							[newLending.id, userId, row.recovered_amount, row.date_lent, 'Imported']
+						);
+					}
+				}
 
-		inserted++;
+				inserted++;
+			}
+		});
 	}
 
 	return {

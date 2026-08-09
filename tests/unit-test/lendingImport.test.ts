@@ -216,6 +216,67 @@ describe('lendingImport — SQLite / raw query path (in-memory better-sqlite3)',
 		expect(lendings[0]!.date_lent).toBe('2026-08-15');
 		expect(lendings[0]!.due_date).toBe('2026-12-31');
 	});
+
+	it('ROLLs BACK the entire import when a later row fails — no partial records persist', async () => {
+		const userId = createUser();
+		// Row 2's lending INSERT is forced to fail after row 1 already inserted.
+		sqlite.exec(`
+			CREATE TRIGGER block_import_row_2
+			BEFORE INSERT ON lendings
+			WHEN NEW.borrower_name = 'Bob'
+			BEGIN
+				SELECT RAISE(ABORT, 'forced row 2 failure');
+			END
+		`);
+		try {
+			const csv = `Person,Amount,Date Lent,Notes,Status\nAlice,1000,2026-08-01,Test,active\nBob,2000,2026-08-02,Test2,active`;
+			const file = new File([csv], 'import.csv', { type: 'text/csv' });
+			await expect(importLendingsForUser(userId, file, '{}', 'lent')).rejects.toThrow('forced row 2 failure');
+
+			// Nothing from the failed import persisted — not even row 1's lending.
+			expect(getLendings(userId)).toHaveLength(0);
+			const payments = sqlite
+				.prepare('SELECT COUNT(*) as c FROM lending_payments WHERE user_id = ?')
+				.get(userId) as { c: number };
+			expect(payments.c).toBe(0);
+		} finally {
+			sqlite.exec('DROP TRIGGER IF EXISTS block_import_row_2');
+		}
+
+		// The connection is usable after the rollback — a clean import commits.
+		const retryCsv = `Person,Amount,Date Lent,Notes,Status\nCarol,3000,2026-08-03,Test3,active`;
+		const retryFile = new File([retryCsv], 'retry.csv', { type: 'text/csv' });
+		const retry = await importLendingsForUser(userId, retryFile, '{}', 'lent') as any;
+		expect(retry.success).toBe(true);
+		expect(retry.imported).toBe(1);
+		expect(getLendings(userId)).toHaveLength(1);
+	});
+
+	it('ROLLs BACK the lending when its recovered payment fails — no orphan lending', async () => {
+		const userId = createUser();
+		// The payment INSERT fails after the lending was inserted in the same row.
+		sqlite.exec(`
+			CREATE TRIGGER block_import_payment
+			BEFORE INSERT ON lending_payments
+			BEGIN
+				SELECT RAISE(ABORT, 'forced payment failure');
+			END
+		`);
+		try {
+			const csv = `Person,Amount,Date Lent,Amount Recovered,Notes,Status\nAlice,1000,2026-08-01,500,Test,active`;
+			const file = new File([csv], 'import.csv', { type: 'text/csv' });
+			await expect(importLendingsForUser(userId, file, '{}', 'lent')).rejects.toThrow('forced payment failure');
+
+			// The lending inserted earlier in the same transaction is gone too.
+			expect(getLendings(userId)).toHaveLength(0);
+			const payments = sqlite
+				.prepare('SELECT COUNT(*) as c FROM lending_payments WHERE user_id = ?')
+				.get(userId) as { c: number };
+			expect(payments.c).toBe(0);
+		} finally {
+			sqlite.exec('DROP TRIGGER IF EXISTS block_import_payment');
+		}
+	});
 });
 
 // Drizzle `pgTable` objects expose their name under this internal symbol, not
@@ -252,21 +313,27 @@ describe('lendingImport — Drizzle / Postgres path (recorded fake client)', () 
 	let calls: {
 		selects: { table: string; cols: string[] }[];
 		wheres: { table: string; args: unknown[] }[];
-		inserts: { table: string; values: Record<string, unknown> }[];
+		inserts: { table: string; values: Record<string, unknown> }[]; // db.insert — global writes
+		txInserts: { table: string; values: Record<string, unknown> }[]; // tx.insert — inside db.transaction
 		returningIds: { table: string; id: number }[];
+		transactions: number; // db.transaction calls
 	};
 
-	function fakeDb() {
+	function makeQueryClient(counters: {
+		select: (table: string, cols: string[]) => void;
+		where: (table: string, args: unknown[]) => void;
+		insert: (table: string, values: Record<string, unknown>) => void;
+	}) {
 		return {
 			select(cols?: Record<string, unknown>) {
 				const colNames = cols ? Object.keys(cols) : [];
 				return {
 					from(table: unknown) {
 						const tableName = tableNameOf(table);
-						calls.selects.push({ table: tableName, cols: colNames });
+						counters.select(tableName, colNames);
 						return {
 							where(...args: unknown[]) {
-								calls.wheres.push({ table: tableName, args });
+								counters.where(tableName, args);
 								return {
 									then(onFulfilled: any, onRejected: any) {
 										return Promise.resolve([]).then(onFulfilled, onRejected);
@@ -283,7 +350,7 @@ describe('lendingImport — Drizzle / Postgres path (recorded fake client)', () 
 					values(values: Record<string, unknown>) {
 						// Record the insert here (at .values()) because the module's
 						// lending_payments insert does NOT chain .returning().
-						calls.inserts.push({ table: tableName, values });
+						counters.insert(tableName, values);
 						const id = calls.returningIds.length + 1;
 						return {
 							returning(cols: Record<string, unknown>) {
@@ -293,6 +360,30 @@ describe('lendingImport — Drizzle / Postgres path (recorded fake client)', () 
 						};
 					}
 				};
+			}
+		};
+	}
+
+	function fakeDb() {
+		// The global `db` (dedup SELECT only) and the `tx` handed to the
+		// db.transaction callback (every insert) are separate clients, so the
+		// structural test can prove no global DB writes happen inside the
+		// transaction.
+		const db = makeQueryClient({
+			select: (table, cols) => { calls.selects.push({ table, cols }); },
+			where: (table, args) => { calls.wheres.push({ table, args }); },
+			insert: (table, values) => { calls.inserts.push({ table, values }); }
+		});
+		const tx = makeQueryClient({
+			select: () => {},
+			where: () => {},
+			insert: (table, values) => { calls.txInserts.push({ table, values }); }
+		});
+		return {
+			...db,
+			transaction(cb: (t: ReturnType<typeof makeQueryClient>) => unknown) {
+				calls.transactions += 1;
+				return cb(tx);
 			}
 		};
 	}
@@ -315,7 +406,14 @@ describe('lendingImport — Drizzle / Postgres path (recorded fake client)', () 
 	});
 
 	beforeEach(() => {
-		calls = { selects: [], wheres: [], inserts: [], returningIds: [] };
+		calls = {
+			selects: [],
+			wheres: [],
+			inserts: [],
+			txInserts: [],
+			returningIds: [],
+			transactions: 0
+		};
 	});
 
 	it('queries existing lendings for duplicate detection scoped to the user', async () => {
@@ -342,15 +440,15 @@ describe('lendingImport — Drizzle / Postgres path (recorded fake client)', () 
 
 		expect(result.success).toBe(true);
 		expect(result.imported).toBe(1);
-		expect(calls.inserts).toHaveLength(1);
-		expect(calls.inserts[0]!.table).toBe('lendings');
-		expect(calls.inserts[0]!.values.borrower_name).toBe('Alice');
+		expect(calls.txInserts).toHaveLength(1);
+		expect(calls.txInserts[0]!.table).toBe('lendings');
+		expect(calls.txInserts[0]!.values.borrower_name).toBe('Alice');
 		// numeric columns are stored as strings (schema: numeric → Drizzle string)
-		expect(calls.inserts[0]!.values.amount).toBe('1000');
-		expect(calls.inserts[0]!.values.interest_rate).toBe('0');
-		expect(calls.inserts[0]!.values.date_lent).toBe('2026-08-01');
-		expect(calls.inserts[0]!.values.direction).toBe('lent');
-		expect(calls.inserts[0]!.values.status).toBe('active');
+		expect(calls.txInserts[0]!.values.amount).toBe('1000');
+		expect(calls.txInserts[0]!.values.interest_rate).toBe('0');
+		expect(calls.txInserts[0]!.values.date_lent).toBe('2026-08-01');
+		expect(calls.txInserts[0]!.values.direction).toBe('lent');
+		expect(calls.txInserts[0]!.values.status).toBe('active');
 		// inserted lending ID is returned via .returning({ id }) — not a SELECT
 		expect(calls.returningIds).toHaveLength(1);
 		expect(calls.returningIds[0]!.table).toBe('lendings');
@@ -364,10 +462,10 @@ describe('lendingImport — Drizzle / Postgres path (recorded fake client)', () 
 
 		expect(result.success).toBe(true);
 		expect(result.imported).toBe(1);
-		expect(calls.inserts).toHaveLength(2); // lending + payment
+		expect(calls.txInserts).toHaveLength(2); // lending + payment
 		// payment row references the ID returned by the lending insert
 		expect(calls.returningIds[0]!.table).toBe('lendings');
-		const paymentInsert = calls.inserts.find(i => i.table === 'lending_payments');
+		const paymentInsert = calls.txInserts.find(i => i.table === 'lending_payments');
 		expect(paymentInsert).toBeDefined();
 		expect(paymentInsert!.values.lending_id).toBe(calls.returningIds[0]!.id);
 		expect(paymentInsert!.values.user_id).toBe(42);
@@ -385,8 +483,8 @@ describe('lendingImport — Drizzle / Postgres path (recorded fake client)', () 
 
 		expect(result.success).toBe(true);
 		expect(result.imported).toBe(1);
-		expect(calls.inserts).toHaveLength(1); // lending only
-		const paymentInsert = calls.inserts.find(i => i.table === 'lending_payments');
+		expect(calls.txInserts).toHaveLength(1); // lending only
+		const paymentInsert = calls.txInserts.find(i => i.table === 'lending_payments');
 		expect(paymentInsert).toBeUndefined();
 	});
 
@@ -401,5 +499,28 @@ describe('lendingImport — Drizzle / Postgres path (recorded fake client)', () 
 		expect(result.skippedDuplicates).toBe(1);
 		expect(result.skippedInvalid).toBe(0);
 		expect(result.newPeople).toHaveLength(2);
+	});
+
+	it('wraps the entire import in one db.transaction and uses tx for every write', async () => {
+		const csv = `Person,Amount,Date Lent,Amount Recovered,Notes,Status\nAlice,1000,2026-08-01,500,Test,active\nBob,2000,2026-08-02,0,Test2,active`;
+		const file = new File([csv], 'import.csv', { type: 'text/csv' });
+		const result = await importLendingsForUser(42, file, '{}', 'lent') as any;
+
+		expect(result.success).toBe(true);
+		expect(result.imported).toBe(2);
+		// Exactly ONE transaction wraps the whole import.
+		expect(calls.transactions).toBe(1);
+		// Every insert ran through the tx client: 2 lendings + 1 payment.
+		expect(calls.txInserts).toHaveLength(3);
+		expect(calls.txInserts.filter(i => i.table === 'lendings')).toHaveLength(2);
+		expect(calls.txInserts.filter(i => i.table === 'lending_payments')).toHaveLength(1);
+		// The recovered payment references the id returned by the lending insert.
+		expect(calls.returningIds).toHaveLength(2);
+		const paymentInsert = calls.txInserts.find(i => i.table === 'lending_payments');
+		expect(paymentInsert!.values.lending_id).toBe(calls.returningIds[0]!.id);
+		// No global DB writes happened inside the transaction.
+		expect(calls.inserts).toHaveLength(0);
+		// The dedup SELECT still ran on the global db, before the transaction.
+		expect(calls.selects).toHaveLength(1);
 	});
 });
