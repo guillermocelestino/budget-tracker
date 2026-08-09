@@ -9,6 +9,10 @@ import {
 } from '$lib/database/schema';
 import { and, eq, sql, desc, isNotNull } from 'drizzle-orm';
 import type { Lending, LendingPayment, LendingWithPayments, PaymentType } from '$lib/types';
+import {
+	recordLendingTransactionInTx,
+	recordLendingTransactionInTxDrizzle
+} from '$lib/server/recordLendingTransaction';
 
 /** Drizzle client type returned by getDrizzle(). */
 type DrizzleDb = Awaited<ReturnType<typeof getDrizzle>>;
@@ -974,6 +978,83 @@ export async function deleteLending(userId: number, lendingId: number): Promise<
 		}
 		await tx.execute('DELETE FROM lendings WHERE user_id = $1 AND id = $2', [userId, lendingId]);
 		return true;
+	});
+}
+
+/**
+ * Create a lending AND, when requested, its linked category/ledger transaction
+ * atomically.
+ *
+ * Mirrors the established Option-C transaction pattern (recordPayment/deleteLending):
+ * the public function owns ONE transaction and every internal operation runs
+ * through the supplied transaction context. The lending INSERT and the linked
+ * transaction's category lookup/create + INSERT commit or roll back together on
+ * both SQLite and Postgres.
+ *
+ * When recordAsTransaction is false the lending is still created transactionally,
+ * but no ledger transaction or category is written.
+ *
+ * Returns { success: true } on success; throws (rolling everything back) on failure.
+ */
+export async function createLending(
+	userId: number,
+	input: {
+		borrowerName: string;
+		amount: number;
+		interestRate: number;
+		dateLent: string;
+		dueDate: string | null;
+		notes: string | null;
+		direction: 'lent' | 'borrowed';
+		recordAsTransaction: boolean;
+	}
+): Promise<{ success: true }> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		return db.transaction(async (tx) => {
+			await tx.insert(lendings).values({
+				user_id: userId,
+				borrower_name: input.borrowerName,
+				amount: String(input.amount),
+				interest_rate: String(input.interestRate),
+				date_lent: input.dateLent,
+				due_date: input.dueDate,
+				notes: input.notes,
+				direction: input.direction
+			});
+
+			if (input.recordAsTransaction) {
+				await recordLendingTransactionInTxDrizzle(tx, userId, {
+					event: 'create',
+					direction: input.direction,
+					amount: input.amount,
+					partyName: input.borrowerName,
+					date: input.dateLent
+				});
+			}
+
+			return { success: true as const };
+		});
+	}
+
+	return withTransaction(async (tx) => {
+		await tx.execute(
+			`INSERT INTO lendings (user_id, borrower_name, amount, interest_rate, date_lent, due_date, notes, direction)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[userId, input.borrowerName, input.amount, input.interestRate, input.dateLent, input.dueDate, input.notes, input.direction]
+		);
+
+		if (input.recordAsTransaction) {
+			await recordLendingTransactionInTx(tx, userId, {
+				event: 'create',
+				direction: input.direction,
+				amount: input.amount,
+				partyName: input.borrowerName,
+				date: input.dateLent
+			});
+		}
+
+		return { success: true as const };
 	});
 }
 

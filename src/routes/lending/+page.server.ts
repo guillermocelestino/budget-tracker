@@ -2,7 +2,6 @@ import { fail } from '@sveltejs/kit';
 import { queryOne, execute } from '$lib/database/query';
 import type { Lending } from '$lib/types';
 import { importLendingsForUser } from '$lib/server/lendingImport';
-import { recordLendingTransaction } from '$lib/server/recordLendingTransaction';
 import {
 	getLendingsWithPayments,
 	getLendingTotals,
@@ -11,6 +10,7 @@ import {
 	deletePayment,
 	hasPayments,
 	deleteLending,
+	createLending,
 } from '$lib/server/lendingPayments';
 import { getToday } from '$lib/utils/format';
 
@@ -54,23 +54,16 @@ export const actions = {
 		}
 		if (!date_lent) return fail(400, { error: 'Date lent is required' });
 
-		await execute(
-			`INSERT INTO lendings (user_id, borrower_name, amount, interest_rate, date_lent, due_date, notes)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-			[userId, borrower_name, parseFloat(amountStr), interest_rate, date_lent, due_date || null, notes]
-		);
-
-		if (recordAsTransaction) {
-			await recordLendingTransaction(userId, {
-				event: 'create',
-				direction: 'lent',
-				amount: parseFloat(amountStr),
-				partyName: borrower_name,
-				date: date_lent
-			});
-		}
-
-		return { success: true };
+		return createLending(userId, {
+			borrowerName: borrower_name,
+			amount: parseFloat(amountStr),
+			interestRate: interest_rate,
+			dateLent: date_lent,
+			dueDate: due_date || null,
+			notes,
+			direction: 'lent',
+			recordAsTransaction
+		});
 	},
 
 	update: async ({ request, locals }) => {
