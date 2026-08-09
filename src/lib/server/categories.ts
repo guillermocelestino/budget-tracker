@@ -157,7 +157,7 @@ export async function createCategory(
 export async function updateCategory(
 	userId: number,
 	id: number,
-	input: { name?: string; color?: string; icon?: string; budget_limit?: number | null }
+	input: { name?: string; color?: string; icon?: string; type?: 'income' | 'expense'; budget_limit?: number | null }
 ): Promise<boolean> {
 	const existing = await getCategory(userId, id);
 	if (!existing) {
@@ -171,6 +171,7 @@ export async function updateCategory(
 		if (input.name !== undefined) updateData.name = input.name.trim();
 		if (input.color !== undefined) updateData.color = input.color;
 		if (input.icon !== undefined) updateData.icon = input.icon;
+		if (input.type !== undefined) updateData.type = input.type;
 		if (input.budget_limit !== undefined) updateData.budget_limit = input.budget_limit != null ? String(input.budget_limit) : null;
 
 		await db
@@ -195,6 +196,10 @@ export async function updateCategory(
 	if (input.icon !== undefined) {
 		updateParts.push(`icon = $${params.length + 1}`);
 		params.push(input.icon);
+	}
+	if (input.type !== undefined) {
+		updateParts.push(`type = $${params.length + 1}`);
+		params.push(input.type);
 	}
 	if (input.budget_limit !== undefined) {
 		updateParts.push(`budget_limit = $${params.length + 1}`);

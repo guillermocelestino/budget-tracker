@@ -1,14 +1,21 @@
 import { fail } from '@sveltejs/kit';
-import { queryOne, queryMany, execute } from '$lib/database/query';
 import { getCategorySpending, getCategoryUsage } from '$lib/server/transactions';
-import type { Category } from '$lib/types';
+import {
+	getCategories,
+	getCategory,
+	checkCategoryNameExists,
+	createCategory,
+	updateCategory,
+	deleteCategory,
+	getRecurringCountsByCategory,
+} from '$lib/server/categories';
 
 export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;
 	const selectedMonth = url.searchParams.get('month') || (
 		`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
 	);
-	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
+	const categories = await getCategories(userId);
 
 	const spending = await getCategorySpending(userId, selectedMonth);
 
@@ -22,21 +29,13 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	// Per-category usage: all-time transaction count + last-used date, and
 	// recurring-schedule count. Feeds the management view + usage-aware delete.
 	const txnUsage = await getCategoryUsage(userId);
-	const recurringUsage = await queryMany<{ category_id: number; cnt: number }>(
-		`SELECT category_id, COUNT(*)::int as cnt
-		 FROM recurring_transactions WHERE user_id = $1 GROUP BY category_id`,
-		[userId]
-	);
+	const recurringCounts = await getRecurringCountsByCategory(userId);
 
 	const txnCountMap: Record<number, number> = {};
-	const recurringCountMap: Record<number, number> = {};
 	const lastUsedMap: Record<number, string> = {};
 	for (const u of txnUsage) {
 		txnCountMap[u.category_id] = u.cnt;
 		if (u.last_used) lastUsedMap[u.category_id] = u.last_used;
-	}
-	for (const r of recurringUsage) {
-		recurringCountMap[r.category_id] = r.cnt;
 	}
 
 	return {
@@ -45,7 +44,7 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 		income: incomeMap,
 		selectedMonth,
 		txnCounts: txnCountMap,
-		recurringCounts: recurringCountMap,
+		recurringCounts,
 		lastUsed: lastUsedMap,
 	};
 }
@@ -63,10 +62,7 @@ export const actions = {
 			? parseFloat(budgetLimitStr)
 			: null;
 
-		await execute(
-			'UPDATE categories SET budget_limit = $1 WHERE user_id = $2 AND id = $3',
-			[budget_limit, userId, id]
-		);
+		await updateCategory(userId, id, { budget_limit });
 
 		return { success: true };
 	},
@@ -89,8 +85,8 @@ export const actions = {
 			return fail(400, { error: 'Invalid category type' });
 		}
 
-		const existing = await queryOne<{ id: number }>('SELECT id FROM categories WHERE user_id = $1 AND name = $2', [userId, name]);
-		if (existing) {
+		const exists = await checkCategoryNameExists(userId, name);
+		if (exists) {
 			return fail(409, { error: 'A category with this name already exists', field: 'name' });
 		}
 
@@ -98,10 +94,7 @@ export const actions = {
 			? parseFloat(budgetLimitStr)
 			: null;
 
-		await execute(
-			'INSERT INTO categories (user_id, name, color, icon, type, budget_limit) VALUES ($1, $2, $3, $4, $5, $6)',
-			[userId, name, color, icon, categoryType, budget_limit]
-		);
+		await createCategory(userId, { name, color, icon, type: categoryType as 'income' | 'expense', budget_limit });
 
 		return { success: true };
 	},
@@ -124,20 +117,20 @@ export const actions = {
 			return fail(400, { error: 'Invalid category type' });
 		}
 
-		const existing = await queryOne<{ id: number }>(
-			'SELECT id FROM categories WHERE user_id = $1 AND name = $2 AND id != $3',
-			[userId, name, id]
-		);
-		if (existing) return fail(409, { error: 'A category with this name already exists', field: 'name' });
+		const exists = await checkCategoryNameExists(userId, name, id);
+		if (exists) return fail(409, { error: 'A category with this name already exists', field: 'name' });
 
 		const budget_limit = budgetLimitStr && budgetLimitStr.length > 0 && !isNaN(parseFloat(budgetLimitStr))
 			? parseFloat(budgetLimitStr)
 			: null;
 
-		await execute(
-			'UPDATE categories SET name = $1, color = $2, icon = $3, type = $4, budget_limit = $5 WHERE user_id = $6 AND id = $7',
-			[name, color, icon, categoryType, budget_limit, userId, id]
-		);
+		await updateCategory(userId, id, {
+			name,
+			color,
+			icon,
+			type: categoryType as 'income' | 'expense',
+			budget_limit,
+		});
 
 		return { success: true };
 	},
@@ -149,11 +142,11 @@ export const actions = {
 
 		if (isNaN(id)) return fail(400, { error: 'Invalid ID' });
 
-		const existing = await queryOne<{ id: number }>('SELECT id FROM categories WHERE user_id = $1 AND id = $2', [userId, id]);
+		const existing = await getCategory(userId, id);
 		if (!existing) return fail(404, { error: 'Category not found' });
 
 		try {
-			await execute('DELETE FROM categories WHERE user_id = $1 AND id = $2', [userId, id]);
+			await deleteCategory(userId, id);
 			return { success: true };
 		} catch {
 			return fail(409, { error: 'Cannot delete: this category has transactions' });
