@@ -1,10 +1,10 @@
 import { fail } from '@sveltejs/kit';
-import { queryOne } from '$lib/database/query';
-import type { Lending } from '$lib/types';
 import { importLendingsForUser } from '$lib/server/lendingImport';
 import {
+	getLending,
 	getLendingsWithPayments,
 	getLendingTotals,
+	getPayment,
 	recordPayment,
 	updatePayment,
 	deletePayment,
@@ -124,10 +124,7 @@ export const actions = {
 		const today = getToday();
 
 		// Validate payment date >= date_lent and <= today
-		const lending = await queryOne<Lending>(
-			'SELECT * FROM lendings WHERE user_id = $1 AND id = $2',
-			[userId, lendingId]
-		);
+		const lending = await getLending(userId, lendingId);
 		if (!lending) return fail(404, { error: 'Borrowing record not found' });
 
 		if (paymentDate < lending.date_lent) {
@@ -172,16 +169,10 @@ export const actions = {
 
 		try {
 			// Validate payment date
-			const payment = await queryOne<{ lending_id: number }>(
-				'SELECT lending_id FROM lending_payments WHERE user_id = $1 AND id = $2',
-				[userId, paymentId]
-			);
+			const payment = await getPayment(userId, paymentId);
 			if (!payment) return fail(404, { error: 'Payment not found' });
 
-			const lending = await queryOne<Lending>(
-				'SELECT * FROM lendings WHERE user_id = $1 AND id = $2',
-				[userId, payment.lending_id]
-			);
+			const lending = await getLending(userId, payment.lending_id);
 			if (!lending) return fail(404, { error: 'Borrowing record not found' });
 
 			if (paymentDate < lending.date_lent) {

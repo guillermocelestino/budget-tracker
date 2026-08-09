@@ -1303,3 +1303,78 @@ export async function searchLendings(
 	const rows = await queryMany<Lending>(sql, params);
 	return rows;
 }
+
+/**
+ * Get a lending by ID (user-scoped).
+ * Returns the raw lending row with all fields.
+ * Does NOT normalize dates or coerce numeric values.
+ * Preserves PostgreSQL Date objects for date_lent.
+ */
+export async function getLending(
+	userId: number,
+	lendingId: number
+): Promise<Lending | undefined> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({
+				id: lendings.id,
+				user_id: lendings.user_id,
+				borrower_name: lendings.borrower_name,
+				amount: lendings.amount,
+				interest_rate: lendings.interest_rate,
+				date_lent: lendings.date_lent,
+				due_date: lendings.due_date,
+				status: lendings.status,
+				notes: lendings.notes,
+				direction: lendings.direction,
+				created_at: lendings.created_at,
+				updated_at: lendings.updated_at,
+			})
+			.from(lendings)
+			.where(and(eq(lendings.user_id, userId), eq(lendings.id, lendingId)))
+			.limit(1);
+		if (!rows.length) return undefined;
+		// Coerce numeric fields from string (Postgres NUMERIC) to number
+		const row = rows[0];
+		return {
+			...row,
+			amount: parseFloat(String(row.amount)),
+			interest_rate: parseFloat(String(row.interest_rate ?? '0')),
+			created_at: toSqliteTimestamp(row.created_at),
+			updated_at: toSqliteTimestamp(row.updated_at),
+		} as Lending;
+	}
+
+	const row = await queryOne<Lending>(
+		'SELECT * FROM lendings WHERE user_id = $1 AND id = $2',
+		[userId, lendingId]
+	);
+	return row;
+}
+
+/**
+ * Get a lending_payment by ID (user-scoped).
+ * Returns only the lending_id needed for updatePayment validation.
+ */
+export async function getPayment(
+	userId: number,
+	paymentId: number
+): Promise<{ lending_id: number } | undefined> {
+	if (usePostgres) {
+		const db = await getDrizzle();
+		const rows = await db
+			.select({ lending_id: lendingPayments.lending_id })
+			.from(lendingPayments)
+			.where(and(eq(lendingPayments.user_id, userId), eq(lendingPayments.id, paymentId)))
+			.limit(1);
+		if (!rows.length) return undefined;
+		return rows[0];
+	}
+
+	const row = await queryOne<{ lending_id: number }>(
+		'SELECT lending_id FROM lending_payments WHERE user_id = $1 AND id = $2',
+		[userId, paymentId]
+	);
+	return row;
+}
