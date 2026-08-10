@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { getCategorySpending, getCategoryUsage } from '$lib/server/transactions';
+import { getCategorySpending, getCategoryUsage } from '$lib/server/services/transactions';
 import {
 	getCategories,
 	getCategory,
@@ -8,7 +8,7 @@ import {
 	updateCategory,
 	deleteCategory,
 	getRecurringCountsByCategory,
-} from '$lib/server/categories';
+} from '$lib/server/services/categories';
 
 export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;

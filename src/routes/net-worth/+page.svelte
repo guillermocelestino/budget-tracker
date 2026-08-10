@@ -1,13 +1,13 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import '$lib/utils/chart';
+  import '$lib/client/utils/chart';
   import { Line } from 'svelte-chartjs';
-  import { formatCurrency } from '$lib/utils/format';
+  import { formatCurrency } from '$lib/client/utils/format';
   import type { ChartData, ChartOptions } from 'chart.js';
-  import PageHeader from '$lib/components/PageHeader.svelte';
-  import PageBackground from '$lib/components/PageBackground.svelte';
-  import NetWorthHero from '$lib/components/NetWorthHero.svelte';
+  import PageHeader from '$lib/client/components/PageHeader.svelte';
+  import PageBackground from '$lib/client/components/PageBackground.svelte';
+  import NetWorthHero from '$lib/client/components/NetWorthHero.svelte';
   import type { NetWorthSnapshot } from '$lib/types';
 
   let data = $derived($page.data as App.PageData);

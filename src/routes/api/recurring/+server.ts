@@ -1,8 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { TransactionType, RecurringFrequency } from '$lib/types';
-import { createRecurringTransaction, listRecurringTransactions } from '$lib/server/recurringService';
-import type { RecurringInput, RecurringFilters } from '$lib/server/recurringService';
-import { getCategories } from '$lib/server/categories';
+import { createRecurringTransaction, listRecurringTransactions } from '$lib/server/services/recurringService';
+import type { RecurringInput, RecurringFilters } from '$lib/server/services/recurringService';
+import { getCategories } from '$lib/server/services/categories';
 
 export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;

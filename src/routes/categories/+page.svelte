@@ -2,19 +2,20 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { enhance } from '$app/forms';
-  import PageHeader from '$lib/components/PageHeader.svelte';
-  import Button from '$lib/components/Button.svelte';
-  import CategoryList from '$lib/components/CategoryList.svelte';
-  import type { EnrichedCategory } from '$lib/components/CategoryList.svelte';
-  import CategoryForm from '$lib/components/CategoryForm.svelte';
-  import ModalDialog from '$lib/components/ModalDialog.svelte';
-  import PageBackground from '$lib/components/PageBackground.svelte';
-  import MonthPicker from '$lib/components/MonthPicker.svelte';
-  import SlideOver from '$lib/components/SlideOver.svelte';
-  import SearchFilterPill from '$lib/components/SearchFilterPill.svelte';
-  import ViewToggle from '$lib/components/ViewToggle.svelte';
-  import { showSuccess, showError } from '$lib/stores/toast.svelte';
-  import { formatCurrency, getCurrentMonth } from '$lib/utils/format';
+  import PageHeader from '$lib/client/components/PageHeader.svelte';
+  import Button from '$lib/client/components/Button.svelte';
+  import CategoryList from '$lib/client/components/CategoryList.svelte';
+  import type { EnrichedCategory } from '$lib/client/components/CategoryList.svelte';
+  import CategoryForm from '$lib/client/components/CategoryForm.svelte';
+  import ModalDialog from '$lib/client/components/ModalDialog.svelte';
+  import PageBackground from '$lib/client/components/PageBackground.svelte';
+  import MonthPicker from '$lib/client/components/MonthPicker.svelte';
+  import SlideOver from '$lib/client/components/SlideOver.svelte';
+  import SearchFilterPill from '$lib/client/components/SearchFilterPill.svelte';
+  import ViewToggle from '$lib/client/components/ViewToggle.svelte';
+  import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
+  import { formatCurrency } from '$lib/client/utils/format';
+import { getCurrentMonth } from '$lib/shared/utils/format';
 
   let data = $derived($page.data as App.PageData);
 

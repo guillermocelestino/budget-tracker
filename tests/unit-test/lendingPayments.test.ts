@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getDrizzle } from '$lib/database/drizzle';
-import { lendingPayments } from '$lib/database/schema';
+import { getDrizzle } from '$lib/server/db/drizzle';
+import { lendingPayments } from '$lib/server/db/schema';
 import {
 	getLendingsWithPayments,
 	getLending,
@@ -9,10 +9,10 @@ import {
 	updatePayment,
 	deletePayment,
 	searchLendings
-} from '$lib/server/lendingPayments';
+} from '$lib/server/services/lendingPayments';
 
 // Mock the database modules
-vi.mock('$lib/database/query', () => ({
+vi.mock('$lib/server/db/query', () => ({
 	queryOne: vi.fn(),
 	queryMany: vi.fn(),
 	execute: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock('$lib/database/query', () => ({
 	}))
 }));
 
-vi.mock('$lib/database/drizzle', () => ({
+vi.mock('$lib/server/db/drizzle', () => ({
 	getDrizzle: vi.fn()
 }));
 

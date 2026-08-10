@@ -18,9 +18,9 @@
  * The connection string is never printed.
  */
 
-import { getPgPool } from '../src/lib/database/index.js';
-import { queryOne, queryMany, withTransaction } from '../src/lib/database/query.js';
-import { hashPassword, verifyPassword } from '../src/lib/auth.js';
+import { getPgPool } from '../src/lib/server/db/index.js';
+import { queryOne, queryMany, withTransaction } from '../src/lib/server/db/query.js';
+import { hashPassword, verifyPassword } from '../src/lib/server/auth/index.js';
 
 // Canonical connection-string resolution mirrors src/lib/database/index.ts:
 // DATABASE_URL is preferred; POSTGRES_URL remains honored as the deprecated

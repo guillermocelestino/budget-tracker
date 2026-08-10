@@ -1,7 +1,7 @@
 import type { TransactionType, RecurringFrequency } from '$lib/types';
-import { runRecurringNow, toggleRecurringStatus, duplicateRecurringTransaction } from '$lib/server/recurringScheduler';
-import { getRecurringById, updateRecurringTransaction, deleteRecurringTransaction } from '$lib/server/recurringService';
-import type { RecurringInput } from '$lib/server/recurringService';
+import { runRecurringNow, toggleRecurringStatus, duplicateRecurringTransaction } from '$lib/server/services/recurringScheduler';
+import { getRecurringById, updateRecurringTransaction, deleteRecurringTransaction } from '$lib/server/services/recurringService';
+import type { RecurringInput } from '$lib/server/services/recurringService';
 
 export async function GET({ params, locals }: { params: { id: string }; locals: App.Locals }) {
 	const userId = locals.user!.userId;

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 
 /**
- * API routing tests for the lending REST handlers. `$lib/server/lendingPayments`
+ * API routing tests for the lending REST handlers. `$lib/server/services/lendingPayments`
  * is mocked, so these tests verify the ROUTE layer only: the correct service
  * functions are called with the right arguments (including that client-supplied
  * `status` is never forwarded to the service), ownership/404/400 semantics are
@@ -57,7 +57,7 @@ describe('api/lendings +server.ts (GET list, POST create)', () => {
 	let POST: any;
 
 	beforeAll(async () => {
-		vi.doMock('$lib/server/lendingPayments', () => ({ ...mocks }));
+		vi.doMock('$lib/server/services/lendingPayments', () => ({ ...mocks }));
 		vi.resetModules();
 		const mod = await import('../../src/routes/api/lendings/+server.ts');
 		GET = mod.GET;
@@ -208,7 +208,7 @@ describe('api/lendings/[id] +server.ts (GET, PUT, DELETE)', () => {
 	let DELETE: any;
 
 	beforeAll(async () => {
-		vi.doMock('$lib/server/lendingPayments', () => ({ ...mocks }));
+		vi.doMock('$lib/server/services/lendingPayments', () => ({ ...mocks }));
 		vi.resetModules();
 		const mod = await import('../../src/routes/api/lendings/[id]/+server.ts');
 		GET = mod.GET;

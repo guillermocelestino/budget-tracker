@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { hashPassword } from '$lib/auth';
-import {
-	validateLoginInput,
-	verifyUserCredentials,
-} from '$lib/utils/loginValidation';
+import { hashPassword } from '$lib/server/auth';
+import { validateLoginInput } from '$lib/shared/utils/loginValidation';
+import { verifyUserCredentials } from '$lib/server/utils/loginValidation';
 
 /**
  * Unit Test Suite for Login Validation & Credential Verification.

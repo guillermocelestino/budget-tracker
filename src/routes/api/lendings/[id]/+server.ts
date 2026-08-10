@@ -3,7 +3,7 @@ import {
 	deleteLending,
 	getLendingWithPayments,
 	updateLending
-} from '$lib/server/lendingPayments';
+} from '$lib/server/services/lendingPayments';
 
 function parseId(raw: string): number | null {
 	const id = parseInt(raw);

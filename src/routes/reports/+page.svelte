@@ -1,13 +1,14 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { formatCurrency, getMonthLabel } from '$lib/utils/format';
-  import PageHeader from '$lib/components/PageHeader.svelte';
-  import ReportsHeader from '$lib/components/ReportsHeader.svelte';
-  import MonthlyTrendChart from '$lib/components/MonthlyTrendChart.svelte';
-  import ReportsDataTable from '$lib/components/ReportsDataTable.svelte';
-  import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
-  import PageBackground from '$lib/components/PageBackground.svelte';
-  import EmptyState from '$lib/components/EmptyState.svelte';
+  import { formatCurrency } from '$lib/client/utils/format';
+import { getMonthLabel } from '$lib/shared/utils/format';
+  import PageHeader from '$lib/client/components/PageHeader.svelte';
+  import ReportsHeader from '$lib/client/components/ReportsHeader.svelte';
+  import MonthlyTrendChart from '$lib/client/components/MonthlyTrendChart.svelte';
+  import ReportsDataTable from '$lib/client/components/ReportsDataTable.svelte';
+  import YearOverYearCard from '$lib/client/components/YearOverYearCard.svelte';
+  import PageBackground from '$lib/client/components/PageBackground.svelte';
+  import EmptyState from '$lib/client/components/EmptyState.svelte';
 
   let data = $derived($page.data as App.PageData);
 

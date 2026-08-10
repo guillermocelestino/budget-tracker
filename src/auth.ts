@@ -12,8 +12,9 @@ import type { DefaultSession, User } from '@auth/core/types';
 import { env } from '$env/dynamic/private';
 import { dev } from '$app/environment';
 import { base } from '$app/paths';
-import { queryOne } from '$lib/database/query';
-import { validateLoginInput, verifyUserCredentials } from '$lib/utils/loginValidation';
+import { queryOne } from '$lib/server/db/query';
+import { validateLoginInput } from '$lib/shared/utils/loginValidation';
+import { verifyUserCredentials } from '$lib/server/utils/loginValidation';
 import type { RequestEvent } from '@sveltejs/kit';
 
 /**

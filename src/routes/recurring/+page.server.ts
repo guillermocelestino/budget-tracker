@@ -1,6 +1,6 @@
-import { listRecurringTransactions, getActiveRecurringCount } from '$lib/server/recurringService';
-import type { RecurringFilters } from '$lib/server/recurringService';
-import { getCategories } from '$lib/server/categories';
+import { listRecurringTransactions, getActiveRecurringCount } from '$lib/server/services/recurringService';
+import type { RecurringFilters } from '$lib/server/services/recurringService';
+import { getCategories } from '$lib/server/services/categories';
 
 export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;

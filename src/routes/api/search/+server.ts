@@ -1,6 +1,6 @@
-import { searchTransactions } from '$lib/server/transactions';
-import { searchLendings } from '$lib/server/lendingPayments';
-import { searchCategories } from '$lib/server/categories';
+import { searchTransactions } from '$lib/server/services/transactions';
+import { searchLendings } from '$lib/server/services/lendingPayments';
+import { searchCategories } from '$lib/server/services/categories';
 
 export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;

@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
-import { getCurrentMonth } from '$lib/utils/format';
-import { getCategorySpending } from '$lib/server/transactions';
-import { getCategories, checkCategoryNameExists, createCategory, getCategory } from '$lib/server/categories';
+import { getCurrentMonth } from '$lib/shared/utils/format';
+import { getCategorySpending } from '$lib/server/services/transactions';
+import { getCategories, checkCategoryNameExists, createCategory, getCategory } from '$lib/server/services/categories';
 
 export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;

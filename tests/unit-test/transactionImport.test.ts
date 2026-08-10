@@ -46,7 +46,7 @@ function containsRawString(node: unknown, needle: string): boolean {
 }
 
 describe('transactionImport — Drizzle / Postgres path (recorded fake client)', () => {
-	let importTransactionsForUser: typeof import('$lib/server/transactionImport').importTransactionsForUser;
+	let importTransactionsForUser: typeof import('$lib/server/services/transactionImport').importTransactionsForUser;
 	let calls: {
 		selects: { table: string; cols: string[] }[]; // global db.select
 		wheres: { table: string; args: unknown[] }[]; // global db.where
@@ -136,17 +136,17 @@ describe('transactionImport — Drizzle / Postgres path (recorded fake client)',
 	}
 
 	beforeAll(async () => {
-		vi.doMock('$lib/database', () => ({
+		vi.doMock('$lib/server/db', () => ({
 			getPgPool: () => Promise.reject(new Error('getPgPool should not be called on Drizzle path')),
 			initDb: async () => {},
 			closeDb: async () => {}
 		}));
-		vi.doMock('$lib/database/drizzle', () => ({
+		vi.doMock('$lib/server/db/drizzle', () => ({
 			getDrizzle: () => Promise.resolve(fakeDb())
 		}));
 		// Pre-flight user-category snapshot. queryOne/execute/withTransaction must
 		// never run on the Drizzle path — the write phase is tx-only.
-		vi.doMock('$lib/database/query', () => ({
+		vi.doMock('$lib/server/db/query', () => ({
 			queryOne: async () => { throw new Error('queryOne should not be called on Drizzle path'); },
 			queryMany: async <T>(): Promise<T[]> => [
 				{ id: 1, name: 'Food', type: 'expense' },
@@ -157,7 +157,7 @@ describe('transactionImport — Drizzle / Postgres path (recorded fake client)',
 		}));
 
 		vi.resetModules();
-		const svc = await import('$lib/server/transactionImport');
+		const svc = await import('$lib/server/services/transactionImport');
 		importTransactionsForUser = svc.importTransactionsForUser;
 	});
 

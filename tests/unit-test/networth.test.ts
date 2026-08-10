@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 
 describe('networth — Drizzle / Postgres path (recorded fake client)', () => {
-	let computeNetWorth: typeof import('$lib/server/networth').computeNetWorth;
+	let computeNetWorth: typeof import('$lib/server/services/networth').computeNetWorth;
 	let calls: { selects: { table: string; cols: string[] }[] };
 
 	function fakeDb() {
@@ -33,16 +33,16 @@ describe('networth — Drizzle / Postgres path (recorded fake client)', () => {
 	}
 
 	beforeAll(async () => {
-		vi.doMock('$lib/database', () => ({
+		vi.doMock('$lib/server/db', () => ({
 			getPgPool: () => Promise.reject(new Error('getPgPool should not be called on Drizzle path')),
 			initDb: async () => {},
 			closeDb: async () => {}
 		}));
-		vi.doMock('$lib/database/drizzle', () => ({
+		vi.doMock('$lib/server/db/drizzle', () => ({
 			getDrizzle: () => Promise.resolve(fakeDb())
 		}));
 		vi.resetModules();
-		const svc = await import('$lib/server/networth');
+		const svc = await import('$lib/server/services/networth');
 		computeNetWorth = svc.computeNetWorth;
 	});
 

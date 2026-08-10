@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { getCategoryReport } from '$lib/server/transactions';
+import { getCategoryReport } from '$lib/server/services/transactions';
 
 function getCurrentMonthParam(): string {
 	const now = new Date();

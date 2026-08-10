@@ -1,15 +1,16 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import DashboardHero from '$lib/components/DashboardHero.svelte';
-	import KpiRail from '$lib/components/KpiRail.svelte';
-	import SafeToSpendWidget from '$lib/components/SafeToSpendWidget.svelte';
-	import ForecastBanner from '$lib/components/ForecastBanner.svelte';
-	import CashFlowChart from '$lib/components/CashFlowChart.svelte';
-	import RecentActivityWidget from '$lib/components/RecentActivityWidget.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import CategoryBreakdownWidget from '$lib/components/CategoryBreakdownWidget.svelte';
-	import PageBackground from '$lib/components/PageBackground.svelte';
-	import { getCurrentMonth, getMonthLabel, formatDate, formatCurrency } from '$lib/utils/format';
+	import DashboardHero from '$lib/client/components/DashboardHero.svelte';
+	import KpiRail from '$lib/client/components/KpiRail.svelte';
+	import SafeToSpendWidget from '$lib/client/components/SafeToSpendWidget.svelte';
+	import ForecastBanner from '$lib/client/components/ForecastBanner.svelte';
+	import CashFlowChart from '$lib/client/components/CashFlowChart.svelte';
+	import RecentActivityWidget from '$lib/client/components/RecentActivityWidget.svelte';
+	import PageHeader from '$lib/client/components/PageHeader.svelte';
+	import CategoryBreakdownWidget from '$lib/client/components/CategoryBreakdownWidget.svelte';
+	import PageBackground from '$lib/client/components/PageBackground.svelte';
+	import { formatCurrency, formatDate } from '$lib/client/utils/format';
+import { getCurrentMonth, getMonthLabel } from '$lib/shared/utils/format';
 	let data = $derived($page.data as App.PageData);
 
 	// ─── Forecast computation ───

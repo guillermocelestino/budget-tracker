@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { getCategory, checkCategoryNameExists, updateCategory, deleteCategory } from '$lib/server/categories';
+import { getCategory, checkCategoryNameExists, updateCategory, deleteCategory } from '$lib/server/services/categories';
 
 export async function GET({ params, locals }: { params: { id: string }; locals: App.Locals }) {
 	const userId = locals.user!.userId;

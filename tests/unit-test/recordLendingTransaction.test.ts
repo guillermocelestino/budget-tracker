@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 
 describe('recordLendingTransaction — Drizzle / Postgres path (recorded fake client)', () => {
-	let recordLendingTransaction: typeof import('$lib/server/recordLendingTransaction').recordLendingTransaction;
+	let recordLendingTransaction: typeof import('$lib/server/services/recordLendingTransaction').recordLendingTransaction;
 	let calls: {
 		selects: { table: string; cols: string[]; where?: Record<string, unknown> }[];
 		inserts: { table: string; values: Record<string, unknown> }[];
@@ -47,17 +47,17 @@ describe('recordLendingTransaction — Drizzle / Postgres path (recorded fake cl
 	}
 
 	beforeAll(async () => {
-		vi.doMock('$lib/database', () => ({
+		vi.doMock('$lib/server/db', () => ({
 			getPgPool: () => Promise.reject(new Error('getPgPool should not be called on Drizzle path')),
 			initDb: async () => {},
 			closeDb: async () => {}
 		}));
-		vi.doMock('$lib/database/drizzle', () => ({
+		vi.doMock('$lib/server/db/drizzle', () => ({
 			getDrizzle: () => Promise.resolve(fakeDb())
 		}));
 
 		vi.resetModules();
-		const svc = await import('$lib/server/recordLendingTransaction');
+		const svc = await import('$lib/server/services/recordLendingTransaction');
 		recordLendingTransaction = svc.recordLendingTransaction;
 	});
 

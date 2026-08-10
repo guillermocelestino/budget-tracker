@@ -2,9 +2,9 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { and, eq, sql, ilike } from 'drizzle-orm';
 
 describe('categories — Drizzle / Postgres path (recorded fake client)', () => {
-	let svc: typeof import('$lib/server/categories');
-	let categoriesTable: typeof import('$lib/database/schema').categories;
-	let recurringTransactionsTable: typeof import('$lib/database/schema').recurringTransactions;
+	let svc: typeof import('$lib/server/services/categories');
+	let categoriesTable: typeof import('$lib/server/db/schema').categories;
+	let recurringTransactionsTable: typeof import('$lib/server/db/schema').recurringTransactions;
 
 	type SelectCall = {
 		table: string;
@@ -96,20 +96,20 @@ describe('categories — Drizzle / Postgres path (recorded fake client)', () => 
 	}
 
 	beforeAll(async () => {
-		vi.doMock('$lib/database', () => ({
+		vi.doMock('$lib/server/db', () => ({
 			getPgPool: () => Promise.reject(new Error('getPgPool should not be called on Drizzle path')),
 			initDb: async () => {},
 			closeDb: async () => {}
 		}));
-		vi.doMock('$lib/database/drizzle', () => ({
+		vi.doMock('$lib/server/db/drizzle', () => ({
 			getDrizzle: () => Promise.resolve(fakeDb())
 		}));
 		vi.resetModules();
 		// Import after resetModules so these reference the SAME table objects the service imported.
-		const schema = await import('$lib/database/schema');
+		const schema = await import('$lib/server/db/schema');
 		categoriesTable = schema.categories;
 		recurringTransactionsTable = schema.recurringTransactions;
-		svc = await import('$lib/server/categories');
+		svc = await import('$lib/server/services/categories');
 	});
 
 	beforeEach(() => {

@@ -1,6 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { createTransaction } from '$lib/server/transactions';
-import { getCategories } from '$lib/server/categories';
+import { createTransaction } from '$lib/server/services/transactions';
+import { getCategories } from '$lib/server/services/categories';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;

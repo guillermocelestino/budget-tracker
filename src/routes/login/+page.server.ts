@@ -1,6 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { authenticateCredentials } from '../../auth';
-import { validateLoginInput } from '$lib/utils/loginValidation';
+import { validateLoginInput } from '$lib/shared/utils/loginValidation';
 
 export function load({ locals }: { locals: App.Locals }) {
 	if (locals.user) {

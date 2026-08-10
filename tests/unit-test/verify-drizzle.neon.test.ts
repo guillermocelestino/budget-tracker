@@ -7,7 +7,7 @@
  *   recordLendingTransaction, lendingImport.
  *
  * WHY VITEST (not tsx): the migrated modules transitively import
- * `$lib/stores/preferences.svelte.ts` (via `format.ts`), which uses Svelte 5
+ * `$lib/client/stores/preferences.svelte.ts` (via `format.ts`), which uses Svelte 5
  * runes (`$state`/`$derived`). tsx/esbuild cannot compile runes — vitest can,
  * via the project's Svelte plugin (the same runner the unit tests use).
  *
@@ -91,13 +91,13 @@ function check(name: string, ok: boolean, detail?: string): void {
 	console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
 }
 
-let q: typeof import('$lib/database/query.js');
-let lp: typeof import('$lib/server/lendingPayments.js');
-let rs: typeof import('$lib/server/recurringService.js');
-let sch: typeof import('$lib/server/recurringScheduler.js');
-let nw: typeof import('$lib/server/networth.js');
-let rlt: typeof import('$lib/server/recordLendingTransaction.js');
-let li: typeof import('$lib/server/lendingImport.js');
+let q: typeof import('$lib/server/db/query.js');
+let lp: typeof import('$lib/server/services/lendingPayments.js');
+let rs: typeof import('$lib/server/services/recurringService.js');
+let sch: typeof import('$lib/server/services/recurringScheduler.js');
+let nw: typeof import('$lib/server/services/networth.js');
+let rlt: typeof import('$lib/server/services/recordLendingTransaction.js');
+let li: typeof import('$lib/server/services/lendingImport.js');
 
 describe.skipIf(!canRun)('real Neon + Drizzle verification (VERIFY_NEON=1)', () => {
 	const allUserIds: number[] = [];
@@ -112,14 +112,14 @@ describe.skipIf(!canRun)('real Neon + Drizzle verification (VERIFY_NEON=1)', () 
 			console.log(`NOTE — .env DATABASE_URL (${describeUrl(env['DATABASE_URL'])}) exists — intentionally NOT used.`);
 		}
 
-		const indexM = await import('$lib/database/index.js');
-		q = await import('$lib/database/query.js');
-		lp = await import('$lib/server/lendingPayments.js');
-		rs = await import('$lib/server/recurringService.js');
-		sch = await import('$lib/server/recurringScheduler.js');
-		nw = await import('$lib/server/networth.js');
-		rlt = await import('$lib/server/recordLendingTransaction.js');
-		li = await import('$lib/server/lendingImport.js');
+		const indexM = await import('$lib/server/db/index.js');
+		q = await import('$lib/server/db/query.js');
+		lp = await import('$lib/server/services/lendingPayments.js');
+		rs = await import('$lib/server/services/recurringService.js');
+		sch = await import('$lib/server/services/recurringScheduler.js');
+		nw = await import('$lib/server/services/networth.js');
+		rlt = await import('$lib/server/services/recordLendingTransaction.js');
+		li = await import('$lib/server/services/lendingImport.js');
 
 		// Postgres-only runtime: the removed SQLite-detection flag is replaced by
 		// a check on the resolved connection the test will actually drive. The
@@ -344,8 +344,8 @@ describe.skipIf(!canRun)('real Neon + Drizzle verification (VERIFY_NEON=1)', () 
 		// bare `"id"` column that Postgres binds to the innermost scope (Bug A).
 		// The query shape mirrors the fixed source (p.lending_id = ${lendingId}).
 		{
-			const drizzleM = await import('$lib/database/drizzle');
-			const schemaM = await import('$lib/database/schema');
+			const drizzleM = await import('$lib/server/db/drizzle');
+			const schemaM = await import('$lib/server/db/schema');
 			const { sql: dSql, and: dAnd, eq: dEq } = await import('drizzle-orm');
 			const dbgDrizzle = await drizzleM.getDrizzle();
 			const probe = dbgDrizzle

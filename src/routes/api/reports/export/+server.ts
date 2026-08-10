@@ -1,5 +1,5 @@
-import { listTransactions } from '$lib/server/transactions';
-import { transactionsToCSV } from '$lib/utils/csv';
+import { listTransactions } from '$lib/server/services/transactions';
+import { transactionsToCSV } from '$lib/shared/utils/csv';
 
 export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;

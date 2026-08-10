@@ -43,17 +43,17 @@ describe('updateLending — Drizzle/Postgres structural (tx used, global db neve
 	}
 
 	beforeAll(async () => {
-		vi.doMock('$lib/database', () => ({
+		vi.doMock('$lib/server/db', () => ({
 			getPgPool: vi.fn(),
 			initDb: async () => {},
 			closeDb: async () => {}
 		}));
-		vi.doMock('$lib/database/drizzle', () => ({
+		vi.doMock('$lib/server/db/drizzle', () => ({
 			getDrizzle: vi.fn()
 		}));
 		vi.resetModules();
-		getDrizzle = (await import('$lib/database/drizzle')).getDrizzle;
-		const mod = await import('$lib/server/lendingPayments');
+		getDrizzle = (await import('$lib/server/db/drizzle')).getDrizzle;
+		const mod = await import('$lib/server/services/lendingPayments');
 		updateLending = mod.updateLending;
 	});
 

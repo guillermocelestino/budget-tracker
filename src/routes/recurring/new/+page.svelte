@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import PageBackground from '$lib/components/PageBackground.svelte';
-	import RecurringForm from '$lib/components/RecurringForm.svelte';
-	import { showSuccess } from '$lib/stores/toast.svelte';
+	import PageHeader from '$lib/client/components/PageHeader.svelte';
+	import PageBackground from '$lib/client/components/PageBackground.svelte';
+	import RecurringForm from '$lib/client/components/RecurringForm.svelte';
+	import { showSuccess } from '$lib/client/stores/toast.svelte';
 
 	let data = $derived($page.data as App.PageData);
 

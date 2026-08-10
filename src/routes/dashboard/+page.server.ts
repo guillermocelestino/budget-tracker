@@ -1,11 +1,11 @@
 import { fail } from '@sveltejs/kit';
-import { getMonthlySummary, getRecentTransactions, getCategoryReport, getMonthlyTrends, deleteTransaction } from '$lib/server/transactions';
-import { getCurrentMonth } from '$lib/utils/format';
-import { computeNetWorth } from '$lib/server/networth';
-import { processRecurringTransactions } from '$lib/server/recurringScheduler';
-import { getLendingTotals } from '$lib/server/lendingPayments';
-import { getTotalBudgeted } from '$lib/server/categories';
-import { getUpcomingRecurring } from '$lib/server/recurringService';
+import { getMonthlySummary, getRecentTransactions, getCategoryReport, getMonthlyTrends, deleteTransaction } from '$lib/server/services/transactions';
+import { getCurrentMonth } from '$lib/shared/utils/format';
+import { computeNetWorth } from '$lib/server/services/networth';
+import { processRecurringTransactions } from '$lib/server/services/recurringScheduler';
+import { getLendingTotals } from '$lib/server/services/lendingPayments';
+import { getTotalBudgeted } from '$lib/server/services/categories';
+import { getUpcomingRecurring } from '$lib/server/services/recurringService';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;

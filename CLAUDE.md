@@ -3,16 +3,82 @@
 ## Architecture
 - **Framework:** SvelteKit with Svelte 5 runes (`$state`, `$derived`, `$props`, `$effect`) — no Svelte 4 `export let` / `$:` anywhere
 - **Database:** Dual SQLite (dev) / PostgreSQL (production via Neon serverless) — auto-detected via `POSTGRES_URL` env var. All SQL written in Postgres dialect; `translatePgToSQLite()` converts for SQLite
-- **Auth:** Auth.js (`@auth/sveltekit`) Credentials provider with JWT session strategy — authenticates against the existing `users` table + existing bcrypt `$2b$10$` hashes. Session cookie `authjs.session-token` (30-day, httpOnly, sameSite=lax). Login/logout via the SvelteKit `/login` form action and `/logout` route, both delegating to the single Credentials `authorize()` in `src/auth.ts`; protected routes resolve the session via `event.locals.auth()` in hooks. Legacy JWT auth (`jsonwebtoken`/`JWT_SECRET`/`session` cookie, `createToken`/`verifyToken`) is removed (Auth-5); `src/lib/auth.ts` keeps only `hashPassword`/`verifyPassword`
+- **Auth:** Auth.js (`@auth/sveltekit`) Credentials provider with JWT session strategy — authenticates against the existing `users` table + existing bcrypt `$2b$10$` hashes. Session cookie `authjs.session-token` (30-day, httpOnly, sameSite=lax). Login/logout via the SvelteKit `/login` form action and `/logout` route, both delegating to the single Credentials `authorize()` in `src/auth.ts`; protected routes resolve the session via `event.locals.auth()` in hooks. Legacy JWT auth (`jsonwebtoken`/`JWT_SECRET`/`session` cookie, `createToken`/`verifyToken`) is removed (Auth-5); password hashing moved to `src/lib/server/auth/password.ts`
 - **CSS:** Hand-written with custom properties (`src/styles/variables.css`) — "Flip7" teal/gold/coral design system, no framework
-- **Charts:** Chart.js via `svelte-chartjs`, registered globally in `src/lib/utils/chart.ts`
-- **Export/Import:** CSV (`src/lib/utils/csv.ts`), PDF (`jspdf` + `jspdf-autotable` in `src/lib/utils/pdf.ts`), Excel (`write-excel-file` export, `read-excel-file` import)
+- **Charts:** Chart.js via `svelte-chartjs`, registered globally in `src/lib/client/utils/chart.ts`
+- **Export/Import:** CSV (`src/lib/shared/utils/csv.ts` + `src/lib/client/utils/csv.ts`), PDF (`jspdf` + `jspdf-autotable` in `src/lib/client/utils/pdf.ts`), Excel (`write-excel-file` export, `read-excel-file` import via `src/lib/shared/utils/fileImport.ts`)
 - **Deployment:** Vercel adapter (`@sveltejs/adapter-vercel`)
 - **PWA:** `@vite-pwa/sveltekit` with auto-update, NetworkFirst caching for API and page routes (disabled in dev). `PwaUpdate.svelte` handles update detection
 - **Testing:** Vitest (`npm run test:unit`) + Playwright (`npm run test:e2e`, port 5188, `SEED_DEMO=1` seeds the demo account `demo`/`Demo@2026!`)
 - **E2E auth suite:** `tests/e2e/auth.spec.ts` covers the Auth.js flow end-to-end — login page, valid/invalid/unknown/empty credentials, session creation + persistence (reload + cross-page), protected-route access/rejection (pages + `/api/transactions`), user identity propagation (username on `/settings`), and logout re-protection. Requires a `DATABASE_URL` (Postgres-only runtime) — run with the local-dev branch value exported, e.g. `DATABASE_URL="$LOCAL_DEV_DATABASE_URL" npm run test:e2e` after sourcing `.env`
 
+## Architecture Rules (Architecture-5)
+
+The codebase uses a strict three-layer library architecture under `src/lib/`:
+
+```
+src/lib/
+├── client/
+│   ├── components/
+│   ├── stores/
+│   └── utils/
+├── server/
+│   ├── db/
+│   ├── services/
+│   ├── auth/
+│   └── utils/
+├── shared/
+│   └── utils/
+├── types.ts
+└── index.ts
+```
+
+### Dependency Direction (Enforced)
+
+| Layer | May Depend On | Must NOT Import |
+|-------|---------------|-----------------|
+| **client** | `$lib/client/*`, `$lib/shared/*`, `$lib/types` | `$lib/server/*`, database modules, server auth, Node-only APIs |
+| **server** | `$lib/server/*`, `$lib/shared/*`, `$lib/types` | `$lib/client/*`, browser APIs (`window`, `document`, `localStorage`, `sessionStorage`, `Blob`, browser `URL`), browser-only stores/utilities |
+| **shared** | other `$lib/shared/*`, `$lib/types` | `$lib/client/*`, `$lib/server/*`, database modules, Drizzle, Neon, Auth.js server modules, bcrypt, Node-only APIs, browser-only APIs |
+
+### Layer Responsibilities
+
+**Client (`src/lib/client/`)**
+- Browser/UI-only code: components, stores, browser utilities
+- Components under `src/lib/client/components/` (77 components)
+- Stores under `src/lib/client/stores/` (toast, preferences)
+- Client utils under `src/lib/client/utils/` (format extensions, CSV download, PDF generation, Chart.js registration)
+
+**Server (`src/lib/server/`)**
+- Server-only code: database, services, auth helpers, server utilities
+- Database layer: `src/lib/server/db/` (index, init, loadEnv, query, schema, drizzle)
+- Services: `src/lib/server/services/` (categories, lendingImport, lendingPayments, networth, recordLendingTransaction, recurringScheduler, recurringService, transactionImport, transactions)
+- Auth helpers: `src/lib/server/auth/` (index, password)
+- Server utils: `src/lib/server/utils/` (loginValidation)
+
+**Shared (`src/lib/shared/utils/`)**
+- Pure/universal utilities that run on both client and server
+- No browser or Node dependencies
+- Current files: `categoryColors.ts`, `csv.ts`, `fileImport.ts`, `format.ts`, `importValidation.ts`, `lendingImport.ts`, `loginValidation.ts`, `recurring.ts`
+
+### Intentional Utility Splits
+
+**Format**
+- `src/lib/shared/utils/format.ts` — pure formatting/date/amount functions
+- `src/lib/client/utils/format.ts` — extends shared with preferences integration and `countUp` animation
+
+**CSV**
+- `src/lib/shared/utils/csv.ts` — pure CSV serialization (`csvEscape`, `transactionsToCSV`, `lendingsToCSV`)
+- `src/lib/client/utils/csv.ts` — re-exports shared + adds browser `downloadCsv()`
+
+**Login Validation**
+- `src/lib/shared/utils/loginValidation.ts` — pure input validation (`validateLoginInput`)
+- `src/lib/server/utils/loginValidation.ts` — credential verification using server auth (`verifyUserCredentials`)
+
+These are **intentional architectural splits**, not duplicates.
+
 ## Route Structure
+
 ### Page Routes
 - `/` — Server 302 → `/dashboard` in `hooks.server.ts` (client-side `+page.svelte` also redirects for SPA nav)
 - `/login` — `+page.server.ts` load() redirects authed users away; `default` action validates via `validateLoginInput()` (fail 400) then authenticates through `authenticateCredentials()` (Auth.js, `src/auth.ts` — fail 401 on bad creds, sets the Auth.js session cookie), redirects to `/dashboard`
@@ -47,14 +113,15 @@
 - `/api/reports/by-category` — GET (`?year=&month=`)
 - `/api/reports/export` — GET (`?start=&end=`)
 
-### Root Layout (+layout.svelte)
+### Root Layout (`+layout.svelte`)
 - `+layout.server.ts` exposes `user` from `locals` to all pages
 - Renders `Sidebar` (two-zone nav + collapse + search + theme toggle + logout) on all authenticated pages (hidden on `/login` and `/`)
 - Mobile (`≤480px`): `BottomNav` bottom navigation with a `SpeedDial` "Create" FAB trigger
 - Global: `ToastContainer`, `PwaUpdate`, `OnboardingWalkthrough`, `SearchModal` (⌘K/⌃K shortcut), offline banner, favicon
 - Imports `variables.css` globally (no separate app.css)
 
-## Component Inventory (72 components, flat `src/lib/components/` directory)
+## Component Inventory (77 components, flat `src/lib/client/components/` directory)
+
 ### UI Shell & Navigation (12)
 - `Sidebar.svelte` — Two-zone desktop sidebar (brand, primary/secondary nav, theme toggle, collapse, search, logout) with mobile off-canvas drawer; collapse 256↔72px
 - `BottomNav.svelte` — Mobile bottom navigation bar (≤480px) with primary route links + "Create" speed-dial trigger, highlights active route
@@ -145,7 +212,7 @@
 - `EditPaymentModal.svelte` — Edit an existing payment (amount, date, notes)
 - `DeletePaymentConfirmModal.svelte` — Confirmation modal for deleting a payment record
 
-## Database (`src/lib/database/`)
+## Database (`src/lib/server/db/`)
 - **`index.ts`** — Lazy-init gate. Detects `POSTGRES_URL` → `usePostgres` boolean. Exposes `getPgPool()` and `getSQLiteDb()`, both auto-run `initDb()` once. SQLite DB at `data/budget.db` (WAL mode, foreign keys on). Registers `pg.types.setTypeParser(1700, parseFloat)` so Postgres `NUMERIC` columns return JS numbers (SQLite already does); also `date` columns return JS `Date` objects on Postgres — handle both via `dateToString()`/`parseDate()`
 - **`loadEnv.ts`** — Dev-only, imported first by `index.ts`. SvelteKit dev doesn't load `.env` into `process.env`, so in development it wires `LOCAL_DEV_DATABASE_URL` → `process.env.DATABASE_URL` → `npm run dev` uses the local-dev Neon branch. Inert in production, when `SEED_DEMO=1` (e2e stays on SQLite), and when `DATABASE_URL` is already exported in the shell
 - **`query.ts`** — Four cross-DB functions: `queryOne<T>()`, `queryMany<T>()`, `execute()`, `withTransaction()`. All SQL written in **Postgres dialect**; `translatePgToSQLite()` auto-converts `$1→?`, `::type` removal, `TO_CHAR→strftime`, `EXTRACT→strftime`, `NOW→datetime`, `CURRENT_DATE→date`
@@ -158,54 +225,106 @@
   - `lending_payments` (id, lending_id FK CASCADE, user_id, amount, payment_date, notes, `transaction_id` FK SET NULL, `payment_type` payment/write_off, reference, created_at, updated_at)
   - Indexes on user_id, date DESC, category_id, type, status, next_run, active, lending_id, payment_date
   - Seed data: 2 default users + 11 categories
+- **`drizzle.ts`** — Drizzle client for Neon/Postgres path only. Reuses the existing lazy-initialized Neon pool from `getPgPool()`. Cached as a promise for serverless reuse.
+- **`schema.ts`** — Drizzle schema definitions mirroring the 6 tables
 - **`migrations/001_add_type_to_categories.ts`** — Adds type column to categories, checks PRAGMA before running
 
 ## Server Patterns
+
 ### Auth (`src/hooks.server.ts`)
 - Composes `sequence(authHandle, authGuardHandle)` — `authHandle` from `src/auth.ts` (exposes lazy `event.locals.auth()`); `authGuardHandle` enforces route protection
 - Root `/` → 302 `/dashboard`
 - Public paths: only `/login`
 - All other routes: `await event.locals.auth()` → map `session.user` → `event.locals.user = { userId, username }` or 302 `/login`
 
-### Auth (`src/lib/auth.ts`)
-- Password hashing only (Auth-5): `hashPassword(pw)` / `verifyPassword(pw, hash)` via bcryptjs. Legacy JWT session machinery (`createToken`/`verifyToken`/`JWT_SECRET`/`jsonwebtoken`) is removed — Auth.js owns session tokens via `AUTH_SECRET`
-- Login logic split out to `src/lib/utils/loginValidation.ts` (`validateLoginInput`, `verifyUserCredentials`)
-
 ### Auth.js (`src/auth.ts`) — COMPLETE (Auth-1→4)
 - `@auth/sveltekit`; `src/auth.ts` exports `SvelteKitAuth(authConfig)` → `{ handle, signIn, signOut }` plus in-process helpers `authenticateCredentials(event, username, password)` and `signOutSession(event)`. The `handle` runs first in hooks (`sequence`) and exposes lazy `event.locals.auth()`.
-- **Single Credentials `authorize()` (Auth-2):** authenticates against the EXISTING `users` table via `queryOne` (same query as the legacy login action) + `verifyUserCredentials()` (bcrypt) — reuses existing `$2b$10$` hashes, no re-hash. Returns `null` for unknown user / bad password (generic `CredentialsSignin`, no enumeration). No duplicate lookup/bcrypt anywhere on the auth path.
+- **Single Credentials `authorize()` (Auth-2):** authenticates against the EXISTING `users` table via `queryOne` (same query as the former login action) + `verifyUserCredentials()` (bcrypt) — reuses existing `$2b$10$` hashes, no re-hash. Returns `null` for unknown user / bad password (generic `CredentialsSignin`, no enumeration). No duplicate lookup/bcrypt anywhere on the auth path.
 - **Identity mapping:** `callbacks.jwt` copies `{ userId, username }` from the provider-returned user into the Auth.js token; `callbacks.session` surfaces them on `session.user`. `src/auth.ts` contains a `declare module '@auth/core/types'` augmentation widening `Session.user` to `{ userId: number; username: string }`. Session strategy locked to **JWT** — no adapter, no DB session/account/verificationToken tables, `users` table untouched.
 - **Session resolution (Auth-3):** `hooks.server.ts` composes `sequence(authHandle, authGuardHandle)`. Protected routes resolve auth via `await event.locals.auth()` and map `session.user` → `event.locals.user = { userId, username }`. Unauthenticated → 302 `/login`. Root `/` → 302 `/dashboard`; public paths: only `/login`.
 - **Login/logout (Auth-4):** the SvelteKit `/login` form action and `/logout` GET route call `authenticateCredentials`/`signOutSession`, which invoke the SAME Auth.js core (`Auth(request, { ...config, raw })` against `/auth/callback/credentials` and `/auth/signout`) and apply the resulting cookies. Flow: `/login` UI → form action → Auth.js Credentials sign-in → Auth.js JWT session cookie → hooks `event.locals.auth()` → `event.locals.user` → `/dashboard`. Failed login returns fail(401) and stays on `/login`; logout clears `authjs.session-token` → `/login`.
-- **Legacy JWT retired (Auth-5):** `createToken`/`verifyToken`/`jsonwebtoken`/`JWT_SECRET` and the hooks startup guard are removed entirely — Auth.js (`AUTH_SECRET`) is the sole session mechanism. `src/lib/auth.ts` keeps only `hashPassword`/`verifyPassword` (Auth.js `authorize` + seed scripts).
+- **Legacy JWT retired (Auth-5):** `createToken`/`verifyToken`/`jsonwebtoken`/`JWT_SECRET` and the hooks startup guard are removed entirely — Auth.js (`AUTH_SECRET`) is the sole session mechanism. Password hashing moved to `src/lib/server/auth/password.ts`.
 - CSRF: `@auth/sveltekit` auto-sets `skipCSRFCheck` (SvelteKit's Origin-based form CSRF replaces Auth.js's token), so `/auth/csrf` returns **404** by design and Auth.js form POSTs need a matching `Origin` header.
 - Env: `AUTH_SECRET` (min 32 chars; read automatically by Auth.js from `$env/dynamic/private`). Dev wiring in `loadEnv.ts` forwards it from `.env`; `.env.example` has a placeholder; set it in Vercel project settings.
 
-### Server Data Modules (`src/lib/server/`)
+### Server Data Modules (`src/lib/server/services/`)
+- `transactions.ts` — `listTransactions`, `getTransaction`, `createTransaction`, `updateTransaction`, `deleteTransaction`, `getMonthlySummary`, `getRecentTransactions`, `getCategoryReport`, `getMonthlyTrends`, `getAllForBalance`, `getTotalBudgeted`
+- `categories.ts` — `listCategories`, `createCategory`, `updateCategory`, `deleteCategory`, `getCategory`, `getTotalBudgeted`
 - `lendingPayments.ts` — Settlement ledger (source of truth for loan/debt resolution): `getLendingsWithPayments`, `getLendingWithPayments`, `recordPayment` (transactional, validates remaining), `updatePayment`, `deletePayment`, `getPaymentHistory`, `hasPayments`, `recalcStatusCache`, `getLendingTotals`, `deleteLinkedTransactions`. Canonical derived state: `cash_paid + written_off = resolved_total`, `remaining = amount − resolved_total`, status = `remaining > 0 ? 'active' : 'paid'`. Only `recalcStatusCache()` writes `lendings.status`
 - `recurringService.ts` — `createRecurringTransaction`, `updateRecurringTransaction` (+ validation, category ownership). `next_run` recalculated ONLY when scheduling fields change
 - `recurringScheduler.ts` — `processRecurringTransactions` (runs on dashboard load, creates due transactions, rolls `next_run`, auto-deactivates past `end_date`), `runRecurringNow`, `toggleRecurringStatus`, `duplicateRecurringTransaction`
 - `networth.ts` — `computeNetWorth()`: cash (all-time Σ income − expense) + active lent − active borrowed; cumulative cash-trend band; naive 3-month-slope projection
 - `recordLendingTransaction.ts` — Records a transaction on lending create/repayment events; category lookup fallback chain ("Loan Repayment" → legacy "Lending Recovery" / "Debt Repayment")
 - `lendingImport.ts` — `importLendingsForUser(userId, file, configJson, direction)` for CSV/Excel lending imports
+- `transactionImport.ts` — Transaction CSV/Excel import logic for server-side validation
 
 ### Server Data Patterns
 - Page server files use `load({ locals })` — authenticate via `locals.user!.userId`
 - Form actions return `{ success: true }` or `fail(status, { error })` with named actions (`?/create`, `?/update`, `?/delete`, `?/recordPayment`, `?/updatePayment`, `?/deletePayment`, `?/budgetUpdate`, `?/import`)
-- Database queries: `queryOne<T>(sql, params)`, `queryMany<T>(sql, params)`, `execute(sql, params)`, `withTransaction(async (tx) => ...)` — all imported from `$lib/database/query`
-- Complex multi-row mutations (payments, recurring) go through `src/lib/server/*` modules; use `withTransaction` for atomicity (e.g. recordPayment inserts payment + linked transaction + status in one tx)
+- Database queries: `queryOne<T>(sql, params)`, `queryMany<T>(sql, params)`, `execute(sql, params)`, `withTransaction(async (tx) => ...)` — all imported from `$lib/server/db/query`
+- Complex multi-row mutations (payments, recurring) go through `src/lib/server/services/*` modules; use `withTransaction` for atomicity (e.g. recordPayment inserts payment + linked transaction + status in one tx)
 - All transaction/recurring queries `LEFT JOIN categories` for category name/color
 - Form actions pattern: `use:enhance` with callback that calls `await update()` to reload page data after mutation, then shows toast
 - Recurring processing is triggered lazily on `/dashboard` load (no cron); process is idempotent per `next_run`
 
-### State Management
-- Two stores (`src/lib/stores/`), both Svelte 5 runes-based:
+## State Management
+- Two stores (`src/lib/client/stores/`), both Svelte 5 runes-based:
   - `toast.svelte.ts` — Exports `showSuccess()`, `showError()`, `showInfo()`, `dismissToast()`, `toastState`. Auto-dismiss after 4 seconds
   - `preferences.svelte.ts` — `prefs` state (`{ theme: 'light'|'dark'|'system', currency, dateFormat, onboardingDismissed }`) + `updatePrefs()`, `isOnboardingDismissed()`, `dismissOnboarding()`. localStorage-backed, owns the `data-theme` attribute via `applyTheme()`, `themeState.isDark` kept current by a MutationObserver
 
 ## Type System (`src/lib/types.ts`)
 - `TransactionType`, `Transaction`, `TransactionFormData`, `Category`, `CategoryFormData`, `MonthlyReportItem`, `CategoryReportItem`, `DashboardSummary`, `PaginatedResult<T>`, `User`, `Lending`, `PaymentType` ('payment' | 'write_off'), `LendingPayment`, `LendingWithPayments` (derived cash_paid/written_off/remaining/derived_status), `RecurringFrequency` ('daily'|'weekly'|'monthly'|'yearly'), `RecurringTransaction`, `RecurringTransactionFormData`, `RecurringFormInitial`, `NetWorthLeg`, `CashTrendPoint`, `LegDelta`, `NetWorthSnapshot`
 - `App.PageData` (`src/app.d.ts`): Union of all page data shapes across all routes (`summary`, `recentTransactions`, `transactions`, `allForBalance`, `recurring`, `upcomingRecurring`, `activeLendings`/`paidLendings`/`totals`, `spending`/`income`, `txnCounts`/`recurringCounts`/`lastUsed`, `netWorth`, `yoyData`, `monthlyData`, `categoryLabels`/`categoryData`/`categoryColors`, `trendLabels`/`trendIncome`/`trendExpenses`, etc.)
+
+## Client Utilities (`src/lib/client/utils/`)
+- **`format.ts`** — Extends shared format with preferences integration: `formatCurrency`, `formatSignedCurrency`, `formatPlainAmount`, `formatDate`, `formatDateShort`, `getCurrentMonth`, `getToday`, `validateAmount`, `formatWithCommas`, `handleAmountInput`, `handleAmountFocus`, `handleAmountBlur`, `formatEditAmount`, `countUp`
+- **`csv.ts`** — Re-exports shared CSV + `downloadCsv()` for browser download
+- **`pdf.ts`** — `generateTransactionPdf`, `generateReportPdf`, `generateLendingPdf`, `generateBorrowedPdf` (jspdf + autotable)
+- **`chart.ts`** — Registers all Chart.js components globally (`Chart.register(...registerables)`)
+
+## Shared Utilities (`src/lib/shared/utils/`)
+- **`format.ts`** — `formatCurrency`, `formatSignedCurrency`, `formatPlainAmount`, `formatDate`, `formatDateShort`, `parseDate`, `formatDateInput` (YYYY-MM-DD), `getCurrentMonth`, `getToday`, `getMonthLabel`, `validateAmount`, `formatWithCommas`, `dateToString`, `parseDate`
+- **`csv.ts`** — `csvEscape`, `transactionsToCSV`, `lendingsToCSV` (pure serialization)
+- **`fileImport.ts`** — `parseImportFile(file)` → `{ headers, rows }` (CSV + Excel via read-excel-file/universal)
+- **`importValidation.ts`** — `normName`, `normCategoryName`, `parseDateFlexible`, `parseAmountFlexible`, `deriveType` (sign/column/debit_credit), `validateMappedRow`, `validateAllRows`, `buildMappedRows`, `generateTransactionHash`, `detectDuplicates`, `parseCSV`, `DEFAULT_IMPORT_FIELDS`, `autoMap`, types: `ImportFieldDef`, `ImportPreviewColumn`, `ImportValidationResult`, `MappedTransaction`
+- **`lendingImport.ts`** — `LENDING_IMPORT_FIELDS`, `parseRate`, `normalizeStatus`, `buildMappedLendingRows`, `validateMappedLendingRow`, `validateAllLendingRows`, `generateLendingHash`, `detectLendingDuplicates`, types: `MappedLendingRow`
+- **`loginValidation.ts`** — `validateLoginInput` (pure input validation)
+- **`recurring.ts`** — `calculateNextRun`, `generatePreview` (next 5 dates), `RecurringFrequency` type
+- **`categoryColors.ts`** — `CATEGORY_HUES`, `lightenHex`, `getCategoryHue`, `getCategoryTint`, `getCategoryText`
+
+## Server Utilities
+- **`src/lib/server/auth/password.ts`** — `hashPassword`, `verifyPassword` (bcryptjs)
+- **`src/lib/server/auth/index.ts`** — Exports password helpers
+- **`src/lib/server/utils/loginValidation.ts`** — `verifyUserCredentials` (credential verification using server auth)
+
+## Pattern Rules
+- Use **Svelte 5 runes** (`$state`, `$derived`, `$props`, `$effect`, `$effect.pre`) — NOT Svelte 4 `export let` or `$:`
+- Use **SvelteKit form actions** with `use:enhance` (enhance-fiscal callback pattern returning `async ({ result, update })`) for data mutations
+- Complex business logic lives in **`src/lib/server/services/*` modules** (shared by API handlers and form actions), using `withTransaction` for atomic multi-row writes
+- All CSS uses **CSS custom properties** from `variables.css` — no hardcoded colors
+- **No Tailwind/Bootstrap** — hand-written CSS only in scoped `<style>` blocks
+- Use **`as App.PageData`** type assertion for `$page.data` (current pattern from `app.d.ts`)
+- Hardcoded `rgba(255,255,255)` and `backdrop-filter` break dark mode — use `var(--color-surface)` instead
+- Prefer **inline improvements** over extracting new components (previous extraction attempts were rejected)
+- **Plan first, code second:** Write strategy in `plans/<short-description>.md` and present for proof before coding
+
+## To Run
+```bash
+npm run dev        # dev server
+npm run check      # svelte-check + typecheck
+npm run lint       # eslint
+npm run test:unit  # vitest
+npm run test:e2e   # playwright (requires DATABASE_URL)
+```
+
+## Styling Conventions
+- Cards: `background: var(--color-surface)`, `border: 1px solid var(--color-border)`, `border-radius: var(--radius-xl)`, `box-shadow: var(--shadow-sm)`; dark mode: `flip7-card` pattern (24px radius, glowing left accent); hover → `transform: translateY(-2px)` + `box-shadow` intensifies
+- Forms: inputs `padding: var(--space-sm) var(--space-md)`, `border: 1px solid var(--color-border)`, `border-radius: var(--radius-sm)`; focus: `border-color: var(--color-teal)` + `box-shadow: 0 0 0 4px var(--focus)`; error: `border-color: var(--color-expense)`
+- Buttons: min-height 44px, font-weight 600, `transition: all var(--transition-fast)`, `border-radius: var(--radius-md)`
+- Status semantics: teal = ok/income-positive, gold = primary/warning, coral = danger/expense-negative, amber = warning
+- Responsive breakpoints: 1024px (charts 2-col), 768px (sidebar hidden, mobile layout), 640px (table hides description column), 480px (table→cards, bottom nav, SpeedDial)
+- SVG icons: inline in templates, not icon library or sprite file
+- Global reset in layout: `:global(*) { margin: 0; revert: 0; box-sizing: border-box; }`
 
 ## Design Tokens (`src/styles/variables.css`)
 ### "Flip7" Palette (Light "Arcade Day" / Dark "Night Arcade")
@@ -237,45 +356,21 @@
 - `prefers-reduced-motion: reduce` → all transitions/animations zeroed out (including `.flip7-card` hover lift)
 - All interactive elements: min-height ≥44px (`--touch-target-min`, WCAG 2.5.5)
 
-## Format Utilities (`src/lib/utils/`)
-- **`format.ts`** — `formatCurrency` (₱ en-PH), `formatSignedCurrency`, `formatPlainAmount`, `formatDate` ("Jul 15, 2026"), `formatDateShort`, `parseDate`, `formatDateInput` (YYYY-MM-DD), `getCurrentMonth`, `getToday`, `getMonthLabel`, `validateAmount`, `formatWithCommas`, `handleAmountInput`, `handleAmountFocus`, `handleAmountBlur`, `formatEditAmount`, `countUp`
-- **`csv.ts`** — `csvEscape`, `transactionsToCSV`, `lendingsToCSV`, `downloadCsv`
-- **`pdf.ts`** — `generateTransactionPdf`, `generateReportPdf`, `generateLendingPdf`, `generateBorrowedPdf` (jspdf + autotable)
-- **`fileImport.ts`** — `parseImportFile(file)` → `{ headers, rows }` (CSV + Excel via read-excel-file)
-- **`importValidation.ts`** — `normName`, `normCategoryName`, `parseDateFlexible`, `parseAmountFlexible`, `deriveType` (sign/column/debit_credit), `validateMappedRow`, `validateAllRows`, `buildMappedRows`, `generateTransactionHash`, `detectDuplicates`, `parseCSV`, `DEFAULT_IMPORT_FIELDS`, `autoMap`
-- **`lendingImport.ts`** — `LENDING_IMPORT_FIELDS`, `parseRate`, `normalizeStatus`, `buildMappedLendingRows`, `validateMappedLendingRow`, `validateAllLendingRows`, `generateLendingHash`, `detectLendingDuplicates`
-- **`recurring.ts`** — `calculateNextRun(currentRun, frequency, interval, dayOfWeek, dayOfMonth, monthOfYear, startDate)`, `generatePreview` (next 5 dates)
-- **`categoryColors.ts`** — `CATEGORY_HUES`, `lightenHex`, `getCategoryHue`, `getCategoryTint`, `getCategoryText`
-- **`loginValidation.ts`** — `validateLoginInput`, `verifyUserCredentials`
+## Tests
+- **Unit:** `tests/unit-test/` — 17 test files including moved utilities:
+  - `fileImport.test.ts`, `importValidation.test.ts`, `lendingImport.test.ts` (moved from `src/lib/shared/utils/` in Architecture-5)
+  - Other service/component tests
+- **E2E:** `tests/e2e/` — Playwright tests (requires `DATABASE_URL` for Postgres)
 
-## Chart Utilities (`src/lib/utils/chart.ts`)
-- Registers all Chart.js components globally (`Chart.register(...registerables)`)
-
-## Pattern Rules
-- Use **Svelte 5 runes** (`$state`, `$derived`, `$props`, `$effect`, `$effect.pre`) — NOT Svelte 4 `export let` or `$:`
-- Use **SvelteKit form actions** with `use:enhance` (enhance-fiscal callback pattern returning `async ({ result, update })`) for data mutations
-- Complex business logic lives in **`src/lib/server/*` modules** (shared by API handlers and form actions), using `withTransaction` for atomic multi-row writes
-- All CSS uses **CSS custom properties** from `variables.css` — no hardcoded colors
-- **No Tailwind/Bootstrap** — hand-written CSS only in scoped `<style>` blocks
-- Use **`as App.PageData`** type assertion for `$page.data` (current pattern from `app.d.ts`)
-- Hardcoded `rgba(255,255,255)` and `backdrop-filter` break dark mode — use `var(--color-surface)` instead
-- Prefer **inline improvements** over extracting new components (previous extraction attempts were rejected)
-- **Plan first, code second:** Write strategy in `plans/<short-description>.md` and present for proof before coding
-
-## To Run
+## Verification Status (latest run)
 ```bash
-npm run dev        # dev server
-npm run check      # svelte-check + typecheck
-npm run lint       # eslint
-npm run test:unit  # vitest
-npm run test:e2e   # playwright
+npm run check      # PASS (0 errors, 97 pre-existing CSS warnings)
+npm run lint       # PASS (0 errors)
+npm run test:unit  # PASS (157 passed, 1 skipped)
+npm run build      # PASS (built in ~5s, PWA generated)
+npm run test:e2e   # Requires DATABASE_URL — not run in this audit
 ```
 
-## Styling Conventions
-- Cards: `background: var(--color-surface)`, `border: 1px solid var(--color-border)`, `border-radius: var(--radius-xl)`, `box-shadow: var(--shadow-sm)`; dark mode: `flip7-card` pattern (24px radius, glowing left accent); hover → `transform: translateY(-2px)` + `box-shadow` intensifies
-- Forms: inputs `padding: var(--space-sm) var(--space-md)`, `border: 1px solid var(--color-border)`, `border-radius: var(--radius-sm)`; focus: `border-color: var(--color-teal)` + `box-shadow: 0 0 0 4px var(--focus)`; error: `border-color: var(--color-expense)`
-- Buttons: min-height 44px, font-weight 600, `transition: all var(--transition-fast)`, `border-radius: var(--radius-md)`
-- Status semantics: teal = ok/income-positive, gold = primary/warning, coral = danger/expense-negative, amber = warning
-- Responsive breakpoints: 1024px (charts 2-col), 768px (sidebar hidden, mobile layout), 640px (table hides description column), 480px (table→cards, bottom nav, SpeedDial)
-- SVG icons: inline in templates, not icon library or sprite file
-- Global reset in layout: `:global(*) { margin: 0; revert: 0; box-sizing: border-box; }`
+---
+
+*This document reflects the Architecture-5 repository structure. Legacy paths (`src/lib/database/`, `src/lib/components/`, `src/lib/stores/`, `src/lib/utils/`) have been removed/migrated.*

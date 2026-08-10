@@ -1,27 +1,27 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 
 describe('transactions service — Drizzle / Postgres path (recorded fake client)', () => {
-	let listTransactions: typeof import('$lib/server/transactions').listTransactions;
-	let getTransaction: typeof import('$lib/server/transactions').getTransaction;
-	let createTransaction: typeof import('$lib/server/transactions').createTransaction;
-	let updateTransaction: typeof import('$lib/server/transactions').updateTransaction;
-	let deleteTransaction: typeof import('$lib/server/transactions').deleteTransaction;
-	let deleteTransactions: typeof import('$lib/server/transactions').deleteTransactions;
-	let getMonthlySummary: typeof import('$lib/server/transactions').getMonthlySummary;
-	let getRecentTransactions: typeof import('$lib/server/transactions').getRecentTransactions;
-	let getMonthlyReport: typeof import('$lib/server/transactions').getMonthlyReport;
-	let getCategoryReport: typeof import('$lib/server/transactions').getCategoryReport;
-	let searchTransactions: typeof import('$lib/server/transactions').searchTransactions;
-	let getCategorySpending: typeof import('$lib/server/transactions').getCategorySpending;
-	let getCategoryUsage: typeof import('$lib/server/transactions').getCategoryUsage;
-	let getCategorySpendingReport: typeof import('$lib/server/transactions').getCategorySpendingReport;
-	let getTransactionCountForMonth: typeof import('$lib/server/transactions').getTransactionCountForMonth;
-	let getAllTimeTransactionCount: typeof import('$lib/server/transactions').getAllTimeTransactionCount;
-	let getYTDSummary: typeof import('$lib/server/transactions').getYTDSummary;
-	let getMonthlyTrends: typeof import('$lib/server/transactions').getMonthlyTrends;
-	let getCashBalance: typeof import('$lib/server/transactions').getCashBalance;
-	let getMonthlyCashFlows: typeof import('$lib/server/transactions').getMonthlyCashFlows;
-	let getTransactionsForDuplicateCheck: typeof import('$lib/server/transactions').getTransactionsForDuplicateCheck;
+	let listTransactions: typeof import('$lib/server/services/transactions').listTransactions;
+	let getTransaction: typeof import('$lib/server/services/transactions').getTransaction;
+	let createTransaction: typeof import('$lib/server/services/transactions').createTransaction;
+	let updateTransaction: typeof import('$lib/server/services/transactions').updateTransaction;
+	let deleteTransaction: typeof import('$lib/server/services/transactions').deleteTransaction;
+	let deleteTransactions: typeof import('$lib/server/services/transactions').deleteTransactions;
+	let getMonthlySummary: typeof import('$lib/server/services/transactions').getMonthlySummary;
+	let getRecentTransactions: typeof import('$lib/server/services/transactions').getRecentTransactions;
+	let getMonthlyReport: typeof import('$lib/server/services/transactions').getMonthlyReport;
+	let getCategoryReport: typeof import('$lib/server/services/transactions').getCategoryReport;
+	let searchTransactions: typeof import('$lib/server/services/transactions').searchTransactions;
+	let getCategorySpending: typeof import('$lib/server/services/transactions').getCategorySpending;
+	let getCategoryUsage: typeof import('$lib/server/services/transactions').getCategoryUsage;
+	let getCategorySpendingReport: typeof import('$lib/server/services/transactions').getCategorySpendingReport;
+	let getTransactionCountForMonth: typeof import('$lib/server/services/transactions').getTransactionCountForMonth;
+	let getAllTimeTransactionCount: typeof import('$lib/server/services/transactions').getAllTimeTransactionCount;
+	let getYTDSummary: typeof import('$lib/server/services/transactions').getYTDSummary;
+	let getMonthlyTrends: typeof import('$lib/server/services/transactions').getMonthlyTrends;
+	let getCashBalance: typeof import('$lib/server/services/transactions').getCashBalance;
+	let getMonthlyCashFlows: typeof import('$lib/server/services/transactions').getMonthlyCashFlows;
+	let getTransactionsForDuplicateCheck: typeof import('$lib/server/services/transactions').getTransactionsForDuplicateCheck;
 
 	let calls: {
 		selects: number;
@@ -98,18 +98,18 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 	}
 
 	beforeAll(async () => {
-		vi.doMock('$lib/database', () => ({
+		vi.doMock('$lib/server/db', () => ({
 			getPgPool: () => Promise.reject(new Error('getPgPool should not be called')),
 			initDb: async () => {},
 			closeDb: async () => {}
 		}));
 
-		vi.doMock('$lib/database/drizzle', () => ({
+		vi.doMock('$lib/server/db/drizzle', () => ({
 			getDrizzle: () => Promise.resolve(fakeDb() as any)
 		}));
 
 		vi.resetModules();
-		const svc = await import('$lib/server/transactions');
+		const svc = await import('$lib/server/services/transactions');
 		listTransactions = svc.listTransactions;
 		getTransaction = svc.getTransaction;
 		createTransaction = svc.createTransaction;

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-import { calculateNextRun } from '$lib/utils/recurring';
+import { calculateNextRun } from '$lib/shared/utils/recurring';
 
 /**
  * Focused unit tests for src/lib/server/recurringScheduler.ts.
@@ -9,10 +9,10 @@ import { calculateNextRun } from '$lib/utils/recurring';
  */
 
 describe('recurringScheduler — Drizzle / Postgres path (recorded fake client)', () => {
-	let processRecurring: typeof import('$lib/server/recurringScheduler').processRecurringTransactions;
-	let runNow: typeof import('$lib/server/recurringScheduler').runRecurringNow;
-	let toggle: typeof import('$lib/server/recurringScheduler').toggleRecurringStatus;
-	let duplicate: typeof import('$lib/server/recurringScheduler').duplicateRecurringTransaction;
+	let processRecurring: typeof import('$lib/server/services/recurringScheduler').processRecurringTransactions;
+	let runNow: typeof import('$lib/server/services/recurringScheduler').runRecurringNow;
+	let toggle: typeof import('$lib/server/services/recurringScheduler').toggleRecurringStatus;
+	let duplicate: typeof import('$lib/server/services/recurringScheduler').duplicateRecurringTransaction;
 	let calls: {
 		selects: number; // db.select — the due query (outside any transaction)
 		txSelects: number; // tx.select — inside db.transaction
@@ -105,17 +105,17 @@ describe('recurringScheduler — Drizzle / Postgres path (recorded fake client)'
 	}
 
 	beforeAll(async () => {
-		vi.doMock('$lib/database', () => ({
+		vi.doMock('$lib/server/db', () => ({
 			getPgPool: () => Promise.reject(new Error('getPgPool should not be called on Drizzle path')),
 			initDb: async () => {},
 			closeDb: async () => {}
 		}));
-		vi.doMock('$lib/database/drizzle', () => ({
+		vi.doMock('$lib/server/db/drizzle', () => ({
 			getDrizzle: () => Promise.resolve(fakeDb())
 		}));
 
 		vi.resetModules();
-		const svc = await import('$lib/server/recurringScheduler');
+		const svc = await import('$lib/server/services/recurringScheduler');
 		processRecurring = svc.processRecurringTransactions;
 		runNow = svc.runRecurringNow;
 		toggle = svc.toggleRecurringStatus;

@@ -1,5 +1,5 @@
-import { getCurrentMonth } from '$lib/utils/format';
-import { getLendingTotals } from '$lib/server/lendingPayments';
+import { getCurrentMonth } from '$lib/shared/utils/format';
+import { getLendingTotals } from '$lib/server/services/lendingPayments';
 import {
 	getMonthlyReport,
 	getCategorySpendingReport,
@@ -7,7 +7,7 @@ import {
 	getTransactionCountForMonth,
 	getAllTimeTransactionCount,
 	getYTDSummary
-} from '$lib/server/transactions';
+} from '$lib/server/services/transactions';
 
 export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;

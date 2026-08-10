@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { importLendingsForUser } from '$lib/server/lendingImport';
+import { importLendingsForUser } from '$lib/server/services/lendingImport';
 import {
 	getLending,
 	getLendingsWithPayments,
@@ -11,8 +11,8 @@ import {
 	deleteLending,
 	createLending,
 	updateLending,
-} from '$lib/server/lendingPayments';
-import { getToday } from '$lib/utils/format';
+} from '$lib/server/services/lendingPayments';
+import { getToday } from '$lib/shared/utils/format';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;

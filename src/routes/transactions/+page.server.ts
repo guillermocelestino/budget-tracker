@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
-import { getCategories } from '$lib/server/categories';
-import { listTransactions, createTransaction, updateTransaction, deleteTransaction, deleteTransactions } from '$lib/server/transactions';
-import { importTransactionsForUser } from '$lib/server/transactionImport';
+import { getCategories } from '$lib/server/services/categories';
+import { listTransactions, createTransaction, updateTransaction, deleteTransaction, deleteTransactions } from '$lib/server/services/transactions';
+import { importTransactionsForUser } from '$lib/server/services/transactionImport';
 
 export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;

@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 
 describe('recurringService — Drizzle / Postgres path (recorded fake client)', () => {
-	let listRecurringTransactions: typeof import('$lib/server/recurringService').listRecurringTransactions;
-	let getRecurringById: typeof import('$lib/server/recurringService').getRecurringById;
-	let createRecurringTransaction: typeof import('$lib/server/recurringService').createRecurringTransaction;
-	let updateRecurringTransaction: typeof import('$lib/server/recurringService').updateRecurringTransaction;
-	let getActiveRecurringCount: typeof import('$lib/server/recurringService').getActiveRecurringCount;
-	let getUpcomingRecurring: typeof import('$lib/server/recurringService').getUpcomingRecurring;
+	let listRecurringTransactions: typeof import('$lib/server/services/recurringService').listRecurringTransactions;
+	let getRecurringById: typeof import('$lib/server/services/recurringService').getRecurringById;
+	let createRecurringTransaction: typeof import('$lib/server/services/recurringService').createRecurringTransaction;
+	let updateRecurringTransaction: typeof import('$lib/server/services/recurringService').updateRecurringTransaction;
+	let getActiveRecurringCount: typeof import('$lib/server/services/recurringService').getActiveRecurringCount;
+	let getUpcomingRecurring: typeof import('$lib/server/services/recurringService').getUpcomingRecurring;
 
 	function makeDrizzleData(data: any[]) {
 		const chain: any = {};
@@ -41,16 +41,16 @@ describe('recurringService — Drizzle / Postgres path (recorded fake client)', 
 	}
 
 	beforeAll(async () => {
-		vi.doMock('$lib/database', () => ({
+		vi.doMock('$lib/server/db', () => ({
 			getPgPool: () => Promise.reject(new Error('getPgPool should not be called on Drizzle path')),
 			initDb: async () => {},
 			closeDb: async () => {}
 		}));
-		vi.doMock('$lib/database/drizzle', () => ({
+		vi.doMock('$lib/server/db/drizzle', () => ({
 			getDrizzle: () => Promise.resolve(fakeDb())
 		}));
 		vi.resetModules();
-		const svc = await import('$lib/server/recurringService');
+		const svc = await import('$lib/server/services/recurringService');
 		listRecurringTransactions = svc.listRecurringTransactions;
 		getRecurringById = svc.getRecurringById;
 		createRecurringTransaction = svc.createRecurringTransaction;

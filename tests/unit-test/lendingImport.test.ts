@@ -1,245 +1,245 @@
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import { normName, autoMap } from '$lib/shared/utils/importValidation';
+import {
+	LENDING_IMPORT_FIELDS,
+	buildMappedLendingRows,
+	validateAllLendingRows,
+	validateMappedLendingRow,
+	detectLendingDuplicates,
+	parseRate,
+	normalizeStatus,
+} from '$lib/shared/utils/lendingImport';
 
-// Drizzle `pgTable` objects expose their name under this internal symbol, not
-// `.name`. The fake client uses it so inserts/selects are recorded with the
-// real table name ('lendings' / 'lending_payments').
-const TABLE_NAME = Symbol.for('drizzle:Name');
+const CONFIG = { dateFormat: 'YYYY-MM-DD', typeRule: 'sign' as const };
+const EXISTING_PEOPLE = ['Juan Dela Cruz'];
 
-// Recursively collect primitive param values from a Drizzle SQL expression
-// (e.g. `eq(lendings.user_id, 42)` → contains 42) so the test can assert the
-// SELECT is scoped to the right user without a live database.
-function collectParamValues(node: unknown, out: (number | string)[] = []): (number | string)[] {
-	if (node == null) return out;
-	if (Array.isArray(node)) {
-		for (const n of node) collectParamValues(n, out);
-		return out;
-	}
-	if (typeof node === 'object') {
-		const obj = node as Record<string, unknown>;
-		if (typeof obj.value === 'number' || typeof obj.value === 'string') out.push(obj.value);
-		for (const k of Object.keys(obj)) {
-			if (['encoder', 'decoder', 'usedTables', 'table', 'columns', 'mapTo', 'mapFrom'].includes(k)) continue;
-			collectParamValues(obj[k], out);
+// The 10-row sample as parseCSV would produce (headers + rows, quotes stripped).
+const headers = ['Person', 'Amount', 'Interest Rate', 'Date Lent', 'Due Date', 'Notes'];
+const csvRows = [
+	['Juan Dela Cruz', '5000', '5', '2026-07-01', '2026-10-01', 'Starter loan'],
+	['Maria Santos', '12000', '0', '2026-07-02', '', 'No interest'],
+	['Ana Reyes', '10,000.00', '3.5', '2026-07-03', '2026-09-15', 'With comma amount'],
+	['Pedro Garcia', '2500', '2', '2026-07-32', '2026-08-01', 'Bad date lent'],
+	['Liza Cruz', '0', '1', '2026-07-05', '', 'Zero amount'],
+	['Carlos Mendez', '-3000', '0', '2026-07-06', '', 'Negative amount'],
+	['New Person', '800', '0', '2026-07-07', '2026-12-01', 'Unknown person auto-created'],
+	['', '600', '0', '2026-07-08', '', 'Missing person'],
+	['Jose Ramos', '1500', '0', '2026-07-09', '2026-07-32', 'Bad due date'],
+	['Juan Dela Cruz', '5000', '5', '2026-07-01', '2026-10-01', 'Duplicate of row 1'],
+];
+const mapping = {
+	Person: 'person_name',
+	Amount: 'amount',
+	'Interest Rate': 'interest_rate',
+	'Date Lent': 'date_lent',
+	'Due Date': 'due_date',
+	Notes: 'notes',
+};
+
+describe('normName (shared normalizer)', () => {
+	it('trims + lowercases', () => {
+		expect(normName('  Juan Dela Cruz  ')).toBe('juan dela cruz');
+		expect(normName('MARIA')).toBe('maria');
+		expect(normName('')).toBe('');
+	});
+});
+
+describe('parseRate', () => {
+	it('parses plain numbers, strips %, default 0, flags garbage', () => {
+		expect(parseRate('5')).toBe(5);
+		expect(parseRate('5%')).toBe(5);
+		expect(parseRate(' 3.5 ')).toBe(3.5);
+		expect(parseRate('')).toBe(0);
+		expect(Number.isNaN(parseRate('abc'))).toBe(true);
+	});
+});
+
+describe('buildMappedLendingRows', () => {
+	it('parses amounts (commas), rates, and dates', () => {
+		const rows = buildMappedLendingRows(csvRows, headers, mapping, CONFIG);
+		expect(rows[0]).toMatchObject({ person_name: 'Juan Dela Cruz', amount: 5000, interest_rate: 5, date_lent: '2026-07-01', due_date: '2026-10-01' });
+		expect(rows[2]).toMatchObject({ person_name: 'Ana Reyes', amount: 10000, interest_rate: 3.5, date_lent: '2026-07-03', due_date: '2026-09-15' });
+		expect(rows[3].date_lent).toBe('2026-07-32'); // unparseable kept raw → row error
+		expect(rows[8].due_date).toBe('2026-07-32');   // unparseable kept raw → row error
+	});
+});
+
+describe('validateAllLendingRows — 5 valid · 5 invalid', () => {
+	it('tally: valid / bad date / zero amount / negative amount / unknown person / missing person / bad due date', () => {
+		const rows = buildMappedLendingRows(csvRows, headers, mapping, CONFIG);
+		const result = validateAllLendingRows(rows, EXISTING_PEOPLE, CONFIG);
+
+		expect(result.validRows.length).toBe(5);
+		expect(result.invalidRows.length).toBe(5);
+		expect(result.newPeople).toEqual(['Maria Santos', 'Ana Reyes', 'New Person']);
+
+		const invalidErrors = result.invalidRows.map(x => x.errors.join(' | '));
+		expect(invalidErrors.some(e => e.includes('Invalid date'))).toBe(true);            // row 4 bad date lent
+		expect(invalidErrors.some(e => e.includes('greater than zero'))).toBe(true);        // rows 5-6
+		expect(invalidErrors.some(e => e.includes('Missing person name'))).toBe(true);      // row 8
+		expect(invalidErrors.some(e => e.includes('Invalid due date'))).toBe(true);         // row 9
+	});
+
+	it('unknown person is VALID (auto-created), not a row error', () => {
+		const rows = buildMappedLendingRows(csvRows, headers, mapping, CONFIG);
+		const result = validateAllLendingRows(rows, EXISTING_PEOPLE, CONFIG);
+		expect(result.validRows.some(r => r.person_name === 'New Person')).toBe(true);
+	});
+});
+
+describe('detectLendingDuplicates', () => {
+	const existing = [{ borrower_name: 'Juan Dela Cruz', date_lent: '2026-07-01', amount: 5000, direction: 'lent' }];
+
+	it('flags the existing row and the intra-file duplicate (the pair)', () => {
+		const rows = buildMappedLendingRows(csvRows, headers, mapping, CONFIG);
+		const valid = validateAllLendingRows(rows, EXISTING_PEOPLE, CONFIG).validRows;
+		const dups = detectLendingDuplicates(1, valid, existing, 'lent');
+		// valid rows indices: 0 (Juan, dup of existing), 1, 2, 6, 9 (Juan dup of row 0)
+		expect(dups).toContain(0);
+		expect(dups).toContain(4); // valid[4] === csvRows[9] (the duplicate pair leg)
+		expect(dups.length).toBe(2);
+	});
+
+	it('a borrowed import does not collide with an existing lent row (direction is in the key)', () => {
+		const rows = buildMappedLendingRows(csvRows, headers, mapping, CONFIG);
+		const valid = validateAllLendingRows(rows, EXISTING_PEOPLE, CONFIG).validRows;
+		const dups = detectLendingDuplicates(1, valid, existing, 'borrowed');
+		// valid[0] (Juan, lent in `existing`) hashed with 'borrowed' → NOT a dup of the lent row.
+		expect(dups).not.toContain(0);
+		// valid[4] is still the intra-file duplicate of valid[0] (both borrowed).
+		expect(dups).toEqual([4]);
+	});
+
+	it('a different amount is not a duplicate of the existing row', () => {
+		const rows = buildMappedLendingRows(csvRows, headers, mapping, CONFIG);
+		const valid = validateAllLendingRows(rows, EXISTING_PEOPLE, CONFIG).validRows;
+		const diffAmount = [{ borrower_name: 'Juan Dela Cruz', date_lent: '2026-07-01', amount: 1234, direction: 'lent' }];
+		const dups = detectLendingDuplicates(1, valid, diffAmount, 'lent');
+		expect(dups).not.toContain(0);
+		expect(dups).toEqual([4]); // only the intra-file pair
+	});
+
+	it('LENDING_IMPORT_FIELDS drives autoMap for the sample headers', () => {
+		const aliases = LENDING_IMPORT_FIELDS.map(f => f.key);
+		expect(aliases).toEqual(['person_name', 'amount', 'date_lent', 'due_date', 'interest_rate', 'notes', 'status', 'recovered_amount']);
+	});
+
+	it('autoMap maps the borrowed sample headers (Lender, Date Borrowed)', () => {
+		const mapping = autoMap(
+			['Lender', 'Amount', 'Interest Rate', 'Date Borrowed', 'Due Date', 'Notes'],
+			LENDING_IMPORT_FIELDS
+		);
+		expect(mapping).toEqual({
+			Lender: 'person_name',
+			Amount: 'amount',
+			'Interest Rate': 'interest_rate',
+			'Date Borrowed': 'date_lent',
+			'Due Date': 'due_date',
+			Notes: 'notes',
+		});
+	});
+
+	it('borrowed sample pipeline: 5 valid · 3 invalid, New Lender auto-created, dup pair caught', () => {
+		const headers = ['Lender', 'Amount', 'Interest Rate', 'Date Borrowed', 'Due Date', 'Notes'];
+		const borrowedRows = [
+			['Tita Beth', '3000', '2', '2026-06-15', '2026-09-15', 'Borrowed for market day'],
+			['Kuya Jon', '15000', '0', '2026-06-20', '', 'School fee advance'],
+			['Carlo', '2500', '5', '2026-06-25', '2026-07-25', 'Gadget installment'],
+			['New Lender', '1000', '1', '2026-07-12', '2026-08-12', 'Unknown lender auto-created'],
+			['Jessa', '0', '0', '2026-06-30', '', 'Zero amount'],
+			['Mark', '-500', '0', '2026-07-05', '', 'Negative amount'],
+			['Aling Rosa', '2000', '0', '2026-07-32', '2026-08-15', 'Bad date borrowed'],
+			['Tita Beth', '3000', '2', '2026-06-15', '2026-09-15', 'Duplicate of row 1'],
+		];
+		const mapping = autoMap(headers, LENDING_IMPORT_FIELDS);
+		const built = buildMappedLendingRows(borrowedRows, headers, mapping, CONFIG);
+		const result = validateAllLendingRows(built, ['Tita Beth', 'Kuya Jon', 'Carlo', 'Jessa', 'Mark', 'Aling Rosa'], CONFIG);
+
+		expect(result.validRows.length).toBe(5);
+		expect(result.invalidRows.length).toBe(3);
+		expect(result.newPeople).toEqual(['New Lender']);
+
+		// In-batch duplicate: the last Tita Beth row is a dup of the first.
+		const dups = detectLendingDuplicates(3, result.validRows, [], 'borrowed');
+		expect(dups).toEqual([4]);
+	});
+});
+
+describe('normalizeStatus', () => {
+	it('maps paid synonyms → paid', () => {
+		for (const s of ['paid', 'repaid', 'recovered', 'settled', 'closed', 'done', 'PAID', '  Repaid  ']) {
+			expect(normalizeStatus(s)).toBe('paid');
 		}
-	}
-	return out;
-}
+	});
 
-function tableNameOf(table: unknown): string {
-	return (table as Record<symbol, string> | undefined)?.[TABLE_NAME] ?? 'unknown';
-}
+	it('maps active synonyms → active', () => {
+		for (const s of ['active', 'open', 'pending', 'outstanding', 'Active', ' OPEN ']) {
+			expect(normalizeStatus(s)).toBe('active');
+		}
+	});
 
-describe('lendingImport — Drizzle / Postgres path (recorded fake client)', () => {
-	let importLendingsForUser: typeof import('$lib/server/lendingImport').importLendingsForUser;
-	let calls: {
-		selects: { table: string; cols: string[] }[];
-		wheres: { table: string; args: unknown[] }[];
-		inserts: { table: string; values: Record<string, unknown> }[]; // db.insert — global writes
-		txInserts: { table: string; values: Record<string, unknown> }[]; // tx.insert — inside db.transaction
-		returningIds: { table: string; id: number }[];
-		transactions: number; // db.transaction calls
+	it('defaults empty and unknown values to active', () => {
+		expect(normalizeStatus('')).toBe('active');
+		expect(normalizeStatus('   ')).toBe('active');
+		expect(normalizeStatus('random')).toBe('active');
+		expect(normalizeStatus(undefined as unknown as string)).toBe('active');
+	});
+});
+
+describe('status + recovered amount', () => {
+	// Headers/mapping include the Status + Amount Recovered columns.
+	const headers = ['Person', 'Amount', 'Date Lent', 'Status', 'Amount Recovered'];
+	const mapping: Record<string, string> = {
+		Person: 'person_name',
+		Amount: 'amount',
+		'Date Lent': 'date_lent',
+		Status: 'status',
+		'Amount Recovered': 'recovered_amount',
 	};
 
-	function makeQueryClient(counters: {
-		select: (table: string, cols: string[]) => void;
-		where: (table: string, args: unknown[]) => void;
-		insert: (table: string, values: Record<string, unknown>) => void;
-	}) {
-		return {
-			select(cols?: Record<string, unknown>) {
-				const colNames = cols ? Object.keys(cols) : [];
-				return {
-					from(table: unknown) {
-						const tableName = tableNameOf(table);
-						counters.select(tableName, colNames);
-						return {
-							where(...args: unknown[]) {
-								counters.where(tableName, args);
-								return {
-									then(onFulfilled: any, onRejected: any) {
-										return Promise.resolve([]).then(onFulfilled, onRejected);
-									}
-								};
-							}
-						};
-					}
-				};
-			},
-			insert(table: unknown) {
-				const tableName = tableNameOf(table);
-				return {
-					values(values: Record<string, unknown>) {
-						// Record the insert here (at .values()) because the module's
-						// lending_payments insert does NOT chain .returning().
-						counters.insert(tableName, values);
-						const id = calls.returningIds.length + 1;
-						return {
-							returning(cols: Record<string, unknown>) {
-								calls.returningIds.push({ table: tableName, id });
-								return Promise.resolve([{ id }]);
-							}
-						};
-					}
-				};
-			}
-		};
-	}
-
-	function fakeDb() {
-		// The global `db` (dedup SELECT only) and the `tx` handed to the
-		// db.transaction callback (every insert) are separate clients, so the
-		// structural test can prove no global DB writes happen inside the
-		// transaction.
-		const db = makeQueryClient({
-			select: (table, cols) => { calls.selects.push({ table, cols }); },
-			where: (table, args) => { calls.wheres.push({ table, args }); },
-			insert: (table, values) => { calls.inserts.push({ table, values }); }
-		});
-		const tx = makeQueryClient({
-			select: () => {},
-			where: () => {},
-			insert: (table, values) => { calls.txInserts.push({ table, values }); }
-		});
-		return {
-			...db,
-			transaction(cb: (t: ReturnType<typeof makeQueryClient>) => unknown) {
-				calls.transactions += 1;
-				return cb(tx);
-			}
-		};
-	}
-
-	beforeAll(async () => {
-		vi.doMock('$lib/database', () => ({
-			getPgPool: () => Promise.reject(new Error('getPgPool should not be called on Drizzle path')),
-			initDb: async () => {},
-			closeDb: async () => {}
-		}));
-		vi.doMock('$lib/database/drizzle', () => ({
-			getDrizzle: () => Promise.resolve(fakeDb())
-		}));
-
-		vi.resetModules();
-		const svc = await import('$lib/server/lendingImport');
-		importLendingsForUser = svc.importLendingsForUser;
+	it('recovered ≥ amount forces status paid', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', 'active', '5000']], headers, mapping, CONFIG);
+		expect(built[0].status).toBe('paid');
 	});
 
-	beforeEach(() => {
-		calls = {
-			selects: [],
-			wheres: [],
-			inserts: [],
-			txInserts: [],
-			returningIds: [],
-			transactions: 0
-		};
+	it('over-recovered (recovered > amount) also forces paid', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', 'active', '7000']], headers, mapping, CONFIG);
+		expect(built[0].status).toBe('paid');
 	});
 
-	it('queries existing lendings for duplicate detection scoped to the user', async () => {
-		const csv = `Person,Amount,Date Lent,Notes,Status\nAlice,1000,2026-08-01,Test,active`;
-		const file = new File([csv], 'import.csv', { type: 'text/csv' });
-		const result = await importLendingsForUser(42, file, '{}', 'lent') as any;
-
-		expect(result.success).toBe(true);
-		expect(calls.selects).toHaveLength(1);
-		expect(calls.selects[0]!.table).toBe('lendings');
-		expect(calls.selects[0]!.cols).toContain('borrower_name');
-		expect(calls.selects[0]!.cols).toContain('amount');
-		// Dedup SELECT carries a WHERE filter on the user id
-		expect(calls.wheres).toHaveLength(1);
-		expect(calls.wheres[0]!.table).toBe('lendings');
-		const params = collectParamValues(calls.wheres[0]!.args[0]);
-		expect(params).toContain(42);
+	it('partial recovery keeps the column status (active)', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', 'active', '1000']], headers, mapping, CONFIG);
+		expect(built[0].status).toBe('active');
 	});
 
-	it('inserts lendings with correct mapped values and uses .returning({ id })', async () => {
-		const csv = `Person,Amount,Date Lent,Notes,Status\nAlice,1000,2026-08-01,Test,active`;
-		const file = new File([csv], 'import.csv', { type: 'text/csv' });
-		const result = await importLendingsForUser(42, file, '{}', 'lent') as any;
-
-		expect(result.success).toBe(true);
-		expect(result.imported).toBe(1);
-		expect(calls.txInserts).toHaveLength(1);
-		expect(calls.txInserts[0]!.table).toBe('lendings');
-		expect(calls.txInserts[0]!.values.borrower_name).toBe('Alice');
-		// numeric columns are stored as strings (schema: numeric → Drizzle string)
-		expect(calls.txInserts[0]!.values.amount).toBe('1000');
-		expect(calls.txInserts[0]!.values.interest_rate).toBe('0');
-		expect(calls.txInserts[0]!.values.date_lent).toBe('2026-08-01');
-		expect(calls.txInserts[0]!.values.direction).toBe('lent');
-		expect(calls.txInserts[0]!.values.status).toBe('active');
-		// inserted lending ID is returned via .returning({ id }) — not a SELECT
-		expect(calls.returningIds).toHaveLength(1);
-		expect(calls.returningIds[0]!.table).toBe('lendings');
-		expect(calls.returningIds[0]!.id).toBe(result.imported);
+	it('partial recovery with a paid column stays paid', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', 'paid', '1000']], headers, mapping, CONFIG);
+		expect(built[0].status).toBe('paid');
 	});
 
-	it('creates lending_payment when recovered_amount > 0 using the returned lending ID', async () => {
-		const csv = `Person,Amount,Date Lent,Amount Recovered,Notes,Status\nAlice,1000,2026-08-01,500,Test,active`;
-		const file = new File([csv], 'import.csv', { type: 'text/csv' });
-		const result = await importLendingsForUser(42, file, '{}', 'lent') as any;
-
-		expect(result.success).toBe(true);
-		expect(result.imported).toBe(1);
-		expect(calls.txInserts).toHaveLength(2); // lending + payment
-		// payment row references the ID returned by the lending insert
-		expect(calls.returningIds[0]!.table).toBe('lendings');
-		const paymentInsert = calls.txInserts.find(i => i.table === 'lending_payments');
-		expect(paymentInsert).toBeDefined();
-		expect(paymentInsert!.values.lending_id).toBe(calls.returningIds[0]!.id);
-		expect(paymentInsert!.values.user_id).toBe(42);
-		// numeric amount stored as string per schema
-		expect(paymentInsert!.values.amount).toBe('500');
-		expect(paymentInsert!.values.payment_date).toBe('2026-08-01');
-		expect(paymentInsert!.values.notes).toBe('Imported');
-		expect(paymentInsert!.values.payment_type).toBe('payment');
+	it('a missing/blank recovered cell is treated as absent (0), not an error', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', '', '']], headers, mapping, CONFIG);
+		expect(built[0].status).toBe('active');
+		expect(built[0].recovered_amount).toBe(0);
+		const r = validateMappedLendingRow(built[0], [], CONFIG);
+		expect(r.valid).toBe(true);
 	});
 
-	it('does not create lending_payment when recovered_amount = 0', async () => {
-		const csv = `Person,Amount,Date Lent,Notes,Status\nAlice,1000,2026-08-01,Test,active`;
-		const file = new File([csv], 'import.csv', { type: 'text/csv' });
-		const result = await importLendingsForUser(42, file, '{}', 'lent') as any;
-
-		expect(result.success).toBe(true);
-		expect(result.imported).toBe(1);
-		expect(calls.txInserts).toHaveLength(1); // lending only
-		const paymentInsert = calls.txInserts.find(i => i.table === 'lending_payments');
-		expect(paymentInsert).toBeUndefined();
+	it('flags recovered amount exceeding the loan amount', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', '', '6000']], headers, mapping, CONFIG);
+		const r = validateMappedLendingRow(built[0], [], CONFIG);
+		expect(r.errors.some(e => e.includes('exceed the loan amount'))).toBe(true);
 	});
 
-	it('returns correct import statistics', async () => {
-		const csv = `Person,Amount,Date Lent,Notes,Status\nAlice,1000,2026-08-01,Test,active\nAlice,1000,2026-08-01,Test,active\nBob,2000,2026-08-02,Test2,active`;
-		const file = new File([csv], 'import.csv', { type: 'text/csv' });
-		const result = await importLendingsForUser(42, file, '{}', 'lent') as any;
-
-		expect(result.success).toBe(true);
-		expect(result.imported).toBe(2);
-		expect(result.total).toBe(3);
-		expect(result.skippedDuplicates).toBe(1);
-		expect(result.skippedInvalid).toBe(0);
-		expect(result.newPeople).toHaveLength(2);
+	it('flags a negative recovered amount', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', '', '-100']], headers, mapping, CONFIG);
+		const r = validateMappedLendingRow(built[0], [], CONFIG);
+		expect(r.errors.some(e => e.includes('cannot be negative'))).toBe(true);
 	});
 
-	it('wraps the entire import in one db.transaction and uses tx for every write', async () => {
-		const csv = `Person,Amount,Date Lent,Amount Recovered,Notes,Status\nAlice,1000,2026-08-01,500,Test,active\nBob,2000,2026-08-02,0,Test2,active`;
-		const file = new File([csv], 'import.csv', { type: 'text/csv' });
-		const result = await importLendingsForUser(42, file, '{}', 'lent') as any;
-
-		expect(result.success).toBe(true);
-		expect(result.imported).toBe(2);
-		// Exactly ONE transaction wraps the whole import.
-		expect(calls.transactions).toBe(1);
-		// Every insert ran through the tx client: 2 lendings + 1 payment.
-		expect(calls.txInserts).toHaveLength(3);
-		expect(calls.txInserts.filter(i => i.table === 'lendings')).toHaveLength(2);
-		expect(calls.txInserts.filter(i => i.table === 'lending_payments')).toHaveLength(1);
-		// The recovered payment references the id returned by the lending insert.
-		expect(calls.returningIds).toHaveLength(2);
-		const paymentInsert = calls.txInserts.find(i => i.table === 'lending_payments');
-		expect(paymentInsert!.values.lending_id).toBe(calls.returningIds[0]!.id);
-		// No global DB writes happened inside the transaction.
-		expect(calls.inserts).toHaveLength(0);
-		// The dedup SELECT still ran on the global db, before the transaction.
-		expect(calls.selects).toHaveLength(1);
+	it('a valid partial recovery row passes validation', () => {
+		const built = buildMappedLendingRows([['Juan', '5000', '2026-07-01', 'paid', '1000']], headers, mapping, CONFIG);
+		const r = validateMappedLendingRow(built[0], [], CONFIG);
+		expect(r.valid).toBe(true);
 	});
 });

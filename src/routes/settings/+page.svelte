@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import PageBackground from '$lib/components/PageBackground.svelte';
-	import SettingsSection from '$lib/components/SettingsSection.svelte';
-	import SettingsForm from '$lib/components/SettingsForm.svelte';
+	import PageHeader from '$lib/client/components/PageHeader.svelte';
+	import PageBackground from '$lib/client/components/PageBackground.svelte';
+	import SettingsSection from '$lib/client/components/SettingsSection.svelte';
+	import SettingsForm from '$lib/client/components/SettingsForm.svelte';
 
 	let data = $derived($page.data as App.PageData);
 	let username = $derived(data?.user?.username ?? 'User');

@@ -5,17 +5,17 @@ describe('createLending — Drizzle/Postgres structural (tx used, global db neve
 	let createLending: (userId: number, input: any) => Promise<{ success: true }>;
 
 	beforeAll(async () => {
-		vi.doMock('$lib/database', () => ({
+		vi.doMock('$lib/server/db', () => ({
 			getPgPool: vi.fn(),
 			initDb: async () => {},
 			closeDb: async () => {}
 		}));
-		vi.doMock('$lib/database/drizzle', () => ({
+		vi.doMock('$lib/server/db/drizzle', () => ({
 			getDrizzle: vi.fn()
 		}));
 		vi.resetModules();
-		getDrizzle = (await import('$lib/database/drizzle')).getDrizzle;
-		const mod = await import('$lib/server/lendingPayments');
+		getDrizzle = (await import('$lib/server/db/drizzle')).getDrizzle;
+		const mod = await import('$lib/server/services/lendingPayments');
 		createLending = mod.createLending;
 	});
 

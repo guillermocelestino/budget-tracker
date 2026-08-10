@@ -3,7 +3,7 @@ import {
 	createLending,
 	getLendingsWithPayments,
 	getLendingWithPayments
-} from '$lib/server/lendingPayments';
+} from '$lib/server/services/lendingPayments';
 
 function asDirection(value: string | null): 'lent' | 'borrowed' | undefined {
 	return value === 'lent' || value === 'borrowed' ? value : undefined;

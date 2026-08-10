@@ -1,8 +1,8 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { TransactionType, RecurringFrequency } from '$lib/types';
-import { updateRecurringTransaction, getRecurringById } from '$lib/server/recurringService';
-import type { RecurringInput } from '$lib/server/recurringService';
-import { getCategories } from '$lib/server/categories';
+import { updateRecurringTransaction, getRecurringById } from '$lib/server/services/recurringService';
+import type { RecurringInput } from '$lib/server/services/recurringService';
+import { getCategories } from '$lib/server/services/categories';
 
 export async function load({ params, locals }: { params: { id: string }; locals: App.Locals }) {
 	const userId = locals.user!.userId;

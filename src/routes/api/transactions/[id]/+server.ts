@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { getTransaction, updateTransaction, deleteTransaction } from '$lib/server/transactions';
+import { getTransaction, updateTransaction, deleteTransaction } from '$lib/server/services/transactions';
 
 export async function GET({ params, locals }: { params: { id: string }; locals: App.Locals }) {
 	const userId = locals.user!.userId;
