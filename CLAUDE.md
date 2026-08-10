@@ -2,7 +2,7 @@
 
 ## Architecture
 - **Framework:** SvelteKit with Svelte 5 runes (`$state`, `$derived`, `$props`, `$effect`) — no Svelte 4 `export let` / `$:` anywhere
-- **Database:** Dual SQLite (dev) / PostgreSQL (production via Neon serverless) — auto-detected via `POSTGRES_URL` env var. All SQL written in Postgres dialect; `translatePgToSQLite()` converts for SQLite
+- **Database:** PostgreSQL/Neon only (via `@neondatabase/serverless`). All SQL written in native Postgres dialect. `DATABASE_URL` (or `POSTGRES_URL`) is required at runtime — throws if missing. Local development wires `LOCAL_DEV_DATABASE_URL` → `DATABASE_URL` via `src/lib/server/db/loadEnv.ts` (no SQLite fallback). E2E tests require `DATABASE_URL` pointing to a Neon branch.
 - **Auth:** Auth.js (`@auth/sveltekit`) Credentials provider with JWT session strategy — authenticates against the existing `users` table + existing bcrypt `$2b$10$` hashes. Session cookie `authjs.session-token` (30-day, httpOnly, sameSite=lax). Login/logout via the SvelteKit `/login` form action and `/logout` route, both delegating to the single Credentials `authorize()` in `src/auth.ts`; protected routes resolve the session via `event.locals.auth()` in hooks. Legacy JWT auth (`jsonwebtoken`/`JWT_SECRET`/`session` cookie, `createToken`/`verifyToken`) is removed (Auth-5); password hashing moved to `src/lib/server/auth/password.ts`
 - **CSS:** Hand-written with custom properties (`src/styles/variables.css`) — "Flip7" teal/gold/coral design system, no framework
 - **Charts:** Chart.js via `svelte-chartjs`, registered globally in `src/lib/client/utils/chart.ts`
@@ -29,8 +29,6 @@ src/lib/
 │   └── utils/
 ├── shared/
 │   └── utils/
-├── types.ts
-└── index.ts
 ```
 
 ### Dependency Direction (Enforced)
@@ -120,7 +118,7 @@ These are **intentional architectural splits**, not duplicates.
 - Global: `ToastContainer`, `PwaUpdate`, `OnboardingWalkthrough`, `SearchModal` (⌘K/⌃K shortcut), offline banner, favicon
 - Imports `variables.css` globally (no separate app.css)
 
-## Component Inventory (77 components, flat `src/lib/client/components/` directory)
+## Component Inventory (66 components, flat `src/lib/client/components/` directory)
 
 ### UI Shell & Navigation (12)
 - `Sidebar.svelte` — Two-zone desktop sidebar (brand, primary/secondary nav, theme toggle, collapse, search, logout) with mobile off-canvas drawer; collapse 256↔72px
@@ -213,10 +211,10 @@ These are **intentional architectural splits**, not duplicates.
 - `DeletePaymentConfirmModal.svelte` — Confirmation modal for deleting a payment record
 
 ## Database (`src/lib/server/db/`)
-- **`index.ts`** — Lazy-init gate. Detects `POSTGRES_URL` → `usePostgres` boolean. Exposes `getPgPool()` and `getSQLiteDb()`, both auto-run `initDb()` once. SQLite DB at `data/budget.db` (WAL mode, foreign keys on). Registers `pg.types.setTypeParser(1700, parseFloat)` so Postgres `NUMERIC` columns return JS numbers (SQLite already does); also `date` columns return JS `Date` objects on Postgres — handle both via `dateToString()`/`parseDate()`
-- **`loadEnv.ts`** — Dev-only, imported first by `index.ts`. SvelteKit dev doesn't load `.env` into `process.env`, so in development it wires `LOCAL_DEV_DATABASE_URL` → `process.env.DATABASE_URL` → `npm run dev` uses the local-dev Neon branch. Inert in production, when `SEED_DEMO=1` (e2e stays on SQLite), and when `DATABASE_URL` is already exported in the shell
-- **`query.ts`** — Four cross-DB functions: `queryOne<T>()`, `queryMany<T>()`, `execute()`, `withTransaction()`. All SQL written in **Postgres dialect**; `translatePgToSQLite()` auto-converts `$1→?`, `::type` removal, `TO_CHAR→strftime`, `EXTRACT→strftime`, `NOW→datetime`, `CURRENT_DATE→date`
-- **`init.ts`** — Schema: **6 tables** with equivalent Postgres/SQLite DDL + indexes:
+- **`index.ts`** — Lazy-init gate. Reads `DATABASE_URL` (or `POSTGRES_URL`) from env. Throws if missing — **no SQLite fallback**. Creates Neon pool via `@neondatabase/serverless`. Registers `pg.types.setTypeParser(1700, parseFloat)` so Postgres `NUMERIC` columns return JS numbers. Exposes `getPgPool()` and runs `initDb()` once.
+- **`loadEnv.ts`** — Dev-only, imported first by `index.ts`. SvelteKit dev doesn't load `.env` into `process.env`, so in development it wires `LOCAL_DEV_DATABASE_URL` → `process.env.DATABASE_URL` → `npm run dev` uses the local-dev Neon branch. Inert in production, when `SEED_DEMO=1`, and when `DATABASE_URL` is already exported in the shell.
+- **`query.ts`** — Four cross-DB functions: `queryOne<T>()`, `queryMany<T>()`, `execute()`, `withTransaction()`. All SQL written in **native Postgres dialect** — no translation layer.
+- **`init.ts`** — Schema: **6 tables** with Postgres DDL + indexes:
   - `users` (id, username, password_hash, created_at)
   - `categories` (id, user_id, name, color, icon, `type` income/expense, `budget_limit`, UNIQUE(user_id, name))
   - `transactions` (id, user_id, amount, description, date, category_id FK RESTRICT, type, created_at, updated_at)
@@ -225,9 +223,9 @@ These are **intentional architectural splits**, not duplicates.
   - `lending_payments` (id, lending_id FK CASCADE, user_id, amount, payment_date, notes, `transaction_id` FK SET NULL, `payment_type` payment/write_off, reference, created_at, updated_at)
   - Indexes on user_id, date DESC, category_id, type, status, next_run, active, lending_id, payment_date
   - Seed data: 2 default users + 11 categories
-- **`drizzle.ts`** — Drizzle client for Neon/Postgres path only. Reuses the existing lazy-initialized Neon pool from `getPgPool()`. Cached as a promise for serverless reuse.
+- **`drizzle.ts`** — Drizzle client for Neon/Postgres. Reuses the existing lazy-initialized Neon pool from `getPgPool()`. Cached as a promise for serverless reuse.
 - **`schema.ts`** — Drizzle schema definitions mirroring the 6 tables
-- **`migrations/001_add_type_to_categories.ts`** — Adds type column to categories, checks PRAGMA before running
+- **Migrations** — At repo root `drizzle/meta/` (`0000_snapshot.json`, `0001_snapshot.json`, `_journal.json`)
 
 ## Server Patterns
 
@@ -373,4 +371,4 @@ npm run test:e2e   # Requires DATABASE_URL — not run in this audit
 
 ---
 
-*This document reflects the Architecture-5 repository structure. Legacy paths (`src/lib/database/`, `src/lib/components/`, `src/lib/stores/`, `src/lib/utils/`) have been removed/migrated.*
+*This document reflects the Architecture-5 repository structure with PostgreSQL-only database runtime. Legacy paths (`src/lib/database/`, `src/lib/components/`, `src/lib/stores/`, `src/lib/utils/`) have been removed/migrated.*

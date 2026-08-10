@@ -5,8 +5,8 @@ import path from 'node:path';
  * Dev-only env wiring.
  *
  * SvelteKit/Vite dev does not load `.env` into `process.env`, so under
- * `npm run dev` the app sees no `DATABASE_URL` and falls back to SQLite even
- * after the Neon migration. This module closes that gap ONLY in development:
+ * `npm run dev` the app sees no `DATABASE_URL`. This module closes that gap
+ * ONLY in development:
  *
  *   - It reads `LOCAL_DEV_DATABASE_URL` from `.env` and, when set, points the
  *     app at the local-dev Neon branch (the dev database).
@@ -18,8 +18,8 @@ import path from 'node:path';
  * explicit shell export always wins.
  *
  * E2E: Playwright's webserver runs with `SEED_DEMO=1` and seed-demo writes
- * SQLite, so the e2e dev server must NOT be redirected to local-dev. Hence
- * the `SEED_DEMO` gate.
+ * to the configured database, so the e2e dev server must NOT be redirected to
+ * local-dev. Hence the `SEED_DEMO` gate.
  */
 const isDev = process.env['NODE_ENV'] === 'development';
 
