@@ -12,6 +12,7 @@
   const primaryNav = [
     { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
     { href: '/transactions', label: 'Transactions', icon: 'transactions' },
+    { href: '/money-map', label: 'Money Map', icon: 'money-map' },
     { href: '/net-worth', label: 'Net Worth', icon: 'net-worth' },
     { href: '/lending', label: 'Lending', icon: 'lending' },
     { href: '/borrowed', label: 'Borrowed', icon: 'borrowed' },
@@ -80,6 +81,12 @@
     </svg>`,
     transactions: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/>
+    </svg>`,
+    'money-map': `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/>
+      <circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/>
+      <line x1="7" y1="7" x2="10" y2="10"/><line x1="17" y1="7" x2="14" y2="10"/>
+      <line x1="7" y1="17" x2="10" y2="14"/><line x1="17" y1="17" x2="14" y2="14"/>
     </svg>`,
     lending: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="m20.42 4.58-7.65 7.65-2.12-2.12a1.5 1.5 0 0 0-2.12 2.12l3.54 3.54a1.5 1.5 0 0 0 2.12-2.12L12 12"/>
