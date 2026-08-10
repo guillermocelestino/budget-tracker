@@ -1,6 +1,4 @@
 import { fail } from '@sveltejs/kit';
-import { queryMany, withTransaction } from '$lib/database/query';
-import { usePostgres } from '$lib/database';
 import { getDrizzle } from '$lib/database/drizzle';
 import { lendings, lendingPayments } from '$lib/database/schema';
 import { eq } from 'drizzle-orm';
@@ -74,28 +72,20 @@ export async function importLendingsForUser(
 	}
 
 	// Existing lendings for dedup + existing people
-	let existingLendings: { borrower_name: string; date_lent: string; amount: number; direction: string }[];
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const rows = await db
-			.select({
-				borrower_name: lendings.borrower_name,
-				date_lent: lendings.date_lent,
-				amount: lendings.amount,
-				direction: lendings.direction
-			})
-			.from(lendings)
-			.where(eq(lendings.user_id, userId));
-		existingLendings = rows.map(r => ({
-			...r,
-			amount: parseFloat(r.amount)
-		}));
-	} else {
-		existingLendings = await queryMany<{ borrower_name: string; date_lent: string; amount: number; direction: string }>(
-			'SELECT borrower_name, date_lent, amount, direction FROM lendings WHERE user_id = $1',
-			[userId]
-		);
-	}
+	const db = await getDrizzle();
+	const existingLendingRows = await db
+		.select({
+			borrower_name: lendings.borrower_name,
+			date_lent: lendings.date_lent,
+			amount: lendings.amount,
+			direction: lendings.direction
+		})
+		.from(lendings)
+		.where(eq(lendings.user_id, userId));
+	const existingLendings = existingLendingRows.map(r => ({
+		...r,
+		amount: parseFloat(r.amount)
+	}));
 	const existingPeople = Array.from(new Set(existingLendings.map(l => l.borrower_name)));
 
 	// Dedup — key (user_id, person, date_lent, amount, direction)
@@ -120,7 +110,7 @@ export async function importLendingsForUser(
 		};
 	}
 
-	// Insert valid, non-duplicate rows — parameterized via query.ts (portable).
+	// Insert valid, non-duplicate rows — parameterized via Drizzle.
 	// The lendings schema stores only `status` ('active' | 'paid'); the recovered
 	// amount creates a payment row in lending_payments (the authoritative ledger).
 	// Imports never directly populate derived balance fields — derived state is
@@ -131,68 +121,38 @@ export async function importLendingsForUser(
 	// a failure on any row undoes the entire import — no partial or orphaned records.
 	let inserted = 0;
 
-	if (usePostgres) {
-		const db = await getDrizzle();
-		await db.transaction(async (tx) => {
-			for (const row of rowsToInsert) {
-				const [newLending] = await tx
-					.insert(lendings)
-					.values({
-						user_id: userId,
-						borrower_name: row.person_name,
-						amount: String(row.amount),
-						interest_rate: String(row.interest_rate),
-						date_lent: row.date_lent,
-						due_date: row.due_date || null,
-						notes: row.notes,
-						direction: direction,
-						status: row.status
-					})
-					.returning({ id: lendings.id });
+	await db.transaction(async (tx) => {
+		for (const row of rowsToInsert) {
+			const [newLending] = await tx
+				.insert(lendings)
+				.values({
+					user_id: userId,
+					borrower_name: row.person_name,
+					amount: String(row.amount),
+					interest_rate: String(row.interest_rate),
+					date_lent: row.date_lent,
+					due_date: row.due_date || null,
+					notes: row.notes,
+					direction: direction,
+					status: row.status
+				})
+				.returning({ id: lendings.id });
 
-				// If recovered_amount > 0, create a historical payment row
-				if (row.recovered_amount > 0) {
-					await tx.insert(lendingPayments).values({
-						lending_id: newLending.id,
-						user_id: userId,
-						amount: String(row.recovered_amount),
-						payment_date: row.date_lent,
-						notes: 'Imported',
-						payment_type: 'payment'
-					});
-				}
-
-				inserted++;
+			// If recovered_amount > 0, create a historical payment row
+			if (row.recovered_amount > 0) {
+				await tx.insert(lendingPayments).values({
+					lending_id: newLending.id,
+					user_id: userId,
+					amount: String(row.recovered_amount),
+					payment_date: row.date_lent,
+					notes: 'Imported',
+					payment_type: 'payment'
+				});
 			}
-		});
-	} else {
-		await withTransaction(async (tx) => {
-			for (const row of rowsToInsert) {
-				await tx.execute(
-					`INSERT INTO lendings (user_id, borrower_name, amount, interest_rate, date_lent, due_date, notes, direction, status)
-					 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-					[userId, row.person_name, row.amount, row.interest_rate, row.date_lent, row.due_date || null, row.notes, direction, row.status]
-				);
 
-				// If recovered_amount > 0, create a historical payment row
-				if (row.recovered_amount > 0) {
-					const newLending = await tx.queryOne<{ id: number }>(
-						'SELECT id FROM lendings WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
-						[userId]
-					);
-					if (newLending) {
-						await tx.execute(
-							`INSERT INTO lending_payments (lending_id, user_id, amount, payment_date, notes, payment_type)
-							 VALUES ($1, $2, $3, $4, $5, 'payment')`,
-							[newLending.id, userId, row.recovered_amount, row.date_lent, 'Imported']
-						);
-					}
-				}
-
-				inserted++;
-			}
-		});
-	}
+			inserted++;
+		}
+	});
 
 	return {
 		success: true,
@@ -201,6 +161,9 @@ export async function importLendingsForUser(
 		skippedDuplicates: skippedDuplicateCount,
 		skippedInvalid: invalidRows.length,
 		newPeople: newPeopleFiltered,
-		details: invalidRows.length > 0 ? invalidRows.flatMap(({ errors }, i) => errors.map(e => `Row ${i + 1}: ${e}`)) : undefined,
+		details: invalidRows.length > 0 ? invalidRows.flatMap(({
+			errors,
+			row
+		}) => errors.map(e => `Row ${row}: ${e}`)) : []
 	};
 }

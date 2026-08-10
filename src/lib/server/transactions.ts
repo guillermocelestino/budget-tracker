@@ -1,5 +1,3 @@
-import { usePostgres } from '$lib/database';
-import { queryOne, queryMany, execute, withTransaction } from '$lib/database/query';
 import { getDrizzle } from '$lib/database/drizzle';
 import { transactions, categories } from '$lib/database/schema';
 import { and, eq, ilike, or, desc, asc, sql, gte, lte, inArray } from 'drizzle-orm';
@@ -164,83 +162,48 @@ export async function listTransactions(
 	const safeLimit = limit !== undefined ? Math.min(100, Math.max(1, limit)) : 20;
 	const offset = (safePage - 1) * safeLimit;
 
-	const { sqlWhere, sqlParams, drizzleWhere } = buildTransactionWhere(userId, filters);
+	const { drizzleWhere } = buildTransactionWhere(userId, filters);
 
-	if (usePostgres) {
-		const db = await getDrizzle();
+	const db = await getDrizzle();
 
-		// COUNT query
-		const [{ count }] = await db
-			.select({ count: sql<number>`count(*)` })
-			.from(transactions)
-			.leftJoin(categories, eq(transactions.category_id, categories.id))
-			.where(drizzleWhere);
+	// COUNT query
+	const [{ count }] = await db
+		.select({ count: sql<number>`count(*)` })
+		.from(transactions)
+		.leftJoin(categories, eq(transactions.category_id, categories.id))
+		.where(drizzleWhere);
 
-		// Data query
-		const sortField = filters.sort === 'amount' ? transactions.amount : transactions.date;
-		const orderByExpression = filters.order === 'asc' 
-			? [asc(sortField), asc(transactions.id)] 
-			: [desc(sortField), desc(transactions.id)];
+	// Data query
+	const sortField = filters.sort === 'amount' ? transactions.amount : transactions.date;
+	const orderByExpression = filters.order === 'asc'
+		? [asc(sortField), asc(transactions.id)]
+		: [desc(sortField), desc(transactions.id)];
 
-		const query = db
-			.select({
-				id: transactions.id,
-				amount: transactions.amount,
-				description: transactions.description,
-				date: transactions.date,
-				category_id: transactions.category_id,
-				type: transactions.type,
-				created_at: transactions.created_at,
-				updated_at: transactions.updated_at,
-				category_name: categories.name,
-				category_color: categories.color,
-			})
-			.from(transactions)
-			.leftJoin(categories, eq(transactions.category_id, categories.id))
-			.where(drizzleWhere)
-			.orderBy(...orderByExpression);
+	const query = db
+		.select({
+			id: transactions.id,
+			amount: transactions.amount,
+			description: transactions.description,
+			date: transactions.date,
+			category_id: transactions.category_id,
+			type: transactions.type,
+			created_at: transactions.created_at,
+			updated_at: transactions.updated_at,
+			category_name: categories.name,
+			category_color: categories.color,
+		})
+		.from(transactions)
+		.leftJoin(categories, eq(transactions.category_id, categories.id))
+		.where(drizzleWhere)
+		.orderBy(...orderByExpression);
 
-		const rows = shouldPaginate
-			? await query.limit(safeLimit).offset(offset)
-			: await query;
+	const rows = shouldPaginate
+		? await query.limit(safeLimit).offset(offset)
+		: await query;
 
-		// Map rows to Transaction type (which does not contain user_id)
-		const items = rows.map((r) => mapTransactionRow(r as unknown as TransactionRowWithCategory));
-		const total = Number(count);
-		const totalPages = shouldPaginate ? Math.ceil(total / safeLimit) : 1;
-
-		return { items, total, page: safePage, totalPages };
-	}
-
-	// SQLite path
-	const countRow = await queryOne<{ total: number }>(
-		`SELECT COUNT(*)::int as total
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 ${sqlWhere}`,
-		sqlParams
-	);
-
-	const sortCol = filters.sort === 'amount' ? 'amount' : 'date';
-	const sortOrder = filters.order === 'asc' ? 'ASC' : 'DESC';
-
-	let querySql = `SELECT t.*, c.name as category_name, c.color as category_color
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 ${sqlWhere}
-		 ORDER BY t.${sortCol} ${sortOrder}, t.id ${sortOrder}`;
-
-	const queryParams = [...sqlParams];
-
-	if (shouldPaginate) {
-		querySql += ` LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
-		queryParams.push(safeLimit, offset);
-	}
-
-	const rows = await queryMany<TransactionRowWithCategory>(querySql, queryParams);
-
-	const items = rows.map(mapTransactionRow);
-	const total = countRow?.total ?? 0;
+	// Map rows to Transaction type (which does not contain user_id)
+	const items = rows.map((r) => mapTransactionRow(r as unknown as TransactionRowWithCategory));
+	const total = Number(count);
 	const totalPages = shouldPaginate ? Math.ceil(total / safeLimit) : 1;
 
 	return { items, total, page: safePage, totalPages };
@@ -251,38 +214,26 @@ export async function listTransactions(
  * Returns null if not found or not owned by user.
  */
 export async function getTransaction(userId: number, id: number): Promise<Transaction | null> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const [row] = await db
-			.select({
-				id: transactions.id,
-				amount: transactions.amount,
-				description: transactions.description,
-				date: transactions.date,
-				category_id: transactions.category_id,
-				type: transactions.type,
-				created_at: transactions.created_at,
-				updated_at: transactions.updated_at,
-				category_name: categories.name,
-				category_color: categories.color,
-			})
-			.from(transactions)
-			.leftJoin(categories, eq(transactions.category_id, categories.id))
-			.where(and(eq(transactions.user_id, userId), eq(transactions.id, id)))
-			.limit(1);
+	const db = await getDrizzle();
+	const [row] = await db
+		.select({
+			id: transactions.id,
+			amount: transactions.amount,
+			description: transactions.description,
+			date: transactions.date,
+			category_id: transactions.category_id,
+			type: transactions.type,
+			created_at: transactions.created_at,
+			updated_at: transactions.updated_at,
+			category_name: categories.name,
+			category_color: categories.color,
+		})
+		.from(transactions)
+		.leftJoin(categories, eq(transactions.category_id, categories.id))
+		.where(and(eq(transactions.user_id, userId), eq(transactions.id, id)))
+		.limit(1);
 
-		return row ? mapTransactionRow(row as unknown as TransactionRowWithCategory) : null;
-	}
-
-	const row = await queryOne<TransactionRowWithCategory>(
-		`SELECT t.*, c.name as category_name, c.color as category_color
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 WHERE t.user_id = $1 AND t.id = $2`,
-		[userId, id]
-	);
-
-	return row ? mapTransactionRow(row) : null;
+	return row ? mapTransactionRow(row as unknown as TransactionRowWithCategory) : null;
 }
 
 /**
@@ -336,20 +287,12 @@ async function verifyCategoryOwnership(
 	userId: number,
 	categoryId: number
 ): Promise<boolean> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const [cat] = await db
-			.select({ id: categories.id })
-			.from(categories)
-			.where(and(eq(categories.user_id, userId), eq(categories.id, categoryId)))
-			.limit(1);
-		return !!cat;
-	}
-
-	const cat = await queryOne<{ id: number }>(
-		'SELECT id FROM categories WHERE user_id = $1 AND id = $2',
-		[userId, categoryId]
-	);
+	const db = await getDrizzle();
+	const [cat] = await db
+		.select({ id: categories.id })
+		.from(categories)
+		.where(and(eq(categories.user_id, userId), eq(categories.id, categoryId)))
+		.limit(1);
 	return !!cat;
 }
 
@@ -373,33 +316,19 @@ export async function createTransaction(
 		throw new Error('Category not found');
 	}
 
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const [row] = await db
-			.insert(transactions)
-			.values({
-				user_id: userId,
-				amount: String(input.amount),
-				description: input.description.trim(),
-				date: input.date,
-				category_id: input.category_id,
-				type: input.type,
-			})
-			.returning({ id: transactions.id });
-		return row.id;
-	}
-
-	await execute(
-		`INSERT INTO transactions (user_id, amount, description, date, category_id, type)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		[userId, input.amount, input.description.trim(), input.date, input.category_id, input.type]
-	);
-
-	const created = await queryOne<{ id: number }>(
-		`SELECT id FROM transactions WHERE user_id = $1 ORDER BY id DESC LIMIT 1`,
-		[userId]
-	);
-	return created!.id;
+	const db = await getDrizzle();
+	const [row] = await db
+		.insert(transactions)
+		.values({
+			user_id: userId,
+			amount: String(input.amount),
+			description: input.description.trim(),
+			date: input.date,
+			category_id: input.category_id,
+			type: input.type,
+		})
+		.returning({ id: transactions.id });
+	return row.id;
 }
 
 /** Drizzle client type returned by getDrizzle(). */
@@ -407,55 +336,6 @@ type DrizzleDb = Awaited<ReturnType<typeof getDrizzle>>;
 
 /** Transaction object passed to `db.transaction(...)` — derived so it stays in sync with Drizzle. */
 type DrizzleTransaction = Parameters<Parameters<DrizzleDb['transaction']>[0]>[0];
-
-/** Raw/query tx-helper shape used by createTransactionInTx(). */
-type CreateTransactionRawTx = {
-	queryOne: <U>(text: string, params?: unknown[]) => Promise<U | undefined>;
-	execute: (text: string, params?: unknown[]) => Promise<void>;
-};
-
-/**
- * Transaction-aware variant of createTransaction() for the SQLite path.
- *
- * Runs the same validation + category ownership check + transaction INSERT
- * entirely through the supplied transaction context (tx.queryOne / tx.execute) —
- * never the global query layer, which on SQLite would only appear transactional
- * because of the single shared connection. Must be called from inside an open
- * withTransaction(); it does not open its own transaction.
- *
- * Returns the created transaction's ID.
- */
-export async function createTransactionInTx(
-	tx: CreateTransactionRawTx,
-	userId: number,
-	input: CreateTransactionInput
-): Promise<number> {
-	const errors = validateTransactionInput(input, true);
-	if (errors) {
-		throw new Error(JSON.stringify(errors));
-	}
-
-	// Verify category ownership
-	const cat = await tx.queryOne<{ id: number }>(
-		'SELECT id FROM categories WHERE user_id = $1 AND id = $2',
-		[userId, input.category_id]
-	);
-	if (!cat) {
-		throw new Error('Category not found');
-	}
-
-	await tx.execute(
-		`INSERT INTO transactions (user_id, amount, description, date, category_id, type)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		[userId, input.amount, input.description.trim(), input.date, input.category_id, input.type]
-	);
-
-	const created = await tx.queryOne<{ id: number }>(
-		`SELECT id FROM transactions WHERE user_id = $1 ORDER BY id DESC LIMIT 1`,
-		[userId]
-	);
-	return created!.id;
-}
 
 /**
  * Transaction-aware variant of createTransaction() for the Postgres/Drizzle path.
@@ -531,56 +411,21 @@ export async function updateTransaction(
 		}
 	}
 
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const updateData: Record<string, unknown> = {
-			updated_at: new Date(),
-		};
+	const db = await getDrizzle();
+	const updateData: Record<string, unknown> = {
+		updated_at: new Date(),
+	};
 
-		if (input.type !== undefined) updateData.type = input.type;
-		if (input.amount !== undefined) updateData.amount = String(input.amount);
-		if (input.description !== undefined) updateData.description = input.description.trim();
-		if (input.date !== undefined) updateData.date = input.date;
-		if (input.category_id !== undefined) updateData.category_id = input.category_id;
+	if (input.type !== undefined) updateData.type = input.type;
+	if (input.amount !== undefined) updateData.amount = String(input.amount);
+	if (input.description !== undefined) updateData.description = input.description.trim();
+	if (input.date !== undefined) updateData.date = input.date;
+	if (input.category_id !== undefined) updateData.category_id = input.category_id;
 
-		await db
-			.update(transactions)
-			.set(updateData)
-			.where(and(eq(transactions.user_id, userId), eq(transactions.id, id)));
-
-		return true;
-	}
-
-	const updateParts: string[] = ['updated_at = NOW()'];
-	const params: (string | number)[] = [];
-
-	if (input.type !== undefined) {
-		updateParts.push(`type = $${params.length + 1}`);
-		params.push(input.type);
-	}
-	if (input.amount !== undefined) {
-		updateParts.push(`amount = $${params.length + 1}`);
-		params.push(input.amount);
-	}
-	if (input.description !== undefined) {
-		updateParts.push(`description = $${params.length + 1}`);
-		params.push(input.description.trim());
-	}
-	if (input.date !== undefined) {
-		updateParts.push(`date = $${params.length + 1}`);
-		params.push(input.date);
-	}
-	if (input.category_id !== undefined) {
-		updateParts.push(`category_id = $${params.length + 1}`);
-		params.push(input.category_id);
-	}
-
-	params.push(userId, id);
-
-	await execute(
-		`UPDATE transactions SET ${updateParts.join(', ')} WHERE user_id = $${params.length - 1} AND id = $${params.length}`,
-		params
-	);
+	await db
+		.update(transactions)
+		.set(updateData)
+		.where(and(eq(transactions.user_id, userId), eq(transactions.id, id)));
 
 	return true;
 }
@@ -590,25 +435,12 @@ export async function updateTransaction(
  * Returns true if deleted, false if not found.
  */
 export async function deleteTransaction(userId: number, id: number): Promise<boolean> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const result = await db
-			.delete(transactions)
-			.where(and(eq(transactions.user_id, userId), eq(transactions.id, id)))
-			.returning({ id: transactions.id });
-		return result.length > 0;
-	}
-
-	const existing = await queryOne<{ id: number }>(
-		'SELECT id FROM transactions WHERE user_id = $1 AND id = $2',
-		[userId, id]
-	);
-	if (!existing) {
-		return false;
-	}
-
-	await execute('DELETE FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
-	return true;
+	const db = await getDrizzle();
+	const result = await db
+		.delete(transactions)
+		.where(and(eq(transactions.user_id, userId), eq(transactions.id, id)))
+		.returning({ id: transactions.id });
+	return result.length > 0;
 }
 
 /**
@@ -620,39 +452,13 @@ export async function deleteTransactions(userId: number, ids: number[]): Promise
 		return 0;
 	}
 
-	if (usePostgres) {
-		const db = await getDrizzle();
-		return db.transaction(async (tx) => {
-			const result = await tx
-				.delete(transactions)
-				.where(and(eq(transactions.user_id, userId), inArray(transactions.id, ids)))
-				.returning({ id: transactions.id });
-			return result.length;
-		});
-	}
-
-	// SQLite path - use withTransaction for atomicity
-	return withTransaction(async (tx) => {
-		const placeholders = ids.map((_, i) => `$${i + 2}`).join(', ');
-
-		const existing = await tx.queryMany<{ id: number }>(
-			`SELECT id FROM transactions WHERE user_id = $1 AND id IN (${placeholders})`,
-			[userId, ...ids]
-		);
-
-		if (existing.length === 0) {
-			return 0;
-		}
-
-		const deletePlaceholders = existing.map((_, i) => `$${i + 2}`).join(', ');
-		const deleteIds = existing.map((e) => e.id);
-
-		await tx.execute(
-			`DELETE FROM transactions WHERE user_id = $1 AND id IN (${deletePlaceholders})`,
-			[userId, ...deleteIds]
-		);
-
-		return existing.length;
+	const db = await getDrizzle();
+	return db.transaction(async (tx) => {
+		const result = await tx
+			.delete(transactions)
+			.where(and(eq(transactions.user_id, userId), inArray(transactions.id, ids)))
+			.returning({ id: transactions.id });
+		return result.length;
 	});
 }
 
@@ -666,37 +472,21 @@ export async function getMonthlySummary(
 	const lastDayDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
 	const lastDay = `${month}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
 
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const [row] = await db
-			.select({
-				totalIncome: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
-				totalExpenses: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
-			})
-			.from(transactions)
-			.where(and(
-				eq(transactions.user_id, userId),
-				gte(transactions.date, firstDay),
-				lte(transactions.date, lastDay)
-			));
-		return {
-			totalIncome: parseFloat(row?.totalIncome ?? '0'),
-			totalExpenses: parseFloat(row?.totalExpenses ?? '0')
-		};
-	}
-
-	// SQLite path
-	const row = await queryOne<{ totalincome: string; totalexpenses: string }>(
-		`SELECT
-			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as totalincome,
-			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as totalexpenses
-		 FROM transactions
-		 WHERE user_id = $1 AND date >= $2 AND date <= $3`,
-		[userId, firstDay, lastDay]
-	);
+	const db = await getDrizzle();
+	const [row] = await db
+		.select({
+			totalIncome: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+			totalExpenses: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
+		})
+		.from(transactions)
+		.where(and(
+			eq(transactions.user_id, userId),
+			gte(transactions.date, firstDay),
+			lte(transactions.date, lastDay)
+		));
 	return {
-		totalIncome: parseFloat(row?.totalincome ?? '0'),
-		totalExpenses: parseFloat(row?.totalexpenses ?? '0')
+		totalIncome: parseFloat(row?.totalIncome ?? '0'),
+		totalExpenses: parseFloat(row?.totalExpenses ?? '0')
 	};
 }
 
@@ -705,42 +495,27 @@ export async function getRecentTransactions(
 	userId: number,
 	limit: number
 ): Promise<Transaction[]> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const rows = await db
-			.select({
-				id: transactions.id,
-				amount: transactions.amount,
-				description: transactions.description,
-				date: transactions.date,
-				category_id: transactions.category_id,
-				type: transactions.type,
-				created_at: transactions.created_at,
-				updated_at: transactions.updated_at,
-				category_name: categories.name,
-				category_color: categories.color,
-			})
-			.from(transactions)
-			.leftJoin(categories, eq(transactions.category_id, categories.id))
-			.where(eq(transactions.user_id, userId))
-			.orderBy(desc(transactions.date), desc(transactions.id))
-			.limit(limit);
+	const db = await getDrizzle();
+	const rows = await db
+		.select({
+			id: transactions.id,
+			amount: transactions.amount,
+			description: transactions.description,
+			date: transactions.date,
+			category_id: transactions.category_id,
+			type: transactions.type,
+			created_at: transactions.created_at,
+			updated_at: transactions.updated_at,
+			category_name: categories.name,
+			category_color: categories.color,
+		})
+		.from(transactions)
+		.leftJoin(categories, eq(transactions.category_id, categories.id))
+		.where(eq(transactions.user_id, userId))
+		.orderBy(desc(transactions.date), desc(transactions.id))
+		.limit(limit);
 
-		return rows.map((r) => mapTransactionRow(r as unknown as TransactionRowWithCategory));
-	}
-
-	// SQLite path
-	const rows = await queryMany<TransactionRowWithCategory>(
-		`SELECT t.*, c.name as category_name, c.color as category_color
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 WHERE t.user_id = $1
-		 ORDER BY t.date DESC, t.id DESC
-		 LIMIT $2`,
-		[userId, limit]
-	);
-
-	return rows.map(mapTransactionRow);
+	return rows.map((r) => mapTransactionRow(r as unknown as TransactionRowWithCategory));
 }
 
 export interface MonthlyReportItem {
@@ -754,45 +529,25 @@ export async function getMonthlyReport(
 	userId: number,
 	year: number
 ): Promise<MonthlyReportItem[]> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const rows = await db
-			.select({
-				month: sql<string>`TO_CHAR(${transactions.date}, 'YYYY-MM')`,
-				income: sql<string>`SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END)`,
-				expense: sql<string>`SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END)`
-			})
-			.from(transactions)
-			.where(and(
-				eq(transactions.user_id, userId),
-				sql`EXTRACT(YEAR FROM ${transactions.date}) = ${year}`
-			))
-			.groupBy(sql`month`)
-			.orderBy(sql`month ASC`);
-
-		return rows.map(r => ({
-			month: r.month,
-			income: parseFloat(r.income ?? '0'),
-			expense: parseFloat(r.expense ?? '0')
-		}));
-	}
-
-	// SQLite path
-	const rows = await queryMany<{ month: string; income: string; expense: string }>(
-		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
-				SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
-				SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense
-		 FROM transactions
-		 WHERE user_id = $1 AND EXTRACT(YEAR FROM date) = $2::int
-		 GROUP BY month
-		 ORDER BY month ASC`,
-		[userId, year]
-	);
+	const db = await getDrizzle();
+	const rows = await db
+		.select({
+			month: sql<string>`TO_CHAR(${transactions.date}, 'YYYY-MM')`,
+			income: sql<string>`SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END)`,
+			expense: sql<string>`SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END)`
+		})
+		.from(transactions)
+		.where(and(
+			eq(transactions.user_id, userId),
+			sql`EXTRACT(YEAR FROM ${transactions.date}) = ${year}`
+		))
+		.groupBy(sql`month`)
+		.orderBy(sql`month ASC`);
 
 	return rows.map(r => ({
 		month: r.month,
-		income: parseFloat(String(r.income)),
-		expense: parseFloat(String(r.expense))
+		income: parseFloat(r.income ?? '0'),
+		expense: parseFloat(r.expense ?? '0')
 	}));
 }
 
@@ -809,54 +564,34 @@ export async function getCategoryReport(
 	month: string, // YYYY-MM
 	type: 'income' | 'expense'
 ): Promise<CategoryReportItem[]> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const rows = await db
-			.select({
-				category_id: categories.id,
-				category_name: categories.name,
-				category_color: categories.color,
-				total: sql<string>`SUM(${transactions.amount})`
-			})
-			.from(transactions)
-			.innerJoin(categories, eq(transactions.category_id, categories.id))
-			.where(and(
-				eq(transactions.user_id, userId),
-				sql`TO_CHAR(${transactions.date}, 'YYYY-MM') = ${month}`,
-				eq(transactions.type, type)
-			))
-			.groupBy(categories.id, categories.name, categories.color)
-			.orderBy(desc(sql`SUM(${transactions.amount})`));
+	const db = await getDrizzle();
+	const rows = await db
+		.select({
+			category_id: categories.id,
+			category_name: categories.name,
+			category_color: categories.color,
+			total: sql<string>`SUM(${transactions.amount})`
+		})
+		.from(transactions)
+		.innerJoin(categories, eq(transactions.category_id, categories.id))
+		.where(and(
+			eq(transactions.user_id, userId),
+			sql`TO_CHAR(${transactions.date}, 'YYYY-MM') = ${month}`,
+			eq(transactions.type, type)
+		))
+		.groupBy(categories.id, categories.name, categories.color)
+		.orderBy(desc(sql`SUM(${transactions.amount})`));
 
-		return (rows as {
-			category_id: number;
-			category_name: string;
-			category_color: string;
-			total: string | null;
-		}[]).map((r) => ({
-			category_id: r.category_id,
-			category_name: r.category_name,
-			category_color: r.category_color,
-			total: parseFloat(r.total ?? '0')
-		}));
-	}
-
-	// SQLite path
-	const rows = await queryMany<{ category_id: number; category_name: string; category_color: string; total: string }>(
-		`SELECT c.id as category_id, c.name as category_name, c.color as category_color, SUM(t.amount) as total
-		 FROM transactions t
-		 JOIN categories c ON t.category_id = c.id
-		 WHERE t.user_id = $1 AND TO_CHAR(t.date, 'YYYY-MM') = $2 AND t.type = $3
-		 GROUP BY t.category_id, c.id, c.name, c.color
-		 ORDER BY total DESC`,
-		[userId, month, type]
-	);
-
-	return rows.map(r => ({
+	return (rows as {
+		category_id: number;
+		category_name: string;
+		category_color: string;
+		total: string | null;
+	}[]).map((r) => ({
 		category_id: r.category_id,
 		category_name: r.category_name,
 		category_color: r.category_color,
-		total: parseFloat(String(r.total))
+		total: parseFloat(r.total ?? '0')
 	}));
 }
 
@@ -866,48 +601,33 @@ export async function searchTransactions(
 	q: string
 ): Promise<Transaction[]> {
 	const pattern = `%${q}%`;
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const rows = await db
-			.select({
-				id: transactions.id,
-				amount: transactions.amount,
-				description: transactions.description,
-				date: transactions.date,
-				category_id: transactions.category_id,
-				type: transactions.type,
-				created_at: transactions.created_at,
-				updated_at: transactions.updated_at,
-				category_name: categories.name,
-				category_color: categories.color,
-			})
-			.from(transactions)
-			.leftJoin(categories, eq(transactions.category_id, categories.id))
-			.where(and(
-				eq(transactions.user_id, userId),
-				or(
-					ilike(transactions.description, pattern),
-					sql`CAST(${transactions.amount} AS TEXT) LIKE ${pattern}`
-				)
-			))
-			.orderBy(desc(transactions.date))
-			.limit(10);
+	const db = await getDrizzle();
+	const rows = await db
+		.select({
+			id: transactions.id,
+			amount: transactions.amount,
+			description: transactions.description,
+			date: transactions.date,
+			category_id: transactions.category_id,
+			type: transactions.type,
+			created_at: transactions.created_at,
+			updated_at: transactions.updated_at,
+			category_name: categories.name,
+			category_color: categories.color,
+		})
+		.from(transactions)
+		.leftJoin(categories, eq(transactions.category_id, categories.id))
+		.where(and(
+			eq(transactions.user_id, userId),
+			or(
+				ilike(transactions.description, pattern),
+				sql`CAST(${transactions.amount} AS TEXT) LIKE ${pattern}`
+			)
+		))
+		.orderBy(desc(transactions.date))
+		.limit(10);
 
-		return rows.map((r) => mapTransactionRow(r as unknown as TransactionRowWithCategory));
-	}
-
-	// SQLite path
-	const rows = await queryMany<TransactionRowWithCategory>(
-		`SELECT t.*, c.name as category_name, c.color as category_color
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 WHERE t.user_id = $1 AND (t.description ILIKE $2 OR CAST(t.amount AS TEXT) LIKE $3)
-		 ORDER BY t.date DESC
-		 LIMIT 10`,
-		[userId, pattern, pattern]
-	);
-
-	return rows.map(mapTransactionRow);
+	return rows.map((r) => mapTransactionRow(r as unknown as TransactionRowWithCategory));
 }
 
 export interface CategorySpending {
@@ -921,43 +641,24 @@ export async function getCategorySpending(
 	userId: number,
 	month: string // YYYY-MM
 ): Promise<CategorySpending[]> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const rows = await db
-			.select({
-				category_id: transactions.category_id,
-				income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
-				expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
-			})
-			.from(transactions)
-			.where(and(
-				eq(transactions.user_id, userId),
-				sql`TO_CHAR(${transactions.date}, 'YYYY-MM') = ${month}`
-			))
-			.groupBy(transactions.category_id);
+	const db = await getDrizzle();
+	const rows = await db
+		.select({
+			category_id: transactions.category_id,
+			income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+			expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
+		})
+		.from(transactions)
+		.where(and(
+			eq(transactions.user_id, userId),
+			sql`TO_CHAR(${transactions.date}, 'YYYY-MM') = ${month}`
+		))
+		.groupBy(transactions.category_id);
 
-		return (rows as { category_id: number | null; income: string; expense: string }[]).map(r => ({
-			category_id: r.category_id ?? 0,
-			income: parseFloat(r.income ?? '0'),
-			expense: parseFloat(r.expense ?? '0')
-		}));
-	}
-
-	// SQLite path
-	const rows = await queryMany<{ category_id: number | null; income: string; expense: string }>(
-		`SELECT category_id,
-				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		 FROM transactions
-		 WHERE TO_CHAR(date, 'YYYY-MM') = $1 AND user_id = $2
-		 GROUP BY category_id`,
-		[month, userId]
-	);
-
-	return rows.map(r => ({
+	return (rows as { category_id: number | null; income: string; expense: string }[]).map(r => ({
 		category_id: r.category_id ?? 0,
-		income: parseFloat(String(r.income)),
-		expense: parseFloat(String(r.expense))
+		income: parseFloat(r.income ?? '0'),
+		expense: parseFloat(r.expense ?? '0')
 	}));
 }
 
@@ -971,33 +672,18 @@ export interface CategoryUsage {
 export async function getCategoryUsage(
 	userId: number
 ): Promise<CategoryUsage[]> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const rows = await db
-			.select({
-				category_id: transactions.category_id,
-				cnt: sql<number>`COUNT(*)::int`,
-				last_used: sql<string | null>`MAX(${transactions.date})`
-			})
-			.from(transactions)
-			.where(eq(transactions.user_id, userId))
-			.groupBy(transactions.category_id);
+	const db = await getDrizzle();
+	const rows = await db
+		.select({
+			category_id: transactions.category_id,
+			cnt: sql<number>`COUNT(*)::int`,
+			last_used: sql<string | null>`MAX(${transactions.date})`
+		})
+		.from(transactions)
+		.where(eq(transactions.user_id, userId))
+		.groupBy(transactions.category_id);
 
-		return (rows as { category_id: number | null; cnt: number; last_used: string | null }[]).map(r => ({
-			category_id: r.category_id ?? 0,
-			cnt: Number(r.cnt ?? 0),
-			last_used: r.last_used
-		}));
-	}
-
-	// SQLite path
-	const rows = await queryMany<{ category_id: number | null; cnt: number; last_used: string | null }>(
-		`SELECT category_id, COUNT(*)::int as cnt, MAX(date) as last_used
-		 FROM transactions WHERE user_id = $1 GROUP BY category_id`,
-		[userId]
-	);
-
-	return rows.map(r => ({
+	return (rows as { category_id: number | null; cnt: number; last_used: string | null }[]).map(r => ({
 		category_id: r.category_id ?? 0,
 		cnt: Number(r.cnt ?? 0),
 		last_used: r.last_used
@@ -1010,56 +696,35 @@ export async function getCategorySpendingReport(
 	month: string, // YYYY-MM
 	type: 'income' | 'expense'
 ): Promise<CategoryReportItem[]> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const rows = await db
-			.select({
-				category_id: categories.id,
-				category_name: categories.name,
-				category_color: categories.color,
-				total: sql<string>`COALESCE(SUM(${transactions.amount}), 0)`
-			})
-			.from(categories)
-			.leftJoin(
-				transactions,
-				and(
-					eq(transactions.category_id, categories.id),
-					sql`TO_CHAR(${transactions.date}, 'YYYY-MM') = ${month}`,
-					eq(transactions.type, type)
-				)
+	const db = await getDrizzle();
+	const rows = await db
+		.select({
+			category_id: categories.id,
+			category_name: categories.name,
+			category_color: categories.color,
+			total: sql<string>`COALESCE(SUM(${transactions.amount}), 0)`
+		})
+		.from(categories)
+		.leftJoin(
+			transactions,
+			and(
+				eq(transactions.category_id, categories.id),
+				sql`TO_CHAR(${transactions.date}, 'YYYY-MM') = ${month}`,
+				eq(transactions.type, type)
 			)
-			.where(and(
-				eq(categories.user_id, userId),
-				eq(categories.type, type)
-			))
-			.groupBy(categories.id, categories.name, categories.color)
-			.orderBy(desc(sql`COALESCE(SUM(${transactions.amount}), 0)`));
+		)
+		.where(and(
+			eq(categories.user_id, userId),
+			eq(categories.type, type)
+		))
+		.groupBy(categories.id, categories.name, categories.color)
+		.orderBy(desc(sql`COALESCE(SUM(${transactions.amount}), 0)`));
 
-		return rows.map((r) => ({
-			category_id: r.category_id,
-			category_name: r.category_name,
-			category_color: r.category_color,
-			total: parseFloat(r.total ?? '0')
-		}));
-	}
-
-	// SQLite path
-	const rows = await queryMany<{ category_id: number; category_name: string; category_color: string; total: string }>(
-		`SELECT c.id as category_id, c.name as category_name, c.color as category_color,
-				COALESCE(SUM(t.amount), 0) as total
-		 FROM categories c
-		 LEFT JOIN transactions t ON t.category_id = c.id AND TO_CHAR(t.date, 'YYYY-MM') = $1 AND t.type = $2
-		 WHERE c.user_id = $3 AND c.type = $2
-		 GROUP BY c.id, c.name, c.color
-		 ORDER BY total DESC`,
-		[month, type, userId]
-	);
-
-	return rows.map(r => ({
+	return rows.map((r) => ({
 		category_id: r.category_id,
 		category_name: r.category_name,
 		category_color: r.category_color,
-		total: parseFloat(String(r.total))
+		total: parseFloat(r.total ?? '0')
 	}));
 }
 
@@ -1068,47 +733,27 @@ export async function getTransactionCountForMonth(
 	userId: number,
 	month: string // YYYY-MM
 ): Promise<number> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const [{ count }] = await db
-			.select({ count: sql<number>`count(*)` })
-			.from(transactions)
-			.where(and(
-				eq(transactions.user_id, userId),
-				sql`TO_CHAR(${transactions.date}, 'YYYY-MM') = ${month}`
-			));
-		return Number(count);
-	}
-
-	// SQLite path
-	const row = await queryOne<{ count: string }>(
-		`SELECT COUNT(*) as count
-		 FROM transactions
-		 WHERE user_id = $1 AND TO_CHAR(date, 'YYYY-MM') = $2`,
-		[userId, month]
-	);
-	return parseInt(row?.count ?? '0', 10);
+	const db = await getDrizzle();
+	const [{ count }] = await db
+		.select({ count: sql<number>`count(*)` })
+		.from(transactions)
+		.where(and(
+			eq(transactions.user_id, userId),
+			sql`TO_CHAR(${transactions.date}, 'YYYY-MM') = ${month}`
+		));
+	return Number(count);
 }
 
 /** Get all-time transaction count for a specific user. */
 export async function getAllTimeTransactionCount(
 	userId: number
 ): Promise<number> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const [{ count }] = await db
-			.select({ count: sql<number>`count(*)` })
-			.from(transactions)
-			.where(eq(transactions.user_id, userId));
-		return Number(count);
-	}
-
-	// SQLite path
-	const row = await queryOne<{ count: string }>(
-		`SELECT COUNT(*) as count FROM transactions WHERE user_id = $1`,
-		[userId]
-	);
-	return parseInt(row?.count ?? '0', 10);
+	const db = await getDrizzle();
+	const [{ count }] = await db
+		.select({ count: sql<number>`count(*)` })
+		.from(transactions)
+		.where(eq(transactions.user_id, userId));
+	return Number(count);
 }
 
 /** Get YTD summary for income and expense up to a given month number. */
@@ -1117,35 +762,18 @@ export async function getYTDSummary(
 	year: number,
 	endMonthNum: number
 ): Promise<{ income: number; expense: number }> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const [row] = await db
-			.select({
-				income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
-				expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
-			})
-			.from(transactions)
-			.where(and(
-				eq(transactions.user_id, userId),
-				sql`EXTRACT(YEAR FROM ${transactions.date}) = ${year}`,
-				sql`EXTRACT(MONTH FROM ${transactions.date}) <= ${endMonthNum}`
-			));
-		return {
-			income: parseFloat(row?.income ?? '0'),
-			expense: parseFloat(row?.expense ?? '0')
-		};
-	}
-
-	// SQLite path
-	const row = await queryOne<{ income: string; expense: string }>(
-		`SELECT
-			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		 FROM transactions
-		 WHERE user_id = $1 AND EXTRACT(YEAR FROM date) = $2::int AND EXTRACT(MONTH FROM date) <= $3::int`,
-		[userId, year, endMonthNum]
-	);
-
+	const db = await getDrizzle();
+	const [row] = await db
+		.select({
+			income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+			expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
+		})
+		.from(transactions)
+		.where(and(
+			eq(transactions.user_id, userId),
+			sql`EXTRACT(YEAR FROM ${transactions.date}) = ${year}`,
+			sql`EXTRACT(MONTH FROM ${transactions.date}) <= ${endMonthNum}`
+		));
 	return {
 		income: parseFloat(row?.income ?? '0'),
 		expense: parseFloat(row?.expense ?? '0')
@@ -1157,72 +785,39 @@ export async function getMonthlyTrends(
 	userId: number,
 	dateFrom: string
 ): Promise<{ month: string; income: number; expense: number }[]> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const monthExpr = sql<string>`TO_CHAR(${transactions.date}, 'YYYY-MM')`;
-		const rows = await db
-			.select({
-				month: monthExpr,
-				income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
-				expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
-			})
-			.from(transactions)
-			.where(and(
-				eq(transactions.user_id, userId),
-				gte(transactions.date, dateFrom)
-			))
-			.groupBy(monthExpr)
-			.orderBy(asc(monthExpr));
-
-		return rows.map((r) => ({
-			month: r.month,
-			income: parseFloat(r.income),
-			expense: parseFloat(r.expense)
-		}));
-	}
-
-	// SQLite path
-	const rows = await queryMany<{ month: string; income: string; expense: string }>(
-		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
-				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		 FROM transactions
-		 WHERE user_id = $1 AND date >= $2
-		 GROUP BY month
-		 ORDER BY month ASC`,
-		[userId, dateFrom]
-	);
+	const db = await getDrizzle();
+	const monthExpr = sql<string>`TO_CHAR(${transactions.date}, 'YYYY-MM')`;
+	const rows = await db
+		.select({
+			month: monthExpr,
+			income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+			expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
+		})
+		.from(transactions)
+		.where(and(
+			eq(transactions.user_id, userId),
+			gte(transactions.date, dateFrom)
+		))
+		.groupBy(monthExpr)
+		.orderBy(asc(monthExpr));
 
 	return rows.map((r) => ({
 		month: r.month,
-		income: parseFloat(String(r.income)),
-		expense: parseFloat(String(r.expense))
+		income: parseFloat(r.income),
+		expense: parseFloat(r.expense)
 	}));
 }
 
 /** Calculate the user's cash position from all-time transaction net income/expense flow. */
 export async function getCashBalance(userId: number): Promise<number> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const [row] = await db
-			.select({
-				income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
-				expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
-			})
-			.from(transactions)
-			.where(eq(transactions.user_id, userId));
-		return parseFloat(row?.income ?? '0') - parseFloat(row?.expense ?? '0');
-	}
-
-	// SQLite path
-	const row = await queryOne<{ income: string; expense: string }>(
-		`SELECT
-			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		 FROM transactions
-		 WHERE user_id = $1`,
-		[userId]
-	);
+	const db = await getDrizzle();
+	const [row] = await db
+		.select({
+			income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+			expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
+		})
+		.from(transactions)
+		.where(eq(transactions.user_id, userId));
 	return parseFloat(row?.income ?? '0') - parseFloat(row?.expense ?? '0');
 }
 
@@ -1230,37 +825,18 @@ export async function getCashBalance(userId: number): Promise<number> {
 export async function getMonthlyCashFlows(
 	userId: number
 ): Promise<{ month: string; net: number }[]> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const monthExpr = sql<string>`TO_CHAR(${transactions.date}, 'YYYY-MM')`;
-		const rows = await db
-			.select({
-				month: monthExpr,
-				income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
-				expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
-			})
-			.from(transactions)
-			.where(eq(transactions.user_id, userId))
-			.groupBy(monthExpr)
-			.orderBy(asc(monthExpr));
-
-		return rows.map((r) => ({
-			month: r.month,
-			net: parseFloat(r.income) - parseFloat(r.expense)
-		}));
-	}
-
-	// SQLite path
-	const rows = await queryMany<{ month: string; income: string; expense: string }>(
-		`SELECT TO_CHAR(date, 'YYYY-MM') as month,
-				COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-				COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		 FROM transactions
-		 WHERE user_id = $1
-		 GROUP BY month
-		 ORDER BY month ASC`,
-		[userId]
-	);
+	const db = await getDrizzle();
+	const monthExpr = sql<string>`TO_CHAR(${transactions.date}, 'YYYY-MM')`;
+	const rows = await db
+		.select({
+			month: monthExpr,
+			income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+			expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`
+		})
+		.from(transactions)
+		.where(eq(transactions.user_id, userId))
+		.groupBy(monthExpr)
+		.orderBy(asc(monthExpr));
 
 	return rows.map((r) => ({
 		month: r.month,
@@ -1272,31 +848,16 @@ export async function getMonthlyCashFlows(
 export async function getTransactionsForDuplicateCheck(
 	userId: number
 ): Promise<{ date: string; amount: number; description: string; category_id: number }[]> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const rows = await db
-			.select({
-				date: transactions.date,
-				amount: transactions.amount,
-				description: transactions.description,
-				category_id: transactions.category_id
-			})
-			.from(transactions)
-			.where(eq(transactions.user_id, userId));
-
-		return rows.map((r) => ({
-			date: r.date,
-			amount: parseFloat(String(r.amount)),
-			description: r.description,
-			category_id: r.category_id
-		}));
-	}
-
-	// SQLite path
-	const rows = await queryMany<{ date: string; amount: string; description: string; category_id: number }>(
-		`SELECT date, amount, description, category_id FROM transactions WHERE user_id = $1`,
-		[userId]
-	);
+	const db = await getDrizzle();
+	const rows = await db
+		.select({
+			date: transactions.date,
+			amount: transactions.amount,
+			description: transactions.description,
+			category_id: transactions.category_id
+		})
+		.from(transactions)
+		.where(eq(transactions.user_id, userId));
 
 	return rows.map((r) => ({
 		date: r.date,

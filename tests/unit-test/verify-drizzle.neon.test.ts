@@ -103,8 +103,9 @@ describe.skipIf(!canRun)('real Neon + Drizzle verification (VERIFY_NEON=1)', () 
 	const allUserIds: number[] = [];
 
 	beforeAll(async () => {
-		// Set BEFORE any app module is imported so `usePostgres` (captured at
-		// module load) points at the local-dev branch.
+		// Set BEFORE any app module is imported so the resolved database URL
+		// (captured at module load in $lib/database/index.ts) points at the
+		// local-dev branch.
 		process.env.DATABASE_URL = localDevUrl!;
 		console.log('\nTarget (local-dev Neon ONLY):', describeUrl(localDevUrl!));
 		if (env['DATABASE_URL']) {
@@ -120,8 +121,14 @@ describe.skipIf(!canRun)('real Neon + Drizzle verification (VERIFY_NEON=1)', () 
 		rlt = await import('$lib/server/recordLendingTransaction.js');
 		li = await import('$lib/server/lendingImport.js');
 
-		if (!indexM.usePostgres) {
-			throw new Error('usePostgres is false — DATABASE_URL was set from LOCAL_DEV_DATABASE_URL; verify the value.');
+		// Postgres-only runtime: the removed SQLite-detection flag is replaced by
+		// a check on the resolved connection the test will actually drive. The
+		// runtime is canonical on `DATABASE_URL` (the deprecated `POSTGRES_URL`
+		// alias is accepted too) and must be a PostgreSQL/Neon URL — fail loudly
+		// rather than silently running against anything else.
+		const resolvedUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+		if (!resolvedUrl || !/^postgres(ql)?:\/\//i.test(resolvedUrl)) {
+			throw new Error('Resolved DATABASE_URL is not a PostgreSQL/Neon URL — DATABASE_URL was set from LOCAL_DEV_DATABASE_URL; verify the value.');
 		}
 		await indexM.getPgPool(); // runs initDb() once (idempotent on the live local-dev branch)
 

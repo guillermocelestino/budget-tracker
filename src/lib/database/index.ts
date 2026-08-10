@@ -6,9 +6,6 @@ import { Pool, types } from '@neondatabase/serverless';
 // behave identically (the app's types are `number`). Registered once at module
 // load; affects every connection from the shared Pool.
 types.setTypeParser(1700, (value: string) => parseFloat(value));
-import path from 'node:path';
-import fs from 'node:fs';
-import type { Database } from 'better-sqlite3';
 
 /**
  * Canonical database connection string.
@@ -18,10 +15,7 @@ import type { Database } from 'better-sqlite3';
  */
 const databaseUrl = process.env['DATABASE_URL'] ?? process.env['POSTGRES_URL'];
 
-export const usePostgres = databaseUrl !== undefined;
-
 let pgPool: Pool | null = null;
-let sqliteDb: Database | null = null;
 let dbInitialized = false;
 
 export async function initDb(): Promise<void> {
@@ -33,63 +27,25 @@ export async function initDb(): Promise<void> {
 export async function getPgPool(): Promise<Pool> {
 	// Lazy-init: ensure schema exists before first DB access.
 	// Flag is set BEFORE calling initDb() to prevent re-entrant
-	// recursion if initDb() itself calls getSQLiteDb().
+	// recursion if initDb() itself calls getPgPool().
 	if (!dbInitialized) {
 		dbInitialized = true;
 		await initDb();
 	}
 	if (!pgPool) {
+		if (!databaseUrl) {
+			throw new Error('DATABASE_URL (or the deprecated POSTGRES_URL alias) is not set. Configure DATABASE_URL in your environment.');
+		}
 		pgPool = new Pool({
-			connectionString: databaseUrl!
+			connectionString: databaseUrl
 		});
 	}
 	return pgPool;
-}
-
-export async function getSQLiteDb(): Promise<Database> {
-	// Fail fast: SQLite is not available on Vercel's read-only filesystem
-	if (process.env['VERCEL'] && !usePostgres) {
-		throw new Error(
-			'DATABASE_URL (or the deprecated POSTGRES_URL alias) is not set. ' +
-			'SQLite is not available on Vercel. Set DATABASE_URL in Vercel project settings.'
-		);
-	}
-
-	// Lazy-init: ensure schema exists before first DB access.
-	// Flag is set BEFORE calling initDb() to prevent re-entrant
-	// recursion if initDb() itself calls getSQLiteDb().
-	if (!dbInitialized) {
-		dbInitialized = true;
-		await initDb();
-	}
-
-	if (!sqliteDb) {
-		const { default: Database } = await import('better-sqlite3');
-		const dbDir = path.join(process.cwd(), 'data');
-		if (!fs.existsSync(dbDir)) {
-			try {
-				fs.mkdirSync(dbDir, { recursive: true });
-			} catch (err) {
-				throw new Error(
-					`Cannot create data directory at ${dbDir}. Check filesystem permissions.`,
-					{ cause: err }
-				);
-			}
-		}
-		sqliteDb = new Database(path.join(dbDir, 'budget.db'));
-		sqliteDb.pragma('journal_mode = WAL');
-		sqliteDb.pragma('foreign_keys = ON');
-	}
-	return sqliteDb;
 }
 
 export async function closeDb(): Promise<void> {
 	if (pgPool) {
 		await pgPool.end();
 		pgPool = null;
-	}
-	if (sqliteDb) {
-		sqliteDb.close();
-		sqliteDb = null;
 	}
 }

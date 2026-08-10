@@ -18,9 +18,15 @@
  * The connection string is never printed.
  */
 
-import { usePostgres, getPgPool } from '../src/lib/database/index.js';
+import { getPgPool } from '../src/lib/database/index.js';
 import { queryOne, queryMany, withTransaction } from '../src/lib/database/query.js';
 import { hashPassword, verifyPassword, createToken, verifyToken } from '../src/lib/auth.js';
+
+// Canonical connection-string resolution mirrors src/lib/database/index.ts:
+// DATABASE_URL is preferred; POSTGRES_URL remains honored as the deprecated
+// alias. Read after the index.js import (which wires dev env) so the skip-guard
+// below matches the runtime's own connection decision. Never printed.
+const databaseUrl = process.env['DATABASE_URL'] ?? process.env['POSTGRES_URL'];
 
 const results: { name: string; ok: boolean; detail?: string }[] = [];
 const check = (name: string, ok: boolean, detail?: string) => results.push({ name, ok, detail });
@@ -220,7 +226,7 @@ async function runAuthChecks(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-	if (!usePostgres) {
+	if (!databaseUrl) {
 		console.log('SKIP  — DATABASE_URL (or POSTGRES_URL) is not set; cannot connect to Neon.');
 		console.log('        Set it and re-run:  DATABASE_URL=<neon url> npx tsx scripts/verify-neon.ts');
 		console.log('        (The connection string is read from the environment only; never hardcoded.)');

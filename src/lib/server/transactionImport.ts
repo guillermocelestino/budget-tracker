@@ -1,11 +1,9 @@
 import { fail } from '@sveltejs/kit';
-import { queryMany, withTransaction } from '$lib/database/query';
-import { usePostgres } from '$lib/database';
+import { queryMany } from '$lib/database/query';
 import { getDrizzle } from '$lib/database/drizzle';
 import { categories } from '$lib/database/schema';
 import { and, eq, sql } from 'drizzle-orm';
 import {
-	createTransactionInTx,
 	createTransactionInTxDrizzle,
 	getTransactionsForDuplicateCheck,
 } from '$lib/server/transactions';
@@ -126,66 +124,37 @@ export async function importTransactionsForUser(
 	let inserted = 0;
 	const insertErrors: string[] = [];
 
-	if (usePostgres) {
-		const db = await getDrizzle();
-		await db.transaction(async (tx) => {
-			for (let i = 0; i < rowsToInsert.length; i++) {
-				const row = rowsToInsert[i];
-				const catName = normCategoryName(row.category_name);
+	const db = await getDrizzle();
+	await db.transaction(async (tx) => {
+		for (let i = 0; i < rowsToInsert.length; i++) {
+			const row = rowsToInsert[i];
+			const catName = normCategoryName(row.category_name);
 
-				// Per-row category name → ID lookup (user-scoped), via tx.
-				const [cat] = await tx
-					.select({ id: categories.id })
-					.from(categories)
-					.where(and(
-						eq(categories.user_id, userId),
-						sql`LOWER(TRIM(${categories.name})) = LOWER(TRIM(${catName}))`
-					))
-					.limit(1);
+			// Per-row category name → ID lookup (user-scoped), via tx.
+			const [cat] = await tx
+				.select({ id: categories.id })
+				.from(categories)
+				.where(and(
+					eq(categories.user_id, userId),
+					sql`LOWER(TRIM(${categories.name})) = LOWER(TRIM(${catName}))`
+				))
+				.limit(1);
 
-				if (!cat) {
-					insertErrors.push(`Row ${i + 1}: Category "${catName}" not found`);
-					continue;
-				}
-
-				await createTransactionInTxDrizzle(tx, userId, {
-					type: row.type,
-					amount: row.amount,
-					description: row.description.trim(),
-					date: row.date,
-					category_id: cat.id,
-				});
-				inserted++;
+			if (!cat) {
+				insertErrors.push(`Row ${i + 1}: Category "${catName}" not found`);
+				continue;
 			}
-		});
-	} else {
-		await withTransaction(async (tx) => {
-			for (let i = 0; i < rowsToInsert.length; i++) {
-				const row = rowsToInsert[i];
-				const catName = normCategoryName(row.category_name);
 
-				// Per-row category name → ID lookup (user-scoped), via tx.
-				const cat = await tx.queryOne<{ id: number }>(
-					'SELECT id FROM categories WHERE user_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2))',
-					[userId, catName]
-				);
-
-				if (!cat) {
-					insertErrors.push(`Row ${i + 1}: Category "${catName}" not found`);
-					continue;
-				}
-
-				await createTransactionInTx(tx, userId, {
-					type: row.type,
-					amount: row.amount,
-					description: row.description.trim(),
-					date: row.date,
-					category_id: cat.id,
-				});
-				inserted++;
-			}
-		});
-	}
+			await createTransactionInTxDrizzle(tx, userId, {
+				type: row.type,
+				amount: row.amount,
+				description: row.description.trim(),
+				date: row.date,
+				category_id: cat.id,
+			});
+			inserted++;
+		}
+	});
 
 	return {
 		success: true,

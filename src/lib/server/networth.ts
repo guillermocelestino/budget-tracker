@@ -1,5 +1,3 @@
-import { queryOne, queryMany } from '$lib/database/query';
-import { usePostgres } from '$lib/database';
 import { getDrizzle } from '$lib/database/drizzle';
 import { lendings } from '$lib/database/schema';
 import { and, eq, isNotNull, sql } from 'drizzle-orm';
@@ -25,27 +23,17 @@ async function getCashPosition(userId: number): Promise<number> {
  * Get all-time active lent (asset) — direction = 'lent', status = 'active'.
  */
 async function getLentPosition(userId: number): Promise<number> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const [row] = await db
-			.select({
-				total: sql<string>`COALESCE(SUM(${lendings.amount}), 0)`
-			})
-			.from(lendings)
-			.where(and(
-				eq(lendings.user_id, userId),
-				eq(lendings.direction, 'lent'),
-				eq(lendings.status, 'active')
-			));
-		return parseFloat(row?.total ?? '0');
-	}
-
-	const row = await queryOne<{ total: string }>(
-		`SELECT COALESCE(SUM(amount), 0) as total
-		 FROM lendings
-		 WHERE user_id = $1 AND direction = 'lent' AND status = 'active'`,
-		[userId]
-	);
+	const db = await getDrizzle();
+	const [row] = await db
+		.select({
+			total: sql<string>`COALESCE(SUM(${lendings.amount}), 0)`
+		})
+		.from(lendings)
+		.where(and(
+			eq(lendings.user_id, userId),
+			eq(lendings.direction, 'lent'),
+			eq(lendings.status, 'active')
+		));
 	return parseFloat(row?.total ?? '0');
 }
 
@@ -53,27 +41,17 @@ async function getLentPosition(userId: number): Promise<number> {
  * Get all-time active borrowed (liability) — direction = 'borrowed', status = 'active'.
  */
 async function getBorrowedPosition(userId: number): Promise<number> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const [row] = await db
-			.select({
-				total: sql<string>`COALESCE(SUM(${lendings.amount}), 0)`
-			})
-			.from(lendings)
-			.where(and(
-				eq(lendings.user_id, userId),
-				eq(lendings.direction, 'borrowed'),
-				eq(lendings.status, 'active')
-			));
-		return parseFloat(row?.total ?? '0');
-	}
-
-	const row = await queryOne<{ total: string }>(
-		`SELECT COALESCE(SUM(amount), 0) as total
-		 FROM lendings
-		 WHERE user_id = $1 AND direction = 'borrowed' AND status = 'active'`,
-		[userId]
-	);
+	const db = await getDrizzle();
+	const [row] = await db
+		.select({
+			total: sql<string>`COALESCE(SUM(${lendings.amount}), 0)`
+		})
+		.from(lendings)
+		.where(and(
+			eq(lendings.user_id, userId),
+			eq(lendings.direction, 'borrowed'),
+			eq(lendings.status, 'active')
+		));
 	return parseFloat(row?.total ?? '0');
 }
 
@@ -91,28 +69,18 @@ async function getMonthlyCashFlow(userId: number): Promise<{ month: string; net:
  * Get total borrowed amount that went due in the next N months (for projection).
  */
 async function getUpcomingBorrowedPayments(userId: number): Promise<number> {
-	if (usePostgres) {
-		const db = await getDrizzle();
-		const rows = await db
-			.select({
-				total: sql<string>`COALESCE(SUM(${lendings.amount}), 0)`
-			})
-			.from(lendings)
-			.where(and(
-				eq(lendings.user_id, userId),
-				eq(lendings.direction, 'borrowed'),
-				eq(lendings.status, 'active'),
-				isNotNull(lendings.due_date)
-			));
-		return parseFloat(rows[0]?.total ?? '0');
-	}
-
-	const rows = await queryMany<{ total: string }>(
-		`SELECT COALESCE(SUM(amount), 0) as total
-		 FROM lendings
-		 WHERE user_id = $1 AND direction = 'borrowed' AND status = 'active' AND due_date IS NOT NULL`,
-		[userId]
-	);
+	const db = await getDrizzle();
+	const rows = await db
+		.select({
+			total: sql<string>`COALESCE(SUM(${lendings.amount}), 0)`
+		})
+		.from(lendings)
+		.where(and(
+			eq(lendings.user_id, userId),
+			eq(lendings.direction, 'borrowed'),
+			eq(lendings.status, 'active'),
+			isNotNull(lendings.due_date)
+		));
 	return parseFloat(rows[0]?.total ?? '0');
 }
 

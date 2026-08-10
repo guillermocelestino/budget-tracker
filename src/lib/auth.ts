@@ -2,9 +2,9 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env['JWT_SECRET'] ?? (
-	process.env['POSTGRES_URL']
+	process.env['DATABASE_URL']
 		? (() => { throw new Error(
-			'JWT_SECRET must be set when POSTGRES_URL is configured. ' +
+			'JWT_SECRET must be set when DATABASE_URL is configured. ' +
 			'Add it to your Vercel project settings.'
 		); })()
 		: 'budget-tracker-dev-secret-change-in-production'
