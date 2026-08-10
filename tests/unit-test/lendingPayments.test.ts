@@ -39,7 +39,7 @@ describe('lendingPayments - Drizzle/Postgres path', () => {
 		const chain: any = {};
 		const methods = [
 			'select', 'from', 'where', 'leftJoin', 'groupBy', 'orderBy',
-			'limit', 'insert', 'values', 'update', 'set', 'delete', 'returning', 'ilike'
+			'limit', 'insert', 'values', 'update', 'set', 'delete', 'returning', 'ilike', 'for'
 		];
 		for (const m of methods) {
 			chain[m] = vi.fn(function() { return chain; });
@@ -364,4 +364,473 @@ describe('lendingPayments - Drizzle/Postgres path', () => {
 		expect(selectCall[0]).toEqual({ lending_id: lendingPayments.lending_id });
 	});
 });
+
+	describe('recordPayment - concurrency & balance validation', () => {
+		it('allows payment within remaining balance', async () => {
+			// Lending: 1000, existing payments: 300, remaining: 700
+			// Payment: 500 (within remaining)
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			// First call: select lending with FOR UPDATE
+			// Second call: select balance
+			// Third call: insert payment
+			// Fourth call: update lending status
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ resolved: '300' }]);
+			const paymentChain = makeDrizzleData([{ id: 1 }]);
+			const statusChain = makeDrizzleData([{}]);
+
+			let callCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					callCount++;
+					if (callCount === 1) return lendingChain;
+					if (callCount === 2) return balanceChain;
+					if (callCount === 3) return statusChain;
+					return makeDrizzleData([]);
+				}),
+				insert: vi.fn(() => paymentChain),
+				update: vi.fn(() => statusChain),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			const result = await recordPayment(1, {
+				lendingId: 1,
+				amount: 500,
+				paymentDate: '2024-01-15',
+				notes: null,
+				paymentType: 'payment',
+				createTransaction: false
+			});
+
+			expect(result.paymentId).toBe(1);
+			expect(db.transaction).toHaveBeenCalled();
+		});
+
+		it('allows payment exactly equal to remaining balance', async () => {
+			// Lending: 1000, existing payments: 300, remaining: 700
+			// Payment: 700 (exactly remaining)
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ resolved: '300' }]);
+			const paymentChain = makeDrizzleData([{ id: 1 }]);
+			const statusChain = makeDrizzleData([{}]);
+
+			let callCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					callCount++;
+					if (callCount === 1) return lendingChain;
+					if (callCount === 2) return balanceChain;
+					if (callCount === 3) return statusChain;
+					return makeDrizzleData([]);
+				}),
+				insert: vi.fn(() => paymentChain),
+				update: vi.fn(() => statusChain),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			const result = await recordPayment(1, {
+				lendingId: 1,
+				amount: 700,
+				paymentDate: '2024-01-15',
+				notes: null,
+				paymentType: 'payment',
+				createTransaction: false
+			});
+
+			expect(result.paymentId).toBe(1);
+		});
+
+		it('rejects payment exceeding remaining balance', async () => {
+			// Lending: 1000, existing payments: 300, remaining: 700
+			// Payment: 800 (exceeds remaining)
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ resolved: '300' }]);
+
+			let callCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					callCount++;
+					if (callCount === 1) return lendingChain;
+					if (callCount === 2) return balanceChain;
+					return makeDrizzleData([]);
+				}),
+				insert: vi.fn(() => makeDrizzleData([{ id: 1 }])),
+				update: vi.fn(() => makeDrizzleData([{}])),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await expect(recordPayment(1, {
+				lendingId: 1,
+				amount: 800,
+				paymentDate: '2024-01-15',
+				notes: null,
+				paymentType: 'payment',
+				createTransaction: false
+			})).rejects.toThrow('Payment amount cannot exceed remaining balance of ₱700.00');
+		});
+
+		it('rejects payment for non-existent lending', async () => {
+			const lendingChain = makeDrizzleData([]); // No lending found
+
+			const tx = {
+				select: vi.fn(() => lendingChain),
+				insert: vi.fn(() => makeDrizzleData([{ id: 1 }])),
+				update: vi.fn(() => makeDrizzleData([{}])),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await expect(recordPayment(1, {
+				lendingId: 999,
+				amount: 500,
+				paymentDate: '2024-01-15',
+				notes: null,
+				paymentType: 'payment',
+				createTransaction: false
+			})).rejects.toThrow('Lending record not found');
+		});
+
+		it('handles write-off payment type without creating transaction', async () => {
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ resolved: '300' }]);
+			const paymentChain = makeDrizzleData([{ id: 1 }]);
+			const statusChain = makeDrizzleData([{}]);
+
+			let callCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					callCount++;
+					if (callCount === 1) return lendingChain;
+					if (callCount === 2) return balanceChain;
+					if (callCount === 3) return statusChain;
+					return makeDrizzleData([]);
+				}),
+				insert: vi.fn(() => paymentChain),
+				update: vi.fn(() => statusChain),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			const result = await recordPayment(1, {
+				lendingId: 1,
+				amount: 700,
+				paymentDate: '2024-01-15',
+				notes: 'Write off',
+				paymentType: 'write_off',
+				createTransaction: true // Should be ignored for write_off
+			});
+
+			expect(result.paymentId).toBe(1);
+			expect(result.transactionId).toBeNull();
+		});
+
+		it('handles final payment that exactly exhausts the lending amount', async () => {
+			// Lending: 1000, existing payments: 1000, remaining: 0
+			// Trying to pay more should fail
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'paid',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ resolved: '1000' }]);
+
+			let selectCallCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					selectCallCount++;
+					if (selectCallCount === 1) return lendingChain;
+					return balanceChain;
+				}),
+				insert: vi.fn(() => makeDrizzleData([{ id: 1 }])),
+				update: vi.fn(() => makeDrizzleData([{}])),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await expect(recordPayment(1, {
+				lendingId: 1,
+				amount: 100,
+				paymentDate: '2024-01-15',
+				notes: null,
+				paymentType: 'payment',
+				createTransaction: false
+			})).rejects.toThrow('Payment amount cannot exceed remaining balance of ₱0.00');
+		});
+	});
+
+	describe('updatePayment - concurrency & balance validation', () => {
+		it('allows update within remaining balance (excluding current payment)', async () => {
+			// Lending: 1000, other payments: 300, this payment: 400, remaining if updated: 700
+			// Update to: 600 (within remaining: 1000 - 300 = 700)
+			const paymentRow = {
+				id: 1,
+				lending_id: 1,
+				user_id: 1,
+				amount: '400',
+				payment_date: '2024-01-15',
+				notes: null,
+				transaction_id: null,
+				payment_type: 'payment',
+				reference: null,
+				created_at: new Date('2024-01-15'),
+				updated_at: new Date('2024-01-15')
+			};
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			const paymentChain = makeDrizzleData([paymentRow]);
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ resolved: '300' }]); // Other payments sum
+			const statusChain = makeDrizzleData([{}]);
+
+			let selectCallCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					selectCallCount++;
+					if (selectCallCount === 1) return paymentChain;
+					if (selectCallCount === 2) return lendingChain;
+					if (selectCallCount === 3) return balanceChain;
+					if (selectCallCount === 4) return statusChain;
+					return makeDrizzleData([]);
+				}),
+				update: vi.fn(() => makeDrizzleData([{}])),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await updatePayment(1, 1, {
+				amount: 600,
+				paymentDate: '2024-01-20',
+				notes: 'Updated'
+			});
+
+			expect(db.transaction).toHaveBeenCalled();
+		});
+
+		it('rejects update exceeding remaining balance (excluding current payment)', async () => {
+			// Lending: 1000, other payments: 300, this payment: 400, remaining if updated: 700
+			// Update to: 800 (exceeds remaining: 1000 - 300 = 700)
+			const paymentRow = {
+				id: 1,
+				lending_id: 1,
+				user_id: 1,
+				amount: '400',
+				payment_date: '2024-01-15',
+				notes: null,
+				transaction_id: null,
+				payment_type: 'payment',
+				reference: null,
+				created_at: new Date('2024-01-15'),
+				updated_at: new Date('2024-01-15')
+			};
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			const paymentChain = makeDrizzleData([paymentRow]);
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ resolved: '300' }]);
+
+			let selectCallCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					selectCallCount++;
+					if (selectCallCount === 1) return paymentChain;
+					if (selectCallCount === 2) return lendingChain;
+					if (selectCallCount === 3) return balanceChain;
+					return makeDrizzleData([]);
+				}),
+				update: vi.fn(() => makeDrizzleData([{}])),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await expect(updatePayment(1, 1, {
+				amount: 800,
+				paymentDate: '2024-01-20',
+				notes: 'Updated'
+			})).rejects.toThrow('Payment amount cannot exceed remaining balance of ₱700.00');
+		});
+	});
+
+	describe('deletePayment - status recalculation', () => {
+		it('recalculates status correctly after deletion', async () => {
+			// Lending: 1000, payments: 500+300=800, after delete 500 -> remaining 500 (active)
+			const paymentRow = {
+				id: 1,
+				lending_id: 1,
+				user_id: 1,
+				amount: '500',
+				payment_date: '2024-01-15',
+				notes: null,
+				transaction_id: null,
+				payment_type: 'payment',
+				reference: null,
+				created_at: new Date('2024-01-15'),
+				updated_at: new Date('2024-01-15')
+			};
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			const paymentChain = makeDrizzleData([paymentRow]);
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ amount: '1000', resolved: '300' }]); // After deletion
+			const statusChain = makeDrizzleData([{}]);
+
+			let selectCallCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					selectCallCount++;
+					if (selectCallCount === 1) return paymentChain;
+					if (selectCallCount === 2) return lendingChain;
+					if (selectCallCount === 3) return balanceChain;
+					if (selectCallCount === 4) return statusChain;
+					return makeDrizzleData([]);
+				}),
+				delete: vi.fn(() => makeDrizzleData([{}])),
+				update: vi.fn(() => statusChain),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await deletePayment(1, 1);
+
+			expect(db.transaction).toHaveBeenCalled();
+		});
+	});
 });

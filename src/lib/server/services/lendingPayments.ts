@@ -222,11 +222,12 @@ export async function recalcStatusCache(
  * Record a new payment.
  *
  * Executes inside a single database transaction:
- * 1. Atomically check remaining >= payment amount
- * 2. Insert the payment row
- * 3. Create a linked transaction (if requested and payment_type='payment')
- * 4. Update the payment's transaction_id
- * 5. Recalculate status cache
+ * 1. Lock the lending row with SELECT FOR UPDATE to prevent concurrent payment races
+ * 2. Atomically check remaining >= payment amount
+ * 3. Insert the payment row
+ * 4. Create a linked transaction (if requested and payment_type='payment')
+ * 5. Update the payment's transaction_id
+ * 6. Recalculate status cache
  */
 export async function recordPayment(
 	userId: number,
@@ -246,11 +247,12 @@ export async function recordPayment(
 
 	const db = await getDrizzle();
 	return db.transaction(async (tx) => {
-		// 1. Get the lending and verify it exists
+		// 1. Lock the lending row and verify it exists (SELECT FOR UPDATE prevents concurrent modifications)
 		const [lending] = await tx
 			.select()
 			.from(lendings)
-			.where(and(eq(lendings.user_id, userId), eq(lendings.id, lendingId)));
+			.where(and(eq(lendings.user_id, userId), eq(lendings.id, lendingId)))
+			.for('update');
 		if (!lending) throw new Error('Lending record not found');
 
 		// 2. Atomically check remaining balance
@@ -356,11 +358,12 @@ export async function updatePayment(
 			.where(and(eq(lendingPayments.user_id, userId), eq(lendingPayments.id, paymentId)));
 		if (!payment) throw new Error('Payment not found');
 
-		// 2. Get the lending
+		// 2. Get and lock the lending row (SELECT FOR UPDATE)
 		const [lending] = await tx
 			.select()
 			.from(lendings)
-			.where(and(eq(lendings.user_id, userId), eq(lendings.id, payment.lending_id)));
+			.where(and(eq(lendings.user_id, userId), eq(lendings.id, payment.lending_id)))
+			.for('update');
 		if (!lending) throw new Error('Lending record not found');
 
 		// 3. Check remaining (excluding this payment's current contribution)
@@ -422,19 +425,27 @@ export async function deletePayment(
 			.where(and(eq(lendingPayments.user_id, userId), eq(lendingPayments.id, paymentId)));
 		if (!payment) throw new Error('Payment not found');
 
-		// 2. Delete linked transaction (if any)
+		// 2. Get and lock the lending row (SELECT FOR UPDATE)
+		const [lending] = await tx
+			.select()
+			.from(lendings)
+			.where(and(eq(lendings.user_id, userId), eq(lendings.id, payment.lending_id)))
+			.for('update');
+		if (!lending) throw new Error('Lending record not found');
+
+		// 3. Delete linked transaction (if any)
 		if (payment.transaction_id) {
 			await tx
 				.delete(transactions)
 				.where(and(eq(transactions.user_id, userId), eq(transactions.id, payment.transaction_id)));
 		}
 
-		// 3. Delete the payment
+		// 4. Delete the payment
 		await tx
 			.delete(lendingPayments)
 			.where(and(eq(lendingPayments.user_id, userId), eq(lendingPayments.id, paymentId)));
 
-		// 4. Recalculate status cache
+		// 5. Recalculate status cache
 		const [balanceRow] = await tx
 			.select({
 				amount: lendings.amount,

@@ -18,6 +18,33 @@ import { verifyUserCredentials } from '$lib/server/utils/loginValidation';
 import type { RequestEvent } from '@sveltejs/kit';
 
 /**
+ * Validate AUTH_SECRET at startup.
+ * - In production: MUST exist and be at least 32 characters.
+ * - In development: warn but don't fail (for local dev flexibility).
+ * - Never logs the secret itself.
+ */
+function validateAuthSecret(): void {
+	const secret = env.AUTH_SECRET;
+
+	if (!secret) {
+		if (dev) {
+			console.warn('[auth] AUTH_SECRET not set — using insecure default. Set AUTH_SECRET in .env for production.');
+		} else {
+			throw new Error('[auth] AUTH_SECRET is required in production');
+		}
+		return;
+	}
+
+	if (secret.length < 32) {
+		if (dev) {
+			console.warn('[auth] AUTH_SECRET is shorter than 32 characters — use a longer secret for production.');
+		} else {
+			throw new Error('[auth] AUTH_SECRET must be at least 32 characters in production');
+		}
+	}
+}
+
+/**
  * Auth.js migration (Auth-1 → Auth-4).
  *
  * `src/auth.ts` is the single source of truth for the Credentials provider:
@@ -91,6 +118,9 @@ const authConfig: AuthConfig = {
 		},
 	},
 };
+
+// Validate AUTH_SECRET at module load time
+validateAuthSecret();
 
 export const { handle, signIn, signOut } = SvelteKitAuth(authConfig);
 
