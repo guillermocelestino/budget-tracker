@@ -66,9 +66,12 @@
 	let draggedNodeId = $state<string | null>(null);
 	let dragOffset = $state({ x: 0, y: 0 });
 
-	// Hover & Selection State
+	// Hover & Selection Focus State
 	let hoveredNodeId = $state<string | null>(null);
 	let selectedNode = $state<NodeDetailData | null>(null);
+
+	// Active focus ID (either hovered node or selected node)
+	const activeFocusId = $derived(hoveredNodeId || selectedNode?.id || null);
 
 	// Canvas DOM Element
 	let canvasContainerEl = $state<HTMLDivElement | null>(null);
@@ -95,7 +98,7 @@
 		const cx = Math.max(450, vw / 2);
 		const cy = Math.max(320, vh / 2);
 
-		// 1. Central Net Money Node (Node W: 230, H: 110)
+		// 1. Central Net Money Node (Node W: 250, H: 120)
 		const netNode: MapNodeInternal = {
 			id: 'net-money',
 			type: 'net',
@@ -165,7 +168,6 @@
 		data.expenseCategories.forEach((cat, idx) => {
 			const angle = expCount === 1 ? 45 : 15 + idx * expStep;
 			const rad = (angle * Math.PI) / 180;
-			// Stagger concentric distance to prevent overlapping in dense clusters
 			const distance = 270 + (idx % 2) * 85;
 			const w = 185;
 			const h = 92;
@@ -378,8 +380,13 @@
 				const x2 = isIncome ? cx : nx;
 				const y2 = isIncome ? cy : ny;
 
-				const isHighlighted = hoveredNodeId === n.id || hoveredNodeId === 'net-money';
-				const isDimmed = hoveredNodeId !== null && !isHighlighted;
+				const isHighlighted =
+					activeFocusId === n.id ||
+					activeFocusId === 'net-money' ||
+					selectedNode?.id === n.id ||
+					selectedNode?.id === 'net-money';
+
+				const isDimmed = activeFocusId !== null && !isHighlighted;
 
 				return {
 					id: `conn-${n.id}`,
@@ -396,12 +403,38 @@
 			});
 	});
 
+	// Calculate target pixel position of selected node for popover anchor
+	const selectedNodeTargetPos = $derived.by(() => {
+		if (!selectedNode) return null;
+		const node = nodes.find((n) => n.id === selectedNode.id);
+		if (!node) return null;
+		const px = (node.x + node.width / 2) * zoom + panX;
+		const py = (node.y + node.height / 2) * zoom + panY;
+		return { x: px, y: py };
+	});
+
+	const containerBounds = $derived.by(() => {
+		if (!canvasContainerEl) return null;
+		return { width: canvasContainerEl.offsetWidth, height: canvasContainerEl.offsetHeight };
+	});
+
 	// Canvas Drag / Pan Handlers
 	function handleCanvasPointerDown(e: PointerEvent) {
 		const target = e.target as HTMLElement;
-		if (target.closest('.banknote-position-layer') || target.closest('.canvas-controls')) {
+
+		// If user clicks on empty canvas space, close detail popover
+		if (
+			!target.closest('.banknote-position-layer') &&
+			!target.closest('.canvas-controls') &&
+			!target.closest('.detail-floating-panel')
+		) {
+			selectedNode = null;
+		}
+
+		if (target.closest('.banknote-position-layer') || target.closest('.canvas-controls') || target.closest('.detail-floating-panel')) {
 			return;
 		}
+
 		isPanning = true;
 		startPan = { x: e.clientX - panX, y: e.clientY - panY };
 	}
@@ -540,8 +573,8 @@
 							subtext={node.subtext}
 							color={node.color}
 							isCentral={node.type === 'net'}
-							isHighlighted={hoveredNodeId === node.id}
-							isDimmed={hoveredNodeId !== null && hoveredNodeId !== node.id && hoveredNodeId !== 'net-money'}
+							isHighlighted={hoveredNodeId === node.id || selectedNode?.id === node.id}
+							isDimmed={activeFocusId !== null && activeFocusId !== node.id && activeFocusId !== 'net-money'}
 							isSelected={selectedNode?.id === node.id}
 							onselect={handleNodeSelect}
 							ondragstart={handleNodeDragStart}
@@ -551,11 +584,16 @@
 				</div>
 			</div>
 		{/if}
+
+		<!-- Selected Node Floating Popover Panel (Desktop) / Bottom Sheet (Mobile) -->
+		<MoneyNodeDetail
+			node={selectedNode}
+			targetPosition={selectedNodeTargetPos}
+			{containerBounds}
+			onclose={() => (selectedNode = null)}
+		/>
 	</div>
 </div>
-
-<!-- Selected Node Detail Panel -->
-<MoneyNodeDetail node={selectedNode} onclose={() => (selectedNode = null)} />
 
 <style>
 	.money-map-canvas-card {
