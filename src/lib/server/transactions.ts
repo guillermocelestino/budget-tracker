@@ -530,9 +530,16 @@ export async function getMonthlyReport(
 	year: number
 ): Promise<MonthlyReportItem[]> {
 	const db = await getDrizzle();
+
+	// Group and order by the grouped expression itself. Drizzle does not emit
+	// an `as "month"` alias for a raw `sql` select field, so the previous
+	// `GROUP BY month` / `ORDER BY month ASC` referenced a column that does not
+	// exist — Postgres: column "month" does not exist → HTTP 500 on /reports.
+	const monthExpr = sql<string>`TO_CHAR(${transactions.date}, 'YYYY-MM')`;
+
 	const rows = await db
 		.select({
-			month: sql<string>`TO_CHAR(${transactions.date}, 'YYYY-MM')`,
+			month: monthExpr,
 			income: sql<string>`SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END)`,
 			expense: sql<string>`SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END)`
 		})
@@ -541,8 +548,8 @@ export async function getMonthlyReport(
 			eq(transactions.user_id, userId),
 			sql`EXTRACT(YEAR FROM ${transactions.date}) = ${year}`
 		))
-		.groupBy(sql`month`)
-		.orderBy(sql`month ASC`);
+		.groupBy(monthExpr)
+		.orderBy(asc(monthExpr));
 
 	return rows.map(r => ({
 		month: r.month,
