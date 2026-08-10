@@ -1,12 +1,10 @@
 import { redirect } from '@sveltejs/kit';
+import { signOutSession } from '../../auth';
 
-export function GET({ cookies }: { cookies: import('@sveltejs/kit').Cookies }) {
-	cookies.delete('session', {
-		path: '/',
-		httpOnly: true,
-		sameSite: 'lax',
-		secure: process.env['NODE_ENV'] === 'production',
-	});
+export async function GET(event: import('@sveltejs/kit').RequestEvent) {
+	// Sign out through the Auth.js signout action (src/auth.ts), which clears
+	// the Auth.js session cookie (authjs.session-token). Safe with no session.
+	await signOutSession(event);
 
 	redirect(302, '/login');
 }

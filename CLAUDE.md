@@ -3,19 +3,20 @@
 ## Architecture
 - **Framework:** SvelteKit with Svelte 5 runes (`$state`, `$derived`, `$props`, `$effect`) — no Svelte 4 `export let` / `$:` anywhere
 - **Database:** Dual SQLite (dev) / PostgreSQL (production via Neon serverless) — auto-detected via `POSTGRES_URL` env var. All SQL written in Postgres dialect; `translatePgToSQLite()` converts for SQLite
-- **Auth:** JWT-based (`jsonwebtoken` + `bcryptjs`), session cookie named `session`, 7-day expiry, httpOnly, sameSite=lax, `secure` in production. Login validated via `src/lib/utils/loginValidation.ts`
+- **Auth:** Auth.js (`@auth/sveltekit`) Credentials provider with JWT session strategy — authenticates against the existing `users` table + existing bcrypt `$2b$10$` hashes. Session cookie `authjs.session-token` (30-day, httpOnly, sameSite=lax). Login/logout via the SvelteKit `/login` form action and `/logout` route, both delegating to the single Credentials `authorize()` in `src/auth.ts`; protected routes resolve the session via `event.locals.auth()` in hooks. Legacy JWT auth (`jsonwebtoken`/`JWT_SECRET`/`session` cookie, `createToken`/`verifyToken`) is removed (Auth-5); `src/lib/auth.ts` keeps only `hashPassword`/`verifyPassword`
 - **CSS:** Hand-written with custom properties (`src/styles/variables.css`) — "Flip7" teal/gold/coral design system, no framework
 - **Charts:** Chart.js via `svelte-chartjs`, registered globally in `src/lib/utils/chart.ts`
 - **Export/Import:** CSV (`src/lib/utils/csv.ts`), PDF (`jspdf` + `jspdf-autotable` in `src/lib/utils/pdf.ts`), Excel (`write-excel-file` export, `read-excel-file` import)
 - **Deployment:** Vercel adapter (`@sveltejs/adapter-vercel`)
 - **PWA:** `@vite-pwa/sveltekit` with auto-update, NetworkFirst caching for API and page routes (disabled in dev). `PwaUpdate.svelte` handles update detection
-- **Testing:** Vitest (`npm run test:unit`) + Playwright (`npm run test:e2e`)
+- **Testing:** Vitest (`npm run test:unit`) + Playwright (`npm run test:e2e`, port 5188, `SEED_DEMO=1` seeds the demo account `demo`/`Demo@2026!`)
+- **E2E auth suite:** `tests/e2e/auth.spec.ts` covers the Auth.js flow end-to-end — login page, valid/invalid/unknown/empty credentials, session creation + persistence (reload + cross-page), protected-route access/rejection (pages + `/api/transactions`), user identity propagation (username on `/settings`), and logout re-protection. Requires a `DATABASE_URL` (Postgres-only runtime) — run with the local-dev branch value exported, e.g. `DATABASE_URL="$LOCAL_DEV_DATABASE_URL" npm run test:e2e` after sourcing `.env`
 
 ## Route Structure
 ### Page Routes
 - `/` — Server 302 → `/dashboard` in `hooks.server.ts` (client-side `+page.svelte` also redirects for SPA nav)
-- `/login` — `+page.server.ts` redirects authed users away; `default` action validates via `validateLoginInput()`/`verifyUserCredentials()`, sets `session` cookie, redirects to `/dashboard`
-- `/logout` — GET handler, deletes `session` cookie, redirects to `/login`
+- `/login` — `+page.server.ts` load() redirects authed users away; `default` action validates via `validateLoginInput()` (fail 400) then authenticates through `authenticateCredentials()` (Auth.js, `src/auth.ts` — fail 401 on bad creds, sets the Auth.js session cookie), redirects to `/dashboard`
+- `/logout` — GET handler, calls `signOutSession()` (Auth.js, `src/auth.ts`) to clear the Auth.js session cookie, redirects to `/login`
 - `/dashboard` — Runs `processRecurringTransactions()` on load. `DashboardHero`, `SummaryCards`, `KpiRail`/`MobileSummaryRail`, 6-month `Sparkline` trends + `MonthlyTrendChart`, `CategoryDonutChart`/`CategoryBreakdownWidget`, `CashFlowChart`, `SafeToSpendWidget`, `RecentActivityWidget`, `ActiveIouList`, net-worth teaser (`NetWorthHero`), `ForecastBanner`, next-3 `upcomingRecurring`, delete modal. Loads monthly summary, lending + borrowed summaries, budget totals, YoY change %, `computeNetWorth()`
 - `/transactions` — Paginated bank-register list (20/page), `TransactionFilters` + `SearchFilterPill`, `TransactionSummary`, running balance (computed from `allForBalance` across pages), `ViewToggle`, bulk delete action, CSV import via `ImportWizard` (`?/import`), export via `ExportDropdown`/`MoreMenu`. Recurring schedules can be created from an existing transaction
 - `/transactions/new` — Add transaction form (`TransactionForm` component, centered card)
@@ -146,7 +147,7 @@
 
 ## Database (`src/lib/database/`)
 - **`index.ts`** — Lazy-init gate. Detects `POSTGRES_URL` → `usePostgres` boolean. Exposes `getPgPool()` and `getSQLiteDb()`, both auto-run `initDb()` once. SQLite DB at `data/budget.db` (WAL mode, foreign keys on). Registers `pg.types.setTypeParser(1700, parseFloat)` so Postgres `NUMERIC` columns return JS numbers (SQLite already does); also `date` columns return JS `Date` objects on Postgres — handle both via `dateToString()`/`parseDate()`
-- **`loadEnv.ts`** — Dev-only, imported first by `index.ts`. SvelteKit dev doesn't load `.env` into `process.env`, so in development it wires `LOCAL_DEV_DATABASE_URL` → `process.env.DATABASE_URL` (+ dev `JWT_SECRET` fallback) → `npm run dev` uses the local-dev Neon branch. Inert in production, when `SEED_DEMO=1` (e2e stays on SQLite), and when `DATABASE_URL` is already exported in the shell
+- **`loadEnv.ts`** — Dev-only, imported first by `index.ts`. SvelteKit dev doesn't load `.env` into `process.env`, so in development it wires `LOCAL_DEV_DATABASE_URL` → `process.env.DATABASE_URL` → `npm run dev` uses the local-dev Neon branch. Inert in production, when `SEED_DEMO=1` (e2e stays on SQLite), and when `DATABASE_URL` is already exported in the shell
 - **`query.ts`** — Four cross-DB functions: `queryOne<T>()`, `queryMany<T>()`, `execute()`, `withTransaction()`. All SQL written in **Postgres dialect**; `translatePgToSQLite()` auto-converts `$1→?`, `::type` removal, `TO_CHAR→strftime`, `EXTRACT→strftime`, `NOW→datetime`, `CURRENT_DATE→date`
 - **`init.ts`** — Schema: **6 tables** with equivalent Postgres/SQLite DDL + indexes:
   - `users` (id, username, password_hash, created_at)
@@ -161,17 +162,24 @@
 
 ## Server Patterns
 ### Auth (`src/hooks.server.ts`)
+- Composes `sequence(authHandle, authGuardHandle)` — `authHandle` from `src/auth.ts` (exposes lazy `event.locals.auth()`); `authGuardHandle` enforces route protection
 - Root `/` → 302 `/dashboard`
 - Public paths: only `/login`
-- All other routes: read `session` cookie → `verifyToken()` → set `event.locals.user = { userId, username }` or 302 `/login`
-- Startup guard: throws if `POSTGRES_URL` set but `JWT_SECRET` missing
+- All other routes: `await event.locals.auth()` → map `session.user` → `event.locals.user = { userId, username }` or 302 `/login`
 
 ### Auth (`src/lib/auth.ts`)
-- JWT secret: `process.env.JWT_SECRET` or dev fallback `'budget-tracker-dev-secret-change-in-production'` (throws if Postgres active and secret missing)
-- `createToken(userId, username)` → 7-day JWT
-- `verifyToken(token)` → `{ userId, username }` or null
-- `hashPassword(pw)` / `verifyPassword(pw, hash)` via bcryptjs
+- Password hashing only (Auth-5): `hashPassword(pw)` / `verifyPassword(pw, hash)` via bcryptjs. Legacy JWT session machinery (`createToken`/`verifyToken`/`JWT_SECRET`/`jsonwebtoken`) is removed — Auth.js owns session tokens via `AUTH_SECRET`
 - Login logic split out to `src/lib/utils/loginValidation.ts` (`validateLoginInput`, `verifyUserCredentials`)
+
+### Auth.js (`src/auth.ts`) — COMPLETE (Auth-1→4)
+- `@auth/sveltekit`; `src/auth.ts` exports `SvelteKitAuth(authConfig)` → `{ handle, signIn, signOut }` plus in-process helpers `authenticateCredentials(event, username, password)` and `signOutSession(event)`. The `handle` runs first in hooks (`sequence`) and exposes lazy `event.locals.auth()`.
+- **Single Credentials `authorize()` (Auth-2):** authenticates against the EXISTING `users` table via `queryOne` (same query as the legacy login action) + `verifyUserCredentials()` (bcrypt) — reuses existing `$2b$10$` hashes, no re-hash. Returns `null` for unknown user / bad password (generic `CredentialsSignin`, no enumeration). No duplicate lookup/bcrypt anywhere on the auth path.
+- **Identity mapping:** `callbacks.jwt` copies `{ userId, username }` from the provider-returned user into the Auth.js token; `callbacks.session` surfaces them on `session.user`. `src/auth.ts` contains a `declare module '@auth/core/types'` augmentation widening `Session.user` to `{ userId: number; username: string }`. Session strategy locked to **JWT** — no adapter, no DB session/account/verificationToken tables, `users` table untouched.
+- **Session resolution (Auth-3):** `hooks.server.ts` composes `sequence(authHandle, authGuardHandle)`. Protected routes resolve auth via `await event.locals.auth()` and map `session.user` → `event.locals.user = { userId, username }`. Unauthenticated → 302 `/login`. Root `/` → 302 `/dashboard`; public paths: only `/login`.
+- **Login/logout (Auth-4):** the SvelteKit `/login` form action and `/logout` GET route call `authenticateCredentials`/`signOutSession`, which invoke the SAME Auth.js core (`Auth(request, { ...config, raw })` against `/auth/callback/credentials` and `/auth/signout`) and apply the resulting cookies. Flow: `/login` UI → form action → Auth.js Credentials sign-in → Auth.js JWT session cookie → hooks `event.locals.auth()` → `event.locals.user` → `/dashboard`. Failed login returns fail(401) and stays on `/login`; logout clears `authjs.session-token` → `/login`.
+- **Legacy JWT retired (Auth-5):** `createToken`/`verifyToken`/`jsonwebtoken`/`JWT_SECRET` and the hooks startup guard are removed entirely — Auth.js (`AUTH_SECRET`) is the sole session mechanism. `src/lib/auth.ts` keeps only `hashPassword`/`verifyPassword` (Auth.js `authorize` + seed scripts).
+- CSRF: `@auth/sveltekit` auto-sets `skipCSRFCheck` (SvelteKit's Origin-based form CSRF replaces Auth.js's token), so `/auth/csrf` returns **404** by design and Auth.js form POSTs need a matching `Origin` header.
+- Env: `AUTH_SECRET` (min 32 chars; read automatically by Auth.js from `$env/dynamic/private`). Dev wiring in `loadEnv.ts` forwards it from `.env`; `.env.example` has a placeholder; set it in Vercel project settings.
 
 ### Server Data Modules (`src/lib/server/`)
 - `lendingPayments.ts` — Settlement ledger (source of truth for loan/debt resolution): `getLendingsWithPayments`, `getLendingWithPayments`, `recordPayment` (transactional, validates remaining), `updatePayment`, `deletePayment`, `getPaymentHistory`, `hasPayments`, `recalcStatusCache`, `getLendingTotals`, `deleteLinkedTransactions`. Canonical derived state: `cash_paid + written_off = resolved_total`, `remaining = amount − resolved_total`, status = `remaining > 0 ? 'active' : 'paid'`. Only `recalcStatusCache()` writes `lendings.status`

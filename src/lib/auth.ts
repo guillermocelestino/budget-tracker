@@ -1,31 +1,23 @@
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env['JWT_SECRET'] ?? (
-	process.env['DATABASE_URL']
-		? (() => { throw new Error(
-			'JWT_SECRET must be set when DATABASE_URL is configured. ' +
-			'Add it to your Vercel project settings.'
-		); })()
-		: 'budget-tracker-dev-secret-change-in-production'
-);
-
+/**
+ * Password hashing — the surviving piece of the legacy auth module (Auth-5).
+ *
+ * Only the bcrypt helpers remain. The legacy JWT session machinery
+ * (`createToken` / `verifyToken` / `JWT_SECRET` / `jsonwebtoken`) was retired
+ * with the Auth.js migration — Auth.js owns session tokens via `AUTH_SECRET`.
+ * Existing `$2b$10$` hashes continue to verify unchanged.
+ *
+ * Consumers:
+ * - Auth.js Credentials `authorize()` (src/auth.ts) → `verifyPassword()` via
+ *   `verifyUserCredentials()` in `$lib/utils/loginValidation.ts`.
+ * - Seed data (`src/lib/database/init.ts`) + scripts (`scripts/seed-demo.*`,
+ *   `scripts/verify-neon.ts`) + unit tests → `hashPassword()`.
+ */
 export function hashPassword(password: string): string {
 	return bcrypt.hashSync(password, 10);
 }
 
 export function verifyPassword(password: string, hash: string): boolean {
 	return bcrypt.compareSync(password, hash);
-}
-
-export function createToken(userId: number, username: string): string {
-	return jwt.sign({ userId, username }, JWT_SECRET, { expiresIn: '7d' });
-}
-
-export function verifyToken(token: string): { userId: number; username: string } | null {
-	try {
-		return jwt.verify(token, JWT_SECRET) as { userId: number; username: string };
-	} catch {
-		return null;
-	}
 }

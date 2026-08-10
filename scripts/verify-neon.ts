@@ -20,7 +20,7 @@
 
 import { getPgPool } from '../src/lib/database/index.js';
 import { queryOne, queryMany, withTransaction } from '../src/lib/database/query.js';
-import { hashPassword, verifyPassword, createToken, verifyToken } from '../src/lib/auth.js';
+import { hashPassword, verifyPassword } from '../src/lib/auth.js';
 
 // Canonical connection-string resolution mirrors src/lib/database/index.ts:
 // DATABASE_URL is preferred; POSTGRES_URL remains honored as the deprecated
@@ -212,17 +212,11 @@ async function runReadChecks(): Promise<void> {
 }
 
 async function runAuthChecks(): Promise<void> {
+	// Auth.js owns session tokens now (AUTH_SECRET); only bcrypt hashing
+	// remains in src/lib/auth.ts, so only the bcrypt roundtrip is verified.
 	const hash = hashPassword('verify-pass-123');
 	check('bcrypt hash/verify roundtrip', verifyPassword('verify-pass-123', hash));
 	check('bcrypt rejects wrong password', !verifyPassword('wrong', hash));
-
-	const token = createToken(999999, '__neon_verify');
-	const payload = verifyToken(token);
-	check(
-		'JWT create/verify roundtrip',
-		payload?.userId === 999999 && payload?.username === '__neon_verify',
-		payload ? `userId=${payload.userId}` : 'verify returned null'
-	);
 }
 
 async function main(): Promise<void> {
