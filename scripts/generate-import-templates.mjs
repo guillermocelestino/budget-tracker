@@ -20,16 +20,26 @@ mkdirSync(templatesDir, { recursive: true });
 
 /**
  * Transactions template
- * Headers: Date, Description, Amount, Type, Category Name
+ * Headers: Date, Description, Amount, Type, Category Name, Source of Funds
  * Sample row with various formats
  */
-const transactionsHeaders = ['Date', 'Description', 'Amount', 'Type', 'Category Name'];
+const transactionsHeaders = ['Date', 'Description', 'Amount', 'Type', 'Category Name', 'Source of Funds'];
 const transactionsSampleRow = [
 	'2026-07-15',
 	'Salary deposit',
 	50000.00,
 	'income',
-	'Salary'
+	'Salary',
+	'Bank Transfer'
+];
+// Reasonable column widths for the transaction import template.
+const transactionsColumns = [
+	{ width: 14 }, // Date
+	{ width: 34 }, // Description
+	{ width: 14 }, // Amount
+	{ width: 10 }, // Type
+	{ width: 18 }, // Category Name
+	{ width: 22 }, // Source of Funds
 ];
 
 /**
@@ -71,7 +81,7 @@ async function generate() {
 	await writeXlsxFile([
 		transactionsHeaders,
 		transactionsSampleRow,
-	], join(templatesDir, 'transactions.xlsx')).toFile(join(templatesDir, 'transactions.xlsx'));
+	], { columns: transactionsColumns }).toFile(join(templatesDir, 'transactions.xlsx'));
 	console.log('✓ static/templates/transactions.xlsx');
 
 	// Lending template

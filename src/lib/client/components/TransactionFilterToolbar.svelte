@@ -58,9 +58,14 @@
 	const dateLabel = $derived.by(() => {
 		if (!activeFilters.date) return 'Date';
 		if (activeFilters.date === 'custom') {
-			return activeFilters.customFrom && activeFilters.customTo
-				? `Date: ${activeFilters.customFrom} → ${activeFilters.customTo}`
-				: 'Date: Custom Range';
+			if (activeFilters.customFrom && activeFilters.customTo) {
+				return `Date: ${activeFilters.customFrom} → ${activeFilters.customTo}`;
+			} else if (activeFilters.customFrom) {
+				return `Date: From ${activeFilters.customFrom}`;
+			} else if (activeFilters.customTo) {
+				return `Date: Up to ${activeFilters.customTo}`;
+			}
+			return 'Date: Custom Range';
 		}
 		return `Date: ${DATE_PRESET_LABELS[activeFilters.date] ?? activeFilters.date}`;
 	});
@@ -154,11 +159,20 @@
 	}
 
 	function handleDateSelect(preset: string) {
-		if (preset === 'custom') return; // custom handled by inputs
+		if (preset === 'custom') {
+			onFilterChange?.({
+				date: 'custom',
+				category: activeFilters.category,
+				type: activeFilters.type,
+				customFrom: activeFilters.customFrom,
+				customTo: activeFilters.customTo,
+			});
+			return;
+		}
 		// 'any' means no date filter — normalize to '' so the segment reads
 		// inactive and the filter badge doesn't count it.
 		const date = preset === 'any' ? '' : preset;
-		onFilterChange?.({ date, category: activeFilters.category, type: activeFilters.type });
+		onFilterChange?.({ date, category: activeFilters.category, type: activeFilters.type, customFrom: '', customTo: '' });
 		closeMenu();
 	}
 

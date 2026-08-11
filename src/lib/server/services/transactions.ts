@@ -175,9 +175,9 @@ export async function listTransactions(
 	page?: number,
 	limit?: number
 ): Promise<ListResult<Transaction>> {
-	const shouldPaginate = page !== undefined || limit !== undefined;
+	const shouldPaginate = page !== undefined && limit !== undefined && limit > 0;
 	const safePage = page !== undefined ? Math.max(1, page) : 1;
-	const safeLimit = limit !== undefined ? Math.min(100, Math.max(1, limit)) : 20;
+	const safeLimit = limit !== undefined && limit > 0 ? Math.max(1, limit) : 20;
 	const offset = (safePage - 1) * safeLimit;
 
 	const { drizzleWhere } = buildTransactionWhere(userId, filters);
