@@ -1,6 +1,5 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { formatCurrency } from '$lib/client/utils/format';
   import { getMonthLabel } from '$lib/shared/utils/format';
   import PageHeader from '$lib/client/components/PageHeader.svelte';
   import PageBackground from '$lib/client/components/PageBackground.svelte';
