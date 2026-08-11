@@ -35,11 +35,11 @@ describe('CSV import client pipeline (against docs/sample-transactions.csv)', ()
 
 	it('parseCSV reads the sample header + 10 rows', () => {
 		const { headers, rows } = parseCSV(csv);
-		expect(headers).toEqual(['Date', 'Description', 'Amount', 'Type', 'Category Name']);
+		expect(headers).toEqual(['Date', 'Description', 'Amount', 'Type', 'Category Name', 'Source of Funds']);
 		expect(rows.length).toBe(10);
 	});
 
-	it('autoMap maps all 5 sample columns to fields', () => {
+	it('autoMap maps all 6 sample columns to fields', () => {
 		const { headers } = parseCSV(csv);
 		const mapping = autoMap(headers);
 		expect(mapping['Date']).toBe('date');
@@ -47,6 +47,23 @@ describe('CSV import client pipeline (against docs/sample-transactions.csv)', ()
 		expect(mapping['Type']).toBe('type');
 		expect(mapping['Description']).toBe('description');
 		expect(mapping['Category Name']).toBe('category_name');
+		expect(mapping['Source of Funds']).toBe('source_of_funds');
+	});
+
+	it('carries Source of Funds through buildMappedRows: populated kept, blank → "" (never auto-assigned)', () => {
+		const { headers, rows } = parseCSV(csv);
+		const mapping = autoMap(headers);
+		const mapped = buildMappedRows(rows, headers, mapping, CONFIG);
+
+		const byDesc = new Map(mapped.map(r => [r.description, r]));
+		// Populated sources are preserved verbatim.
+		expect(byDesc.get('Salary deposit')?.source_of_funds).toBe('Bank Transfer');
+		expect(byDesc.get('Freelance payment')?.source_of_funds).toBe('Upwork');
+		expect(byDesc.get('Electric bill (Meralco)')?.source_of_funds).toBe("Mother's Money");
+		// Blank source stays an empty string; the server normalizes '' → NULL
+		// (importValidation.buildMappedRows comment) — the template never invents a source.
+		expect(byDesc.get('Groceries at SM Supermarket')?.source_of_funds).toBe('');
+		expect(byDesc.get('Netflix subscription')?.source_of_funds).toBe('');
 	});
 
 	it('parses the tricky amounts (symbols, commas, parenthetical negatives)', () => {
