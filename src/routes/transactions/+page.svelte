@@ -3,27 +3,28 @@
 	import { page } from '$app/stores';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { enhance } from '$app/forms';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import PageBackground from '$lib/components/PageBackground.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import TransactionSummary from '$lib/components/TransactionSummary.svelte';
-	import TransactionFilterPanel from '$lib/components/TransactionFilterPanel.svelte';
-	import TransactionFilterToolbar from '$lib/components/TransactionFilterToolbar.svelte';
-	import TransactionList from '$lib/components/TransactionList.svelte';
-	import OverflowMenu from '$lib/components/OverflowMenu.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import SearchFilterPill from '$lib/components/SearchFilterPill.svelte';
-	import ViewToggle from '$lib/components/ViewToggle.svelte';
-	import CountChip from '$lib/components/CountChip.svelte';
-	import ModalDialog from '$lib/components/ModalDialog.svelte';
-	import SlideOver from '$lib/components/SlideOver.svelte';
-	import TransactionForm from '$lib/components/TransactionForm.svelte';
-	import RecurringForm from '$lib/components/RecurringForm.svelte';
-	import ImportWizard from '$lib/components/ImportWizard.svelte';
-	import { showSuccess, showError } from '$lib/stores/toast.svelte';
-	import { generateTransactionPdf } from '$lib/utils/pdf';
-	import { getCurrentMonth, formatDate, formatCurrency, getToday } from '$lib/utils/format';
-	import { calculateNextRun } from '$lib/utils/recurring';
+	import PageHeader from '$lib/client/components/PageHeader.svelte';
+	import PageBackground from '$lib/client/components/PageBackground.svelte';
+	import Button from '$lib/client/components/Button.svelte';
+	import TransactionSummary from '$lib/client/components/TransactionSummary.svelte';
+	import TransactionFilterPanel from '$lib/client/components/TransactionFilterPanel.svelte';
+	import TransactionFilterToolbar from '$lib/client/components/TransactionFilterToolbar.svelte';
+	import TransactionList from '$lib/client/components/TransactionList.svelte';
+	import OverflowMenu from '$lib/client/components/OverflowMenu.svelte';
+	import EmptyState from '$lib/client/components/EmptyState.svelte';
+	import SearchFilterPill from '$lib/client/components/SearchFilterPill.svelte';
+	import ViewToggle from '$lib/client/components/ViewToggle.svelte';
+	import CountChip from '$lib/client/components/CountChip.svelte';
+	import ModalDialog from '$lib/client/components/ModalDialog.svelte';
+	import SlideOver from '$lib/client/components/SlideOver.svelte';
+	import TransactionForm from '$lib/client/components/TransactionForm.svelte';
+	import RecurringForm from '$lib/client/components/RecurringForm.svelte';
+	import ImportWizard from '$lib/client/components/ImportWizard.svelte';
+	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
+	import { generateTransactionPdf } from '$lib/client/utils/pdf';
+	import { formatCurrency, formatDate } from '$lib/client/utils/format';
+import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
+	import { calculateNextRun } from '$lib/shared/utils/recurring';
 	import {
 		buildMappedRows,
 		validateAllRows,
@@ -32,7 +33,7 @@
 		type ImportPreviewColumn,
 		type ImportValidationResult,
 		DEFAULT_IMPORT_FIELDS,
-	} from '$lib/utils/importValidation';
+	} from '$lib/shared/utils/importValidation';
 	import type { Category, Transaction, RecurringFormInitial } from '$lib/types';
 
 	let data = $derived($page.data as App.PageData);
@@ -504,6 +505,7 @@
 		{ header: 'Category', key: 'category_name', kind: 'text', cls: 'cell-cat' },
 		{ header: 'Type', key: 'type', kind: 'type' },
 		{ header: 'Amount', key: 'amount', kind: 'amount', align: 'right' },
+		{ header: 'Source', key: 'source_of_funds', kind: 'text' },
 	]);
 
 	// ImportWizard build/validate functions

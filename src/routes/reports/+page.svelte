@@ -1,34 +1,26 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { formatCurrency, getMonthLabel } from '$lib/utils/format';
-  import PageHeader from '$lib/components/PageHeader.svelte';
-  import ReportsHeader from '$lib/components/ReportsHeader.svelte';
-  import MonthlyTrendChart from '$lib/components/MonthlyTrendChart.svelte';
-  import ReportsDataTable from '$lib/components/ReportsDataTable.svelte';
-  import YearOverYearCard from '$lib/components/YearOverYearCard.svelte';
-  import PageBackground from '$lib/components/PageBackground.svelte';
-  import EmptyState from '$lib/components/EmptyState.svelte';
+  import { getMonthLabel } from '$lib/shared/utils/format';
+  import PageHeader from '$lib/client/components/PageHeader.svelte';
+  import PageBackground from '$lib/client/components/PageBackground.svelte';
+  import ReportsKpiGrid from '$lib/client/components/ReportsKpiGrid.svelte';
+  import ReportsCategoryGrid from '$lib/client/components/ReportsCategoryGrid.svelte';
+  import MonthlyTrendChart from '$lib/client/components/MonthlyTrendChart.svelte';
+  import ReportsDataTable from '$lib/client/components/ReportsDataTable.svelte';
+  import YearOverYearCard from '$lib/client/components/YearOverYearCard.svelte';
+  import EmptyState from '$lib/client/components/EmptyState.svelte';
 
   let data = $derived($page.data as App.PageData);
 
   // ─── State ────────────────────────────────────────────────────────
-
   let selectedTimeframe = $state('1Y');
-  let activeTab = $state('cashflow');
-
-  const tabs = [
-    { id: 'cashflow', label: 'Cash Flow' },
-    { id: 'income', label: 'Income' },
-    { id: 'expenses', label: 'Expenses' },
-  ];
+  const timeframes = ['1M', '3M', 'YTD', '1Y', 'All'];
 
   // ─── Empty condition flags ────────────────────────────────────────
-
   const allTimeCount = $derived(data.allTimeCount ?? 0);
   const hasAnyTransactions = $derived(allTimeCount > 0);
 
-  // ─── Monthly data ─────────────────────────────────────────────────
-
+  // ─── Monthly data filtering ───────────────────────────────────────
   const allMonthly = $derived(data.monthlyData ?? []);
 
   const filteredMonthly = $derived.by(() => {
@@ -70,16 +62,11 @@
     }))
   );
 
-  // ─── Range-empty (E2) flag ────────────────────────────────────────
-
+  // ─── Empty state flags ───────────────────────────────────────────
   const isRangeEmpty = $derived(filteredMonthly.length === 0 && hasAnyTransactions);
-
-  // ─── Total-empty (E1) flag ────────────────────────────────────────
-
   const isTotalEmpty = $derived(!hasAnyTransactions);
 
-  // ─── Current and previous month data for insights ─────────────────
-
+  // ─── Current and previous period summaries ───────────────────────
   const currentSummary = $derived.by(() => {
     const m = filteredMonthly[filteredMonthly.length - 1];
     if (!m) return { income: 0, expense: 0, balance: 0 };
@@ -105,8 +92,14 @@
     };
   });
 
-  // ─── Top expense insight ──────────────────────────────────────────
+  // Savings rate calculation
+  const savingsRateVal = $derived(
+    currentSummary.income > 0
+      ? Math.max(0, Math.round(((currentSummary.income - currentSummary.expense) / currentSummary.income) * 100))
+      : 0
+  );
 
+  // ─── Top expense category ─────────────────────────────────────────
   const topExpense = $derived.by(() => {
     const sorted = [...(data.expenseData ?? [])].sort((a, b) => b.total - a.total);
     return sorted[0] || null;
@@ -122,77 +115,8 @@
       : 0
   );
 
-  // ─── Category breakdown data ──────────────────────────────────────
-
-  const incomeLabels = $derived(
-    (data.incomeData ?? []).map(c => c.category_name)
-  );
-  const incomeValues = $derived(
-    (data.incomeData ?? []).map(c => c.total)
-  );
-  const incomeColors = $derived(
-    (data.incomeData ?? []).map(c => c.category_color)
-  );
-
-  const expenseLabels = $derived(
-    (data.expenseData ?? []).map(c => c.category_name)
-  );
-  const expenseValues = $derived(
-    (data.expenseData ?? []).map(c => c.total)
-  );
-  const expenseColors = $derived(
-    (data.expenseData ?? []).map(c => c.category_color)
-  );
-
-  // ─── SVG donut arc data ──────────────────────────────────────────
-
-  type ArcData = { pct: number; offset: number; color: string; label: string };
-
-  const incomeArcs = $derived.by<ArcData[]>(() => {
-    const vals = incomeValues;
-    const colors = incomeColors;
-    const labels = incomeLabels;
-    const total = vals.reduce((a, b) => a + b, 0);
-    if (total <= 0) return [];
-    let cumulative = 0;
-    return vals.map((v, i) => {
-      const pct = v / total;
-      const offset = cumulative;
-      cumulative += pct * 251.2;
-      return { pct, offset, color: colors[i] || '#6366f1', label: labels[i] || '' };
-    });
-  });
-
-  const expenseArcs = $derived.by<ArcData[]>(() => {
-    const vals = expenseValues;
-    const colors = expenseColors;
-    const labels = expenseLabels;
-    const total = vals.reduce((a, b) => a + b, 0);
-    if (total <= 0) return [];
-    let cumulative = 0;
-    return vals.map((v, i) => {
-      const pct = v / total;
-      const offset = cumulative;
-      cumulative += pct * 251.2;
-      return { pct, offset, color: colors[i] || '#6366f1', label: labels[i] || '' };
-    });
-  });
-
-  // ─── Summary bar data ─────────────────────────────────────────────
-
-  const totalIncome = $derived(filteredMonthly.reduce((s, m) => s + m.income, 0));
-  const totalExpenses = $derived(filteredMonthly.reduce((s, m) => s + m.expense, 0));
-  const netTotal = $derived(totalIncome - totalExpenses);
-
-  // ─── Timeframe change handler ─────────────────────────────────────
-
-  function onTimeframeChange(tf: string) {
-    selectedTimeframe = tf;
-  }
-
-  // ─── Export guard ─────────────────────────────────────────────────
-
-  const hasExportableData = $derived(filteredMonthly.length > 0);
+  // CSV Export parameters
+  const hasExportableData = $derived(allMonthly.length > 0);
   const exportStart = $derived(filteredMonthly[0]?.month ?? '');
   const exportEnd = $derived(filteredMonthly[filteredMonthly.length - 1]?.month ?? '');
 </script>
@@ -201,7 +125,10 @@
   <title>Reports — Finance Tracker</title>
 </svelte:head>
 
-<PageHeader title="Reports">
+<PageHeader title="Reports" flush borderless>
+  {#snippet subtitle()}
+    <span class="context-subline">Financial insights & trends</span>
+  {/snippet}
   {#snippet action()}
     {#if hasExportableData}
       <a
@@ -209,7 +136,7 @@
         class="btn-export"
         download
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
           <polyline points="7 10 12 15 17 10"/>
           <line x1="12" x2="12" y1="15" y2="3"/>
@@ -224,7 +151,6 @@
           <line x1="12" x2="12" y1="15" y2="3"/>
         </svg>
         Export CSV
-        <span class="export-hint">nothing to export yet</span>
       </span>
     {/if}
   {/snippet}
@@ -232,24 +158,22 @@
 
 <PageBackground />
 
-<!-- ═══ Reports header (timeframe pills + insight cards) ═══ -->
+<!-- ═══ Timeframe Pill Control Bar ═══ -->
+<div class="timeframe-bar">
+  <div class="timeframe-pill">
+    {#each timeframes as tf (tf)}
+      <button
+        class="tf-btn"
+        class:active={selectedTimeframe === tf}
+        onclick={() => selectedTimeframe = tf}
+      >
+        {tf}
+      </button>
+    {/each}
+  </div>
+</div>
 
-<!-- E4: when comparison is uncomputable, ReportsHeader handles inline degradation
-     (insight cards hide when hasSpendingInsight/hasSavingsInsight are false) -->
-<ReportsHeader
-  currentMonth={currentSummary}
-  previousMonth={previousSummary}
-  changes={changes}
-  topExpenseName={topExpense?.category_name ?? ''}
-  topExpenseAmount={topExpense?.total ?? 0}
-  topExpensePct={topExpensePct}
-  timeframe={selectedTimeframe}
-  onTimeframeChange={onTimeframeChange}
-/>
-
-<!-- ══════════════════════════════════════════════════════════════════
-     E1: TOTAL-EMPTY — page-level, replaces everything below header
-     ══════════════════════════════════════════════════════════════════ -->
+<!-- ═══ Empty State Gates ═══ -->
 {#if isTotalEmpty}
   <div class="empty-page-region">
     <EmptyState
@@ -260,10 +184,6 @@
       actionHref="/transactions/new"
     />
   </div>
-
-<!-- ══════════════════════════════════════════════════════════════════
-     E2: RANGE-EMPTY — page-level, timeframe pills still work
-     ══════════════════════════════════════════════════════════════════ -->
 {:else if isRangeEmpty}
   <div class="empty-page-region">
     <EmptyState
@@ -276,527 +196,247 @@
       secondaryHref="/transactions/new"
     />
   </div>
-
-<!-- ══════════════════════════════════════════════════════════════════
-     DATA EXISTS — normal render
-     ══════════════════════════════════════════════════════════════════ -->
 {:else}
+  <div class="reports-shell">
+    <!-- ════ LAYER 1: TOP KPI SUMMARY (Above the Fold) ════ -->
+    <section class="reports-section">
+      <ReportsKpiGrid
+        income={currentSummary.income}
+        incomeChange={changes.monthIncomeChange}
+        expenses={currentSummary.expense}
+        expenseChange={changes.monthExpenseChange}
+        netSavings={currentSummary.balance}
+        savingsRate={savingsRateVal}
+      />
+    </section>
 
-  <!-- ═══ Tabs ═══ -->
-  <div class="tabs-bar">
-    <div class="tabs-pill">
-      {#each tabs as tab (tab)}
-        <button
-          class="tab-btn"
-          class:active={activeTab === tab.id}
-          onclick={() => activeTab = tab.id}
-        >
-          {tab.label}
-        </button>
-      {/each}
-    </div>
-  </div>
-
-  <!-- ════════════════════════════════════════════════════════════════
-       CASH FLOW TAB
-       ════════════════════════════════════════════════════════════════ -->
-  {#if activeTab === 'cashflow'}
-    <div class="view-panel">
-      <!-- Summary bar -->
-      <div class="summary-strip">
-        <div class="strip-item">
-          <span class="strip-value">{formatCurrency(totalIncome)}</span>
-          <span class="strip-label">Total Income</span>
+    <!-- ════ LAYER 2: PRIMARY TREND ANALYSIS (Cash Flow Line Chart) ════ -->
+    <section class="reports-section">
+      <div class="trend-card flip7-card">
+        <div class="card-header">
+          <h2 class="card-title">Cash Flow Trend</h2>
+          <span class="card-subtitle">Monthly Income vs. Expenses over time</span>
         </div>
-        <div class="strip-divider"></div>
-        <div class="strip-item">
-          <span class="strip-value expense">{formatCurrency(totalExpenses)}</span>
-          <span class="strip-label">Total Expenses</span>
-        </div>
-        <div class="strip-divider"></div>
-        <div class="strip-item">
-          <span class="strip-value" class:positive={netTotal >= 0} class:negative={netTotal < 0}>
-            {formatCurrency(netTotal)}
-          </span>
-          <span class="strip-label">Net</span>
+        <div class="card-body">
+          <MonthlyTrendChart
+            labels={monthlyLabels}
+            incomeData={monthlyIncome}
+            expenseData={monthlyExpense}
+          />
         </div>
       </div>
+    </section>
 
-      <!-- Chart (never renders canvas when empty — MonthlyTrendChart handles "No trend data yet") -->
-      <div class="section-card">
-        <div class="section-card-header">
-          <h3 class="section-card-title">Monthly Trend</h3>
-        </div>
-        <MonthlyTrendChart
-          labels={monthlyLabels}
-          incomeData={monthlyIncome}
-          expenseData={monthlyExpense}
-        />
-      </div>
+    <!-- ════ LAYER 3: SECONDARY CATEGORY BREAKDOWN (2-Column Desktop Grid) ════ -->
+    <section class="reports-section">
+      <ReportsCategoryGrid
+        expenseCategories={data.expenseData ?? []}
+        incomeCategories={data.incomeData ?? []}
+        topExpenseName={topExpense?.category_name ?? ''}
+        topExpenseAmount={topExpense?.total ?? 0}
+        topExpensePct={topExpensePct}
+      />
+    </section>
 
-      <!-- Data table (ReportsDataTable handles empty rows internally) -->
-      <div class="section-card">
-        <div class="section-card-header">
-          <h3 class="section-card-title">Monthly Breakdown</h3>
-        </div>
-        <ReportsDataTable data={monthlyRows} />
-      </div>
-
-      <!-- Year-over-Year card (E4: graceful degradation when no prior period) -->
+    <!-- ════ LAYER 4: YEAR-OVER-YEAR COMPARISON ════ -->
+    <section class="reports-section">
       <YearOverYearCard
         yoyData={data.yoyData}
         selectedMonth={getMonthLabel(data.month ?? '')}
       />
-    </div>
+    </section>
 
-  <!-- ════════════════════════════════════════════════════════════════
-       INCOME TAB
-       ════════════════════════════════════════════════════════════════ -->
-  {:else if activeTab === 'income'}
-    <div class="view-panel">
-      {#if (data.incomeData ?? []).length > 0}
-        <div class="split-view">
-          <div class="split-chart">
-            <div class="section-card">
-              <h3 class="section-card-title">Income Breakdown</h3>
-              <div class="donut-container">
-                <svg width="180" height="180" viewBox="0 0 180 180">
-                  {#if incomeArcs.length > 0}
-                    {#each incomeArcs as arc, i (i)}
-                      <circle
-                        cx="90" cy="90" r="40"
-                        fill="none"
-                        stroke={arc.color}
-                        stroke-width="28"
-                        stroke-dasharray="{arc.pct * 251.2} {251.2 - arc.pct * 251.2}"
-                        stroke-dashoffset={-arc.offset}
-                        transform="rotate(-90 90 90)"
-                        stroke-linecap="round"
-                      />
-                    {/each}
-                  {/if}
-                  <text x="90" y="86" text-anchor="middle" fill="currentColor" font-size="16" font-weight="700" dy="0">
-                    {formatCurrency(incomeValues.reduce((a, b) => a + b, 0))}
-                  </text>
-                  <text x="90" y="106" text-anchor="middle" fill="var(--color-text-secondary)" font-size="11" font-weight="500">
-                    total
-                  </text>
-                </svg>
-              </div>
-              <!-- E5: single-category quiet note -->
-              {#if (data.incomeData ?? []).length <= 1}
-                <p class="single-cat-note">🌱 Only one category so far — add more over time</p>
-              {/if}
-            </div>
-          </div>
-          <div class="split-table">
-            <div class="section-card">
-              <h3 class="section-card-title">Categories</h3>
-              <div class="breakdown-list">
-                {#each (data.incomeData ?? []) as cat (cat.category_id)}
-                  <div class="breakdown-row">
-                    <span class="breakdown-dot" style="background: {cat.category_color}"></span>
-                    <span class="breakdown-name">{cat.category_name}</span>
-                    <span class="breakdown-amount">{formatCurrency(cat.total)}</span>
-                    <span class="breakdown-pct">
-                      {(() => {
-                        const tot = incomeValues.reduce((a, b) => a + b, 0);
-                        return tot > 0 ? ((cat.total / tot) * 100).toFixed(1) : '0.0';
-                      })()}%
-                    </span>
-                  </div>
-                {/each}
-              </div>
-            </div>
-          </div>
+    <!-- ════ LAYER 5: DETAILED MONTHLY BREAKDOWN TABLE ════ -->
+    <section class="reports-section">
+      <div class="table-card flip7-card">
+        <div class="card-header">
+          <h2 class="card-title">Monthly Breakdown</h2>
+          <span class="card-subtitle">Detailed financial ledger by month</span>
         </div>
-      {:else}
-        <!-- E3: TYPE-EMPTY for income tab -->
-        <EmptyState
-          icon="💰"
-          title="No income this period"
-          description="You logged expenses but no income here yet."
-          actionLabel="Log income"
-          actionHref="/transactions/new"
-          secondaryLabel="View the Expenses tab"
-          secondaryHref=""
-        />
-      {/if}
-    </div>
-
-  <!-- ════════════════════════════════════════════════════════════════
-       EXPENSES TAB
-       ════════════════════════════════════════════════════════════════ -->
-  {:else if activeTab === 'expenses'}
-    <div class="view-panel">
-      {#if (data.expenseData ?? []).length > 0}
-        <div class="split-view">
-          <div class="split-chart">
-            <div class="section-card">
-              <h3 class="section-card-title">Expense Breakdown</h3>
-              <div class="donut-container">
-                <svg width="180" height="180" viewBox="0 0 180 180">
-                  {#if expenseArcs.length > 0}
-                    {#each expenseArcs as arc, i (i)}
-                      <circle
-                        cx="90" cy="90" r="40"
-                        fill="none"
-                        stroke={arc.color}
-                        stroke-width="28"
-                        stroke-dasharray="{arc.pct * 251.2} {251.2 - arc.pct * 251.2}"
-                        stroke-dashoffset={-arc.offset}
-                        transform="rotate(-90 90 90)"
-                        stroke-linecap="round"
-                      />
-                    {/each}
-                  {/if}
-                  <text x="90" y="86" text-anchor="middle" fill="currentColor" font-size="16" font-weight="700" dy="0">
-                    {formatCurrency(expenseValues.reduce((a, b) => a + b, 0))}
-                  </text>
-                  <text x="90" y="106" text-anchor="middle" fill="var(--color-text-secondary)" font-size="11" font-weight="500">
-                    total
-                  </text>
-                </svg>
-              </div>
-              <!-- E5: single-category quiet note -->
-              {#if (data.expenseData ?? []).length <= 1}
-                <p class="single-cat-note">🌱 Only one category so far — add more over time</p>
-              {/if}
-            </div>
-          </div>
-          <div class="split-table">
-            <div class="section-card">
-              <h3 class="section-card-title">Categories</h3>
-              <div class="breakdown-list">
-                {#each (data.expenseData ?? []) as cat (cat.category_id)}
-                  <div class="breakdown-row">
-                    <span class="breakdown-dot" style="background: {cat.category_color}"></span>
-                    <span class="breakdown-name">{cat.category_name}</span>
-                    <span class="breakdown-amount expense">{formatCurrency(cat.total)}</span>
-                    <span class="breakdown-pct">
-                      {(() => {
-                        const tot = expenseValues.reduce((a, b) => a + b, 0);
-                        return tot > 0 ? ((cat.total / tot) * 100).toFixed(1) : '0.0';
-                      })()}%
-                    </span>
-                  </div>
-                {/each}
-              </div>
-            </div>
-          </div>
+        <div class="card-body">
+          <ReportsDataTable data={monthlyRows} />
         </div>
-      {:else}
-        <!-- E3: TYPE-EMPTY for expenses tab -->
-        <EmptyState
-          icon="🍽️"
-          title="No expenses this period"
-          description="You logged income but no expenses here yet."
-          actionLabel="Log an expense"
-          actionHref="/transactions/new"
-          secondaryLabel="View the Income tab"
-          secondaryHref=""
-        />
-      {/if}
-    </div>
-  {/if}
+      </div>
+    </section>
+  </div>
 {/if}
 
 <style>
-  /* ═══════════════════════════════════════════════════════════════════
-     REPORTS PAGE
-     ═══════════════════════════════════════════════════════════════════ */
+  :global(.page-header) {
+    position: relative;
+    z-index: 30;
+  }
 
-  /* ─── Export button ─── */
+  .context-subline {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.02em;
+    color: var(--color-text-muted);
+  }
+
+  /* ─── Export CSV Button ─── */
   .btn-export {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: var(--space-sm) var(--space-md);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: var(--radius-pill);
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
     text-decoration: none;
-    min-height: 40px;
-    transition: all var(--transition-fast);
-    white-space: nowrap;
-    position: relative;
+    transition: all 180ms var(--ease);
+    border: 1px solid rgba(43, 168, 162, 0.2);
   }
 
   .btn-export:hover {
-    background: var(--color-primary-light);
-    border-color: var(--color-primary);
-    color: var(--color-primary);
+    background: var(--color-teal);
+    color: #fff;
+    box-shadow: var(--glow-card);
   }
 
   .btn-export-disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    pointer-events: none;
-  }
-
-  .export-hint {
-    font-size: 10px;
+    background: var(--color-surface-inset);
     color: var(--color-text-muted);
-    position: absolute;
-    bottom: -16px;
-    left: 50%;
-    transform: translateX(-50%);
-    white-space: nowrap;
-    font-weight: 400;
+    border-color: var(--color-hairline);
   }
 
-  /* ─── Empty page region (E1/E2) ─── */
-  .empty-page-region {
-    margin-top: var(--space-lg);
+  /* ─── Timeframe Control Bar ─── */
+  .timeframe-bar {
+    margin-bottom: var(--space-xl);
   }
 
-  /* ─── Tabs bar ─── */
-  .tabs-bar {
-    margin-bottom: var(--space-lg);
-  }
-
-  .tabs-pill {
+  .timeframe-pill {
     display: inline-flex;
-    gap: 2px;
-    background: var(--color-bg);
+    align-items: center;
+    gap: 4px;
+    background: var(--color-surface);
     padding: 4px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-hairline);
+    box-shadow: var(--shadow-card);
   }
 
-  .tab-btn {
-    padding: var(--space-sm) var(--space-lg);
+  .tf-btn {
+    padding: 6px 16px;
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-pill);
     background: transparent;
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-xs);
     font-weight: 600;
     font-family: inherit;
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     cursor: pointer;
-    min-height: 40px;
-    transition: all 120ms ease;
+    transition: all 180ms var(--ease);
   }
 
-  .tab-btn.active {
-    background: var(--color-primary);
-    color: white;
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  .tf-btn:hover:not(.active) {
+    color: var(--color-ink);
+    background: var(--color-teal-bg);
   }
 
-  .tab-btn:not(.active):hover {
-    background: var(--color-surface);
-    color: var(--color-text);
+  .tf-btn.active {
+    background: var(--color-teal);
+    color: #fff;
+    font-weight: 700;
+    box-shadow: var(--glow-card);
   }
 
-  /* ─── View panel ─── */
-  .view-panel {
-    animation: fadeSlideIn 300ms ease-out;
+  /* ─── Reports Shell ─── */
+  .reports-shell {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xl);
+    padding-bottom: var(--space-3xl);
   }
 
-  @keyframes fadeSlideIn {
-    from { opacity: 0; transform: translateY(10px); }
+  /* ─── Staggered Entrance Animation ─── */
+  .reports-section {
+    animation: fadeSlideUp 400ms var(--ease) both;
+  }
+  .reports-section:nth-child(1) { animation-delay: 0ms; }
+  .reports-section:nth-child(2) { animation-delay: 80ms; }
+  .reports-section:nth-child(3) { animation-delay: 160ms; }
+  .reports-section:nth-child(4) { animation-delay: 240ms; }
+  .reports-section:nth-child(5) { animation-delay: 320ms; }
+
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
   }
 
-  /* ─── Summary strip ─── */
-  .summary-strip {
+  /* ─── Common Card Container ─── */
+  .trend-card, .table-card {
     display: flex;
-    align-items: center;
-    gap: var(--space-md);
+    flex-direction: column;
+    padding: var(--space-lg);
     background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-hairline);
     border-radius: var(--radius-xl);
-    padding: var(--space-md) var(--space-lg);
-    margin-bottom: var(--space-lg);
+    box-shadow: var(--shadow-card);
   }
 
-  .strip-item {
+  .card-header {
     display: flex;
     flex-direction: column;
     gap: 2px;
-  }
-
-  .strip-value {
-    font-size: var(--font-size-base);
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    color: var(--color-text);
-  }
-
-  .strip-value.expense { color: var(--color-expense); }
-  .strip-value.positive { color: var(--color-income); }
-  .strip-value.negative { color: var(--color-expense); }
-
-  .strip-label {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
-    font-weight: 500;
-  }
-
-  .strip-divider {
-    width: 1px;
-    height: 32px;
-    background: var(--color-border);
-    flex-shrink: 0;
-  }
-
-  /* ─── Section cards ─── */
-  .section-card {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-xl);
-    padding: var(--space-lg);
-    margin-bottom: var(--space-lg);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .section-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
     margin-bottom: var(--space-md);
   }
 
-  .section-card-title {
-    margin: 0;
+  .card-title {
     font-size: var(--font-size-base);
     font-weight: 600;
-    color: var(--color-text);
+    color: var(--color-ink);
+    margin: 0;
   }
 
-  /* ─── Split view (chart + table side by side) ─── */
-  .split-view {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-lg);
-    align-items: start;
-  }
-
-  .split-chart .section-card {
-    margin-bottom: 0;
-  }
-
-  .split-table .section-card {
-    margin-bottom: 0;
-  }
-
-  /* ─── Donut ─── */
-  .donut-container {
-    display: flex;
-    justify-content: center;
-    padding: var(--space-lg) 0;
-  }
-
-  .donut-container svg {
-    color: var(--color-text);
-  }
-
-  /* ─── Single category note (E5) ─── */
-  .single-cat-note {
-    text-align: center;
+  .card-subtitle {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
-    margin: var(--space-xs) 0 var(--space-sm);
-    font-style: italic;
   }
 
-  /* ─── Category breakdown list ─── */
-  .breakdown-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xs);
+  .card-body {
+    width: 100%;
   }
 
-  .breakdown-row {
-    display: grid;
-    grid-template-columns: 14px 1fr auto auto;
-    gap: var(--space-sm);
-    align-items: center;
-    padding: var(--space-sm) var(--space-sm);
-    border-radius: var(--radius-sm);
-    transition: background 120ms ease;
+  /* ─── Empty State Page Region ─── */
+  .empty-page-region {
+    padding: var(--space-2xl) 0;
   }
 
-  .breakdown-row:hover {
-    background: rgba(99, 102, 241, 0.03);
-  }
+  /* ════════════════════════════════════════
+     RESPONSIVE
+     ════════════════════════════════════════ */
 
-  .breakdown-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .breakdown-name {
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    color: var(--color-text);
-  }
-
-  .breakdown-amount {
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-    color: var(--color-income);
-  }
-
-  .breakdown-amount.expense {
-    color: var(--color-expense);
-  }
-
-  .breakdown-pct {
-    font-size: var(--font-size-xs);
-    font-weight: 500;
-    color: var(--color-text-secondary);
-    text-align: right;
-    min-width: 48px;
-  }
-
-  /* ─── Responsive ─── */
   @media (max-width: 768px) {
-    .split-view {
-      grid-template-columns: 1fr;
-    }
-
-    .summary-strip {
-      gap: var(--space-sm);
-      padding: var(--space-md);
-    }
-
-    .strip-divider {
-      display: none;
-    }
-
-    .strip-item {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .tabs-pill {
+    .timeframe-pill {
+      display: flex;
       width: 100%;
     }
 
-    .tab-btn {
+    .tf-btn {
       flex: 1;
       text-align: center;
-      padding: var(--space-sm) var(--space-md);
-    }
-
-    .export-hint {
-      display: none;
+      padding: 6px 8px;
     }
   }
 
   @media (max-width: 480px) {
-    .strip-value {
-      font-size: var(--font-size-sm);
+    .reports-shell {
+      gap: var(--space-md);
+    }
+    .trend-card, .table-card {
+      padding: var(--space-md);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reports-section {
+      animation: none;
     }
   }
 </style>

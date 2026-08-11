@@ -18,9 +18,15 @@
  * The connection string is never printed.
  */
 
-import { usePostgres, getPgPool } from '../src/lib/database/index.js';
-import { queryOne, queryMany, withTransaction } from '../src/lib/database/query.js';
-import { hashPassword, verifyPassword, createToken, verifyToken } from '../src/lib/auth.js';
+import { getPgPool } from '../src/lib/server/db/index.js';
+import { queryOne, queryMany, withTransaction } from '../src/lib/server/db/query.js';
+import { hashPassword, verifyPassword } from '../src/lib/server/auth/index.js';
+
+// Canonical connection-string resolution mirrors src/lib/database/index.ts:
+// DATABASE_URL is preferred; POSTGRES_URL remains honored as the deprecated
+// alias. Read after the index.js import (which wires dev env) so the skip-guard
+// below matches the runtime's own connection decision. Never printed.
+const databaseUrl = process.env['DATABASE_URL'] ?? process.env['POSTGRES_URL'];
 
 const results: { name: string; ok: boolean; detail?: string }[] = [];
 const check = (name: string, ok: boolean, detail?: string) => results.push({ name, ok, detail });
@@ -206,21 +212,15 @@ async function runReadChecks(): Promise<void> {
 }
 
 async function runAuthChecks(): Promise<void> {
+	// Auth.js owns session tokens now (AUTH_SECRET); only bcrypt hashing
+	// remains in src/lib/auth.ts, so only the bcrypt roundtrip is verified.
 	const hash = hashPassword('verify-pass-123');
 	check('bcrypt hash/verify roundtrip', verifyPassword('verify-pass-123', hash));
 	check('bcrypt rejects wrong password', !verifyPassword('wrong', hash));
-
-	const token = createToken(999999, '__neon_verify');
-	const payload = verifyToken(token);
-	check(
-		'JWT create/verify roundtrip',
-		payload?.userId === 999999 && payload?.username === '__neon_verify',
-		payload ? `userId=${payload.userId}` : 'verify returned null'
-	);
 }
 
 async function main(): Promise<void> {
-	if (!usePostgres) {
+	if (!databaseUrl) {
 		console.log('SKIP  — DATABASE_URL (or POSTGRES_URL) is not set; cannot connect to Neon.');
 		console.log('        Set it and re-run:  DATABASE_URL=<neon url> npx tsx scripts/verify-neon.ts');
 		console.log('        (The connection string is read from the environment only; never hardcoded.)');

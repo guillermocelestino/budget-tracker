@@ -1,6 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { queryMany } from '$lib/database/query';
-import type { CategoryReportItem } from '$lib/types';
+import { getCategoryReport } from '$lib/server/services/transactions';
 
 function getCurrentMonthParam(): string {
 	const now = new Date();
@@ -12,15 +11,7 @@ export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 	const month = url.searchParams.get('month') || getCurrentMonthParam();
 	const type = url.searchParams.get('type') || 'expense';
 
-	const rows = await queryMany<CategoryReportItem>(
-		`SELECT c.id as category_id, c.name as category_name, c.color as category_color, SUM(t.amount) as total
-		 FROM transactions t
-		 JOIN categories c ON t.category_id = c.id
-		 WHERE t.user_id = $1 AND TO_CHAR(t.date, 'YYYY-MM') = $2 AND t.type = $3
-		 GROUP BY t.category_id, c.id, c.name, c.color
-		 ORDER BY total DESC`,
-		[userId, month, type]
-	);
+	const rows = await getCategoryReport(userId, month, type as 'income' | 'expense');
 
 	return json(rows);
 }

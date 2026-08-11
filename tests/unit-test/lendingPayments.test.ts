@@ -1,30 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { queryOne, queryMany, execute, withTransaction } from '$lib/database/query';
-import { usePostgres } from '$lib/database';
-import { getDrizzle } from '$lib/database/drizzle';
-import {
-	categories,
-	lendings,
-	lendingPayments,
-	transactions
-} from '$lib/database/schema';
-import { and, eq, sql, desc, isNotNull } from 'drizzle-orm';
+import { getDrizzle } from '$lib/server/db/drizzle';
+import { lendingPayments } from '$lib/server/db/schema';
 import {
 	getLendingsWithPayments,
-	getLendingWithPayments,
-	recalcStatusCache,
+	getLending,
+	getPayment,
 	recordPayment,
 	updatePayment,
 	deletePayment,
-	getPaymentHistory,
-	hasPayments,
-	deleteLinkedTransactions,
-	getLendingTotals
-} from '$lib/server/lendingPayments';
-import type { Lending, LendingPayment, LendingWithPayments, PaymentType } from '$lib/types';
+	searchLendings
+} from '$lib/server/services/lendingPayments';
 
 // Mock the database modules
-vi.mock('$lib/database/query', () => ({
+vi.mock('$lib/server/db/query', () => ({
 	queryOne: vi.fn(),
 	queryMany: vi.fn(),
 	execute: vi.fn(),
@@ -35,467 +23,13 @@ vi.mock('$lib/database/query', () => ({
 	}))
 }));
 
-vi.mock('$lib/database', () => ({
-	usePostgres: false
-}));
-
-vi.mock('$lib/database/drizzle', () => ({
+vi.mock('$lib/server/db/drizzle', () => ({
 	getDrizzle: vi.fn()
 }));
-
-describe('lendingPayments - SQLite path', () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-		(usePostgres as any) = false;
-	});
-
-	describe('getLendingsWithPayments', () => {
-		it('should return lendings with derived payment state', async () => {
-			const mockRows = [
-				{
-					id: 1,
-					user_id: 1,
-					borrower_name: 'John',
-					amount: 1000,
-					interest_rate: 0,
-					date_lent: '2024-01-01',
-					due_date: null,
-					status: 'active',
-					notes: null,
-					direction: 'lent',
-					created_at: '2024-01-01T00:00:00Z',
-					updated_at: '2024-01-01T00:00:00Z',
-					cash_paid: '500',
-					written_off: '0'
-				}
-			];
-			(queryMany as any).mockResolvedValue(mockRows);
-
-			const result = await getLendingsWithPayments(1, 'lent');
-
-			expect(result).toHaveLength(1);
-			expect(result[0].cash_paid).toBe(500);
-			expect(result[0].written_off).toBe(0);
-			expect(result[0].resolved_total).toBe(500);
-			expect(result[0].remaining).toBe(500);
-			expect(result[0].derived_status).toBe('active');
-		});
-
-		it('should mark lending as paid when fully resolved', async () => {
-			const mockRows = [
-				{
-					id: 1,
-					user_id: 1,
-					borrower_name: 'John',
-					amount: 1000,
-					interest_rate: 0,
-					date_lent: '2024-01-01',
-					due_date: null,
-					status: 'active',
-					notes: null,
-					direction: 'lent',
-					created_at: '2024-01-01T00:00:00Z',
-					updated_at: '2024-01-01T00:00:00Z',
-					cash_paid: '1000',
-					written_off: '0'
-				}
-			];
-			(queryMany as any).mockResolvedValue(mockRows);
-
-			const result = await getLendingsWithPayments(1, 'lent');
-
-			expect(result[0].remaining).toBe(0);
-			expect(result[0].derived_status).toBe('paid');
-		});
-	});
-
-	describe('getLendingWithPayments', () => {
-		it('should return a single lending with derived state', async () => {
-			const mockRow = {
-				id: 1,
-				user_id: 1,
-				borrower_name: 'John',
-				amount: 1000,
-				interest_rate: 0,
-				date_lent: '2024-01-01',
-				due_date: null,
-				status: 'active',
-				notes: null,
-				direction: 'lent',
-				created_at: '2024-01-01T00:00:00Z',
-				updated_at: '2024-01-01T00:00:00Z',
-				cash_paid: '300',
-				written_off: '0'
-			};
-			(queryOne as any).mockResolvedValue(mockRow);
-
-			const result = await getLendingWithPayments(1, 1);
-
-			expect(result).toBeDefined();
-			expect(result!.cash_paid).toBe(300);
-			expect(result!.remaining).toBe(700);
-			expect(result!.derived_status).toBe('active');
-		});
-
-		it('should return undefined when lending not found', async () => {
-			(queryOne as any).mockResolvedValue(undefined);
-
-			const result = await getLendingWithPayments(1, 999);
-
-			expect(result).toBeUndefined();
-		});
-	});
-
-	describe('recalcStatusCache', () => {
-		it('should return active when lending not found', async () => {
-			(queryOne as any).mockResolvedValue(undefined);
-
-			const result = await recalcStatusCache(1, 999);
-
-			expect(result).toBe('active');
-			expect(execute).not.toHaveBeenCalled();
-		});
-
-		it('should calculate and update status correctly', async () => {
-			(queryOne as any).mockResolvedValue({
-				amount: '1000',
-				resolved: '1000'
-			});
-
-			const result = await recalcStatusCache(1, 1);
-
-			expect(result).toBe('paid');
-			expect(execute).toHaveBeenCalledWith(
-				'UPDATE lendings SET status = $1, updated_at = NOW() WHERE user_id = $2 AND id = $3',
-				['paid', 1, 1]
-			);
-		});
-	});
-
-	describe('recordPayment', () => {
-		it('should create payment and linked transaction', async () => {
-			const mockLending = {
-				id: 1,
-				user_id: 1,
-				borrower_name: 'John',
-				amount: 1000,
-				interest_rate: 0,
-				date_lent: '2024-01-01',
-				due_date: null,
-				status: 'active',
-				notes: null,
-				direction: 'lent',
-				created_at: '2024-01-01T00:00:00Z',
-				updated_at: '2024-01-01T00:00:00Z'
-			};
-			const mockBalance = { resolved: '0' };
-			const mockPayment = { id: 1 };
-			const mockCategory = { id: 5 };
-			const mockTx = { id: 1 };
-
-			// Mock the transaction callback - need 6 queryOne calls and execute calls
-			const mockQueryOne = vi.fn()
-				.mockResolvedValueOnce(mockLending) // get lending
-				.mockResolvedValueOnce(mockBalance) // check balance
-				.mockResolvedValueOnce(mockPayment) // get payment id
-				.mockResolvedValueOnce(mockCategory) // find category
-				.mockResolvedValueOnce(mockTx) // get transaction id
-				.mockResolvedValueOnce(mockTx); // get transaction id again for update
-
-			const mockExecute = vi.fn();
-
-			const mockTxHelpers = {
-				queryOne: mockQueryOne,
-				execute: mockExecute
-			};
-			(withTransaction as any).mockImplementation((cb: any) => cb(mockTxHelpers));
-
-			const result = await recordPayment(1, {
-				lendingId: 1,
-				amount: 500,
-				paymentDate: '2024-01-15',
-				notes: 'Partial payment',
-				paymentType: 'payment',
-				createTransaction: true
-			});
-
-			expect(result.paymentId).toBe(1);
-			expect(result.transactionId).toBe(1);
-			expect(mockQueryOne).toHaveBeenCalledTimes(5);
-			expect(mockExecute).toHaveBeenCalled();
-		});
-
-		it('should throw error when payment exceeds remaining balance', async () => {
-			const mockLending = {
-				id: 1,
-				user_id: 1,
-				borrower_name: 'John',
-				amount: 1000,
-				interest_rate: 0,
-				date_lent: '2024-01-01',
-				due_date: null,
-				status: 'active',
-				notes: null,
-				direction: 'lent',
-				created_at: '2024-01-01T00:00:00Z',
-				updated_at: '2024-01-01T00:00:00Z'
-			};
-			const mockBalance = { resolved: '800' };
-
-			const mockTxHelpers = {
-				queryOne: vi.fn()
-					.mockResolvedValueOnce(mockLending)
-					.mockResolvedValueOnce(mockBalance),
-				execute: vi.fn()
-			};
-			(withTransaction as any).mockImplementation((cb: any) => cb(mockTxHelpers));
-
-			await expect(
-				recordPayment(1, {
-					lendingId: 1,
-					amount: 500,
-					paymentDate: '2024-01-15',
-					notes: null,
-					paymentType: 'payment',
-					createTransaction: false
-				})
-			).rejects.toThrow('Payment amount cannot exceed remaining balance');
-		});
-
-		it('should throw error when lending not found', async () => {
-			const mockTxHelpers = {
-				queryOne: vi.fn().mockResolvedValue(undefined),
-				execute: vi.fn()
-			};
-			(withTransaction as any).mockImplementation((cb: any) => cb(mockTxHelpers));
-
-			await expect(
-				recordPayment(1, {
-					lendingId: 999,
-					amount: 500,
-					paymentDate: '2024-01-15',
-					notes: null,
-					paymentType: 'payment',
-					createTransaction: false
-				})
-			).rejects.toThrow('Lending record not found');
-		});
-	});
-
-	describe('updatePayment', () => {
-		it('should update payment and sync linked transaction', async () => {
-			const mockPayment = {
-				id: 1,
-				lending_id: 1,
-				user_id: 1,
-				amount: 500,
-				payment_date: '2024-01-15',
-				notes: 'Original',
-				transaction_id: 10,
-				payment_type: 'payment',
-				reference: null,
-				created_at: '2024-01-15T00:00:00Z',
-				updated_at: '2024-01-15T00:00:00Z'
-			};
-			const mockLending = {
-				id: 1,
-				user_id: 1,
-				borrower_name: 'John',
-				amount: 1000,
-				interest_rate: 0,
-				date_lent: '2024-01-01',
-				due_date: null,
-				status: 'active',
-				notes: null,
-				direction: 'lent',
-				created_at: '2024-01-01T00:00:00Z',
-				updated_at: '2024-01-01T00:00:00Z'
-			};
-			const mockBalance = { resolved: '0' };
-
-			const mockTxHelpers = {
-				queryOne: vi.fn()
-					.mockResolvedValueOnce(mockPayment)
-					.mockResolvedValueOnce(mockLending)
-					.mockResolvedValueOnce(mockBalance),
-				execute: vi.fn()
-			};
-			(withTransaction as any).mockImplementation((cb: any) => cb(mockTxHelpers));
-
-			await updatePayment(1, 1, {
-				amount: 600,
-				paymentDate: '2024-01-20',
-				notes: 'Updated'
-			});
-
-			expect(mockTxHelpers.execute).toHaveBeenCalled();
-		});
-
-		it('should throw error when payment not found', async () => {
-			const mockTxHelpers = {
-				queryOne: vi.fn().mockResolvedValue(undefined),
-				execute: vi.fn()
-			};
-			(withTransaction as any).mockImplementation((cb: any) => cb(mockTxHelpers));
-
-			await expect(
-				updatePayment(1, 999, {
-					amount: 500,
-					paymentDate: '2024-01-15',
-					notes: null
-				})
-			).rejects.toThrow('Payment not found');
-		});
-	});
-
-	describe('deletePayment', () => {
-		it('should delete payment and linked transaction', async () => {
-			const mockPayment = {
-				id: 1,
-				lending_id: 1,
-				user_id: 1,
-				amount: 500,
-				payment_date: '2024-01-15',
-				notes: null,
-				transaction_id: 10,
-				payment_type: 'payment',
-				reference: null,
-				created_at: '2024-01-15T00:00:00Z',
-				updated_at: '2024-01-15T00:00:00Z'
-			};
-			const mockBalance = { amount: '1000', resolved: '0' };
-
-			const mockTxHelpers = {
-				queryOne: vi.fn()
-					.mockResolvedValueOnce(mockPayment)
-					.mockResolvedValueOnce(mockBalance),
-				execute: vi.fn()
-			};
-			(withTransaction as any).mockImplementation((cb: any) => cb(mockTxHelpers));
-
-			await deletePayment(1, 1);
-
-			expect(mockTxHelpers.execute).toHaveBeenCalledTimes(3);
-		});
-
-		it('should throw error when payment not found', async () => {
-			const mockTxHelpers = {
-				queryOne: vi.fn().mockResolvedValue(undefined),
-				execute: vi.fn()
-			};
-			(withTransaction as any).mockImplementation((cb: any) => cb(mockTxHelpers));
-
-			await expect(deletePayment(1, 999)).rejects.toThrow('Payment not found');
-		});
-	});
-
-	describe('getPaymentHistory', () => {
-		it('should return payment history ordered correctly', async () => {
-			const mockPayments = [
-				{
-					id: 2,
-					lending_id: 1,
-					user_id: 1,
-					amount: 500,
-					payment_date: '2024-01-15',
-					notes: null,
-					transaction_id: null,
-					payment_type: 'payment',
-					reference: null,
-					created_at: '2024-01-15T00:00:00Z',
-					updated_at: '2024-01-15T00:00:00Z'
-				},
-				{
-					id: 1,
-					lending_id: 1,
-					user_id: 1,
-					amount: 300,
-					payment_date: '2024-01-10',
-					notes: null,
-					transaction_id: null,
-					payment_type: 'payment',
-					reference: null,
-					created_at: '2024-01-10T00:00:00Z',
-					updated_at: '2024-01-10T00:00:00Z'
-				}
-			];
-			(queryMany as any).mockResolvedValue(mockPayments);
-
-			const result = await getPaymentHistory(1, 1);
-
-			expect(result).toHaveLength(2);
-			expect(result[0].id).toBe(2);
-			expect(result[1].id).toBe(1);
-		});
-	});
-
-	describe('hasPayments', () => {
-		it('should return true when payments exist', async () => {
-			(queryOne as any).mockResolvedValue({ count: '2' });
-
-			const result = await hasPayments(1, 1);
-
-			expect(result).toBe(true);
-		});
-
-		it('should return false when no payments exist', async () => {
-			(queryOne as any).mockResolvedValue({ count: '0' });
-
-			const result = await hasPayments(1, 1);
-
-			expect(result).toBe(false);
-		});
-	});
-
-	describe('deleteLinkedTransactions', () => {
-		it('should delete all linked transactions', async () => {
-			(queryMany as any).mockResolvedValue([
-				{ transaction_id: 10 },
-				{ transaction_id: 20 }
-			]);
-
-			await deleteLinkedTransactions(1, 1);
-
-			expect(execute).toHaveBeenCalledTimes(2);
-			expect(execute).toHaveBeenNthCalledWith(1, 'DELETE FROM transactions WHERE user_id = $1 AND id = $2', [1, 10]);
-			expect(execute).toHaveBeenNthCalledWith(2, 'DELETE FROM transactions WHERE user_id = $1 AND id = $2', [1, 20]);
-		});
-	});
-
-	describe('getLendingTotals', () => {
-		it('should calculate totals correctly', async () => {
-			const mockRow = {
-				total: '3000',
-				cash_paid: '1500',
-				written_off: '200'
-			};
-			(queryOne as any).mockResolvedValue(mockRow);
-
-			const result = await getLendingTotals(1, 'lent');
-
-			expect(result.total).toBe(3000);
-			expect(result.cashPaid).toBe(1500);
-			expect(result.writtenOff).toBe(200);
-			expect(result.outstanding).toBe(1300);
-		});
-
-		it('should handle zero totals', async () => {
-			(queryOne as any).mockResolvedValue(null);
-
-			const result = await getLendingTotals(1, 'borrowed');
-
-			expect(result.total).toBe(0);
-			expect(result.cashPaid).toBe(0);
-			expect(result.writtenOff).toBe(0);
-			expect(result.outstanding).toBe(0);
-		});
-	});
-});
 
 describe('lendingPayments - Drizzle/Postgres path', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		(usePostgres as any) = true;
 	});
 
 	// Helper: build a Drizzle query chain mock. The chain is thenable and
@@ -505,7 +39,7 @@ describe('lendingPayments - Drizzle/Postgres path', () => {
 		const chain: any = {};
 		const methods = [
 			'select', 'from', 'where', 'leftJoin', 'groupBy', 'orderBy',
-			'limit', 'insert', 'values', 'update', 'set', 'delete', 'returning'
+			'limit', 'insert', 'values', 'update', 'set', 'delete', 'returning', 'ilike', 'for'
 		];
 		for (const m of methods) {
 			chain[m] = vi.fn(function() { return chain; });
@@ -638,5 +172,665 @@ describe('lendingPayments - Drizzle/Postgres path', () => {
 		await deletePayment(1, 1);
 
 		expect(db.transaction).toHaveBeenCalled();
+	});
+
+	describe('searchLendings', () => {
+		it('searches lendings via Drizzle with ilike and orders by date_lent DESC', async () => {
+			const mockData = [{
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John Smith',
+				amount: '1000',
+				interest_rate: 5.5,
+				date_lent: '2024-01-01',
+				due_date: '2024-02-01',
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			}];
+
+			const chain = makeDrizzleData(mockData);
+			const db = { select: vi.fn(() => chain) };
+			(getDrizzle as any).mockResolvedValue(db);
+
+			const results = await searchLendings(1, 'john');
+
+			expect(getDrizzle).toHaveBeenCalled();
+			expect(db.select).toHaveBeenCalled();
+			expect(results).toHaveLength(1);
+			expect(results[0].borrower_name).toBe('John Smith');
+			expect(results[0].amount).toBe(1000);
+			expect(results[0].interest_rate).toBe(5.5);
+		});
+
+		it('filters by direction when provided', async () => {
+			const chain = makeDrizzleData([]);
+			const db = { select: vi.fn(() => chain) };
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await searchLendings(1, 'john', 'lent');
+
+			expect(db.select).toHaveBeenCalled();
+		});
+
+		it('limits to 5 results', async () => {
+			const chain = makeDrizzleData([]);
+			const db = { select: vi.fn(() => chain) };
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await searchLendings(1, 'john');
+
+			expect(chain.limit).toHaveBeenCalledWith(5);
+		});
+	});
+
+	describe('getLending', () => {
+		it('returns lending by ID via Drizzle with user_id + lending_id predicates', async () => {
+			const mockData = [{
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			}];
+
+			const chain = makeDrizzleData(mockData);
+			const db = { select: vi.fn(() => chain) };
+			(getDrizzle as any).mockResolvedValue(db);
+
+			const result = await getLending(1, 1);
+
+			expect(getDrizzle).toHaveBeenCalled();
+			expect(db.select).toHaveBeenCalled();
+			// Result should be converted to Lending type (number amounts, string timestamps)
+			expect(result).toEqual({
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: 1000,
+				interest_rate: 0,
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: '2024-01-01 00:00:00',
+				updated_at: '2024-01-01 00:00:00',
+			});
+		});
+
+		it('returns undefined when no rows', async () => {
+			const chain = makeDrizzleData([]);
+			const db = { select: vi.fn(() => chain) };
+			(getDrizzle as any).mockResolvedValue(db);
+
+			const result = await getLending(1, 999);
+
+			expect(result).toBeUndefined();
+		});
+
+		it('converts numeric strings to numbers and Date to string timestamps', async () => {
+			const mockData = [{
+				id: 2,
+				user_id: 1,
+				borrower_name: 'Jane',
+				amount: '500',
+				interest_rate: '2.5',
+				date_lent: '2024-06-15',
+				due_date: '2024-12-31',
+				status: 'paid',
+				notes: 'Test note',
+				direction: 'borrowed',
+				created_at: new Date('2024-06-01'),
+				updated_at: new Date('2024-07-01')
+			}];
+
+			const chain = makeDrizzleData(mockData);
+			const db = { select: vi.fn(() => chain) };
+			(getDrizzle as any).mockResolvedValue(db);
+
+			const result = await getLending(1, 2);
+
+			// Result should be converted to Lending type
+			expect(result).toEqual({
+				id: 2,
+				user_id: 1,
+				borrower_name: 'Jane',
+				amount: 500,
+				interest_rate: 2.5,
+				date_lent: '2024-06-15',
+				due_date: '2024-12-31',
+				status: 'paid',
+				notes: 'Test note',
+				direction: 'borrowed',
+				created_at: '2024-06-01 00:00:00',
+				updated_at: '2024-07-01 00:00:00',
+			});
+			expect(typeof result!.amount).toBe('number');
+			expect(typeof result!.interest_rate).toBe('number');
+			expect(result!.date_lent).toBe('2024-06-15');
+			expect(result!.due_date).toBe('2024-12-31');
+			expect(typeof result!.created_at).toBe('string');
+			expect(typeof result!.updated_at).toBe('string');
+		});
+	});
+
+	describe('getPayment', () => {
+		it('returns lending_id via Drizzle with user_id + payment_id predicates', async () => {
+			const mockData = [{ lending_id: 7 }];
+
+			const chain = makeDrizzleData(mockData);
+			const db = { select: vi.fn(() => chain) };
+			(getDrizzle as any).mockResolvedValue(db);
+
+			const result = await getPayment(1, 10);
+
+			expect(getDrizzle).toHaveBeenCalled();
+			expect(db.select).toHaveBeenCalled();
+			expect(result).toEqual({ lending_id: 7 });
+		});
+
+		it('returns undefined when no rows', async () => {
+			const chain = makeDrizzleData([]);
+			const db = { select: vi.fn(() => chain) };
+			(getDrizzle as any).mockResolvedValue(db);
+
+			const result = await getPayment(1, 999);
+
+			expect(result).toBeUndefined();
+		});
+
+		it('returns only lending_id field', async () => {
+		const mockData = [{ lending_id: 3 }];
+		const chain = makeDrizzleData(mockData);
+		const selectSpy = vi.fn(() => chain);
+		const db = { select: selectSpy };
+		(getDrizzle as any).mockResolvedValue(db);
+
+		await getPayment(1, 5);
+
+		// Verify select was called with only lending_id column
+		expect(selectSpy).toHaveBeenCalled();
+		const selectCall = selectSpy.mock.calls[0] as unknown[];
+		expect(selectCall[0]).toEqual({ lending_id: lendingPayments.lending_id });
+	});
+});
+
+	describe('recordPayment - concurrency & balance validation', () => {
+		it('allows payment within remaining balance', async () => {
+			// Lending: 1000, existing payments: 300, remaining: 700
+			// Payment: 500 (within remaining)
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			// First call: select lending with FOR UPDATE
+			// Second call: select balance
+			// Third call: insert payment
+			// Fourth call: update lending status
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ resolved: '300' }]);
+			const paymentChain = makeDrizzleData([{ id: 1 }]);
+			const statusChain = makeDrizzleData([{}]);
+
+			let callCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					callCount++;
+					if (callCount === 1) return lendingChain;
+					if (callCount === 2) return balanceChain;
+					if (callCount === 3) return statusChain;
+					return makeDrizzleData([]);
+				}),
+				insert: vi.fn(() => paymentChain),
+				update: vi.fn(() => statusChain),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			const result = await recordPayment(1, {
+				lendingId: 1,
+				amount: 500,
+				paymentDate: '2024-01-15',
+				notes: null,
+				paymentType: 'payment',
+				createTransaction: false
+			});
+
+			expect(result.paymentId).toBe(1);
+			expect(db.transaction).toHaveBeenCalled();
+		});
+
+		it('allows payment exactly equal to remaining balance', async () => {
+			// Lending: 1000, existing payments: 300, remaining: 700
+			// Payment: 700 (exactly remaining)
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ resolved: '300' }]);
+			const paymentChain = makeDrizzleData([{ id: 1 }]);
+			const statusChain = makeDrizzleData([{}]);
+
+			let callCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					callCount++;
+					if (callCount === 1) return lendingChain;
+					if (callCount === 2) return balanceChain;
+					if (callCount === 3) return statusChain;
+					return makeDrizzleData([]);
+				}),
+				insert: vi.fn(() => paymentChain),
+				update: vi.fn(() => statusChain),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			const result = await recordPayment(1, {
+				lendingId: 1,
+				amount: 700,
+				paymentDate: '2024-01-15',
+				notes: null,
+				paymentType: 'payment',
+				createTransaction: false
+			});
+
+			expect(result.paymentId).toBe(1);
+		});
+
+		it('rejects payment exceeding remaining balance', async () => {
+			// Lending: 1000, existing payments: 300, remaining: 700
+			// Payment: 800 (exceeds remaining)
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ resolved: '300' }]);
+
+			let callCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					callCount++;
+					if (callCount === 1) return lendingChain;
+					if (callCount === 2) return balanceChain;
+					return makeDrizzleData([]);
+				}),
+				insert: vi.fn(() => makeDrizzleData([{ id: 1 }])),
+				update: vi.fn(() => makeDrizzleData([{}])),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await expect(recordPayment(1, {
+				lendingId: 1,
+				amount: 800,
+				paymentDate: '2024-01-15',
+				notes: null,
+				paymentType: 'payment',
+				createTransaction: false
+			})).rejects.toThrow('Payment amount cannot exceed remaining balance of ₱700.00');
+		});
+
+		it('rejects payment for non-existent lending', async () => {
+			const lendingChain = makeDrizzleData([]); // No lending found
+
+			const tx = {
+				select: vi.fn(() => lendingChain),
+				insert: vi.fn(() => makeDrizzleData([{ id: 1 }])),
+				update: vi.fn(() => makeDrizzleData([{}])),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await expect(recordPayment(1, {
+				lendingId: 999,
+				amount: 500,
+				paymentDate: '2024-01-15',
+				notes: null,
+				paymentType: 'payment',
+				createTransaction: false
+			})).rejects.toThrow('Lending record not found');
+		});
+
+		it('handles write-off payment type without creating transaction', async () => {
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ resolved: '300' }]);
+			const paymentChain = makeDrizzleData([{ id: 1 }]);
+			const statusChain = makeDrizzleData([{}]);
+
+			let callCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					callCount++;
+					if (callCount === 1) return lendingChain;
+					if (callCount === 2) return balanceChain;
+					if (callCount === 3) return statusChain;
+					return makeDrizzleData([]);
+				}),
+				insert: vi.fn(() => paymentChain),
+				update: vi.fn(() => statusChain),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			const result = await recordPayment(1, {
+				lendingId: 1,
+				amount: 700,
+				paymentDate: '2024-01-15',
+				notes: 'Write off',
+				paymentType: 'write_off',
+				createTransaction: true // Should be ignored for write_off
+			});
+
+			expect(result.paymentId).toBe(1);
+			expect(result.transactionId).toBeNull();
+		});
+
+		it('handles final payment that exactly exhausts the lending amount', async () => {
+			// Lending: 1000, existing payments: 1000, remaining: 0
+			// Trying to pay more should fail
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'paid',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ resolved: '1000' }]);
+
+			let selectCallCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					selectCallCount++;
+					if (selectCallCount === 1) return lendingChain;
+					return balanceChain;
+				}),
+				insert: vi.fn(() => makeDrizzleData([{ id: 1 }])),
+				update: vi.fn(() => makeDrizzleData([{}])),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await expect(recordPayment(1, {
+				lendingId: 1,
+				amount: 100,
+				paymentDate: '2024-01-15',
+				notes: null,
+				paymentType: 'payment',
+				createTransaction: false
+			})).rejects.toThrow('Payment amount cannot exceed remaining balance of ₱0.00');
+		});
+	});
+
+	describe('updatePayment - concurrency & balance validation', () => {
+		it('allows update within remaining balance (excluding current payment)', async () => {
+			// Lending: 1000, other payments: 300, this payment: 400, remaining if updated: 700
+			// Update to: 600 (within remaining: 1000 - 300 = 700)
+			const paymentRow = {
+				id: 1,
+				lending_id: 1,
+				user_id: 1,
+				amount: '400',
+				payment_date: '2024-01-15',
+				notes: null,
+				transaction_id: null,
+				payment_type: 'payment',
+				reference: null,
+				created_at: new Date('2024-01-15'),
+				updated_at: new Date('2024-01-15')
+			};
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			const paymentChain = makeDrizzleData([paymentRow]);
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ resolved: '300' }]); // Other payments sum
+			const statusChain = makeDrizzleData([{}]);
+
+			let selectCallCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					selectCallCount++;
+					if (selectCallCount === 1) return paymentChain;
+					if (selectCallCount === 2) return lendingChain;
+					if (selectCallCount === 3) return balanceChain;
+					if (selectCallCount === 4) return statusChain;
+					return makeDrizzleData([]);
+				}),
+				update: vi.fn(() => makeDrizzleData([{}])),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await updatePayment(1, 1, {
+				amount: 600,
+				paymentDate: '2024-01-20',
+				notes: 'Updated'
+			});
+
+			expect(db.transaction).toHaveBeenCalled();
+		});
+
+		it('rejects update exceeding remaining balance (excluding current payment)', async () => {
+			// Lending: 1000, other payments: 300, this payment: 400, remaining if updated: 700
+			// Update to: 800 (exceeds remaining: 1000 - 300 = 700)
+			const paymentRow = {
+				id: 1,
+				lending_id: 1,
+				user_id: 1,
+				amount: '400',
+				payment_date: '2024-01-15',
+				notes: null,
+				transaction_id: null,
+				payment_type: 'payment',
+				reference: null,
+				created_at: new Date('2024-01-15'),
+				updated_at: new Date('2024-01-15')
+			};
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			const paymentChain = makeDrizzleData([paymentRow]);
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ resolved: '300' }]);
+
+			let selectCallCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					selectCallCount++;
+					if (selectCallCount === 1) return paymentChain;
+					if (selectCallCount === 2) return lendingChain;
+					if (selectCallCount === 3) return balanceChain;
+					return makeDrizzleData([]);
+				}),
+				update: vi.fn(() => makeDrizzleData([{}])),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await expect(updatePayment(1, 1, {
+				amount: 800,
+				paymentDate: '2024-01-20',
+				notes: 'Updated'
+			})).rejects.toThrow('Payment amount cannot exceed remaining balance of ₱700.00');
+		});
+	});
+
+	describe('deletePayment - status recalculation', () => {
+		it('recalculates status correctly after deletion', async () => {
+			// Lending: 1000, payments: 500+300=800, after delete 500 -> remaining 500 (active)
+			const paymentRow = {
+				id: 1,
+				lending_id: 1,
+				user_id: 1,
+				amount: '500',
+				payment_date: '2024-01-15',
+				notes: null,
+				transaction_id: null,
+				payment_type: 'payment',
+				reference: null,
+				created_at: new Date('2024-01-15'),
+				updated_at: new Date('2024-01-15')
+			};
+			const lendingRow = {
+				id: 1,
+				user_id: 1,
+				borrower_name: 'John',
+				amount: '1000',
+				interest_rate: '0',
+				date_lent: '2024-01-01',
+				due_date: null,
+				status: 'active',
+				notes: null,
+				direction: 'lent',
+				created_at: new Date('2024-01-01'),
+				updated_at: new Date('2024-01-01')
+			};
+
+			const paymentChain = makeDrizzleData([paymentRow]);
+			const lendingChain = makeDrizzleData([lendingRow]);
+			const balanceChain = makeDrizzleData([{ amount: '1000', resolved: '300' }]); // After deletion
+			const statusChain = makeDrizzleData([{}]);
+
+			let selectCallCount = 0;
+			const tx = {
+				select: vi.fn(() => {
+					selectCallCount++;
+					if (selectCallCount === 1) return paymentChain;
+					if (selectCallCount === 2) return lendingChain;
+					if (selectCallCount === 3) return balanceChain;
+					if (selectCallCount === 4) return statusChain;
+					return makeDrizzleData([]);
+				}),
+				delete: vi.fn(() => makeDrizzleData([{}])),
+				update: vi.fn(() => statusChain),
+			};
+
+			const db = {
+				transaction: vi.fn((cb: any) => cb(tx))
+			};
+			(getDrizzle as any).mockResolvedValue(db);
+
+			await deletePayment(1, 1);
+
+			expect(db.transaction).toHaveBeenCalled();
+		});
 	});
 });

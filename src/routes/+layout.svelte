@@ -4,12 +4,12 @@
 	import { navigating } from '$app/stores';
 	import favicon from '$lib/assets/favicon.svg';
 	import '../styles/variables.css';
-	import Sidebar from '$lib/components/Sidebar.svelte';
-	import BottomNav from '$lib/components/BottomNav.svelte';
-	import PwaUpdate from '$lib/components/PwaUpdate.svelte';
-	import ToastContainer from '$lib/components/ToastContainer.svelte';
-	import OnboardingWalkthrough from "$lib/components/OnboardingWalkthrough.svelte";
-import SearchModal from '$lib/components/SearchModal.svelte';
+	import Sidebar from '$lib/client/components/Sidebar.svelte';
+	import BottomNav from '$lib/client/components/BottomNav.svelte';
+	import PwaUpdate from '$lib/client/components/PwaUpdate.svelte';
+	import ToastContainer from '$lib/client/components/ToastContainer.svelte';
+	import OnboardingWalkthrough from "$lib/client/components/OnboardingWalkthrough.svelte";
+import SearchModal from '$lib/client/components/SearchModal.svelte';
 
 	let { children }: { children?: import('svelte').Snippet } = $props();
 

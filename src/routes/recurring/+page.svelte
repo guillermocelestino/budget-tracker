@@ -2,17 +2,17 @@
 	import { page } from '$app/stores';
 	import { browser } from '$app/environment';
 	import { goto, invalidateAll } from '$app/navigation';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import PageBackground from '$lib/components/PageBackground.svelte';
-	import RecurringForm from '$lib/components/RecurringForm.svelte';
-	import RecurringList from '$lib/components/RecurringList.svelte';
-	import OverflowMenu from '$lib/components/OverflowMenu.svelte';
-	import SearchFilterPill from '$lib/components/SearchFilterPill.svelte';
-	import FilterFooter from '$lib/components/FilterFooter.svelte';
-	import ModalDialog from '$lib/components/ModalDialog.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import CountChip from '$lib/components/CountChip.svelte';
-	import { showSuccess, showError } from '$lib/stores/toast.svelte';
+	import PageHeader from '$lib/client/components/PageHeader.svelte';
+	import PageBackground from '$lib/client/components/PageBackground.svelte';
+	import RecurringForm from '$lib/client/components/RecurringForm.svelte';
+	import RecurringList from '$lib/client/components/RecurringList.svelte';
+	import OverflowMenu from '$lib/client/components/OverflowMenu.svelte';
+	import SearchFilterPill from '$lib/client/components/SearchFilterPill.svelte';
+	import FilterFooter from '$lib/client/components/FilterFooter.svelte';
+	import ModalDialog from '$lib/client/components/ModalDialog.svelte';
+	import Button from '$lib/client/components/Button.svelte';
+	import CountChip from '$lib/client/components/CountChip.svelte';
+	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
 	import type { RecurringTransaction } from '$lib/types';
 
 	let data = $derived($page.data as App.PageData);

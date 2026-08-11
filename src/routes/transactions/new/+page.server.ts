@@ -1,10 +1,10 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { queryMany, execute } from '$lib/database/query';
-import type { Category } from '$lib/types';
+import { createTransaction } from '$lib/server/services/transactions';
+import { getCategories } from '$lib/server/services/categories';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;
-	const categories = await queryMany<Category>('SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC', [userId]);
+	const categories = await getCategories(userId);
 	return { categories };
 }
 
@@ -41,11 +41,24 @@ export const actions = {
 			return fail(400, { errors, values: { type, amount: amountStr, description, date, category_id } });
 		}
 
-		await execute(
-			`INSERT INTO transactions (user_id, amount, description, date, category_id, type)
-			 VALUES ($1, $2, $3, $4, $5, $6)`,
-			[userId, parseFloat(amountStr), description.trim(), date, parseInt(category_id), type]
-		);
+		try {
+			await createTransaction(userId, {
+				type: type as 'income' | 'expense',
+				amount: parseFloat(amountStr),
+				description,
+				date,
+				category_id: parseInt(category_id, 10),
+			});
+		} catch (err: unknown) {
+			const message = err instanceof Error ? err.message : String(err);
+			if (message === 'Category not found') {
+				return fail(400, {
+					errors: { category_id: 'Category not found' },
+					values: { type, amount: amountStr, description, date, category_id }
+				});
+			}
+			return fail(400, { error: message });
+		}
 
 		redirect(303, '/transactions');
 	},

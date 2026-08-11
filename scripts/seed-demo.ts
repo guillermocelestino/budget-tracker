@@ -10,9 +10,9 @@
  * Login: demo / Demo@2026!
  */
 
-import { hashPassword } from '../src/lib/auth.js';
-import { initDb } from '../src/lib/database/index.js';
-import { queryOne, queryMany, execute } from '../src/lib/database/query.js';
+import { hashPassword } from '../src/lib/server/auth/index.js';
+import { initDb } from '../src/lib/server/db/index.js';
+import { queryOne, queryMany, execute } from '../src/lib/server/db/query.js';
 
 // ============================================================
 // ANCHOR DATE & HELPERS

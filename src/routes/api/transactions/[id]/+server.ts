@@ -1,19 +1,13 @@
 import { json } from '@sveltejs/kit';
-import { queryOne, execute } from '$lib/database/query';
-import type { Transaction } from '$lib/types';
+import { getTransaction, updateTransaction, deleteTransaction } from '$lib/server/services/transactions';
+import type { UpdateTransactionInput } from '$lib/server/services/transactions';
 
 export async function GET({ params, locals }: { params: { id: string }; locals: App.Locals }) {
 	const userId = locals.user!.userId;
 	const id = parseInt(params.id);
 	if (isNaN(id)) return json({ error: 'Invalid ID' }, { status: 400 });
 
-	const transaction = await queryOne<Transaction>(
-		`SELECT t.*, c.name as category_name, c.color as category_color
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 WHERE t.id = $1 AND t.user_id = $2`,
-		[id, userId]
-	);
+	const transaction = await getTransaction(userId, id);
 
 	if (!transaction) {
 		return json({ error: 'Transaction not found' }, { status: 404 });
@@ -28,45 +22,76 @@ export async function PUT({ params, request, locals }: { params: { id: string };
 	if (isNaN(id)) return json({ error: 'Invalid ID' }, { status: 400 });
 
 	const body = await request.json();
-	const { type, amount, description, date, category_id } = body;
+	const { type, amount, description, date, category_id, source_of_funds } = body;
 
-	if (!type || !['income', 'expense'].includes(type)) {
-		return json({ error: 'Type must be "income" or "expense"' }, { status: 400 });
+	// Partial updates: the payload may contain ANY subset of the transaction
+	// fields. Validate every field that IS supplied with the same rules as a
+	// full update; fields that are omitted (undefined) are forwarded to the
+	// service's partial-update logic, which writes only the provided keys and
+	// preserves the existing values for everything else (including
+	// source_of_funds).
+	const input: UpdateTransactionInput = {};
+
+	if (type !== undefined) {
+		if (!type || !['income', 'expense'].includes(type)) {
+			return json({ error: 'Type must be "income" or "expense"' }, { status: 400 });
+		}
+		input.type = type;
 	}
-	if (amount === undefined || typeof amount !== 'number' || amount === 0) {
-		return json({ error: 'Amount must be a non-zero number' }, { status: 400 });
+	if (amount !== undefined) {
+		if (typeof amount !== 'number' || amount === 0) {
+			return json({ error: 'Amount must be a non-zero number' }, { status: 400 });
+		}
+		input.amount = amount;
 	}
-	if (!description || typeof description !== 'string' || description.trim().length === 0) {
-		return json({ error: 'Description is required' }, { status: 400 });
+	if (description !== undefined) {
+		if (!description || typeof description !== 'string' || description.trim().length === 0) {
+			return json({ error: 'Description is required' }, { status: 400 });
+		}
+		input.description = description;
 	}
-	if (!date || typeof date !== 'string') {
-		return json({ error: 'Date is required' }, { status: 400 });
+	if (date !== undefined) {
+		if (!date || typeof date !== 'string') {
+			return json({ error: 'Date is required' }, { status: 400 });
+		}
+		input.date = date;
 	}
-	if (!category_id || typeof category_id !== 'number') {
-		return json({ error: 'Category is required' }, { status: 400 });
+	if (category_id !== undefined) {
+		if (!category_id || typeof category_id !== 'number') {
+			return json({ error: 'Category is required' }, { status: 400 });
+		}
+		input.category_id = category_id;
+	}
+	// Source of Funds stays optional on PUT: if the payload omits it, the
+	// service's partial-update logic preserves the existing value. An explicit
+	// `null` or `""` clears it to NULL. No other type is accepted.
+	if (source_of_funds !== undefined) {
+		if (source_of_funds !== null && typeof source_of_funds !== 'string') {
+			return json({ error: 'Source of Funds must be a string or null' }, { status: 400 });
+		}
+		input.source_of_funds = source_of_funds;
 	}
 
-	const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
-	if (!existing) {
-		return json({ error: 'Transaction not found' }, { status: 404 });
+	if (Object.keys(input).length === 0) {
+		return json({ error: 'No valid fields to update' }, { status: 400 });
 	}
 
-	await execute(
-		`UPDATE transactions
-		 SET amount = $1, description = $2, date = $3, category_id = $4, type = $5, updated_at = NOW()
-		 WHERE user_id = $6 AND id = $7`,
-		[amount, description.trim(), date, category_id, type, userId, id]
-	);
+	try {
+		const success = await updateTransaction(userId, id, input);
 
-	const transaction = await queryOne<Transaction>(
-		`SELECT t.*, c.name as category_name, c.color as category_color
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 WHERE t.id = $1 AND t.user_id = $2`,
-		[id, userId]
-	);
+		if (!success) {
+			return json({ error: 'Transaction not found' }, { status: 404 });
+		}
 
-	return json(transaction);
+		const transaction = await getTransaction(userId, id);
+		return json(transaction);
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		if (message === 'Category not found') {
+			return json({ error: 'Category not found' }, { status: 400 });
+		}
+		return json({ error: message }, { status: 400 });
+	}
 }
 
 export async function DELETE({ params, locals }: { params: { id: string }; locals: App.Locals }) {
@@ -74,11 +99,10 @@ export async function DELETE({ params, locals }: { params: { id: string }; local
 	const id = parseInt(params.id);
 	if (isNaN(id)) return json({ error: 'Invalid ID' }, { status: 400 });
 
-	const existing = await queryOne<{ id: number }>('SELECT id FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
-	if (!existing) {
+	const success = await deleteTransaction(userId, id);
+	if (!success) {
 		return json({ error: 'Transaction not found' }, { status: 404 });
 	}
 
-	await execute('DELETE FROM transactions WHERE user_id = $1 AND id = $2', [userId, id]);
 	return new Response(null, { status: 204 });
 }

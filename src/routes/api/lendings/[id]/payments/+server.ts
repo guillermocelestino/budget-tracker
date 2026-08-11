@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { getPaymentHistory } from '$lib/server/lendingPayments';
+import { getPaymentHistory } from '$lib/server/services/lendingPayments';
 
 export async function GET({ params, locals }: { params: { id: string }; locals: App.Locals }) {
 	const userId = locals.user!.userId;

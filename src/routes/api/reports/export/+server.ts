@@ -1,6 +1,5 @@
-import { queryMany } from '$lib/database/query';
-import { transactionsToCSV } from '$lib/utils/csv';
-import type { Transaction } from '$lib/types';
+import { listTransactions } from '$lib/server/services/transactions';
+import { transactionsToCSV } from '$lib/shared/utils/csv';
 
 export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -20,14 +19,13 @@ export async function GET({ url, locals }: { url: URL; locals: App.Locals }) {
 		dateTo = `${year}-12-31`;
 	}
 
-	const transactions = await queryMany<Transaction>(
-		`SELECT t.*, c.name as category_name, c.color as category_color
-		 FROM transactions t
-		 LEFT JOIN categories c ON t.category_id = c.id
-		 WHERE t.user_id = $1 AND t.date >= $2 AND t.date <= $3
-		 ORDER BY t.date DESC, t.id DESC`,
-		[userId, dateFrom, dateTo]
-	);
+	const result = await listTransactions(userId, {
+		date_from: dateFrom,
+		date_to: dateTo,
+		sort: 'date',
+		order: 'desc'
+	});
+	const transactions = result.items;
 
 	// Compute summary
 	const totalIncome = transactions

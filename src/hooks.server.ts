@@ -1,17 +1,19 @@
-import { verifyToken } from '$lib/auth';
+import { sequence } from '@sveltejs/kit/hooks';
+import { handle as authHandle } from './auth';
 import type { Handle } from '@sveltejs/kit';
 
-// Validate critical env vars on Vercel before any request is served
-// DATABASE_URL is canonical; POSTGRES_URL is a deprecated alias.
-const databaseUrl = process.env['DATABASE_URL'] ?? process.env['POSTGRES_URL'];
-if (databaseUrl && !process.env['JWT_SECRET']) {
-	throw new Error(
-		'JWT_SECRET environment variable is required when DATABASE_URL is set. ' +
-		'Set it in Vercel project settings.'
-	);
-}
-
-export const handle: Handle = async ({ event, resolve }) => {
+/**
+ * Auth-3/Auth-5 — protected-route authentication resolves through the Auth.js
+ * session (`event.locals.auth()`), mapping its `user` back onto the app's
+ * native `App.Locals.user` shape `{ userId, username }` so all existing server
+ * routes and `$lib/server/*` services keep working unchanged.
+ *
+ * The legacy JWT `session`-cookie verification is retired (Auth-3) and the
+ * legacy machinery removed entirely (Auth-5): `JWT_SECRET` guard, `jsonwebtoken`,
+ * `createToken`/`verifyToken`. Auth.js session cookie (`authjs.session-token`)
+ * is the sole session mechanism; `AUTH_SECRET` is enforced by Auth.js itself.
+ */
+const authGuardHandle: Handle = async ({ event, resolve }) => {
 	// Root path redirects to dashboard
 	if (event.url.pathname === '/') {
 		return new Response(null, {
@@ -23,13 +25,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const publicPaths = ['/login'];
 
 	if (!publicPaths.includes(event.url.pathname)) {
-		const token = event.cookies.get('session');
-		if (token) {
-			const payload = verifyToken(token);
-			if (payload) {
-				event.locals.user = payload;
-				return resolve(event);
-			}
+		const session = await event.locals.auth();
+		const user = session?.user;
+
+		if (user && typeof user.userId === 'number' && typeof user.username === 'string') {
+			event.locals.user = { userId: user.userId, username: user.username };
+			return resolve(event);
 		}
 
 		return new Response(null, {
@@ -40,3 +41,5 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	return resolve(event);
 };
+
+export const handle: Handle = sequence(authHandle, authGuardHandle);

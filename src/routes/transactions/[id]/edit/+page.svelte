@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import TransactionForm from '$lib/components/TransactionForm.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-import PageBackground from '$lib/components/PageBackground.svelte';
+	import TransactionForm from '$lib/client/components/TransactionForm.svelte';
+	import PageHeader from '$lib/client/components/PageHeader.svelte';
+import PageBackground from '$lib/client/components/PageBackground.svelte';
 
 	let data = $derived($page.data as App.PageData);
 	let form = $derived($page.form as { errors?: Record<string, string> } | null);
