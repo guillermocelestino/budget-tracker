@@ -405,8 +405,9 @@
 
 	// Calculate target pixel position of selected node for popover anchor
 	const selectedNodeTargetPos = $derived.by(() => {
-		if (!selectedNode) return null;
-		const node = nodes.find((n) => n.id === selectedNode.id);
+		const selected = selectedNode;
+		if (!selected) return null;
+		const node = nodes.find((n) => n.id === selected.id);
 		if (!node) return null;
 		const px = (node.x + node.width / 2) * zoom + panX;
 		const py = (node.y + node.height / 2) * zoom + panY;

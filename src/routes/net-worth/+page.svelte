@@ -264,7 +264,7 @@
 
       <div class="chart-card">
         <div class="chart-container">
-          <canvas bind:this={canvasEl} style="display:none;" />
+          <canvas bind:this={canvasEl} style="display:none;"></canvas>
           <Line data={chartData} options={chartOptions} />
         </div>
         <!-- Honesty caption -->

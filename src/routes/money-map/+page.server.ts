@@ -26,7 +26,7 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	// Load active lendings (loans given out to others)
 	const lendingsList = await getLendingsWithPayments(userId, 'lent');
 	const lendingItems = lendingsList
-		.filter((item) => item.status !== 'paid' && item.status !== 'written_off')
+		.filter((item) => item.status !== 'paid')
 		.map((item) => {
 			const total = typeof item.amount === 'number' ? item.amount : parseFloat(String(item.amount) || '0');
 			const paid = typeof item.cash_paid === 'number' ? item.cash_paid : parseFloat(String(item.cash_paid) || '0');
@@ -47,8 +47,8 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const today = new Date();
 	const recurringItems = recurringRes.items.map((rec) => {
 		let daysUntil: number | null = null;
-		if (rec.next_due_date) {
-			const dueDate = new Date(rec.next_due_date);
+		if (rec.next_run) {
+			const dueDate = new Date(rec.next_run);
 			const diffTime = dueDate.getTime() - today.getTime();
 			daysUntil = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 		}
@@ -58,7 +58,7 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 			amount: rec.amount,
 			type: rec.type,
 			frequency: rec.frequency,
-			next_due_date: rec.next_due_date ?? null,
+			next_due_date: rec.next_run ?? null,
 			days_until: daysUntil,
 			category_name: rec.category_name ?? null
 		};

@@ -1,18 +1,13 @@
 <script lang="ts">
   import { formatCurrency } from '$lib/client/utils/format';
+  import type { NetWorthSnapshot } from '$lib/types';
 
   let {
     netWorth,
     lendingSummary,
     borrowedSummary,
   }: {
-    netWorth?: {
-      netWorth: number;
-      liquidAssets: number;
-      illiquidAssets: number;
-      totalLiabilities: number;
-      netLending: number;
-    };
+    netWorth?: NetWorthSnapshot;
     lendingSummary?: {
       totalLent: number;
       totalRecovered: number;
@@ -25,9 +20,9 @@
     };
   } = $props();
 
-  const nwVal = $derived(netWorth?.netWorth ?? 0);
-  const liquidVal = $derived(netWorth?.liquidAssets ?? 0);
-  const liabilitiesVal = $derived(netWorth?.totalLiabilities ?? 0);
+  const nwVal = $derived(netWorth?.net ?? 0);
+  const liquidVal = $derived(netWorth?.legs.find((l) => l.key === 'cash')?.amount ?? 0);
+  const liabilitiesVal = $derived(netWorth?.legs.find((l) => l.key === 'borrowed')?.amount ?? 0);
 
   const lentVal = $derived(lendingSummary?.outstanding ?? 0);
   const lentRecovered = $derived(lendingSummary?.totalRecovered ?? 0);

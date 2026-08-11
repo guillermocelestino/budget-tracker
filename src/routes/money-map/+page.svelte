@@ -4,7 +4,7 @@
 	import { getMonthLabel } from '$lib/shared/utils/format';
 	import PageHeader from '$lib/client/components/PageHeader.svelte';
 	import PageBackground from '$lib/client/components/PageBackground.svelte';
-	import MoneyMap from '$lib/client/components/money-map/MoneyMap.svelte';
+	import MoneyMap, { type MoneyMapData } from '$lib/client/components/money-map/MoneyMap.svelte';
 	import MoneyMapLegend from '$lib/client/components/money-map/MoneyMapLegend.svelte';
 
 	let data = $derived($page.data as App.PageData);
@@ -25,7 +25,7 @@
 	<meta name="description" content="See how your money flows: income coming in, net balance, expenses, lending, and recurring commitments in an interactive financial map." />
 </svelte:head>
 
-<PageBackground theme="dark" variant="arcade" />
+<PageBackground />
 
 <div class="money-map-page fade-in-up">
 	<PageHeader title="Money Map">
@@ -46,7 +46,7 @@
 
 	<!-- Main Interactive Money Map Canvas -->
 	<section class="map-section" aria-label="Interactive Financial Ecosystem Map">
-		<MoneyMap data={data} />
+		<MoneyMap data={data as MoneyMapData} />
 	</section>
 
 	<!-- Bottom Color Legend -->
