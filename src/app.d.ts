@@ -18,6 +18,7 @@ declare global {
 			page?: number;
 			totalPages?: number;
 			limit?: number;
+			dateError?: string | null;
 			categories?: Category[];
 			txnCounts?: Record<number, number>;
 			recurringCounts?: Record<number, number>;

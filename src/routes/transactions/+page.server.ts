@@ -7,12 +7,41 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;
 	const rawPage = parseInt(url.searchParams.get('page') ?? '1', 10);
 	let page = Number.isFinite(rawPage) ? Math.max(1, rawPage) : 1;
-	const limit = 20;
+
+	const rawLimit = url.searchParams.get('limit') ?? url.searchParams.get('pageSize') ?? '20';
+	let limit: number | undefined = 20;
+	if (rawLimit === 'all' || rawLimit === 'All' || rawLimit === '0') {
+		limit = undefined;
+	} else {
+		const parsed = parseInt(rawLimit, 10);
+		if (Number.isFinite(parsed) && [20, 50, 100, 200, 500].includes(parsed)) {
+			limit = parsed;
+		} else {
+			limit = 20;
+		}
+	}
+
 	const type = url.searchParams.get('type');
 	const category_id = url.searchParams.get('category_id');
-	const date_from = url.searchParams.get('date_from');
-	const date_to = url.searchParams.get('date_to');
+	const date_from = url.searchParams.get('date_from') ?? url.searchParams.get('from');
+	const date_to = url.searchParams.get('date_to') ?? url.searchParams.get('to');
 	const search = url.searchParams.get('search');
+
+	const categories = await getCategories(userId);
+
+	// Validate date range
+	if (date_from && date_to && date_from > date_to) {
+		return {
+			transactions: [],
+			allForBalance: [],
+			total: 0,
+			page: 1,
+			totalPages: 1,
+			limit: limit ?? 0,
+			categories,
+			dateError: 'From date cannot be after End date'
+		};
+	}
 
 	const filters = {
 		type: type && ['income', 'expense'].includes(type) ? (type as 'income' | 'expense') : undefined,
@@ -34,16 +63,15 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const unpaginatedResult = await listTransactions(userId, filters);
 	const allForBalance = [...unpaginatedResult.items].reverse();
 
-	const categories = await getCategories(userId);
-
 	return {
 		transactions: result.items,
 		allForBalance,
 		total: result.total,
 		page,
 		totalPages: result.totalPages,
-		limit,
+		limit: limit ?? 0,
 		categories,
+		dateError: null
 	};
 }
 

@@ -28,13 +28,21 @@
 
 	// ─── Helpers ──────────────────────────────────────────────────────
 	function handlePresetClick(preset: string) {
-		if (preset === 'custom') return; // custom handled by inputs
+		if (preset === 'custom') {
+			onSelect?.('custom');
+			return;
+		}
+		customFrom = '';
+		customTo = '';
 		onSelect?.(preset);
 		closePopover?.();
 	}
 
+	const isRangeInvalid = $derived(!!customFrom && !!customTo && customFrom > customTo);
+	const canApply = $derived((!!customFrom || !!customTo) && !isRangeInvalid);
+
 	function handleCustomApply() {
-		if (customFrom && customTo) {
+		if (canApply) {
 			onCustomApply?.(customFrom, customTo);
 			closePopover?.();
 		}
@@ -106,9 +114,10 @@
 	<div class="divider"></div>
 
 	<!-- Custom range -->
-	<div class="custom-section" class:expanded={activeFilter === 'custom'}>
-		{@render presetButton({ value: 'custom', label: 'Custom Range' })}
-		{#if activeFilter === 'custom'}
+	{@render presetButton({ value: 'custom', label: 'Custom Range' })}
+
+	{#if activeFilter === 'custom'}
+		<div class="custom-section expanded">
 			<div class="custom-inputs">
 				<div class="custom-input-group">
 					<label for="custom-from">From</label>
@@ -118,6 +127,7 @@
 						bind:value={customFrom}
 						bind:this={customInputs[0]}
 						class="custom-input"
+						class:invalid={isRangeInvalid}
 						aria-label="Custom range from date"
 					/>
 				</div>
@@ -129,20 +139,24 @@
 						bind:value={customTo}
 						bind:this={customInputs[1]}
 						class="custom-input"
+						class:invalid={isRangeInvalid}
 						aria-label="Custom range to date"
 					/>
 				</div>
+				{#if isRangeInvalid}
+					<p class="custom-date-error" role="alert">From date cannot be after End date</p>
+				{/if}
 				<button
 					type="button"
 					class="apply-btn"
 					onclick={handleCustomApply}
-					disabled={!customFrom || !customTo}
+					disabled={!canApply}
 				>
 					Apply
 				</button>
 			</div>
-		{/if}
-	</div>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -248,7 +262,7 @@
 	}
 
 	.custom-section.expanded {
-		max-height: 140px;
+		max-height: 260px;
 	}
 
 	.custom-inputs {
@@ -281,6 +295,17 @@
 		font-size: var(--font-size-sm);
 		width: 100%;
 		box-sizing: border-box;
+	}
+
+	.custom-input.invalid {
+		border-color: var(--color-coral);
+	}
+
+	.custom-date-error {
+		font-size: var(--font-size-xs);
+		color: var(--color-coral);
+		font-weight: 600;
+		margin: 0;
 	}
 
 	.custom-input:focus {

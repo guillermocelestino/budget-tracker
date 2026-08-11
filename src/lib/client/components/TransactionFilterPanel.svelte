@@ -41,9 +41,14 @@
 	const dateValue = $derived.by(() => {
 		if (!activeFilters.date) return 'Any Date';
 		if (activeFilters.date === 'custom') {
-			return activeFilters.customFrom && activeFilters.customTo
-				? `${activeFilters.customFrom} → ${activeFilters.customTo}`
-				: 'Custom Range';
+			if (activeFilters.customFrom && activeFilters.customTo) {
+				return `${activeFilters.customFrom} → ${activeFilters.customTo}`;
+			} else if (activeFilters.customFrom) {
+				return `From ${activeFilters.customFrom}`;
+			} else if (activeFilters.customTo) {
+				return `Up to ${activeFilters.customTo}`;
+			}
+			return 'Custom Range';
 		}
 		return DATE_PRESET_LABELS[activeFilters.date] ?? activeFilters.date;
 	});
@@ -72,10 +77,20 @@
 	}
 
 	function handleDateSelect(preset: string) {
+		if (preset === 'custom') {
+			onFilterChange?.({
+				date: 'custom',
+				category: activeFilters.category,
+				type: activeFilters.type,
+				customFrom: activeFilters.customFrom,
+				customTo: activeFilters.customTo,
+			});
+			return;
+		}
 		// 'any' means no date filter — normalize to '' so the header reads
 		// inactive and the filter badge doesn't count it.
 		const date = preset === 'any' ? '' : preset;
-		onFilterChange?.({ date, category: activeFilters.category, type: activeFilters.type });
+		onFilterChange?.({ date, category: activeFilters.category, type: activeFilters.type, customFrom: '', customTo: '' });
 	}
 
 	function handleCustomDateApply(from: string, to: string) {

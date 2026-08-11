@@ -418,4 +418,58 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 		expect(dups[0].category_id).toBe(5);
 		expect(calls.selects).toBe(1);
 	});
+
+	describe('listTransactions pagination and date range filtering', () => {
+		it('supports standard limit of 20 by default', async () => {
+			selectRows = [{ count: 45 }];
+			const result = await listTransactions(12, {}, 1, 20);
+			expect(result.page).toBe(1);
+			expect(result.total).toBe(45);
+			expect(result.totalPages).toBe(3); // 45 / 20 ceil = 3
+		});
+
+		it('supports large page sizes (50, 100, 200, 500)', async () => {
+			selectRows = [{ count: 247 }];
+			const result50 = await listTransactions(12, {}, 2, 50);
+			expect(result50.page).toBe(2);
+			expect(result50.total).toBe(247);
+			expect(result50.totalPages).toBe(5); // 247 / 50 ceil = 5
+
+			const result200 = await listTransactions(12, {}, 1, 200);
+			expect(result200.totalPages).toBe(2); // 247 / 200 ceil = 2
+
+			const result500 = await listTransactions(12, {}, 1, 500);
+			expect(result500.totalPages).toBe(1); // 247 / 500 ceil = 1
+		});
+
+		it('supports All (unpaginated query when limit is undefined or 0)', async () => {
+			selectRows = [
+				{ id: 1, amount: '10', description: 'Item 1', date: '2026-01-01', category_id: 1, type: 'expense' },
+				{ id: 2, amount: '20', description: 'Item 2', date: '2026-01-02', category_id: 1, type: 'expense' }
+			];
+			const resultAll = await listTransactions(12, {});
+			expect(resultAll.page).toBe(1);
+			expect(resultAll.totalPages).toBe(1);
+			expect(resultAll.items).toHaveLength(2);
+		});
+
+		it('accepts date_from only for filtering >= date_from', async () => {
+			selectRows = [{ count: 10 }];
+			const result = await listTransactions(12, { date_from: '2026-01-01' }, 1, 20);
+			expect(result.total).toBe(10);
+			expect(calls.selects).toBe(2); // count query + data query
+		});
+
+		it('accepts date_to only for filtering <= date_to', async () => {
+			selectRows = [{ count: 15 }];
+			const result = await listTransactions(12, { date_to: '2026-03-31' }, 1, 20);
+			expect(result.total).toBe(15);
+		});
+
+		it('accepts both date_from and date_to for inclusive range', async () => {
+			selectRows = [{ count: 8 }];
+			const result = await listTransactions(12, { date_from: '2026-01-01', date_to: '2026-03-31' }, 1, 20);
+			expect(result.total).toBe(8);
+		});
+	});
 });
