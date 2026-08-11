@@ -10,7 +10,7 @@ import {
 import type { AuthConfig } from '@auth/core';
 import type { DefaultSession, User } from '@auth/core/types';
 import { env } from '$env/dynamic/private';
-import { dev } from '$app/environment';
+import { dev, building } from '$app/environment';
 import { base } from '$app/paths';
 import { queryOne } from '$lib/server/db/query';
 import { validateLoginInput } from '$lib/shared/utils/loginValidation';
@@ -22,8 +22,17 @@ import type { RequestEvent } from '@sveltejs/kit';
  * - In production: MUST exist and be at least 32 characters.
  * - In development: warn but don't fail (for local dev flexibility).
  * - Never logs the secret itself.
+ * - Skipped while SvelteKit `building`: `vite build` analyses the app by
+ *   importing the server module graph (which includes this module), and
+ *   AUTH_SECRET is a runtime-only concern. The production runtime still
+ *   enforces it below; Auth.js also resolves the secret lazily at request time.
  */
 function validateAuthSecret(): void {
+	// `building` is true only while SvelteKit analyses/prerenders during
+	// `vite build`; it is false in the real server runtime, so production
+	// validation below is unaffected.
+	if (building) return;
+
 	const secret = env.AUTH_SECRET;
 
 	if (!secret) {

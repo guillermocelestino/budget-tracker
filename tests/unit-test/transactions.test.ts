@@ -160,6 +160,106 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 		expect(calls.inserts[0].description).toBe('Dinner');
 	});
 
+	it('create without source_of_funds stores NULL (unspecified)', async () => {
+		selectRows = [{ id: 5 }]; // category ownership check
+		insertResult = [{ id: 43 }];
+
+		await createTransaction(12, {
+			type: 'income',
+			amount: 100,
+			description: 'Salary',
+			date: '2026-08-01',
+			category_id: 5
+		});
+
+		expect(calls.inserts[0].source_of_funds).toBeNull();
+	});
+
+	it('create with source_of_funds persists it (trimmed)', async () => {
+		selectRows = [{ id: 5 }];
+		insertResult = [{ id: 44 }];
+
+		await createTransaction(12, {
+			type: 'expense',
+			amount: 80,
+			description: 'Groceries',
+			date: '2026-08-02',
+			category_id: 5,
+			source_of_funds: "  Mother's Money  "
+		});
+
+		expect(calls.inserts[0].source_of_funds).toBe("Mother's Money");
+	});
+
+	it('create with empty/whitespace source_of_funds normalizes to NULL', async () => {
+		selectRows = [{ id: 5 }];
+		insertResult = [{ id: 45 }];
+
+		await createTransaction(12, {
+			type: 'expense',
+			amount: 10,
+			description: 'Coffee',
+			date: '2026-08-03',
+			category_id: 5,
+			source_of_funds: '   '
+		});
+
+		expect(calls.inserts[0].source_of_funds).toBeNull();
+	});
+
+	it('update with source_of_funds writes it', async () => {
+		selectRows = [{ id: 42, amount: '250', description: 'Dinner', date: '2026-08-01', category_id: 5, type: 'expense' }];
+
+		const ok = await updateTransaction(12, 42, { source_of_funds: 'Aunt' });
+
+		expect(ok).toBe(true);
+		expect(calls.updates[0].source_of_funds).toBe('Aunt');
+	});
+
+	it('update clearing source_of_funds (empty string) writes NULL', async () => {
+		selectRows = [{ id: 42, amount: '250', description: 'Dinner', date: '2026-08-01', category_id: 5, type: 'expense', source_of_funds: 'Old' }];
+
+		const ok = await updateTransaction(12, 42, { source_of_funds: '' });
+
+		expect(ok).toBe(true);
+		expect(calls.updates[0].source_of_funds).toBeNull();
+	});
+
+	it('partial update omitting source_of_funds preserves it (not written)', async () => {
+		selectRows = [{ id: 42, amount: '250', description: 'Dinner', date: '2026-08-01', category_id: 5, type: 'expense', source_of_funds: 'Keep me' }];
+
+		const ok = await updateTransaction(12, 42, { description: 'Updated dinner' });
+
+		expect(ok).toBe(true);
+		expect(calls.updates[0].source_of_funds).toBeUndefined();
+		expect(calls.updates[0].description).toBe('Updated dinner');
+	});
+
+	it('maps source_of_funds from SELECT rows (getTransaction)', async () => {
+		selectRows = [{ id: 42, amount: '250', description: 'Dinner', date: '2026-08-01', category_id: 5, type: 'expense', source_of_funds: "Mother's Money" }];
+
+		const tx = await getTransaction(12, 42);
+		expect(tx).not.toBeNull();
+		expect(tx!.source_of_funds).toBe("Mother's Money");
+	});
+
+	it('maps missing source_of_funds to null (getTransaction)', async () => {
+		selectRows = [{ id: 42, amount: '250', description: 'Dinner', date: '2026-08-01', category_id: 5, type: 'expense' }];
+
+		const tx = await getTransaction(12, 42);
+		expect(tx).not.toBeNull();
+		expect(tx!.source_of_funds).toBeNull();
+	});
+
+	it('financial calculations are unaffected by source_of_funds', async () => {
+		// getCashBalance only reads the SUM(...) alias fields; rows carrying
+		// source_of_funds must not change the income−expense result.
+		selectRows = [{ income: '500', expense: '200', source_of_funds: 'irrelevant' }];
+
+		const balance = await getCashBalance(12);
+		expect(balance).toBe(300);
+	});
+
 	it('deletes via Drizzle utilizing .returning({ id })', async () => {
 		deleteResult = [{ id: 99 }];
 

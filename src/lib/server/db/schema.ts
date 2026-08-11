@@ -79,6 +79,7 @@ export const transactions = pgTable(
 		date: date('date', { mode: 'string' }).notNull(),
 		category_id: integer('category_id').notNull(),
 		type: text('type').notNull(),
+		source_of_funds: text('source_of_funds'),
 		created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 		updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 	},

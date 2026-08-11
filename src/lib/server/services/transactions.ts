@@ -12,6 +12,7 @@ interface TransactionRowWithCategory {
 	date: string;
 	category_id: number;
 	type: string;
+	source_of_funds: string | null;
 	created_at: Date | string;
 	updated_at: Date | string;
 	category_name: string | null;
@@ -43,6 +44,7 @@ export interface CreateTransactionInput {
 	description: string;
 	date: string; // YYYY-MM-DD
 	category_id: number;
+	source_of_funds?: string | null;
 }
 
 export interface UpdateTransactionInput {
@@ -51,6 +53,21 @@ export interface UpdateTransactionInput {
 	description?: string;
 	date?: string;
 	category_id?: number;
+	source_of_funds?: string | null;
+}
+
+/**
+ * Normalize the free-text source-of-funds value for persistence.
+ *
+ * Source of Funds is OPTIONAL, pure metadata. `NULL` means "not specified" —
+ * empty strings, whitespace-only strings, and explicit `null`/`undefined` all
+ * collapse to `NULL`. A non-empty value is trimmed (leading/trailing
+ * whitespace removed) but otherwise stored verbatim — any arbitrary text is
+ * valid, and we never auto-assign a source.
+ */
+export function normalizeSourceOfFunds(value: string | null | undefined): string | null {
+	const trimmed = value?.trim() ?? '';
+	return trimmed.length > 0 ? trimmed : null;
 }
 
 /**
@@ -74,6 +91,7 @@ function mapTransactionRow(row: TransactionRowWithCategory): Transaction {
 		date: row.date,
 		category_id: row.category_id,
 		type: row.type as TransactionType,
+		source_of_funds: row.source_of_funds ?? null,
 		created_at: row.created_at instanceof Date ? toSqliteTimestamp(row.created_at) : String(row.created_at),
 		updated_at: row.updated_at instanceof Date ? toSqliteTimestamp(row.updated_at) : String(row.updated_at),
 		category_name: row.category_name ?? undefined,
@@ -187,6 +205,7 @@ export async function listTransactions(
 			date: transactions.date,
 			category_id: transactions.category_id,
 			type: transactions.type,
+			source_of_funds: transactions.source_of_funds,
 			created_at: transactions.created_at,
 			updated_at: transactions.updated_at,
 			category_name: categories.name,
@@ -223,6 +242,7 @@ export async function getTransaction(userId: number, id: number): Promise<Transa
 			date: transactions.date,
 			category_id: transactions.category_id,
 			type: transactions.type,
+			source_of_funds: transactions.source_of_funds,
 			created_at: transactions.created_at,
 			updated_at: transactions.updated_at,
 			category_name: categories.name,
@@ -326,6 +346,7 @@ export async function createTransaction(
 			date: input.date,
 			category_id: input.category_id,
 			type: input.type,
+			source_of_funds: normalizeSourceOfFunds(input.source_of_funds),
 		})
 		.returning({ id: transactions.id });
 	return row.id;
@@ -377,6 +398,7 @@ export async function createTransactionInTxDrizzle(
 			date: input.date,
 			category_id: input.category_id,
 			type: input.type,
+			source_of_funds: normalizeSourceOfFunds(input.source_of_funds),
 		})
 		.returning({ id: transactions.id });
 	return row.id;
@@ -421,6 +443,9 @@ export async function updateTransaction(
 	if (input.description !== undefined) updateData.description = input.description.trim();
 	if (input.date !== undefined) updateData.date = input.date;
 	if (input.category_id !== undefined) updateData.category_id = input.category_id;
+	// Only write source_of_funds when explicitly provided — a partial update that
+	// omits it preserves the existing value. An explicit `''`/whitespace clears to NULL.
+	if (input.source_of_funds !== undefined) updateData.source_of_funds = normalizeSourceOfFunds(input.source_of_funds);
 
 	await db
 		.update(transactions)
@@ -504,6 +529,7 @@ export async function getRecentTransactions(
 			date: transactions.date,
 			category_id: transactions.category_id,
 			type: transactions.type,
+			source_of_funds: transactions.source_of_funds,
 			created_at: transactions.created_at,
 			updated_at: transactions.updated_at,
 			category_name: categories.name,
@@ -617,6 +643,7 @@ export async function searchTransactions(
 			date: transactions.date,
 			category_id: transactions.category_id,
 			type: transactions.type,
+			source_of_funds: transactions.source_of_funds,
 			created_at: transactions.created_at,
 			updated_at: transactions.updated_at,
 			category_name: categories.name,

@@ -35,6 +35,7 @@ import { formatDate, formatCurrency, handleAmountInput, handleAmountFocus, handl
 	let description = $state('');
 	let date = $state(formatDateInput());
 	let category_id = $state<number | string>('');
+	let sourceOfFunds = $state('');
 	let isRefund = $state(false);
 
 	const isDark = $derived(themeState.isDark);
@@ -46,6 +47,7 @@ import { formatDate, formatCurrency, handleAmountInput, handleAmountFocus, handl
 			description = transaction.description;
 			date = transaction.date;
 			category_id = transaction.category_id;
+			sourceOfFunds = transaction.source_of_funds ?? '';
 			isRefund = description.startsWith('[REFUND]');
 		} else {
 			type = 'expense';
@@ -53,6 +55,7 @@ import { formatDate, formatCurrency, handleAmountInput, handleAmountFocus, handl
 			description = '';
 			date = formatDateInput();
 			category_id = '';
+			sourceOfFunds = '';
 			isRefund = false;
 		}
 	});
@@ -327,7 +330,21 @@ import { formatDate, formatCurrency, handleAmountInput, handleAmountFocus, handl
 			{/if}
 		</div>
 
-		<!-- 7. Refund Toggle (Moved below Date) -->
+		<!-- 7. Source of Funds (optional metadata — never required) -->
+		<div class="form-group">
+			<label class="form-label" for="source_of_funds">Source of Funds <span class="optional-tag">optional</span></label>
+			<input
+				id="source_of_funds"
+				name="source_of_funds"
+				type="text"
+				bind:value={sourceOfFunds}
+				placeholder="e.g. Mother's Money"
+				autocomplete="off"
+			/>
+			<p class="refund-helper">Optional label for where this money came from. Leave blank to leave unspecified.</p>
+		</div>
+
+		<!-- 8. Refund Toggle (Moved below Date) -->
 		<div class="form-group refund-section">
 			<div class="refund-toggle">
 				<label class="refund-label">
@@ -341,7 +358,7 @@ import { formatDate, formatCurrency, handleAmountInput, handleAmountFocus, handl
 			<p class="refund-helper">Record this transaction as a refund or reimbursement.</p>
 		</div>
 
-		<!-- 8. Live Impact Preview (Display-only) -->
+		<!-- 9. Live Impact Preview (Display-only) -->
 		<LiveImpactPreview
 			currentTotal={currentCategoryTotal}
 			projectedTotal={projectedCategoryTotal}
@@ -351,7 +368,7 @@ import { formatDate, formatCurrency, handleAmountInput, handleAmountFocus, handl
 		/>
 	</div>
 
-	<!-- 9. Footer (Equal 2-Column Grid) -->
+	<!-- 10. Footer (Equal 2-Column Grid) -->
 	<div class="form-actions">
 		<Button type="submit" variant="primary" fullWidth>
 			{transaction ? 'Save Changes' : 'Add Transaction'}
@@ -389,6 +406,20 @@ import { formatDate, formatCurrency, handleAmountInput, handleAmountFocus, handl
 		color: var(--color-text);
 		text-transform: none;
 		letter-spacing: 0.02em;
+	}
+
+	.optional-tag {
+		font-family: var(--font-body);
+		font-size: 10px;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		padding: 2px 8px;
+		background: var(--color-surface-inset);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-pill);
+		vertical-align: middle;
 	}
 
 	/* ── Input surfaces ── */

@@ -28,6 +28,7 @@ export const actions = {
 		const description = data.get('description') as string;
 		const date = data.get('date') as string;
 		const category_id = data.get('category_id') as string;
+		const source_of_funds = data.get('source_of_funds') as string | null;
 
 		const errors: Record<string, string> = {};
 		if (!type || !['income', 'expense'].includes(type)) errors.type = 'Select a type';
@@ -47,6 +48,7 @@ export const actions = {
 				description,
 				date,
 				category_id: parseInt(category_id, 10),
+				source_of_funds,
 			});
 			if (!success) {
 				return fail(404, { error: 'Transaction not found' });

@@ -37,7 +37,7 @@ export async function POST({ request, locals }: { request: Request; locals: App.
 	const userId = locals.user!.userId;
 	const body = await request.json();
 
-	const { type, amount, description, date, category_id } = body;
+	const { type, amount, description, date, category_id, source_of_funds } = body;
 
 	if (!type || !['income', 'expense'].includes(type)) {
 		return json({ error: 'Type must be "income" or "expense"' }, { status: 400 });
@@ -61,7 +61,8 @@ export async function POST({ request, locals }: { request: Request; locals: App.
 			amount,
 			description,
 			date,
-			category_id
+			category_id,
+			source_of_funds
 		});
 
 		const transaction = await getTransaction(userId, newId);

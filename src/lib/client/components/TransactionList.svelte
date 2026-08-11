@@ -422,6 +422,9 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
       <span class="cat-pill" style="background: {tint}; color: {fg}">
         {txn.category_name || 'Uncategorized'}
       </span>
+      {#if txn.source_of_funds}
+        <span class="txn-source">from {txn.source_of_funds}</span>
+      {/if}
     </div>
 
     <!-- Per-row date column (flat view only; grouped view uses headers) -->
@@ -492,6 +495,9 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
         <span class="edit-type-badge" class:badge-income={isIncome} class:badge-expense={!isIncome}>
           {isIncome ? 'Income' : 'Expense'}
         </span>
+        {#if txn.source_of_funds}
+          <span class="edit-source">Source of Funds: {txn.source_of_funds}</span>
+        {/if}
       </div>
       <div class="edit-inline-row">
         <div class="edit-inline-field">
@@ -1064,6 +1070,25 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
     font-family: var(--font-display);
   }
 
+  /* ── Source of Funds provenance (subtle secondary metadata) ── */
+  .txn-source {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    opacity: 0.75;
+    font-family: var(--font-body);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  @media (max-width: 640px) {
+    .txn-source { max-width: 100px; }
+  }
+
   /* ── Per-row date column (flat view) ── */
   .txn-date-col {
     flex-shrink: 0;
@@ -1202,6 +1227,13 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
 
   .badge-income { background: var(--mint-tint); color: var(--teal-deep); }
   .badge-expense { background: var(--rose-soft); color: var(--rose); }
+
+  .edit-source {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    font-family: var(--font-display);
+  }
 
   .edit-inline-row {
     display: flex;

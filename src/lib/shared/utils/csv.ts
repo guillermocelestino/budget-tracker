@@ -33,9 +33,10 @@ export function transactionsToCSV(
 		category_name?: string | null;
 		description: string;
 		amount: number;
+		source_of_funds?: string | null;
 	}>
 ): string {
-	const header = 'Date,Type,Category,Description,Amount';
+	const header = 'Date,Type,Category,Description,Amount,Source of Funds';
 	const rows = transactions.map((t) =>
 		[
 			csvEscape(t.date),
@@ -43,6 +44,7 @@ export function transactionsToCSV(
 			csvEscape(t.category_name),
 			csvEscape(t.description),
 			csvEscape(`₱${t.amount.toFixed(2)}`),
+			csvEscape(t.source_of_funds),
 		].join(',')
 	);
 

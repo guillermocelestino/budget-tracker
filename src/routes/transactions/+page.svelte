@@ -505,6 +505,7 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		{ header: 'Category', key: 'category_name', kind: 'text', cls: 'cell-cat' },
 		{ header: 'Type', key: 'type', kind: 'type' },
 		{ header: 'Amount', key: 'amount', kind: 'amount', align: 'right' },
+		{ header: 'Source', key: 'source_of_funds', kind: 'text' },
 	]);
 
 	// ImportWizard build/validate functions

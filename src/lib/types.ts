@@ -7,6 +7,7 @@ export interface Transaction {
 	date: string;
 	category_id: number;
 	type: TransactionType;
+	source_of_funds?: string | null;
 	created_at: string;
 	updated_at: string;
 	category_name?: string;
@@ -19,6 +20,7 @@ export interface TransactionFormData {
 	description: string;
 	date: string;
 	category_id: number;
+	source_of_funds?: string | null;
 }
 
 export interface Category {

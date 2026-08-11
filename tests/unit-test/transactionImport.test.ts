@@ -233,4 +233,26 @@ describe('transactionImport — Drizzle / Postgres path (recorded fake client)',
 		// The dedup SELECT still ran on the global db, before the transaction.
 		expect(calls.selects).toHaveLength(1);
 	});
+
+	it('imports a Source of Funds column into the tx insert', async () => {
+		const file = csv('Date,Description,Amount,Type,Category,Source of Funds',
+			"2026-08-01,Groceries,50,expense,Food,Mother's Money");
+		const result = await importTransactionsForUser(42, file, CONFIG) as any;
+
+		expect(result.success).toBe(true);
+		expect(result.imported).toBe(1);
+		expect(calls.txInserts).toHaveLength(1);
+		expect(calls.txInserts[0]!.values.source_of_funds).toBe("Mother's Money");
+	});
+
+	it('imports rows without a Source of Funds column as NULL (never auto-assigns)', async () => {
+		const file = csv('Date,Description,Amount,Type,Category',
+			'2026-08-01,Groceries,50,expense,Food');
+		const result = await importTransactionsForUser(42, file, CONFIG) as any;
+
+		expect(result.success).toBe(true);
+		expect(result.imported).toBe(1);
+		expect(calls.txInserts).toHaveLength(1);
+		expect(calls.txInserts[0]!.values.source_of_funds).toBeNull();
+	});
 });

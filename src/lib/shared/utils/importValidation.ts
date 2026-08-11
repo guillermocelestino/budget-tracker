@@ -7,6 +7,7 @@ export type MappedTransaction = {
 	amount: number;
 	type: 'income' | 'expense';
 	category_name: string;
+	source_of_funds?: string;
 };
 
 export interface ValidationResult {
@@ -424,6 +425,7 @@ export function buildMappedRows(
 	const amtCol = headers.find(c => mapping[c] === 'amount');
 	const typeCol = headers.find(c => mapping[c] === 'type');
 	const catCol = headers.find(c => mapping[c] === 'category_name');
+	const sourceCol = headers.find(c => mapping[c] === 'source_of_funds');
 
 	return rawRows.map(rawRow => {
 		const getVal = (col: string | undefined, fallback = '') =>
@@ -454,6 +456,9 @@ export function buildMappedRows(
 			amount: normalizedAmount,
 			type,
 			category_name: rawCat.trim(),
+			// Optional metadata: empty string when the column is absent or blank.
+			// The server normalizes '' → NULL, so this never invents a source.
+			source_of_funds: getVal(sourceCol).trim(),
 		};
 	});
 }
@@ -580,6 +585,8 @@ export const DEFAULT_IMPORT_FIELDS: ImportFieldDef[] = [
 	{ key: 'amount', label: '💰 Amount', required: true, aliases: ['amount', 'amt', 'value', 'sum', 'total', 'price', 'cost', 'number', 'num', 'transaction amount', 'withdrawal amount', 'deposit amount'] },
 	{ key: 'type', label: '🔀 Type (income/expense)', aliases: ['type', 'kind', 'category type', 'transaction type', 'class', 'transaction type'] },
 	{ key: 'category_name', label: '📁 Category Name', aliases: ['category', 'cat', 'category name', 'group', 'label', 'tags', 'category label'] },
+	// Optional — never required. Missing/blank column → NULL via server normalization.
+	{ key: 'source_of_funds', label: '💰 Source of Funds', aliases: ['source of funds', 'source', 'funded by', 'money from', 'funding source'] },
 ];
 
 /**

@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 	date DATE NOT NULL,
 	category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
 	type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
+	source_of_funds TEXT,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

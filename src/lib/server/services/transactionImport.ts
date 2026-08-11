@@ -151,6 +151,7 @@ export async function importTransactionsForUser(
 				description: row.description.trim(),
 				date: row.date,
 				category_id: cat.id,
+				source_of_funds: row.source_of_funds,
 			});
 			inserted++;
 		}
