@@ -18,7 +18,7 @@ test.describe('Lending Bulk Select & Delete Flow', () => {
 		await signInAndNavigateToLending(page);
 
 		// 1. Open PageHeader OverflowMenu and click "Select Transactions"
-		const overflowBtn = page.locator('.overflow-btn').first();
+		const overflowBtn = page.locator('.overflow-btn:visible');
 		await expect(overflowBtn).toBeVisible();
 		await overflowBtn.click();
 
@@ -58,7 +58,7 @@ test.describe('Lending Bulk Select & Delete Flow', () => {
 		await signInAndNavigateToLending(page);
 
 		// Enter selection mode
-		await page.locator('.overflow-btn').first().click();
+		await page.locator('.overflow-btn:visible').click();
 		await page.locator('.overflow-option', { hasText: 'Select Transactions' }).click();
 
 		const bulkBar = page.locator('.bulk-bar');
@@ -82,7 +82,7 @@ test.describe('Lending Bulk Select & Delete Flow', () => {
 	test('opens bulk delete confirmation modal with correct count', async ({ page }) => {
 		await signInAndNavigateToLending(page);
 
-		await page.locator('.overflow-btn').first().click();
+		await page.locator('.overflow-btn:visible').click();
 		await page.locator('.overflow-option', { hasText: 'Select Transactions' }).click();
 
 		const bulkBar = page.locator('.bulk-bar');

@@ -18,7 +18,7 @@ test.describe('Recurring Bulk Select & Delete Flow', () => {
 		await signInAndNavigateToRecurring(page);
 
 		// 1. Open PageHeader OverflowMenu and click "Select Transactions"
-		const overflowBtn = page.locator('.overflow-btn').first();
+		const overflowBtn = page.locator('.overflow-btn:visible');
 		await expect(overflowBtn).toBeVisible();
 		await overflowBtn.click();
 
@@ -53,7 +53,7 @@ test.describe('Recurring Bulk Select & Delete Flow', () => {
 	test('opens bulk delete confirmation modal for recurring rules', async ({ page }) => {
 		await signInAndNavigateToRecurring(page);
 
-		await page.locator('.overflow-btn').first().click();
+		await page.locator('.overflow-btn:visible').click();
 		await page.locator('.overflow-option', { hasText: 'Select Transactions' }).click();
 
 		const bulkBar = page.locator('.bulk-bar');

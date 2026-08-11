@@ -117,6 +117,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 		class:txn-income={isIncome}
 		class:txn-expense={!isIncome}
 		class:rr-row-selected={isSelected}
+		class:has-selection={selectionMode}
 		data-recurring-id={rec.id}
 		data-hover-row
 		role="button"
@@ -253,7 +254,10 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 		{/if}
 	{:else}
 		<div class="recurring-table">
-			<div class="recurring-header" role="rowheader">
+			<div class="recurring-header" class:has-selection={selectionMode} role="rowheader">
+				{#if selectionMode}
+					<span class="rh-check" aria-hidden="true"></span>
+				{/if}
 				<span class="rh-desc">Description</span>
 				<span class="rh-freq">Frequency</span>
 				<span class="rh-cat">Category</span>
@@ -341,18 +345,32 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 		-webkit-tap-highlight-color: transparent;
 	}
 
+	/* When selection mode is active, prepend a 44px checkbox column to the grid */
+	.recurring-row.has-selection,
+	.recurring-header.has-selection {
+		grid-template-columns: 44px minmax(0, 1fr) 120px 170px 130px 232px 48px;
+	}
+
+	.rh-check {
+		width: 44px;
+		height: 100%;
+		flex-shrink: 0;
+	}
+
 	/* ── Selection checkbox cell ── */
 	.rr-check-cell {
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		width: 44px;
+		height: 100%;
 		flex-shrink: 0;
 	}
 
 	.rr-checkbox {
 		width: 18px;
 		height: 18px;
+		margin: 0;
 		accent-color: var(--color-teal);
 		cursor: pointer;
 		flex-shrink: 0;
@@ -581,12 +599,20 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 		.recurring-header {
 			grid-template-columns: minmax(0, 1fr) 120px 170px 130px 148px 48px;
 		}
+		.recurring-row.has-selection,
+		.recurring-header.has-selection {
+			grid-template-columns: 44px minmax(0, 1fr) 120px 170px 130px 148px 48px;
+		}
 	}
 
 	@media (max-width: 899px) {
 		.recurring-row,
 		.recurring-header {
 			grid-template-columns: minmax(0, 1fr) 120px 170px 130px 100px 48px;
+		}
+		.recurring-row.has-selection,
+		.recurring-header.has-selection {
+			grid-template-columns: 44px minmax(0, 1fr) 120px 170px 130px 100px 48px;
 		}
 	}
 
@@ -597,6 +623,10 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 		.recurring-row,
 		.recurring-header {
 			grid-template-columns: minmax(0, 1fr) 120px 170px 130px 48px;
+		}
+		.recurring-row.has-selection,
+		.recurring-header.has-selection {
+			grid-template-columns: 44px minmax(0, 1fr) 120px 170px 130px 48px;
 		}
 	}
 
@@ -718,6 +748,19 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 			box-shadow: 0 4px 16px rgba(79, 157, 136, 0.10);
 			padding: 20px 16px 16px;
 			min-height: 0;
+		}
+
+		.recurring-row.has-selection {
+			grid-template-columns: 44px minmax(0, 1fr) auto auto;
+			grid-template-areas:
+				'check desc desc desc'
+				'check pills amount kebab';
+		}
+
+		.rr-check-cell {
+			grid-area: check;
+			align-self: center;
+			justify-self: center;
 		}
 
 		.recurring-row:last-child { border-bottom: 1px solid var(--line); }
