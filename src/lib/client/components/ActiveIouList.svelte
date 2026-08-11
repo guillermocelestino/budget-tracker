@@ -14,7 +14,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
     onDuplicate,
     onViewHistory,
     direction = 'lent',
-    viewMode = 'card',
+    viewMode = 'table',
   }: {
     ious: LendingWithPayments[];
     onPay?: (id: number) => void;

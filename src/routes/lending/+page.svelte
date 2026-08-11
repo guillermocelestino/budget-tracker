@@ -36,7 +36,7 @@
 
 	let showPanel = $state(false);
 	let editingLending = $state<Lending | null>(null);
-	let viewMode = $state<'card' | 'table'>('card');
+	let viewMode = $state<'card' | 'table'>('table');
 	let recordPaymentLending = $state<LendingWithPayments | null>(null);
 	let deleteId = $state<number | null>(null);
 	let historyLending = $state<LendingWithPayments | null>(null);
@@ -439,7 +439,7 @@
 				paidLabel="Paid"
 				onFilterChange={(f) => {
 					activeTab = f.status;
-					dateFilters = { date: f.date, customFrom: f.customFrom, customTo: f.customTo };
+					dateFilters = { date: f.date, customFrom: f.customFrom ?? '', customTo: f.customTo ?? '' };
 				}}
 				onClearAll={() => {
 					searchInput = '';
@@ -468,7 +468,7 @@
 						customTo={dateFilters.customTo}
 						onFilterChange={(f) => {
 							activeTab = f.status;
-							dateFilters = { date: f.date, customFrom: f.customFrom, customTo: f.customTo };
+							dateFilters = { date: f.date, customFrom: f.customFrom ?? '', customTo: f.customTo ?? '' };
 						}}
 						counts={counts}
 						{mode}

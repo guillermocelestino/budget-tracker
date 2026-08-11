@@ -282,7 +282,7 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 
 	// ─── Lifted view toggle state ─────────────────────────────────────
 
-	let showFlatView = $state(false);
+	let showFlatView = $state(true);
 
 	async function handleExport(format: 'csv' | 'pdf', ids?: number[]) {
 		const params = new URLSearchParams($page.url.searchParams);

@@ -10,7 +10,7 @@
   };
 
   let {
-    showFlatView = false,
+    showFlatView = true,
     onChange,
     options,
     value,

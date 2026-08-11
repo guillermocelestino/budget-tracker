@@ -21,7 +21,7 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
     allTransactionsForBalance = [],
     showRunningBalance = true,
     categories = [],
-    showFlatView = false,
+    showFlatView = true,
     selectionMode = false,
     selectedIds = new Set() as Set<number>,
     onToggleSelection,
