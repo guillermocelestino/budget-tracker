@@ -1,8 +1,10 @@
 import { fail } from '@sveltejs/kit';
+import type { PageServerLoad, Actions } from './$types';
 import { importLendingsForUser } from '$lib/server/services/lendingImport';
 import {
 	getLending,
-	getLendingsWithPayments,
+	listLendingsWithPayments,
+	getLendingStatusCounts,
 	getLendingTotals,
 	getPayment,
 	recordPayment,
@@ -14,28 +16,96 @@ import {
 } from '$lib/server/services/lendingPayments';
 import { getToday } from '$lib/shared/utils/format';
 
-export async function load({ locals }: { locals: App.Locals }) {
+export const load: PageServerLoad = async ({ url, locals }) => {
 	const userId = locals.user!.userId;
 
-	const allLendings = await getLendingsWithPayments(userId, 'lent');
-	const activeLendings = allLendings.filter(l => l.derived_status === 'active');
-	const paidLendings = allLendings.filter(l => l.derived_status === 'paid');
+	const rawPage = parseInt(url.searchParams.get('page') ?? '1', 10);
+	let page = Number.isFinite(rawPage) ? Math.max(1, rawPage) : 1;
+
+	const rawLimit = url.searchParams.get('limit') ?? url.searchParams.get('pageSize') ?? '20';
+	let limit: number | undefined = 20;
+	if (rawLimit === 'all' || rawLimit === 'All' || rawLimit === '0') {
+		limit = undefined;
+	} else {
+		const parsed = parseInt(rawLimit, 10);
+		if (Number.isFinite(parsed) && [20, 50, 100, 200, 500].includes(parsed)) {
+			limit = parsed;
+		} else {
+			limit = 20;
+		}
+	}
+
+	const status = url.searchParams.get('status');
+	const date_from = url.searchParams.get('date_from') ?? url.searchParams.get('from');
+	const date_to = url.searchParams.get('date_to') ?? url.searchParams.get('to');
+	const search = url.searchParams.get('search');
 
 	const totals = await getLendingTotals(userId, 'lent');
 
+	// Validate date range
+	if (date_from && date_to && date_from > date_to) {
+		return {
+			lendings: [],
+			activeLendings: [],
+			paidLendings: [],
+			total: 0,
+			page: 1,
+			totalPages: 1,
+			limit: limit ?? 0,
+			totals: {
+				totalLent: totals.total,
+				totalRecovered: totals.cashPaid,
+				writtenOff: totals.writtenOff,
+				outstanding: totals.outstanding,
+			},
+			counts: { all: 0, active: 0, paid: 0 },
+			dateError: 'From date cannot be after End date'
+		};
+	}
+
+	const filters = {
+		status: status && ['all', 'active', 'paid'].includes(status) ? (status as 'all' | 'active' | 'paid') : 'active' as const,
+		date_from: date_from || undefined,
+		date_to: date_to || undefined,
+		search: search || undefined
+	};
+
+	let result = await listLendingsWithPayments(userId, 'lent', filters, page, limit);
+
+	if (page > result.totalPages && result.totalPages > 0) {
+		page = result.totalPages;
+		result = await listLendingsWithPayments(userId, 'lent', filters, page, limit);
+	}
+
+	const counts = await getLendingStatusCounts(userId, 'lent', {
+		date_from: filters.date_from,
+		date_to: filters.date_to,
+		search: filters.search
+	});
+
+	const activeLendings = result.items.filter(l => l.derived_status === 'active');
+	const paidLendings = result.items.filter(l => l.derived_status === 'paid');
+
 	return {
+		lendings: result.items,
 		activeLendings,
 		paidLendings,
+		total: result.total,
+		page,
+		totalPages: result.totalPages,
+		limit: limit ?? 0,
 		totals: {
 			totalLent: totals.total,
 			totalRecovered: totals.cashPaid,
 			writtenOff: totals.writtenOff,
 			outstanding: totals.outstanding,
 		},
+		counts,
+		dateError: null
 	};
 }
 
-export const actions = {
+export const actions: Actions = {
 	create: async ({ request, locals }) => {
 		const userId = locals.user!.userId;
 		const data = await request.formData();

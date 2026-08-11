@@ -5,9 +5,23 @@ import {
 	lendingPayments,
 	transactions
 } from '$lib/server/db/schema';
-import { and, eq, sql, desc, isNotNull, ilike } from 'drizzle-orm';
+import { and, eq, sql, desc, isNotNull, ilike, gte, lte, or } from 'drizzle-orm';
 import type { Lending, LendingPayment, LendingWithPayments, PaymentType } from '$lib/types';
 import { recordLendingTransactionInTxDrizzle } from '$lib/server/services/recordLendingTransaction';
+
+export interface LendingFilters {
+	status?: 'all' | 'active' | 'paid';
+	date_from?: string;
+	date_to?: string;
+	search?: string;
+}
+
+export interface ListLendingsResult {
+	items: LendingWithPayments[];
+	total: number;
+	page: number;
+	totalPages: number;
+}
 
 /** Drizzle client type returned by getDrizzle(). */
 type DrizzleDb = Awaited<ReturnType<typeof getDrizzle>>;
@@ -150,6 +164,159 @@ export async function getLendingsWithPayments(
 		.orderBy(desc(lendings.created_at));
 
 	return rows.map(toLendingWithPayments);
+}
+
+/**
+ * List lendings with payment calculations, supporting server-side filtering and pagination.
+ */
+export async function listLendingsWithPayments(
+	userId: number,
+	direction: 'lent' | 'borrowed',
+	filters: LendingFilters = {},
+	page = 1,
+	limit?: number
+): Promise<ListLendingsResult> {
+	const db = await getDrizzle();
+
+	const conditions = [
+		eq(lendings.user_id, userId),
+		eq(lendings.direction, direction)
+	];
+
+	if (filters.status && ['active', 'paid'].includes(filters.status)) {
+		conditions.push(eq(lendings.status, filters.status));
+	}
+
+	if (filters.date_from) {
+		conditions.push(gte(lendings.date_lent, filters.date_from));
+	}
+
+	if (filters.date_to) {
+		conditions.push(lte(lendings.date_lent, filters.date_to));
+	}
+
+	if (filters.search && filters.search.trim()) {
+		const pattern = `%${filters.search.trim()}%`;
+		conditions.push(
+			or(
+				ilike(lendings.borrower_name, pattern),
+				ilike(lendings.notes, pattern)
+			)!
+		);
+	}
+
+	const whereClause = and(...conditions);
+
+	const [countRow] = await db
+		.select({ count: sql<number>`count(*)::int` })
+		.from(lendings)
+		.where(whereClause);
+
+	const total = countRow?.count ? Number(countRow.count) : 0;
+
+	const effectiveLimit = limit && limit > 0 ? limit : undefined;
+	let totalPages = 1;
+	let currentPage = Math.max(1, page);
+
+	if (effectiveLimit) {
+		totalPages = total > 0 ? Math.ceil(total / effectiveLimit) : 1;
+		if (currentPage > totalPages && totalPages > 0) {
+			currentPage = totalPages;
+		}
+	}
+
+	const query = db
+		.select({
+			id: lendings.id,
+			user_id: lendings.user_id,
+			borrower_name: lendings.borrower_name,
+			amount: lendings.amount,
+			interest_rate: lendings.interest_rate,
+			date_lent: lendings.date_lent,
+			due_date: lendings.due_date,
+			status: lendings.status,
+			notes: lendings.notes,
+			direction: lendings.direction,
+			created_at: lendings.created_at,
+			updated_at: lendings.updated_at,
+			cash_paid: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'payment' THEN ${lendingPayments.amount} ELSE 0 END), 0)`,
+			written_off: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'write_off' THEN ${lendingPayments.amount} ELSE 0 END), 0)`
+		})
+		.from(lendings)
+		.leftJoin(lendingPayments, eq(lendingPayments.lending_id, lendings.id))
+		.where(whereClause)
+		.groupBy(lendings.id)
+		.orderBy(desc(lendings.created_at));
+
+	if (effectiveLimit) {
+		query.limit(effectiveLimit).offset((currentPage - 1) * effectiveLimit);
+	}
+
+	const rows = await query;
+	const items = rows.map(toLendingWithPayments);
+
+	return {
+		items,
+		total,
+		page: currentPage,
+		totalPages
+	};
+}
+
+/**
+ * Get count of lendings by status for the filter options, optionally filtered by date/search.
+ */
+export async function getLendingStatusCounts(
+	userId: number,
+	direction: 'lent' | 'borrowed',
+	filters: Omit<LendingFilters, 'status'> = {}
+): Promise<{ all: number; active: number; paid: number }> {
+	const db = await getDrizzle();
+
+	const conditions = [
+		eq(lendings.user_id, userId),
+		eq(lendings.direction, direction)
+	];
+
+	if (filters.date_from) {
+		conditions.push(gte(lendings.date_lent, filters.date_from));
+	}
+
+	if (filters.date_to) {
+		conditions.push(lte(lendings.date_lent, filters.date_to));
+	}
+
+	if (filters.search && filters.search.trim()) {
+		const pattern = `%${filters.search.trim()}%`;
+		conditions.push(
+			or(
+				ilike(lendings.borrower_name, pattern),
+				ilike(lendings.notes, pattern)
+			)!
+		);
+	}
+
+	const rows = await db
+		.select({
+			status: lendings.status,
+			count: sql<number>`count(*)::int`
+		})
+		.from(lendings)
+		.where(and(...conditions))
+		.groupBy(lendings.status);
+
+	let active = 0;
+	let paid = 0;
+	for (const row of rows) {
+		if (row.status === 'active') active = Number(row.count);
+		if (row.status === 'paid') paid = Number(row.count);
+	}
+
+	return {
+		all: active + paid,
+		active,
+		paid
+	};
 }
 
 /**
