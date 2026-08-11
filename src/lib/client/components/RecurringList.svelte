@@ -18,6 +18,9 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 		showActions = true,
 		loading = false,
 		emptyState,
+		selectionMode = false,
+		selectedIds = new Set<number>(),
+		onToggleSelection,
 	}: {
 		recurring: RecurringTransaction[];
 		onDelete?: (id: number) => void;
@@ -29,6 +32,9 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 		showActions?: boolean;
 		loading?: boolean;
 		emptyState?: import('svelte').Snippet;
+		selectionMode?: boolean;
+		selectedIds?: Set<number>;
+		onToggleSelection?: (id: number) => void;
 	} = $props();
 
 	let menuTxn = $state<RecurringTransaction | null>(null);
@@ -104,8 +110,43 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 	{@const hue = getCategoryHue(rec.category_name, rec.category_color)}
 	{@const tint = getCategoryTint(rec.category_name, hue, themeState.isDark)}
 	{@const fg = getCategoryText(rec.category_name, hue, themeState.isDark)}
+	{@const isSelected = selectionMode && selectedIds.has(rec.id)}
 
-	<div class="recurring-row" class:txn-income={isIncome} class:txn-expense={!isIncome} data-recurring-id={rec.id} data-hover-row role="button" tabindex="0" aria-label="{rec.description}, {frequencyLabels[rec.frequency]}, next: {formatNextRun(rec.next_run)}" onclick={() => onEdit?.(rec)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit?.(rec); } }}>
+	<div
+		class="recurring-row"
+		class:txn-income={isIncome}
+		class:txn-expense={!isIncome}
+		class:rr-row-selected={isSelected}
+		data-recurring-id={rec.id}
+		data-hover-row
+		role="button"
+		tabindex="0"
+		aria-label="{selectionMode ? (isSelected ? 'Deselect' : 'Select') + ' ' + rec.description : rec.description + ', ' + frequencyLabels[rec.frequency] + ', next: ' + formatNextRun(rec.next_run)}"
+		onclick={() => {
+			if (selectionMode) { onToggleSelection?.(rec.id); }
+			else { onEdit?.(rec); }
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				if (selectionMode) { onToggleSelection?.(rec.id); }
+				else { onEdit?.(rec); }
+			}
+		}}
+	>
+		<!-- Checkbox column (selection mode only) -->
+		{#if selectionMode}
+			<span class="rr-check-cell">
+				<input
+					type="checkbox"
+					class="rr-checkbox"
+					checked={isSelected}
+					aria-label="{isSelected ? 'Deselect' : 'Select'} {rec.description}"
+					onclick={(e) => e.stopPropagation()}
+					onchange={() => onToggleSelection?.(rec.id)}
+				/>
+			</span>
+		{/if}
 		<!-- Category accent bar -->
 		<div class="cat-stripe" style="background: {fg}"></div>
 
@@ -299,6 +340,37 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 		transition: background 180ms var(--ease);
 		-webkit-tap-highlight-color: transparent;
 	}
+
+	/* ── Selection checkbox cell ── */
+	.rr-check-cell {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		flex-shrink: 0;
+	}
+
+	.rr-checkbox {
+		width: 18px;
+		height: 18px;
+		accent-color: var(--color-teal);
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	/* ── Selected row highlight ── */
+	.rr-row-selected {
+		background: var(--color-teal-bg, rgba(79, 157, 136, 0.06)) !important;
+	}
+
+	.rr-row-selected::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-left: 3px solid var(--color-teal);
+		pointer-events: none;
+	}
+
 
 	.recurring-row:last-child {
 		border-bottom: none;

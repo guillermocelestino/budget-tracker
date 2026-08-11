@@ -5,7 +5,7 @@ import {
 	lendingPayments,
 	transactions
 } from '$lib/server/db/schema';
-import { and, eq, sql, desc, isNotNull, ilike, gte, lte, or } from 'drizzle-orm';
+import { and, eq, sql, desc, isNotNull, ilike, gte, lte, or, inArray } from 'drizzle-orm';
 import type { Lending, LendingPayment, LendingWithPayments, PaymentType } from '$lib/types';
 import { recordLendingTransactionInTxDrizzle } from '$lib/server/services/recordLendingTransaction';
 
@@ -746,6 +746,62 @@ export async function deleteLending(userId: number, lendingId: number): Promise<
 		return !!row;
 	});
 }
+
+/**
+ * Bulk-delete multiple lendings atomically.
+ *
+ * Validates that every requested ID belongs to the authenticated user BEFORE
+ * performing any destructive mutations. If any ID is unknown or belongs to
+ * another user the entire operation is rejected and nothing is deleted.
+ *
+ * Reuses `deleteLinkedTransactionsInTxDrizzle` (the same private helper that
+ * `deleteLending` uses) so the deletion semantics are identical:
+ *   single delete × N records = bulk delete
+ *
+ * Everything runs inside ONE outer Drizzle transaction — atomic roll-back if
+ * any step fails. No nested transactions (we pass `tx` to the inner helper).
+ *
+ * Returns the number of lending rows actually deleted.
+ */
+export async function deleteLendings(userId: number, ids: number[]): Promise<number> {
+	if (ids.length === 0) return 0;
+
+	const db = await getDrizzle();
+	return db.transaction(async (tx) => {
+		// ── 1. Ownership validation ────────────────────────────────────────
+		// Fetch all lending IDs that exist AND belong to this user.
+		const ownedRows = await tx
+			.select({ id: lendings.id })
+			.from(lendings)
+			.where(and(eq(lendings.user_id, userId), inArray(lendings.id, ids)));
+
+		const ownedIds = new Set(ownedRows.map((r) => r.id));
+
+		// If any requested ID is missing from the owned set, reject the entire
+		// operation without touching anything.
+		const allOwned = ids.every((id) => ownedIds.has(id));
+		if (!allOwned) {
+			throw new Error('One or more lending IDs are invalid or do not belong to this user');
+		}
+
+		// ── 2. Delete linked ledger transactions (one lending at a time) ───
+		// Must run before the lending rows are deleted so lending_payments are
+		// still queryable (they cascade-delete when the lending is removed).
+		for (const id of ids) {
+			await deleteLinkedTransactionsInTxDrizzle(tx, userId, id);
+		}
+
+		// ── 3. Bulk-delete the lending rows (cascades to lending_payments) ─
+		const deleted = await tx
+			.delete(lendings)
+			.where(and(eq(lendings.user_id, userId), inArray(lendings.id, ids)))
+			.returning({ id: lendings.id });
+
+		return deleted.length;
+	});
+}
+
+
 
 /**
  * Create a lending AND, when requested, its linked category/ledger transaction

@@ -15,6 +15,9 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
     onViewHistory,
     direction = 'lent',
     viewMode = 'table',
+    selectionMode = false,
+    selectedIds = new Set<number>(),
+    onToggleSelection,
   }: {
     ious: LendingWithPayments[];
     onPay?: (id: number) => void;
@@ -24,6 +27,9 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
     onViewHistory?: (id: number) => void;
     direction?: 'lent' | 'borrowed';
     viewMode?: 'card' | 'table';
+    selectionMode?: boolean;
+    selectedIds?: Set<number>;
+    onToggleSelection?: (id: number) => void;
   } = $props();
 
   // ─── Compute today from app helper (respects DEMO_TODAY) ───
@@ -286,9 +292,27 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
               class="iou-card reveal-on-scroll"
               class:paid={iou.status === 'paid'}
               class:overdue={state === 'overdue'}
+              class:iou-card-selected={selectionMode && selectedIds.has(iou.id)}
               data-hover-row
               style="border-color: {stateAccentColor(state)}40;"
             >
+              <!-- Selection checkbox (card view, top-right corner) -->
+              {#if selectionMode}
+                <button
+                  class="iou-card-checkbox-btn"
+                  type="button"
+                  aria-label="{selectedIds.has(iou.id) ? 'Deselect' : 'Select'} {iou.borrower_name}"
+                  onclick={(e) => { e.stopPropagation(); onToggleSelection?.(iou.id); }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(iou.id)}
+                    aria-hidden="true"
+                    tabindex="-1"
+                    readonly
+                  />
+                </button>
+              {/if}
               <!-- Left accent bar (STATE, not sign) -->
               <div class="iou-accent" style="background: {stateAccentColor(state)};"></div>
 
@@ -415,7 +439,12 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
   {:else}
     <div class="iou-register">
       <!-- Sticky column header (mono uppercase, like the transactions register) -->
-      <div class="register-header" role="rowheader">
+      <div
+        class="register-header"
+        role="rowheader"
+        style={selectionMode ? 'grid-template-columns: 44px 28px minmax(0, 1fr) 96px 108px 116px 48px;' : ''}
+      >
+        {#if selectionMode}<span class="rh-check" aria-hidden="true"></span>{/if}
         <span class="rh-circle" aria-hidden="true"></span>
         <span class="rh-name">{direction === 'lent' ? 'Borrower' : 'Lender'}</span>
         <span class="rh-due">Due</span>
@@ -436,19 +465,38 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
           class="iou-row"
           class:overdue={state === 'overdue'}
           class:paid={iou.status === 'paid'}
+          class:iou-row-selected={selectionMode && selectedIds.has(iou.id)}
           data-hover-row
-          style="--row-accent: {accent};"
+          style="--row-accent: {accent};{selectionMode ? ' grid-template-columns: 44px 28px minmax(0, 1fr) 96px 108px 116px 48px;' : ''}"
           role="button"
           tabindex="0"
-          aria-label="View payment history for {iou.borrower_name}"
-          onclick={() => onViewHistory?.(iou.id)}
+          aria-label="{selectionMode ? (selectedIds.has(iou.id) ? 'Deselect' : 'Select') + ' ' + iou.borrower_name : 'View payment history for ' + iou.borrower_name}"
+          onclick={() => {
+            if (selectionMode) { onToggleSelection?.(iou.id); }
+            else { onViewHistory?.(iou.id); }
+          }}
           onkeydown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              onViewHistory?.(iou.id);
+              if (selectionMode) { onToggleSelection?.(iou.id); }
+              else { onViewHistory?.(iou.id); }
             }
           }}
         >
+
+          <!-- Checkbox column (selection mode only) -->
+          {#if selectionMode}
+            <span class="row-check-cell">
+              <input
+                type="checkbox"
+                class="row-checkbox"
+                checked={selectedIds.has(iou.id)}
+                aria-label="{selectedIds.has(iou.id) ? 'Deselect' : 'Select'} {iou.borrower_name}"
+                onclick={(e) => e.stopPropagation()}
+                onchange={() => onToggleSelection?.(iou.id)}
+              />
+            </span>
+          {/if}
           <!-- Leading state-tinted ring -->
           <span class="row-circle" style="background: {bg}; color: {fg};">{init}</span>
 
@@ -1059,6 +1107,75 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
   .rh-due { min-width: 0; }
   .rh-progress { text-align: right; }
   .rh-amount { text-align: right; }
+
+  /* ── Selection check column header ── */
+  .rh-check {
+    width: 44px;
+    height: 28px;
+    flex-shrink: 0;
+  }
+
+  /* ── Row checkbox cell ── */
+  .row-check-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    flex-shrink: 0;
+  }
+
+  .row-checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-teal);
+    cursor: pointer;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+  }
+
+  /* ── Selected row highlight ── */
+  .iou-row-selected {
+    background: var(--color-teal-bg, rgba(79, 157, 136, 0.06)) !important;
+  }
+
+  .iou-row-selected::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-left: 3px solid var(--color-teal);
+    pointer-events: none;
+  }
+
+  /* ── Card selection checkbox ── */
+  .iou-card-checkbox-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+    border-radius: var(--radius-sm);
+  }
+
+  .iou-card-checkbox-btn input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-teal);
+    cursor: pointer;
+    pointer-events: none;
+  }
+
+  .iou-card-selected {
+    outline: 2px solid var(--color-teal);
+    outline-offset: -1px;
+  }
 
   /* Desktop (≥769px): comfortable minimum header height. min-height (not
      fixed height) so the header can still grow if content wraps. */

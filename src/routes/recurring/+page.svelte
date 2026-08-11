@@ -12,6 +12,8 @@
 	import ModalDialog from '$lib/client/components/ModalDialog.svelte';
 	import Button from '$lib/client/components/Button.svelte';
 	import CountChip from '$lib/client/components/CountChip.svelte';
+	import { enhance } from '$app/forms';
+	import { untrack } from 'svelte';
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
 	import type { RecurringTransaction } from '$lib/types';
 
@@ -23,6 +25,57 @@
 	let panelEl = $state<HTMLDivElement | null>(null);
 	let addBtnEl = $state<HTMLElement | null>(null);
 	let filtersOpen = $state(false);
+
+	// Bulk selection (Selection Mode) — entered via the header overflow menu.
+	// Selection is always page-scoped; clearing happens on page/filter change.
+	let selectionMode = $state(false);
+	let selectedIds = $state(new Set<number>());
+
+	const pageIds = $derived((data.recurring ?? []).map((r) => r.id));
+	const selectedOnPage = $derived(pageIds.filter((id) => selectedIds.has(id)).length);
+	const allSelected = $derived(pageIds.length > 0 && selectedOnPage === pageIds.length);
+	const someSelected = $derived(selectedOnPage > 0 && !allSelected);
+	const selectedCount = $derived(selectedIds.size);
+
+	function toggleSelection(id: number) {
+		const next = new Set(selectedIds);
+		if (next.has(id)) next.delete(id);
+		else next.add(id);
+		selectedIds = next;
+	}
+
+	function toggleAll() {
+		if (allSelected) {
+			selectedIds = new Set([...selectedIds].filter((id) => !pageIds.includes(id)));
+		} else {
+			selectedIds = new Set([...selectedIds, ...pageIds]);
+		}
+	}
+
+	function exitSelectionMode() {
+		selectionMode = false;
+		selectedIds = new Set();
+	}
+
+	function setIndeterminate(node: HTMLInputElement, indeterminate: boolean) {
+		node.indeterminate = indeterminate;
+		return {
+			update(indeterminate: boolean) {
+				node.indeterminate = indeterminate;
+			},
+		};
+	}
+
+	let lastFilterKey = '';
+	$effect(() => {
+		const key = $page.url.searchParams.toString();
+		untrack(() => {
+			if (lastFilterKey !== '' && key !== lastFilterKey) {
+				selectedIds = new Set();
+			}
+			lastFilterKey = key;
+		});
+	});
 
 	// Filter state - initialized from URL, synced back via $effect
 	let filters = $state({
@@ -413,7 +466,10 @@
 				</svg>
 				Add Recurring
 			</Button>
-			<OverflowMenu onExportCsv={handleExportCsv} />
+			<OverflowMenu
+				onExportCsv={handleExportCsv}
+				onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
+			/>
 		</div>
 	{/snippet}
 </PageHeader>
@@ -496,6 +552,26 @@
 	{/snippet}
 </SearchFilterPill>
 
+<!-- ═══ Bulk selection action bar (Selection Mode only) ═══ -->
+{#if selectionMode && pageIds.length > 0}
+	<div class="bulk-bar" role="toolbar" aria-label="Selected recurring transactions">
+		<div class="bulk-left">
+			<input
+				type="checkbox"
+				checked={allSelected}
+				use:setIndeterminate={someSelected}
+				onchange={toggleAll}
+				aria-label="Select all recurring transactions on this page"
+			/>
+			<span class="bulk-count">{selectedCount} selected</span>
+		</div>
+		<div class="bulk-actions">
+			<Button variant="danger" size="sm" disabled={selectedCount === 0} onclick={() => (deleteTarget = [...selectedIds])}>Delete Selected</Button>
+			<Button variant="ghost" size="sm" onclick={exitSelectionMode}>Cancel</Button>
+		</div>
+	</div>
+{/if}
+
 <!-- Recurring List -->
 <div class="recurring-page-content">
 	<RecurringList
@@ -507,6 +583,9 @@
 		onPause={handlePause}
 		onResume={handleResume}
 		loading={false}
+		selectionMode={selectionMode}
+		selectedIds={selectedIds}
+		onToggleSelection={toggleSelection}
 	>
 		{#snippet emptyState()}
 			<div class="rr-empty">
@@ -572,19 +651,130 @@
 {/if}
 
 <!-- Delete Modal -->
-<ModalDialog
-	open={deleteTarget !== null}
-	title="Delete Recurring Transaction"
-	onclose={() => deleteTarget = null}
->
-	<p>Are you sure you want to delete this recurring transaction? This action cannot be undone.</p>
-	<div class="modal-actions">
-		<Button variant="ghost" type="button" onclick={() => deleteTarget = null}>Cancel</Button>
-		<Button variant="danger" onclick={() => { handleDelete(deleteTarget!); deleteTarget = null; }}>Delete</Button>
-	</div>
-</ModalDialog>
+{#if deleteTarget !== null}
+	{@const isBulk = Array.isArray(deleteTarget)}
+	{@const deleteCount = Array.isArray(deleteTarget) ? deleteTarget.length : 1}
+	{@const deleteIdsStr = Array.isArray(deleteTarget) ? deleteTarget.join(',') : String(deleteTarget)}
+	<ModalDialog
+		open={deleteTarget !== null}
+		title={isBulk ? 'Delete Recurring Transactions' : 'Delete Recurring Transaction'}
+		onclose={() => deleteTarget = null}
+	>
+		<p>
+			Are you sure you want to delete {isBulk ? `${deleteCount} recurring transactions` : 'this recurring transaction'}?
+			This action cannot be undone.
+		</p>
+		{#if isBulk}
+			<form
+				method="POST"
+				action="?/deleteBulk"
+				use:enhance={() => {
+					return async ({ result, update }: { result: { type: string; data?: { error?: string; deleted?: number } }; update: () => Promise<void> }) => {
+						await update();
+						if (result.type === 'success') {
+							exitSelectionMode();
+							deleteTarget = null;
+							showSuccess(`${result.data?.deleted ?? deleteCount} recurring transaction${(result.data?.deleted ?? deleteCount) > 1 ? 's' : ''} deleted`);
+						} else {
+							showError((result.data as { error?: string } | undefined)?.error || 'Failed to delete');
+						}
+					};
+				}}
+			>
+				<input type="hidden" name="id" value={deleteIdsStr} />
+				<div class="modal-actions">
+					<Button variant="ghost" type="button" onclick={() => deleteTarget = null}>Cancel</Button>
+					<Button variant="danger" type="submit">Delete</Button>
+				</div>
+			</form>
+		{:else}
+			<div class="modal-actions">
+				<Button variant="ghost" type="button" onclick={() => deleteTarget = null}>Cancel</Button>
+				<Button variant="danger" onclick={() => { handleDelete(deleteTarget as number); deleteTarget = null; }}>Delete</Button>
+			</div>
+		{/if}
+	</ModalDialog>
+{/if}
 
 <style>
+	/* ─── Bulk selection action bar (Selection Mode only) ─── */
+	.bulk-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: var(--space-sm);
+		padding: var(--space-sm) var(--space-md);
+		margin-top: var(--space-md);
+		margin-bottom: var(--space-md);
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-xl);
+		box-shadow: var(--shadow-sm);
+		animation: bulkIn 200ms var(--ease) both;
+	}
+
+	.bulk-left {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		min-height: 44px;
+	}
+
+	.bulk-left input[type='checkbox'] {
+		width: 18px;
+		height: 18px;
+		margin: 0;
+		accent-color: var(--color-teal);
+		cursor: pointer;
+	}
+
+	.bulk-count {
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
+		color: var(--color-teal);
+		letter-spacing: 0.02em;
+	}
+
+	.bulk-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-xs);
+		flex-wrap: wrap;
+	}
+
+	.bulk-bar :global(.btn) {
+		min-height: 44px;
+	}
+
+	@keyframes bulkIn {
+		from {
+			opacity: 0;
+			transform: translateY(-6px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	@media (max-width: 768px) {
+		.bulk-bar {
+			align-items: stretch;
+			flex-direction: column;
+			gap: var(--space-sm);
+		}
+
+		.bulk-actions {
+			display: grid;
+			grid-template-columns: repeat(2, 1fr);
+			gap: var(--space-xs);
+			width: 100%;
+		}
+	}
+
 	/* ── Search filter pill positioning ── */
 	:global(.search-filter-pill) {
 		margin-top: var(--space-md);

@@ -11,10 +11,12 @@ import {
 	updatePayment,
 	deletePayment,
 	deleteLending,
+	deleteLendings,
 	createLending,
 	updateLending,
 } from '$lib/server/services/lendingPayments';
 import { getToday } from '$lib/shared/utils/format';
+
 
 export const load: PageServerLoad = async ({ url, locals }) => {
 	const userId = locals.user!.userId;
@@ -282,6 +284,28 @@ export const actions: Actions = {
 		// Delete linked transactions and the lending atomically (cascades to payments).
 		await deleteLending(userId, id);
 		return { success: true };
+	},
+
+	deleteBulk: async ({ request, locals }) => {
+		const userId = locals.user!.userId;
+		const data = await request.formData();
+		const raw = (data.get('id') as string) ?? '';
+		const ids = raw
+			.split(',')
+			.map((s) => parseInt(s.trim(), 10))
+			.filter((n) => !isNaN(n) && n > 0);
+
+		if (ids.length === 0) {
+			return fail(400, { error: 'No valid lending IDs provided' });
+		}
+
+		try {
+			const deleted = await deleteLendings(userId, ids);
+			return { success: true, deleted };
+		} catch (err: unknown) {
+			const message = err instanceof Error ? err.message : 'Failed to delete lendings';
+			return fail(400, { error: message });
+		}
 	},
 
 	import: async ({ request, locals }) => {
