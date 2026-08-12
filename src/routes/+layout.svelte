@@ -229,11 +229,15 @@ import SearchModal from '$lib/client/components/SearchModal.svelte';
 		flex: 1;
 		min-width: 0;
 		margin-left: var(--sidebar-width);
+		width: calc(100% - var(--sidebar-width));
 		min-height: 100vh;
+		transition: margin-left 350ms cubic-bezier(0.34, 1.56, 0.64, 1),
+					 width 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
 	}
 
 	.main-area.no-sidebar {
 		margin-left: 0;
+		width: 100%;
 	}
 
 	.main-content {
@@ -274,6 +278,8 @@ import SearchModal from '$lib/client/components/SearchModal.svelte';
 	@media (max-width: 768px) {
 		.main-area {
 			margin-left: 0;
+			width: 100%;
+			transition: none;
 			/* Account for bottom navigation height + safe-area bottom inset */
 			padding-bottom: calc(var(--safe-bottom, 0px) + env(safe-area-inset-bottom));
 		}
@@ -301,11 +307,15 @@ import SearchModal from '$lib/client/components/SearchModal.svelte';
 	@media (min-width: 769px) {
 		.main-area {
 			margin-left: var(--sidebar-width);
+			width: calc(100% - var(--sidebar-width));
 			padding-bottom: 72px;
+			transition: margin-left 350ms cubic-bezier(0.34, 1.56, 0.64, 1),
+						 width 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
 		}
 
 		.main-area.no-sidebar {
 			margin-left: 0;
+			width: 100%;
 			padding-bottom: 72px;
 		}
 

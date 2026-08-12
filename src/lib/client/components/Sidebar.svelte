@@ -30,9 +30,7 @@
   let mobileOpen = $state(false);
   let isCollapsed = $state(false);
 
-  // Theme is managed by the shared preferences store (localStorage 'budget-tracker-prefs')
-  // The toggle cycles between 'light' and 'dark'
-
+  // Theme is managed by the shared preferences store
   const isDarkMode = $derived(
     prefs.theme === 'dark' || (prefs.theme === 'system' &&
       typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches)
@@ -45,6 +43,8 @@
     if (savedCollapsed === 'true') {
       isCollapsed = true;
       document.documentElement.style.setProperty('--sidebar-width', '72px');
+    } else {
+      document.documentElement.style.setProperty('--sidebar-width', '256px');
     }
   });
 
@@ -72,49 +72,54 @@
   }
 
   // ─── Icon Components (inline SVGs, project convention) ────────────
-  // Swap these for lucide-svelte <IconHome /> placeholders when ready.
 
   const icons: Record<string, string> = {
-    dashboard: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/>
-      <rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>
+    dashboard: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+      <rect width="7" height="7" x="3.5" y="3.5" rx="1.5"/>
+      <rect width="7" height="7" x="13.5" y="3.5" rx="1.5"/>
+      <rect width="7" height="7" x="13.5" y="13.5" rx="1.5"/>
+      <rect width="7" height="7" x="3.5" y="13.5" rx="1.5"/>
     </svg>`,
-    transactions: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/>
+    transactions: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 16l6-6 4 4 6-8"/>
+      <circle cx="4" cy="16" r="2" fill="currentColor"/>
+      <circle cx="10" cy="10" r="2" fill="currentColor"/>
+      <circle cx="14" cy="14" r="2" fill="currentColor"/>
+      <circle cx="20" cy="6" r="2" fill="currentColor"/>
     </svg>`,
-    'money-map': `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    'money-map': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/>
       <circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/>
       <line x1="7" y1="7" x2="10" y2="10"/><line x1="17" y1="7" x2="14" y2="10"/>
       <line x1="7" y1="17" x2="10" y2="14"/><line x1="17" y1="17" x2="14" y2="14"/>
     </svg>`,
-    lending: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    lending: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="m20.42 4.58-7.65 7.65-2.12-2.12a1.5 1.5 0 0 0-2.12 2.12l3.54 3.54a1.5 1.5 0 0 0 2.12-2.12L12 12"/>
       <path d="m8.58 15.42-3.54 3.54"/><path d="m15.42 8.58 3.54-3.54"/>
     </svg>`,
-    borrowed: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    borrowed: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M3.58 19.42l7.65-7.65 2.12 2.12a1.5 1.5 0 0 0 2.12-2.12l-3.54-3.54a1.5 1.5 0 0 0-2.12 2.12L12 12"/>
       <path d="m15.42 8.58 3.54-3.54"/><path d="m8.58 15.42-3.54 3.54"/>
     </svg>`,
-    'net-worth': `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    'net-worth': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
     </svg>`,
-    recurring: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    recurring: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="10"/>
       <polyline points="12 6 12 12 16 14"/>
       <path d="M12 2a10 10 0 0 1 0 20 10 10 0 0 1 0-20"/>
     </svg>`,
-    reports: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <line x1="12" x2="12" y1="20" y2="10"/>
-      <line x1="18" x2="18" y1="20" y2="4"/>
-      <line x1="6" x2="6" y1="20" y2="16"/>
-      <line x1="3" x2="21" y1="20" y2="20"/>
+    reports: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y1="13"/>
+      <line x1="16" y1="17" x2="8" y1="17"/>
    </svg>`,
-    categories: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    categories: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/>
       <path d="M7 7h.01"/>
     </svg>`,
-    settings: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    settings: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="3"/>
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
     </svg>`,
@@ -139,65 +144,81 @@
   <!-- ─── Brand header ─── -->
   <div class="sidebar-header">
     <a href="/dashboard" class="logo-link">
-      <div class="logo-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2v20M6 4h7a4 4 0 0 1 0 8H6"/><line x1="4" x2="18" y1="12" y2="12"/><line x1="4" x2="18" y1="16" y2="16"/>
-        </svg>
-      </div>
       {#if !isCollapsed}
         <div class="brand-text">
-          <h2>Trackr</h2>
-          <span class="brand-tagline">Smart Finance</span>
+          <h2>HoneyDue</h2>
+          <span class="brand-tagline">ENTERPRISE TIER</span>
+        </div>
+      {:else}
+        <div class="brand-text collapsed-brand">
+          <h2>HD</h2>
         </div>
       {/if}
     </a>
   </div>
 
-  <!-- ─── Primary Navigation (core workflows) ─── -->
-  <nav class="sidebar-nav" aria-label="Primary">
-    {#each primaryNav as item (item.href)}
-      <a
-        href={item.href}
-        class="nav-item"
-        class:active={isActive(item.href)}
-        title={isCollapsed ? item.label : undefined}
-      >
-        <!-- icons is an internal map of inline SVG strings (not user input) -->
-        <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-        <span class="nav-icon">{@html icons[item.icon]}</span>
-        <span class="nav-label">{item.label}</span>
-      </a>
-    {/each}
-  </nav>
+  <!-- ─── Scrollable Navigation Body ─── -->
+  <div class="sidebar-body">
+    <!-- Primary Navigation (core workflows) -->
+    <nav class="sidebar-nav" aria-label="Primary">
+      {#each primaryNav as item (item.href)}
+        <a
+          href={item.href}
+          class="nav-item"
+          class:active={isActive(item.href)}
+          title={isCollapsed ? item.label : undefined}
+        >
+          <!-- icons is an internal map of inline SVG strings (not user input) -->
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+          <span class="nav-icon">{@html icons[item.icon]}</span>
+          <span class="nav-label">{item.label}</span>
+        </a>
+      {/each}
+    </nav>
 
-  <!-- ─── Zone divider ─── -->
-  <div class="nav-divider"></div>
+    <!-- Zone divider -->
+    <div class="nav-divider"></div>
 
-  <!-- ─── Secondary Navigation (configuration) ─── -->
-  <nav class="sidebar-nav" aria-label="Secondary">
-    {#each secondaryNav as item (item.href)}
-      <a
-        href={item.href}
-        class="nav-item secondary-item"
-        class:active={isActive(item.href)}
-        title={isCollapsed ? item.label : undefined}
-      >
-        <!-- icons is an internal map of inline SVG strings (not user input) -->
-        <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-        <span class="nav-icon">{@html icons[item.icon]}</span>
-        <span class="nav-label">{item.label}</span>
-      </a>
-    {/each}
-  </nav>
+    <!-- Secondary Navigation (configuration) -->
+    <nav class="sidebar-nav" aria-label="Secondary">
+      {#each secondaryNav as item (item.href)}
+        <a
+          href={item.href}
+          class="nav-item secondary-item"
+          class:active={isActive(item.href)}
+          title={isCollapsed ? item.label : undefined}
+        >
+          <!-- icons is an internal map of inline SVG strings (not user input) -->
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+          <span class="nav-icon">{@html icons[item.icon]}</span>
+          <span class="nav-label">{item.label}</span>
+        </a>
+      {/each}
+    </nav>
+  </div>
 
-  <!-- ─── Push footer down ─── -->
-  <div class="sidebar-spacer"></div>
-
-  <!-- ─── Footer (theme, collapse, logout) ─── -->
+  <!-- ─── Footer pinned at bottom (Logout ALWAYS visible) ─── -->
   <div class="sidebar-footer">
-    <!-- Theme toggle -->
-    <button class="footer-item" onclick={toggleTheme} aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
-      <span class="footer-icon">
+    <!-- Logout button pinned at top of footer -->
+    <a href="/logout" class="nav-item logout-link" title={isCollapsed ? 'Logout' : undefined}>
+      <span class="nav-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>
+        </svg>
+      </span>
+      {#if !isCollapsed}
+        <span class="nav-label">Logout</span>
+      {/if}
+    </a>
+
+    <!-- Footer utilities -->
+    <div class="footer-utilities">
+      <button class="footer-btn" onclick={onsearch} aria-label="Search (⌘K)" title="Search (⌘K)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/>
+        </svg>
+      </button>
+      <button class="footer-btn" onclick={toggleTheme} aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'} title={isDarkMode ? 'Light Mode' : 'Dark Mode'}>
         {#if isDarkMode}
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="5"/><line x1="12" x2="12" y1="1" y2="3"/><line x1="12" x2="12" y1="21" y2="23"/>
@@ -210,52 +231,13 @@
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
           </svg>
         {/if}
-      </span>
-      {#if !isCollapsed}
-        <span class="nav-label">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
-      {/if}
-    </button>
-
-    <!-- Collapse toggle -->
-    <button class="footer-item collapse-trigger" onclick={toggleCollapse} aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
-      <span class="footer-icon">
+      </button>
+      <button class="footer-btn" onclick={toggleCollapse} aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={isCollapsed ? 'Expand' : 'Collapse'}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="m15 18-6-6 6-6"/>
         </svg>
-      </span>
-      {#if !isCollapsed}
-        <span class="nav-label">Collapse</span>
-      {/if}
-    </button>
-
-    <!-- Search -->
-    <button class="footer-item" onclick={onsearch} aria-label="Search (⌘K)">
-      <span class="footer-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/>
-        </svg>
-      </span>
-      {#if !isCollapsed}
-        <span class="nav-label">Search</span>
-        <span class="search-kbd">⌘K</span>
-      {/if}
-    </button>
-
-    <!-- Logout -->
-    <a href="/logout" class="footer-item logout-link">
-      <span class="footer-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>
-        </svg>
-      </span>
-      {#if !isCollapsed}
-        <span class="nav-label">Logout</span>
-      {/if}
-    </a>
-
-    {#if !isCollapsed}
-      <div class="version-badge">v0.1.0</div>
-    {/if}
+      </button>
+    </div>
   </div>
 </aside>
 
@@ -318,11 +300,13 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: var(--sidebar-width, 256px);
+    width: var(--sidebar-width, 300px);
     height: 100vh;
     height: 100dvh;
-    background: var(--color-surface);
+    background: var(--color-surface-inset);
     border-right: 1px solid var(--color-hairline);
+    border-top-right-radius: 32px;
+    border-bottom-right-radius: 32px;
     display: flex;
     flex-direction: column;
     z-index: 90;
@@ -334,9 +318,8 @@
   .sidebar-header {
     display: flex;
     align-items: center;
-    padding: var(--space-lg);
-    border-bottom: 1px solid var(--color-hairline);
-    min-height: 80px;
+    padding: 28px 24px 12px;
+    min-height: 76px;
     flex-shrink: 0;
   }
 
@@ -346,103 +329,105 @@
     gap: var(--space-md);
     text-decoration: none;
     color: inherit;
-  }
-
-  .logo-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    background: linear-gradient(135deg, var(--color-teal) 0%, var(--color-teal-dark) 100%);
-    border-radius: var(--radius-md);
-    flex-shrink: 0;
-    color: white;
-    box-shadow: 0 4px 16px rgba(43, 168, 162, 0.35);
+    margin: 0 auto 0 6px;
   }
 
   .brand-text h2 {
     font-family: var(--font-display);
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-extrabold);
-    color: var(--color-text);
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--color-ink);
     margin: 0;
-    line-height: 1.2;
-    letter-spacing: var(--letter-spacing-heading);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
   }
 
   .brand-tagline {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-muted);
-    letter-spacing: var(--letter-spacing-wide);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-teal-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    display: block;
+    margin-top: 2px;
   }
 
-  /* ─── Navigation ─── */
+  /* ─── Scrollable Navigation Body ─── */
+  .sidebar-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(16, 147, 136, 0.2) transparent;
+    padding: 6px 0;
+  }
+
+  /* ─── Centered Navigation Container (240px wide) ─── */
   .sidebar-nav {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: var(--space-xs) var(--space-sm);
+    gap: 6px;
+    width: 240px;
+    margin: 0 auto;
+    padding: 4px 0;
+  }
+
+  .collapsed .sidebar-nav {
+    width: 100%;
+    padding: 4px 0;
+    align-items: center;
   }
 
   .nav-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
+    gap: 14px;
+    padding: 10px 18px;
     min-height: 48px;
-    color: var(--color-text);
+    color: var(--color-ink);
     text-decoration: none;
-    font-size: 14px;
-    font-weight: 500;
-    border-radius: 10px;
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 600;
+    border-radius: 28px;
     cursor: pointer;
-    border-left: 4px solid transparent;
     position: relative;
-    transition: all 140ms var(--bounce);
+    transition: all 180ms var(--bounce);
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Hover — subtle lift + bounce */
-  .nav-item:hover {
-    background: var(--color-teal-bg);
-    transform: translateX(2px);
+  .nav-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    color: var(--color-teal-dark);
+    transition: color 180ms var(--bounce);
   }
 
-  [data-theme="dark"] .nav-item:hover {
-    background: rgba(43, 168, 162, 0.10);
+  /* Hover */
+  .nav-item:hover {
+    background: var(--color-teal-bg);
   }
 
   .nav-item:hover .nav-icon {
     scale: 1.05;
   }
 
-  /* Active — teal left accent + pill bg + gold dot */
+  /* Active — solid rounded teal pill + soft drop shadow + white text & icon */
   .nav-item.active {
-    background: #2BA8A2;
-    color: #FFFFFF;
-    font-weight: var(--font-weight-semibold);
-    border-left: 4px solid var(--color-teal);
-    box-shadow: var(--glow-card);
-  }
-
-  [data-theme="dark"] .nav-item.active {
-    background: #2BA8A2;
-    border-left-color: var(--color-teal-light);
+    background: var(--color-teal-dark);
+    color: var(--color-ink-inverse) !important;
+    font-weight: 700;
+    min-height: 58px;
+    border-radius: 30px;
+    box-shadow: 0 6px 20px -4px rgba(20, 155, 145, 0.35);
   }
 
   .nav-item.active .nav-icon {
-    color: #FFFFFF;
-  }
-
-  /* Gold dot prefix on active label */
-  .nav-item.active .nav-label::before {
-    content: '●';
-    color: var(--color-gold);
-    font-size: 8px;
-    margin-right: 6px;
-    display: inline-block;
-    vertical-align: middle;
+    color: var(--color-ink-inverse) !important;
   }
 
   .nav-item:active {
@@ -480,69 +465,123 @@
     transition: opacity 150ms ease 180ms;
   }
 
+  /* ─── Collapsed state — icon-only sidebar ─── */
   .collapsed .nav-label {
     opacity: 0;
     width: 0;
-    margin: 0;
-    transition: opacity 80ms ease, width 0ms linear 80ms;
+    overflow: hidden;
+    pointer-events: none;
+    transition: opacity 100ms ease, width 0ms ease 100ms;
   }
 
-  /* Centered icons in collapsed mode */
   .collapsed .nav-item {
+    justify-content: center;
     padding: 10px;
+    width: 48px;
     margin: 0 auto;
-    width: 44px;
-    border-radius: 12px;
-    border-left: none;
+    gap: 0;
   }
 
-  .collapsed .sidebar-nav {
-    padding: var(--space-xs) 0;
-    align-items: center;
+  .collapsed .nav-item.active {
+    width: 48px;
+    min-height: 48px;
   }
 
-  .collapsed .nav-icon {
-    margin: 0;
+  .collapsed .sidebar-header {
+    justify-content: center;
+    padding: 28px 8px 12px;
   }
 
   .collapsed .logo-link {
+    margin: 0;
     justify-content: center;
   }
 
-  /* ─── Zone divider ─── */
-  .nav-divider {
-    height: 1px;
-    background: var(--color-hairline);
-    margin: var(--space-xs) var(--space-lg);
-    flex-shrink: 0;
-    transition: margin 350ms var(--bounce);
+  .collapsed .sidebar-footer {
+    width: auto;
+    padding: 10px 8px 16px;
   }
 
-  .collapsed .nav-divider {
-    margin: var(--space-xs) var(--space-md);
+  .collapsed .logout-link {
+    justify-content: center;
+    padding: 10px;
+    width: 48px;
+    margin: 0 auto;
   }
 
-  /* ─── Spacer ─── */
-  .sidebar-spacer {
-    flex: 1;
+  .collapsed .footer-utilities {
+    justify-content: center;
+    flex-direction: column;
+    padding-left: 0;
   }
 
-  /* ─── Footer ─── */
+   /* ─── Footer pinned at bottom (Guaranteed space) ─── */
   .sidebar-footer {
+    flex-shrink: 0;
+    width: 200px;
+    margin: 0 auto;
+    padding: 10px 0 16px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: var(--space-md);
+    gap: 8px;
     border-top: 1px solid var(--color-hairline);
-    flex-shrink: 0;
+    background: var(--color-surface-inset);
+  }
+
+  .logout-link {
+    color: var(--color-coral) !important;
+  }
+
+  .logout-link .nav-icon {
+    color: var(--color-coral) !important;
+  }
+
+  .logout-link:hover {
+    background: var(--color-expense-light) !important;
+  }
+
+  .footer-utilities {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    padding-left: 4px;
+  }
+
+  .footer-btn {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
+    outline: none;
+    box-shadow: none;
+    color: var(--color-text-muted);
+    padding: 8px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    font-family: inherit;
+    transition: background 140ms ease, color 140ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .footer-btn:hover {
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
+  }
+
+  .footer-btn:focus,
+  .footer-btn:focus-visible {
+    outline: none;
+    box-shadow: none;
+    background: var(--color-teal-bg);
   }
 
   .footer-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-    min-height: 44px;
     color: var(--color-text-muted);
     text-decoration: none;
     font-size: 14px;
@@ -562,10 +601,7 @@
     color: var(--color-teal);
   }
 
-  [data-theme="dark"] .footer-item:hover {
-    background: rgba(43, 168, 162, 0.10);
-    color: var(--color-teal-light);
-  }
+
 
   .footer-item:active {
     scale: 0.97;
@@ -578,11 +614,6 @@
   .logout-link:hover {
     color: var(--color-coral) !important;
     background: var(--color-expense-light) !important;
-  }
-
-  [data-theme="dark"] .logout-link:hover {
-    background: rgba(239, 108, 74, 0.12) !important;
-    color: var(--color-coral-light) !important;
   }
 
   .footer-icon {
