@@ -330,10 +330,11 @@ export async function listRecurringTransactions(
 	userId: number,
 	filters: RecurringFilters = {},
 	page = 1,
-	limit = 20
+	limit?: number
 ): Promise<{ items: RecurringTransaction[]; total: number; page: number; totalPages: number }> {
+	const shouldPaginate = limit !== undefined && limit > 0;
 	const safePage = Math.max(1, page);
-	const safeLimit = Math.min(100, Math.max(1, limit));
+	const safeLimit = shouldPaginate ? Math.max(1, limit) : 20;
 
 	const db = await getDrizzle();
 	const conditions = [eq(recurringTransactions.user_id, userId)];
@@ -371,11 +372,11 @@ export async function listRecurringTransactions(
 		.where(where);
 
 	const total = Number(count);
-	const totalPages = Math.ceil(total / safeLimit);
-	const safePageClamped = Math.max(1, Math.min(safePage, totalPages || 1));
+	const totalPages = shouldPaginate ? Math.ceil(total / safeLimit) : (total > 0 ? 1 : 0);
+	const safePageClamped = shouldPaginate ? Math.max(1, Math.min(safePage, totalPages || 1)) : 1;
 	const offsetClamped = (safePageClamped - 1) * safeLimit;
 
-	const rows = await db
+	const baseQuery = db
 		.select({
 			id: recurringTransactions.id,
 			user_id: recurringTransactions.user_id,
@@ -401,9 +402,11 @@ export async function listRecurringTransactions(
 		.from(recurringTransactions)
 		.leftJoin(categories, eq(recurringTransactions.category_id, categories.id))
 		.where(where)
-		.orderBy(asc(recurringTransactions.next_run), asc(recurringTransactions.id))
-		.limit(safeLimit)
-		.offset(offsetClamped);
+		.orderBy(asc(recurringTransactions.next_run), asc(recurringTransactions.id));
+
+	const rows = shouldPaginate
+		? await baseQuery.limit(safeLimit).offset(offsetClamped)
+		: await baseQuery;
 
 	return {
 		items: rows.map((r) => mapRecurringRow(r as unknown as RecurringRowWithCategory)),

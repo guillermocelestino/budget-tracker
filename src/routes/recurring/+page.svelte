@@ -149,6 +149,9 @@
 
 		if (filters.search) params.set('search', filters.search);
 
+		const rawLimit = $page.url.searchParams.get('limit') ?? $page.url.searchParams.get('pageSize');
+		if (rawLimit) params.set('limit', rawLimit);
+
 		const newQs = params.toString();
 		const currentFilterQs = (() => {
 			const p = new URLSearchParams($page.url.searchParams);
@@ -162,6 +165,49 @@
 				noScroll: true,
 			});
 		}
+	});
+
+	async function goToPage(p: number) {
+		const y = window.scrollY;
+		const params = new URLSearchParams($page.url.searchParams);
+		params.set('page', String(p));
+		try {
+			await goto(`/recurring?${params.toString()}`, { keepFocus: true, noScroll: true });
+		} catch { return; }
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => { window.scrollTo({ top: y, behavior: 'auto' }); });
+		});
+	}
+
+	function handleLimitChange(newLimitStr: string) {
+		const params = new URLSearchParams($page.url.searchParams);
+		params.set('page', '1');
+		if (newLimitStr === 'all') params.set('limit', 'all');
+		else if (newLimitStr !== '20') params.set('limit', newLimitStr);
+		else { params.delete('limit'); params.delete('pageSize'); }
+		goto(`/recurring?${params.toString()}`, { keepFocus: true, noScroll: true });
+	}
+
+	const pageItems = $derived((currentPage: number, totalPages: number): (number | '…')[] => {
+		const pages: (number | '…')[] = [];
+		const show = 3;
+		const start = Math.max(1, currentPage - show);
+		const end = Math.min(totalPages, currentPage + show);
+		if (start > 1) { pages.push(1); if (start > 2) pages.push('…'); }
+		for (let i = start; i <= end; i++) pages.push(i);
+		if (end < totalPages) { if (end < totalPages - 1) pages.push('…'); pages.push(totalPages); }
+		return pages;
+	});
+
+	const countLabel = $derived.by(() => {
+		const page = data.page ?? 1;
+		const limitVal = data.limit ?? 20;
+		const total = data.total ?? 0;
+		if (total === 0) return 'No recurring transactions';
+		if (limitVal === 0) return `Showing all ${total} recurring transaction${total !== 1 ? 's' : ''}`;
+		const start = (page - 1) * limitVal + 1;
+		const end = Math.min(page * limitVal, total);
+		return `Showing ${start}–${end} of ${total} recurring transaction${total !== 1 ? 's' : ''}`;
 	});
 
 	// Filter summary for badge — counts APPLIED panel filters only. Search is a
@@ -478,6 +524,7 @@
 				Add Recurring
 			</Button>
 			<OverflowMenu
+				selectLabel="Select Recurring"
 				onExportCsv={handleExportCsv}
 				onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
 			/>
@@ -613,28 +660,70 @@
 	</RecurringList>
 
 	<!-- Pagination -->
-	{#if (data.totalPages ?? 0) > 1}
-		<nav class="pagination" aria-label="Pagination">
-			<button
-				class="page-btn"
-				disabled={(data.page ?? 1) === 1}
-				onclick={() => goto(`/recurring?page=${(data.page ?? 1) - 1}${buildFilterQs()}`)}
-				aria-label="Previous page"
-			>
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-			</button>
-			<span class="page-info" aria-live="polite">
-				Page {data.page ?? 1} of {data.totalPages ?? 0} ({data.total} items)
-			</span>
-			<button
-				class="page-btn"
-				disabled={(data.page ?? 1) === (data.totalPages ?? 0)}
-				onclick={() => goto(`/recurring?page=${(data.page ?? 1) + 1}${buildFilterQs()}`)}
-				aria-label="Next page"
-			>
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-			</button>
-		</nav>
+	{#if (data.total ?? 0) > 0}
+		<div class="pager-container">
+			{#if (data.totalPages ?? 0) > 1 && (data.limit ?? 20) !== 0}
+				<nav class="pager" aria-label="Pagination">
+					<button
+						class="pager-btn"
+						disabled={(data.page ?? 1) === 1}
+						onclick={() => goToPage((data.page ?? 1) - 1)}
+						aria-label="Previous page"
+					>
+						<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+						<span class="pager-word">Prev</span>
+					</button>
+
+					<ol class="pager-pages">
+						{#each pageItems(data.page ?? 1, data.totalPages ?? 1) as item, i (i)}
+							{#if item === '…'}
+								<li class="pager-gap" aria-hidden="true">…</li>
+							{:else}
+								<li>
+									<button
+										class="pager-num"
+										class:current={item === (data.page ?? 1)}
+										onclick={() => goToPage(item)}
+										aria-label={`Page ${item}`}
+										aria-current={item === (data.page ?? 1) ? 'page' : undefined}
+									>{item}</button>
+								</li>
+							{/if}
+						{/each}
+					</ol>
+
+					<button
+						class="pager-btn"
+						disabled={(data.page ?? 1) === (data.totalPages ?? 1)}
+						onclick={() => goToPage((data.page ?? 1) + 1)}
+						aria-label="Next page"
+					>
+						<span class="pager-word">Next</span>
+						<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+					</button>
+				</nav>
+			{/if}
+			<div class="pager-footer">
+				<span class="pager-count">{countLabel}</span>
+				<div class="rows-per-page">
+					<label for="rows-select">Rows per page:</label>
+					<select
+						id="rows-select"
+						class="rows-select"
+						value={data.limit === 0 ? 'all' : String(data.limit ?? 20)}
+						onchange={(e) => handleLimitChange(e.currentTarget.value)}
+						aria-label="Rows per page"
+					>
+						<option value="20">20</option>
+						<option value="50">50</option>
+						<option value="100">100</option>
+						<option value="200">200</option>
+						<option value="500">500</option>
+						<option value="all">All</option>
+					</select>
+				</div>
+			</div>
+		</div>
 	{/if}
 </div>
 
@@ -708,6 +797,14 @@
 {/if}
 
 <style>
+	/* Raise the header's stacking context so the OverflowMenu dropdown
+	   (trapped inside the header's backdrop-filter context) paints above
+	   the content that follows it. Matches /transactions & /lending. */
+	:global(.page-header) {
+		position: relative;
+		z-index: 30;
+	}
+
 	/* ─── Bulk selection action bar (Selection Mode only) ─── */
 	.bulk-bar {
 		display: flex;
@@ -900,47 +997,177 @@
 		gap: var(--space-xl);
 	}
 
-	/* ── Pagination ── */
-	.pagination {
+	/* ─── Pagination (Pager Container & Footer) ─── */
+	.pager-container {
 		display: flex;
+		flex-direction: column;
 		align-items: center;
-		justify-content: center;
 		gap: var(--space-md);
-		margin-top: var(--space-lg);
-		padding-top: var(--space-lg);
-		border-top: 1px solid var(--color-hairline);
+		margin-top: var(--space-xl);
 	}
 
-	.page-btn {
+	.pager {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 40px;
-		height: 40px;
+		gap: var(--space-sm);
+		margin-top: 0;
+		flex-wrap: wrap;
+	}
+
+	.pager-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		min-height: 44px;
+		padding: 0 var(--space-md);
 		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-pill);
 		background: var(--color-surface);
-		border-radius: var(--radius-md);
-		color: var(--color-text);
+		color: var(--color-text-muted);
+		font-family: var(--font-body);
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
 		cursor: pointer;
-		transition: all 150ms var(--ease);
-		-webkit-tap-highlight-color: transparent;
+		transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
 	}
 
-	.page-btn:hover:not(:disabled) {
-		background: var(--color-teal-bg);
-		border-color: var(--color-teal);
+	.pager-btn:hover:not(:disabled) {
 		color: var(--color-teal);
+		border-color: var(--color-teal);
+		background: var(--color-teal-bg);
+		box-shadow: var(--glow-card);
 	}
 
-	.page-btn:disabled {
+	.pager-btn:active:not(:disabled) {
+		transform: translateY(1px);
+	}
+
+	.pager-btn:disabled {
 		opacity: 0.4;
 		cursor: not-allowed;
 	}
 
-	.page-info {
+	.pager-btn:focus-visible {
+		outline: 2px solid var(--color-teal);
+		outline-offset: 2px;
+	}
+
+	.pager-icon {
+		flex-shrink: 0;
+	}
+
+	.pager-pages {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		list-style: none;
+		padding: 0;
+		margin: 0;
+	}
+
+	.pager-pages li {
+		display: inline-flex;
+	}
+
+	.pager-num {
+		min-width: 40px;
+		height: 44px;
+		padding: 0 6px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border: 1px solid transparent;
+		border-radius: var(--radius-md);
+		background: transparent;
+		color: var(--color-text-muted);
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
+		cursor: pointer;
+		transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+		position: relative;
+	}
+
+	.pager-num:hover:not(.current) {
+		color: var(--color-teal);
+		background: var(--color-teal-bg);
+		border-color: var(--color-hairline);
+	}
+
+	.pager-num:focus-visible {
+		outline: 2px solid var(--color-teal);
+		outline-offset: 2px;
+	}
+
+	.pager-num.current {
+		background: var(--color-teal);
+		border-color: var(--color-teal);
+		color: var(--color-ink-inverse);
+		box-shadow: var(--glow-card);
+	}
+
+	.pager-num.current::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		bottom: 3px;
+		transform: translateX(-50%);
+		width: 14px;
+		height: 3px;
+		border-radius: var(--radius-pill);
+		background: var(--teal-deep);
+	}
+
+	.pager-gap {
+		padding: 0 4px;
+		color: var(--color-text-muted);
 		font-family: var(--font-mono);
 		font-size: var(--font-size-sm);
+		user-select: none;
+	}
+
+	.pager-footer {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-md);
+		flex-wrap: wrap;
+	}
+
+	.rows-per-page {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-family: var(--font-mono);
+		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
+	}
+
+	.rows-select {
+		padding: 4px 8px;
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+		color: var(--color-text);
+		font-family: var(--font-mono);
+		font-size: var(--font-size-xs);
+		cursor: pointer;
+	}
+
+	.rows-select:focus-visible {
+		outline: 2px solid var(--color-teal);
+	}
+
+	.pager-count {
+		margin: 0;
+		text-align: center;
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		letter-spacing: 0.02em;
 	}
 
 	/* ── Slide panel ── */
