@@ -220,79 +220,97 @@ import SearchModal from '$lib/client/components/SearchModal.svelte';
 		}
 	}
 
-				.app-shell {
-			display: flex;
-			min-height: 100vh;
-		}
+	.app-shell {
+		display: flex;
+		min-height: 100vh;
+	}
 
+	.main-area {
+		flex: 1;
+		min-width: 0;
+		margin-left: var(--sidebar-width);
+		min-height: 100vh;
+	}
+
+	.main-area.no-sidebar {
+		margin-left: 0;
+	}
+
+	.main-content {
+		padding: var(--space-lg) var(--space-xl);
+		max-width: 1200px;
+		width: 100%;
+		transition: opacity 150ms ease;
+		scrollbar-gutter: stable;
+	}
+
+	/* Drop scrollbar-gutter on mobile so it doesn't steal space */
+	@media (max-width: 768px) {
+		.main-content {
+			scrollbar-gutter: auto;
+			max-width: none;
+		}
+	}
+
+	.main-content.no-sidebar {
+		padding: 0;
+		max-width: none;
+	}
+
+	.main-content.navigating {
+		opacity: 0.5;
+	}
+
+	/* Safe area runtime population */
+	@supports (padding-top: env(safe-area-inset-top)) {
+		:root {
+			--safe-top: env(safe-area-inset-top);
+			--safe-bottom: env(safe-area-inset-bottom);
+			--safe-left: env(safe-area-inset-left);
+			--safe-right: env(safe-area-inset-right);
+		}
+	}
+
+	@media (max-width: 768px) {
 		.main-area {
-			flex: 1;
-			min-width: 0;
-			margin-left: var(--sidebar-width);
-			min-height: 100vh;
+			margin-left: 0;
+			/* Account for bottom navigation height + safe-area bottom inset */
+			padding-bottom: calc(var(--safe-bottom, 0px) + env(safe-area-inset-bottom));
 		}
 
 		.main-area.no-sidebar {
-			margin-left: 0;
+			padding-top: 0;
+			padding-bottom: 0;
 		}
 
 		.main-content {
-			padding: var(--space-lg) var(--space-xl);
-			max-width: 1200px;
-			width: 100%;
-			transition: opacity 150ms ease;
-			scrollbar-gutter: stable;
-		}
-
-		/* Drop scrollbar-gutter on mobile so it doesn't steal space */
-		@media (max-width: 768px) {
-			.main-content {
-				scrollbar-gutter: auto;
-				max-width: none;
-			}
+			padding: 0 var(--space-md) var(--space-md);
 		}
 
 		.main-content.no-sidebar {
 			padding: 0;
-			max-width: none;
 		}
 
-		.main-content.navigating {
-			opacity: 0.5;
+		/* Hide sidebar on mobile */
+		:global(.sidebar) {
+			display: none;
+		}
+	}
+
+	/* Desktop: full padding */
+	@media (min-width: 769px) {
+		.main-area {
+			margin-left: var(--sidebar-width);
+			padding-bottom: 72px;
 		}
 
-		/* Safe area runtime population */
-		@supports (padding-top: env(safe-area-inset-top)) {
-			:root {
-				--safe-top: env(safe-area-inset-top);
-				--safe-bottom: env(safe-area-inset-bottom);
-				--safe-left: env(safe-area-inset-left);
-				--safe-right: env(safe-area-inset-right);
-			}
+		.main-area.no-sidebar {
+			margin-left: 0;
+			padding-bottom: 72px;
 		}
 
-		@media (max-width: 768px) {
-			.main-area {
-				margin-left: 0;
-				padding-bottom: 72px;
-			}
-
-			.main-area.no-sidebar {
-				padding-top: 0;
-				padding-bottom: 0;
-			}
-
-			.main-content {
-				padding: var(--space-md);
-			}
-
-			.main-content.no-sidebar {
-				padding: 0;
-			}
-
-			/* Hide sidebar on mobile */
-			:global(.sidebar) {
-				display: none;
-			}
+		.main-content {
+			padding: var(--space-lg) var(--space-xl);
 		}
-	</style>
+	}
+</style>

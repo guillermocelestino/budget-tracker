@@ -71,17 +71,18 @@
     <SpeedDial />
   </div>
 
-  <!-- Reports -->
+  <!-- Lending -->
   <a
-    href="/reports"
+    href="/lending"
     class="bn-item"
-    class:active={isActive('/reports')}
-    aria-label="Reports"
+    class:active={isActive('/lending')}
+    aria-label="Lending"
   >
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>
+      <path d="m20.42 4.58-7.65 7.65-2.12-2.12a1.5 1.5 0 0 0-2.12 2.12l3.54 3.54a1.5 1.5 0 0 0 2.12-2.12L12 12"/>
+      <path d="m8.58 15.42-3.54 3.54"/><path d="m15.42 8.58 3.54-3.54"/>
     </svg>
-    <span class="bn-label">Reports</span>
+    <span class="bn-label">Lending</span>
   </a>
 
   <!-- More (opens popup) -->
@@ -118,12 +119,11 @@
       </svg>
       Money Map
     </a>
-    <a href="/lending" class="more-item" role="menuitem" class:active={isActive('/lending')} onclick={() => (moreOpen = false)}>
+    <a href="/reports" class="more-item" role="menuitem" class:active={isActive('/reports')} onclick={() => (moreOpen = false)}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="m20.42 4.58-7.65 7.65-2.12-2.12a1.5 1.5 0 0 0-2.12 2.12l3.54 3.54a1.5 1.5 0 0 0 2.12-2.12L12 12"/>
-        <path d="m8.58 15.42-3.54 3.54"/><path d="m15.42 8.58 3.54-3.54"/>
+        <path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>
       </svg>
-      Lending
+      Reports
     </a>
     <a href="/borrowed" class="more-item" role="menuitem" class:active={isActive('/borrowed')} onclick={() => (moreOpen = false)}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

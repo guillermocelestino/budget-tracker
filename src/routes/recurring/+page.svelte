@@ -26,6 +26,17 @@
 	let addBtnEl = $state<HTMLElement | null>(null);
 	let filtersOpen = $state(false);
 
+	// Open the Add Recurring panel when arriving via the global FAB (?add=1)
+	$effect(() => {
+		const params = new URLSearchParams($page.url.searchParams);
+		if (params.get('add') === '1') {
+			params.delete('add');
+			const qs = params.toString();
+			history.replaceState(history.state, '', `${$page.url.pathname}${qs ? '?' + qs : ''}`);
+			openAdd();
+		}
+	});
+
 	// Bulk selection (Selection Mode) — entered via the header overflow menu.
 	// Selection is always page-scoped; clearing happens on page/filter change.
 	let selectionMode = $state(false);
@@ -1089,6 +1100,12 @@
 	}
 
 	/* ── Mobile ── */
+	@media (max-width: 768px) {
+		:global(.header-actions .btn-primary) {
+			display: none !important;
+		}
+	}
+
 	@media (max-width: 480px) {
 		.header-actions {
 			flex-direction: column;

@@ -147,6 +147,9 @@
     color: var(--color-sky);
     text-decoration: none;
     transition: color 150ms var(--ease);
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
   }
 
   .fp-link:hover {

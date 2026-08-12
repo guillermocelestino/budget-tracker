@@ -188,6 +188,7 @@
     border-radius: var(--radius-sm);
     transition: all var(--transition-fast);
     position: relative;
+    min-height: 44px;
   }
 
   .ra-view-all::after {

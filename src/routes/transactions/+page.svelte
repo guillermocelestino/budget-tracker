@@ -7,6 +7,7 @@
 	import PageBackground from '$lib/client/components/PageBackground.svelte';
 	import Button from '$lib/client/components/Button.svelte';
 	import TransactionSummary from '$lib/client/components/TransactionSummary.svelte';
+	import TransactionMobileSummary from '$lib/client/components/TransactionMobileSummary.svelte';
 	import TransactionFilterPanel from '$lib/client/components/TransactionFilterPanel.svelte';
 	import TransactionFilterToolbar from '$lib/client/components/TransactionFilterToolbar.svelte';
 	import TransactionList from '$lib/client/components/TransactionList.svelte';
@@ -23,7 +24,7 @@
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
 	import { generateTransactionPdf } from '$lib/client/utils/pdf';
 	import { formatCurrency, formatDate } from '$lib/client/utils/format';
-import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
+	import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 	import { calculateNextRun } from '$lib/shared/utils/recurring';
 	import {
 		buildMappedRows,
@@ -39,12 +40,9 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 	let data = $derived($page.data as App.PageData);
 	let deleteTarget = $state<number | number[] | null>(null);
 
-	// Bulk selection (Selection Mode) — entered via the header overflow menu.
-	// Selection is always page-scoped; clearing happens on page/filter change.
 	let selectionMode = $state(false);
 	let selectedIds = $state(new Set<number>());
 
-	// Transaction Add/Edit SlideOver Drawer state
 	let isFormOpen = $state(false);
 	let editingTransaction = $state<Transaction | null>(null);
 
@@ -73,6 +71,17 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		isFormOpen = true;
 	}
 
+	// Open the New Transaction panel when arriving via the global FAB (?add=1)
+	$effect(() => {
+		const params = new URLSearchParams($page.url.searchParams);
+		if (params.get('add') === '1') {
+			params.delete('add');
+			const qs = params.toString();
+			history.replaceState(history.state, '', `${$page.url.pathname}${qs ? '?' + qs : ''}`);
+			openAddForm();
+		}
+	});
+
 	function openEditForm(txn: Transaction) {
 		editingTransaction = txn;
 		isFormOpen = true;
@@ -82,10 +91,6 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		isFormOpen = false;
 		editingTransaction = null;
 	}
-
-	// ═════════════════════════════════════════════════════════════════
-	// FILTER STATE — initialized from URL, synced back via $effect
-	// ═════════════════════════════════════════════════════════════════
 
 	const urlFrom = $page.url.searchParams.get('from') || $page.url.searchParams.get('date_from') || '';
 	const urlTo = $page.url.searchParams.get('to') || $page.url.searchParams.get('date_to') || '';
@@ -101,19 +106,9 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		search: $page.url.searchParams.get('search') || '',
 	});
 
-	// ─── Search input (debounced) + URL-synced ──────────────────────────
-
 	let searchInput = $state(filters.search);
-	// Mobile only: SearchFilterPill owns the FiltersSheet bottom sheet via its
-	// `open` binding; the sheet's panel is TransactionFilterPanel (an in-sheet
-	// accordion, matching the borrowed/lending sheet). Desktop uses the
-	// unified TransactionFilterToolbar dock (self-contained). ──
 	let mobileFiltersOpen = $state(false);
 
-	// Sync the input from the URL on navigation (back/forward).
-	// untrack the searchInput read so this effect depends only on the URL —
-	// otherwise it re-runs on every keystroke and resets the input before the
-	// debounced URL update lands, wiping what the user just typed.
 	$effect(() => {
 		const urlSearch = $page.url.searchParams.get('search') ?? '';
 		untrack(() => {
@@ -121,7 +116,6 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		});
 	});
 
-	// Debounce writing the typed value into the filter state
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 	$effect(() => {
 		const value = searchInput;
@@ -133,12 +127,6 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 			if (debounceTimer) clearTimeout(debounceTimer);
 		};
 	});
-
-	// ─── Restore category filter from a `category_id` deep-link (refresh,
-	// back/forward, or shared URL) once categories are available. Declared
-	// BEFORE the filter-sync effect so the filter is restored before the
-	// query-string comparison runs. `lastHydratedCatId` guards against
-	// re-hydrating a category the user just cleared. ─────────────────
 
 	let lastHydratedCatId = '';
 	$effect(() => {
@@ -155,19 +143,13 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		}
 	});
 
-	// ─── Sync filters → URL (auto-navigates, triggers server load) ──
-
 	$effect(() => {
 		const params = new URLSearchParams();
-
-		// Map our filter format to the server-expected URL params
 		if (filters.type) params.set('type', filters.type);
-
 		if (filters.category) {
 			const cat = (data.categories ?? []).find((c) => c.name === filters.category);
 			if (cat) params.set('category_id', String(cat.id));
 		}
-
 		if (filters.date) {
 			if (filters.date === 'custom') {
 				if (filters.customFrom) params.set('from', filters.customFrom);
@@ -178,45 +160,25 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 				if (range.to) params.set('date_to', range.to);
 			}
 		}
-
 		if (filters.search) params.set('search', filters.search);
-
 		const rawLimit = $page.url.searchParams.get('limit') ?? $page.url.searchParams.get('pageSize');
-		if (rawLimit) {
-			params.set('limit', rawLimit);
-		}
-
+		if (rawLimit) params.set('limit', rawLimit);
 		const newQs = params.toString();
-
-		// Compare only the filter part of the URL. Ignore `page` so pagination
-		// navigations (goToPage) are not overwritten back to page 1; genuine
-		// filter changes still drop `page`, resetting to page 1 as intended.
 		const currentFilterQs = (() => {
 			const p = new URLSearchParams($page.url.searchParams);
 			p.delete('page');
 			return p.toString();
 		})();
-
 		if (newQs !== currentFilterQs) {
-			goto(`/transactions${newQs ? '?' + newQs : ''}`, {
-				keepFocus: true,
-				noScroll: true,
-			});
+			goto(`/transactions${newQs ? '?' + newQs : ''}`, { keepFocus: true, noScroll: true });
 		}
 	});
 
-	// ─── Helpers —─────────────────────────────────────────────────────
-
-	function dateRangeFromFilter(
-		filter: string,
-		customFrom?: string,
-		customTo?: string
-	): { from: string; to: string } {
+	function dateRangeFromFilter(filter: string, customFrom?: string, customTo?: string): { from: string; to: string } {
 		const currentMonthStr = getCurrentMonth();
 		const [y, m] = currentMonthStr.split('-').map(Number);
 		const now = new Date();
 		const d = String(now.getDate()).padStart(2, '0');
-
 		switch (filter) {
 			case 'this-week': {
 				const day = now.getDay();
@@ -224,43 +186,50 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 				mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
 				const sun = new Date(mon);
 				sun.setDate(mon.getDate() + 6);
-				return {
-					from: mon.toISOString().slice(0, 10),
-					to: sun.toISOString().slice(0, 10),
-				};
+				return { from: mon.toISOString().slice(0, 10), to: sun.toISOString().slice(0, 10) };
 			}
-			case 'this-month':
-				return { from: `${y}-${String(m).padStart(2, '0')}-01`, to: `${y}-${String(m).padStart(2, '0')}-${d}` };
+			case 'this-month': return { from: `${y}-${String(m).padStart(2, '0')}-01`, to: `${y}-${String(m).padStart(2, '0')}-${d}` };
 			case 'today': {
 				const today = `${y}-${String(m).padStart(2, '0')}-${d}`;
 				return { from: today, to: today };
 			}
-			case 'this-year':
-				return { from: `${y}-01-01`, to: `${y}-12-31` };
+			case 'this-year': return { from: `${y}-01-01`, to: `${y}-12-31` };
 			case 'last-3-months': {
 				const d3 = new Date(now);
 				d3.setMonth(now.getMonth() - 3);
 				return { from: d3.toISOString().slice(0, 10), to: `${y}-${String(m).padStart(2, '0')}-${d}` };
 			}
-			case 'custom':
-				return { from: customFrom || '', to: customTo || '' };
-			default:
-				return { from: '', to: '' };
+			case 'custom': return { from: customFrom || '', to: customTo || '' };
+			default: return { from: '', to: '' };
 		}
 	}
 
-	// ─── Transaction type for summary cards ────────────────────────────
-
 	const activeType = $derived(filters.type);
-
-	// ─── Transaction count info ───────────────────────────────────────
-
 	const totalCount = $derived(data.total ?? 0);
-
 	const activeFilterCount = $derived([filters.type, filters.category, filters.date].filter(Boolean).length);
 	const hasActiveFilters = $derived(filters.type || filters.category || filters.date || filters.search);
 
-	// ─── Context subline: month label + total filtered count ──────────
+	const activeFilterChips = $derived.by(() => {
+		const chips: { key: string; label: string; remove: () => void }[] = [];
+		if (filters.type) {
+			const typeLabel = filters.type === 'income' ? 'Income' : filters.type === 'expense' ? 'Expenses' : filters.type;
+			chips.push({ key: 'type', label: typeLabel, remove: () => { filters.type = ''; } });
+		}
+		if (filters.category) {
+			chips.push({ key: 'category', label: filters.category, remove: () => { filters.category = ''; } });
+		}
+		if (filters.date) {
+			let dateLabel = filters.date;
+			if (filters.date === 'this-month') dateLabel = 'This Month';
+			else if (filters.date === 'this-week') dateLabel = 'This Week';
+			else if (filters.date === 'today') dateLabel = 'Today';
+			else if (filters.date === 'this-year') dateLabel = 'This Year';
+			else if (filters.date === 'last-3-months') dateLabel = 'Last 3 Months';
+			else if (filters.date === 'custom') dateLabel = filters.customFrom && filters.customTo ? `${filters.customFrom} - ${filters.customTo}` : 'Custom Date';
+			chips.push({ key: 'date', label: dateLabel, remove: () => { filters.date = ''; filters.customFrom = ''; filters.customTo = ''; } });
+		}
+		return chips;
+	});
 
 	const contextSubline = $derived.by(() => {
 		const monthLabel = (() => {
@@ -280,37 +249,24 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		return `${monthLabel} · ${totalCount} transaction${totalCount !== 1 ? 's' : ''}`;
 	});
 
-	// ─── Lifted view toggle state ─────────────────────────────────────
-
 	let showFlatView = $state(true);
+	let mobileShowFlatView = $state(false);
 
 	async function handleExport(format: 'csv' | 'pdf', ids?: number[]) {
 		const params = new URLSearchParams($page.url.searchParams);
 		if (ids && ids.length > 0) params.set('ids', ids.join(','));
-
 		if (format === 'csv') {
 			window.location.href = `/api/transactions/export?${params.toString()}`;
 			return;
 		}
-
-		console.log('[Export] PDF requested');
-
 		const pdfParams = new URLSearchParams(params);
 		pdfParams.set('format', 'json');
 		pdfParams.set('exportType', 'all');
-
 		try {
 			const response = await fetch(`/api/transactions/export?${pdfParams.toString()}`);
 			if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
 			const json = await response.json();
-			console.log('[Export] Data fetched:', json.summary, `(${json.transactions?.length || 0} transactions)`);
-
-			if (!json.transactions || json.transactions.length === 0) {
-				console.warn('[Export] No transactions to export');
-				return;
-			}
-
+			if (!json.transactions || json.transactions.length === 0) return;
 			const filterInfo: { type?: string; category?: string; dateFrom?: string; dateTo?: string } = {};
 			if (filters.type) filterInfo.type = filters.type;
 			if (filters.category) filterInfo.category = filters.category;
@@ -319,35 +275,21 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 				if (range.from) filterInfo.dateFrom = range.from;
 				if (range.to) filterInfo.dateTo = range.to;
 			}
-
 			const doc = await generateTransactionPdf(json.transactions, filterInfo, json.summary);
 			doc.save(`transactions-${new Date().toISOString().split('T')[0]}.pdf`);
-			console.log('[Export] PDF saved');
-		} catch (error) {
-			console.error('[Export] PDF generation failed:', error);
+		} catch {
 			showError('Failed to generate PDF');
 		}
 	}
 
-	// ─── Duplicate a transaction ─────────────────────────────────────
-
 	async function handleDuplicate(id: number) {
-		const src =
-			(data.allForBalance ?? []).find((t) => t.id === id) ??
-			(data.transactions ?? []).find((t) => t.id === id);
+		const src = (data.allForBalance ?? []).find((t) => t.id === id) ?? (data.transactions ?? []).find((t) => t.id === id);
 		if (!src) return;
-
 		try {
 			const res = await fetch('/api/transactions', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					type: src.type,
-					amount: src.amount,
-					description: src.description,
-					date: src.date,
-					category_id: src.category_id,
-				}),
+				body: JSON.stringify({ type: src.type, amount: src.amount, description: src.description, date: src.date, category_id: src.category_id }),
 			});
 			if (!res.ok) throw new Error(((await res.json()).error) || 'Duplicate failed');
 			showSuccess('Transaction duplicated');
@@ -357,50 +299,18 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		}
 	}
 
-	// ─── Create recurring schedule from a transaction ────────────────────
-	// Kebab item "Create recurring schedule" opens the shared RecurringForm
-	// pre-filled from this transaction. The original transaction is untouched —
-	// we only INSERT a new recurring_transactions row. See
-	// plans/make-transaction-recurring.md for the full semantics.
-
 	let makeRecurringTxn = $state<Transaction | null>(null);
 	let formDirty = $state(false);
 	let discardOpen = $state(false);
 
-	// Pre-fill seed: type/amount/description/category from the transaction;
-	// monthly by default. start_date = max(today, txn.date) so the scheduler
-	// never backfills an old schedule (old transactions clamp to today).
 	const makeRecurringInitial = $derived.by<RecurringFormInitial | null>(() => {
 		const txn = makeRecurringTxn;
 		if (!txn) return null;
 		const today = getToday();
-		return {
-			type: txn.type,
-			amount: Math.abs(txn.amount),
-			description: txn.description,
-			category_id: txn.category_id,
-			frequency: 'monthly',
-			interval: 1,
-			start_date: txn.date > today ? txn.date : today,
-			end_date: '',
-			active: true,
-		};
+		return { type: txn.type, amount: Math.abs(txn.amount), description: txn.description, category_id: txn.category_id, frequency: 'monthly', interval: 1, start_date: txn.date > today ? txn.date : today, end_date: '', active: true };
 	});
 
-	// The scheduler's first generated transaction = start_date + 1 interval.
-	const makeRecurringNextRun = $derived(
-		makeRecurringInitial
-			? calculateNextRun(
-					makeRecurringInitial.start_date,
-					makeRecurringInitial.frequency,
-					makeRecurringInitial.interval,
-					null,
-					null,
-					null,
-					makeRecurringInitial.start_date
-				)
-			: ''
-	);
+	const makeRecurringNextRun = $derived(makeRecurringInitial ? calculateNextRun(makeRecurringInitial.start_date, makeRecurringInitial.frequency, makeRecurringInitial.interval, null, null, null, makeRecurringInitial.start_date) : '');
 
 	function openMakeRecurring(txn: Transaction) {
 		makeRecurringTxn = txn;
@@ -408,9 +318,8 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		discardOpen = false;
 	}
 
-	// ESC / backdrop / ✕ / Cancel all route here; confirm only when dirty.
 	function closeMakeRecurring() {
-		if (discardOpen) return; // already confirming — let the dialog handle Escape
+		if (discardOpen) return;
 		if (formDirty) discardOpen = true;
 		else makeRecurringTxn = null;
 	}
@@ -425,7 +334,6 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		formDirty = false;
 	}
 
-	// Fetch-mode submit → POST /api/recurring (same body the /recurring page sends).
 	async function handleRecurringSubmit(formData: FormData): Promise<boolean> {
 		try {
 			const body: Record<string, unknown> = {
@@ -435,18 +343,12 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 				category_id: parseInt(formData.get('category_id') as string),
 				frequency: formData.get('frequency'),
 				interval: parseInt(formData.get('interval') as string) || 1,
-				day_of_week: null,
-				day_of_month: null,
-				month_of_year: null,
+				day_of_week: null, day_of_month: null, month_of_year: null,
 				start_date: formData.get('start_date'),
 				end_date: formData.get('end_date') || null,
 				active: formData.get('active') === 'on',
 			};
-			const res = await fetch('/api/recurring', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(body),
-			});
+			const res = await fetch('/api/recurring', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 			const result = await res.json();
 			if (result.success) return true;
 			showError(result.error || 'Failed to create schedule');
@@ -457,23 +359,8 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		}
 	}
 
-	// ─── Handle filter change ───
-
-	function handleFilterChange(newFilters: {
-		date: string;
-		category: string;
-		type: string;
-		customFrom?: string;
-		customTo?: string;
-	}) {
-		filters = {
-			date: newFilters.date,
-			category: newFilters.category,
-			type: newFilters.type,
-			customFrom: newFilters.customFrom || '',
-			customTo: newFilters.customTo || '',
-			search: filters.search,
-		};
+	function handleFilterChange(newFilters: { date: string, category: string, type: string, customFrom?: string, customTo?: string }) {
+		filters = { date: newFilters.date, category: newFilters.category, type: newFilters.type, customFrom: newFilters.customFrom || '', customTo: newFilters.customTo || '', search: filters.search };
 	}
 
 	function handleCardClick(type: string) {
@@ -485,34 +372,18 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		searchInput = '';
 	}
 
-	// ─── Pagination: keep the viewport in place across navigations ───
-	// `noScroll: true` stops SvelteKit resetting to the top, but the browser
-	// still re-clamps scroll while the new page renders (height changes on the
-	// last page, scroll anchoring) and SvelteKit re-asserts whatever position
-	// the browser ends up with. Measuring the pager's rect *after* the render
-	// races with that, so instead we capture the exact scrollY *before*
-	// navigating, await the navigation to fully commit, then re-apply that
-	// position once layout has settled. rAF runs before paint, so the clamped
-	// intermediate position is never shown, and `behavior: 'auto'` overrides
-	// the global `scroll-behavior: smooth` so the restore is an instant snap.
 	async function goToPage(p: number) {
 		const y = window.scrollY;
 		const params = new URLSearchParams($page.url.searchParams);
 		params.set('page', String(p));
 		try {
 			await goto(`/transactions?${params.toString()}`, { keepFocus: true, noScroll: true });
-		} catch {
-			return; // superseded by a newer navigation — leave scroll alone
-		}
+		} catch { return; }
 		requestAnimationFrame(() => {
-			requestAnimationFrame(() => {
-				window.scrollTo({ top: y, behavior: 'auto' });
-			});
+			requestAnimationFrame(() => { window.scrollTo({ top: y, behavior: 'auto' }); });
 		});
 	}
 
-	// ─── Import Wizard props ──────────────────────────────────────────
-	// Preview columns for ImportPreview
 	const previewColumns = $derived<ImportPreviewColumn[]>([
 		{ header: 'Status', key: '_status', kind: 'status' },
 		{ header: 'Date', key: 'date', kind: 'date' },
@@ -523,76 +394,42 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		{ header: 'Source', key: 'source_of_funds', kind: 'text' },
 	]);
 
-	// ImportWizard build/validate functions
-	function buildRows(rawRows: string[][], headers: string[], mapping: Record<string, string>, config: ImportMappingConfig) {
-		return buildMappedRows(rawRows, headers, mapping, config);
-	}
-
-	function validateRows(rows: MappedTransaction[], deps: Record<string, unknown>, config: ImportMappingConfig) {
-		return validateAllRows(rows, deps.categories as Category[], config);
-	}
-
-	// Import wizard deps
+	function buildRows(rawRows: string[][], headers: string[], mapping: Record<string, string>, config: ImportMappingConfig) { return buildMappedRows(rawRows, headers, mapping, config); }
+	function validateRows(rows: MappedTransaction[], deps: Record<string, unknown>, config: ImportMappingConfig) { return validateAllRows(rows, deps.categories as Category[], config); }
 	const importDeps = $derived({ categories: data.categories ?? [] });
-
 	let importWizardOpen = $state(false);
-
-	// ─── Pagination helpers ─────────────────────────────────────────────
 
 	const pageItems = $derived((currentPage: number, totalPages: number): (number | '…')[] => {
 		const pages: (number | '…')[] = [];
-		const show = 3; // show current ± 2
+		const show = 3;
 		const start = Math.max(1, currentPage - show);
 		const end = Math.min(totalPages, currentPage + show);
-
-		if (start > 1) {
-			pages.push(1);
-			if (start > 2) pages.push('…');
-		}
-
-		for (let i = start; i <= end; i++) {
-			pages.push(i);
-		}
-
-		if (end < totalPages) {
-			if (end < totalPages - 1) pages.push('…');
-			pages.push(totalPages);
-		}
-
+		if (start > 1) { pages.push(1); if (start > 2) pages.push('…'); }
+		for (let i = start; i <= end; i++) pages.push(i);
+		if (end < totalPages) { if (end < totalPages - 1) pages.push('…'); pages.push(totalPages); }
 		return pages;
 	});
 
 	function handleLimitChange(newLimitStr: string) {
 		const params = new URLSearchParams($page.url.searchParams);
 		params.set('page', '1');
-		if (newLimitStr === 'all') {
-			params.set('limit', 'all');
-		} else if (newLimitStr !== '20') {
-			params.set('limit', newLimitStr);
-		} else {
-			params.delete('limit');
-			params.delete('pageSize');
-		}
+		if (newLimitStr === 'all') params.set('limit', 'all');
+		else if (newLimitStr !== '20') params.set('limit', newLimitStr);
+		else { params.delete('limit'); params.delete('pageSize'); }
 		goto(`/transactions?${params.toString()}`, { keepFocus: true, noScroll: true });
 	}
 
 	const countLabel = $derived.by(() => {
-		if (data.dateError) {
-			return data.dateError;
-		}
+		if (data.dateError) return data.dateError;
 		const page = data.page ?? 1;
 		const limitVal = data.limit ?? 20;
 		const total = data.total ?? 0;
 		if (total === 0) return 'No transactions';
-		if (limitVal === 0) {
-			return `Showing all ${total} transaction${total !== 1 ? 's' : ''}`;
-		}
+		if (limitVal === 0) return `Showing all ${total} transaction${total !== 1 ? 's' : ''}`;
 		const start = (page - 1) * limitVal + 1;
 		const end = Math.min(page * limitVal, total);
 		return `Showing ${start}–${end} of ${total} transaction${total !== 1 ? 's' : ''}`;
 	});
-
-	// ─── Selection Mode: deriveds + handlers ───────────────────────────
 
 	const pageIds = $derived((data.transactions ?? []).map((t) => t.id));
 	const selectedOnPage = $derived(pageIds.filter((id) => selectedIds.has(id)).length);
@@ -607,13 +444,9 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		selectedIds = next;
 	}
 
-	// Select All is strictly page-scoped: toggles every row on the current page.
 	function toggleAll() {
-		if (allSelected) {
-			selectedIds = new Set([...selectedIds].filter((id) => !pageIds.includes(id)));
-		} else {
-			selectedIds = new Set([...selectedIds, ...pageIds]);
-		}
+		if (allSelected) selectedIds = new Set([...selectedIds].filter((id) => !pageIds.includes(id)));
+		else selectedIds = new Set([...selectedIds, ...pageIds]);
 	}
 
 	function exitSelectionMode() {
@@ -621,27 +454,16 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		selectedIds = new Set();
 	}
 
-	// Svelte action: drive a native checkbox's `indeterminate` from a boolean
-	// (☐ none / ⊟ some / ☑ all).
 	function setIndeterminate(node: HTMLInputElement, indeterminate: boolean) {
 		node.indeterminate = indeterminate;
-		return {
-			update(indeterminate: boolean) {
-				node.indeterminate = indeterminate;
-			},
-		};
+		return { update(indeterminate: boolean) { node.indeterminate = indeterminate; } };
 	}
 
-	// Clear the page-scoped selection whenever the result set changes
-	// (pagination/filters), but leave Selection Mode active until the user
-	// cancels or completes a bulk action.
 	let lastFilterKey = '';
 	$effect(() => {
 		const key = $page.url.searchParams.toString();
 		untrack(() => {
-			if (lastFilterKey !== '' && key !== lastFilterKey) {
-				selectedIds = new Set();
-			}
+			if (lastFilterKey !== '' && key !== lastFilterKey) selectedIds = new Set();
 			lastFilterKey = key;
 		});
 	});
@@ -653,73 +475,231 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 
 <PageBackground />
 
-<PageHeader title="Transactions" flush borderless>
-	{#snippet badge()}
-		<CountChip count={totalCount} />
-	{/snippet}
-	{#snippet subtitle()}
-		<span class="context-subline">{contextSubline}</span>
-	{/snippet}
-	{#snippet action()}
-		<span class="header-actions desktop-only">
-			<Button variant="primary" href="/transactions/new" onclick={(e) => { e.preventDefault(); openAddForm(); }}>
-				<span class="btn-lead" aria-hidden="true">+</span>
-				Add Transaction
-			</Button>
-			<OverflowMenu
-				onImportCsv={() => (importWizardOpen = true)}
-				onExportCsv={() => handleExport('csv')}
-				onExportPdf={() => handleExport('pdf')}
-				onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
-			/>
-		</span>
-		<!-- Mobile: the SpeedDial FAB in the bottom nav is the Add CTA; the
-		     header keeps only the Import/Export overflow, always in thumb-reach. -->
-		<span class="header-actions mobile-only">
-			<OverflowMenu
-				onImportCsv={() => (importWizardOpen = true)}
-				onExportCsv={() => handleExport('csv')}
-				onExportPdf={() => handleExport('pdf')}
-				onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
-			/>
-		</span>
-	{/snippet}
-</PageHeader>
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     DESKTOP COMPOSITION (viewports > 768px)
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="desktop-transactions">
+	<PageHeader title="Transactions" flush borderless>
+		{#snippet badge()}
+			<CountChip count={totalCount} />
+		{/snippet}
+		{#snippet subtitle()}
+			<span class="context-subline">{contextSubline}</span>
+		{/snippet}
+		{#snippet action()}
+			<span class="header-actions desktop-only">
+				<Button variant="primary" href="/transactions/new" onclick={(e) => { e.preventDefault(); openAddForm(); }}>
+					<span class="btn-lead" aria-hidden="true">+</span>
+					Add Transaction
+				</Button>
+				<OverflowMenu
+					onImportCsv={() => (importWizardOpen = true)}
+					onExportCsv={() => handleExport('csv')}
+					onExportPdf={() => handleExport('pdf')}
+					onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
+				/>
+			</span>
+		{/snippet}
+	</PageHeader>
 
-<!-- ═══ Interactive summary cards ═══ -->
-<TransactionSummary
-	transactions={[...(data.allForBalance ?? [])].reverse()}
-	{activeType}
-	onCardClick={handleCardClick}
-/>
+	<TransactionSummary
+		transactions={[...(data.allForBalance ?? [])].reverse()}
+		{activeType}
+		onCardClick={handleCardClick}
+	/>
 
-<!-- ═══ Toolbar ═══
-     Desktop: one unified "filter dock" (embedded search + Date/Category/Type
-     segments + Clear All, each segment opening a shared menu as a clamped
-     popover) + view toggle. Mobile: unified search/filter pill → FiltersSheet
-     whose panel is the compact 3-chip dropdowns, so desktop and mobile share
-     one option source. Both toolbars are rendered and toggled via CSS —
-     hydration-safe (no SSR/client mismatch). -->
-<div class="txn-toolbar">
-	<div class="toolbar-left">
-		<div class="toolbar-desktop">
-			<TransactionFilterToolbar
-				bind:value={searchInput}
-				categories={data.categories ?? []}
-				activeFilters={{
-					date: filters.date,
-					category: filters.category,
-					type: filters.type,
-					customFrom: filters.customFrom,
-					customTo: filters.customTo,
-				}}
-				onFilterChange={handleFilterChange}
-				onClearAll={clearAllFilters}
-				placeholder="Search transactions"
-				ariaLabel="Search transactions"
-			/>
+	<div class="txn-toolbar">
+		<div class="toolbar-left">
+			<div class="toolbar-desktop">
+				<TransactionFilterToolbar
+					bind:value={searchInput}
+					categories={data.categories ?? []}
+					activeFilters={{
+						date: filters.date,
+						category: filters.category,
+						type: filters.type,
+						customFrom: filters.customFrom,
+						customTo: filters.customTo,
+					}}
+					onFilterChange={handleFilterChange}
+					onClearAll={clearAllFilters}
+					placeholder="Search transactions"
+					ariaLabel="Search transactions"
+				/>
+			</div>
 		</div>
-		<div class="toolbar-mobile">
+		<div class="toolbar-right">
+			<ViewToggle {showFlatView} onChange={(flat) => showFlatView = flat} stretch />
+		</div>
+	</div>
+
+	{#if data.dateError}
+		<div class="date-error-banner" role="alert">
+			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+			<span>{data.dateError}</span>
+		</div>
+	{/if}
+
+	{#if selectionMode && pageIds.length > 0}
+		<div class="bulk-bar" role="toolbar" aria-label="Selected transactions">
+			<div class="bulk-left">
+				<input
+					type="checkbox"
+					checked={allSelected}
+					use:setIndeterminate={someSelected}
+					onchange={toggleAll}
+					aria-label="Select all transactions on this page"
+				/>
+				<span class="bulk-count">{selectedCount} selected</span>
+			</div>
+			<div class="bulk-actions">
+				<Button variant="ghost" size="sm" disabled={selectedCount === 0} onclick={() => handleExport('csv', [...selectedIds])}>Export CSV</Button>
+				<Button variant="ghost" size="sm" disabled={selectedCount === 0} onclick={() => handleExport('pdf', [...selectedIds])}>Export PDF</Button>
+				<Button variant="danger" size="sm" disabled={selectedCount === 0} onclick={() => (deleteTarget = [...selectedIds])}>Delete Selected</Button>
+				<Button variant="ghost" size="sm" onclick={exitSelectionMode}>Cancel</Button>
+			</div>
+		</div>
+	{/if}
+
+	<TransactionList
+		transactions={data.transactions ?? []}
+		allTransactionsForBalance={data.allForBalance ?? []}
+		categories={data.categories ?? []}
+		showRunningBalance={true}
+		{showFlatView}
+		{selectionMode}
+		{selectedIds}
+		onToggleSelection={toggleSelection}
+		onEdit={(id) => {
+			const found = (data.transactions ?? []).find(t => t.id === id);
+			if (found) openEditForm(found); else goto(`/transactions/${id}/edit`);
+		}}
+		onDelete={(id) => (deleteTarget = id)}
+		onDuplicate={handleDuplicate}
+		onMakeRecurring={openMakeRecurring}
+	>
+		{#snippet emptyState()}
+			{#if hasActiveFilters}
+				<EmptyState
+					icon="🔍"
+					title="No results"
+					description="No transactions match your search or filters."
+					actionLabel="Clear All Filters"
+					onAction={clearAllFilters}
+				/>
+			{:else}
+				<EmptyState
+					icon="💰"
+					title="No transactions yet"
+					description="Start by adding your first transaction or importing a CSV."
+					actionLabel="Add Transaction"
+					actionHref="/transactions/new"
+					onAction={openAddForm}
+					secondaryLabel="Import"
+					onSecondaryAction={() => (importWizardOpen = true)}
+				/>
+			{/if}
+		{/snippet}
+	</TransactionList>
+
+	{#if (data.total ?? 0) > 0 || data.dateError}
+		<div class="pager-container">
+			{#if (data.totalPages ?? 0) > 1 && (data.limit ?? 20) !== 0}
+				<nav class="pager" aria-label="Pagination">
+					<button
+						class="pager-btn"
+						disabled={(data.page ?? 1) === 1}
+						onclick={() => goToPage((data.page ?? 1) - 1)}
+						aria-label="Previous page"
+					>
+						<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+						<span class="pager-word">Prev</span>
+					</button>
+
+					<ol class="pager-pages">
+						{#each pageItems(data.page ?? 1, data.totalPages ?? 1) as item, i (i)}
+							{#if item === '…'}
+								<li class="pager-gap" aria-hidden="true">…</li>
+							{:else}
+								<li>
+									<button
+										class="pager-num"
+										class:current={item === (data.page ?? 1)}
+										onclick={() => goToPage(item)}
+										aria-label={`Page ${item}`}
+										aria-current={item === (data.page ?? 1) ? 'page' : undefined}
+									>{item}</button>
+								</li>
+							{/if}
+						{/each}
+					</ol>
+
+					<button
+						class="pager-btn"
+						disabled={(data.page ?? 1) === (data.totalPages ?? 1)}
+						onclick={() => goToPage((data.page ?? 1) + 1)}
+						aria-label="Next page"
+					>
+						<span class="pager-word">Next</span>
+						<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+					</button>
+				</nav>
+			{/if}
+			<div class="pager-footer">
+				<span class="pager-count">{countLabel}</span>
+				<div class="rows-per-page">
+					<label for="rows-select">Rows per page:</label>
+					<select
+						id="rows-select"
+						class="rows-select"
+						value={data.limit === 0 ? 'all' : String(data.limit ?? 20)}
+						onchange={(e) => handleLimitChange(e.currentTarget.value)}
+						aria-label="Rows per page"
+					>
+						<option value="20">20</option>
+						<option value="50">50</option>
+						<option value="100">100</option>
+						<option value="200">200</option>
+						<option value="500">500</option>
+						<option value="all">All</option>
+					</select>
+				</div>
+			</div>
+		</div>
+	{/if}
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     DEDICATED MOBILE COMPOSITION (viewports <= 768px)
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="mobile-transactions">
+	<header class="mobile-app-header">
+		<div class="mobile-header-main">
+			<div class="mobile-title-wrap">
+				<h1 class="mobile-page-title">Transactions</h1>
+				<span class="context-subline">{contextSubline}</span>
+			</div>
+			<div class="mobile-header-actions">
+				<OverflowMenu
+					onImportCsv={() => (importWizardOpen = true)}
+					onExportCsv={() => handleExport('csv')}
+					onExportPdf={() => handleExport('pdf')}
+					onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
+				/>
+			</div>
+		</div>
+	</header>
+
+	<div class="mobile-shell">
+		<section class="mobile-section">
+			<TransactionMobileSummary
+				transactions={[...(data.allForBalance ?? [])].reverse()}
+				{activeType}
+				onCardClick={handleCardClick}
+			/>
+		</section>
+
+		<section class="mobile-section">
 			<SearchFilterPill
 				bind:value={searchInput}
 				bind:open={mobileFiltersOpen}
@@ -743,196 +723,149 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 					/>
 				{/snippet}
 			</SearchFilterPill>
-		</div>
-	</div>
-	<div class="toolbar-right">
-		<ViewToggle {showFlatView} onChange={(flat) => showFlatView = flat} stretch />
+
+			{#if activeFilterChips.length > 0}
+				<div class="active-filter-chips">
+					{#each activeFilterChips as chip (chip.key)}
+						<button type="button" class="filter-chip" onclick={chip.remove} aria-label={`Remove filter ${chip.label}`}>
+							<span>{chip.label}</span>
+							<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+								<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+							</svg>
+						</button>
+					{/each}
+					<button type="button" class="filter-chip-clear" onclick={clearAllFilters}>Clear all</button>
+				</div>
+			{/if}
+		</section>
+
+
+		{#if data.dateError}
+			<div class="date-error-banner" role="alert">
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+				<span>{data.dateError}</span>
+			</div>
+		{/if}
+
+		{#if selectionMode && pageIds.length > 0}
+			<div class="bulk-bar" role="toolbar" aria-label="Selected transactions">
+				<div class="bulk-left">
+					<input
+						type="checkbox"
+						checked={allSelected}
+						use:setIndeterminate={someSelected}
+						onchange={toggleAll}
+						aria-label="Select all transactions on this page"
+					/>
+					<span class="bulk-count">{selectedCount} selected</span>
+				</div>
+				<div class="bulk-actions">
+					<Button variant="ghost" size="sm" disabled={selectedCount === 0} onclick={() => handleExport('csv', [...selectedIds])}>Export CSV</Button>
+					<Button variant="ghost" size="sm" disabled={selectedCount === 0} onclick={() => handleExport('pdf', [...selectedIds])}>Export PDF</Button>
+					<Button variant="danger" size="sm" disabled={selectedCount === 0} onclick={() => (deleteTarget = [...selectedIds])}>Delete Selected</Button>
+					<Button variant="ghost" size="sm" onclick={exitSelectionMode}>Cancel</Button>
+				</div>
+			</div>
+		{/if}
+
+		<section class="mobile-section">
+			<TransactionList
+				transactions={data.transactions ?? []}
+				allTransactionsForBalance={data.allForBalance ?? []}
+				categories={data.categories ?? []}
+				showRunningBalance={true}
+				showFlatView={mobileShowFlatView}
+				{selectionMode}
+				{selectedIds}
+				onToggleSelection={toggleSelection}
+				onEdit={(id) => {
+					const found = (data.transactions ?? []).find(t => t.id === id);
+					if (found) openEditForm(found); else goto(`/transactions/${id}/edit`);
+				}}
+				onDelete={(id) => (deleteTarget = id)}
+				onDuplicate={handleDuplicate}
+				onMakeRecurring={openMakeRecurring}
+			>
+				{#snippet emptyState()}
+					{#if hasActiveFilters}
+						<EmptyState
+							icon="🔍"
+							title="No results"
+							description="No transactions match your search or filters."
+							actionLabel="Clear All Filters"
+							onAction={clearAllFilters}
+						/>
+					{:else}
+						<EmptyState
+							icon="💰"
+							title="No transactions yet"
+							description="Start by adding your first transaction or importing a CSV."
+							actionLabel="Add Transaction"
+							actionHref="/transactions/new"
+							onAction={openAddForm}
+							secondaryLabel="Import"
+							onSecondaryAction={() => (importWizardOpen = true)}
+						/>
+					{/if}
+				{/snippet}
+			</TransactionList>
+		</section>
+
+		{#if (data.total ?? 0) > 0 || data.dateError}
+			<section class="mobile-section mobile-pager-wrap">
+				{#if (data.totalPages ?? 0) > 1 && (data.limit ?? 20) !== 0}
+					<nav class="mobile-pager" aria-label="Mobile pagination">
+						<button
+							type="button"
+							class="mobile-pager-btn"
+							disabled={(data.page ?? 1) === 1}
+							onclick={() => goToPage((data.page ?? 1) - 1)}
+							aria-label="Previous page"
+						>
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+							<span>Prev</span>
+						</button>
+						<span class="mobile-pager-status">Page {data.page ?? 1} of {data.totalPages ?? 1}</span>
+						<button
+							type="button"
+							class="mobile-pager-btn"
+							disabled={(data.page ?? 1) === (data.totalPages ?? 1)}
+							onclick={() => goToPage((data.page ?? 1) + 1)}
+							aria-label="Next page"
+						>
+							<span>Next</span>
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+						</button>
+					</nav>
+				{/if}
+				<span class="mobile-pager-count">{countLabel}</span>
+			</section>
+		{/if}
 	</div>
 </div>
 
-<!-- ═══ Invalid date range alert ═══ -->
-{#if data.dateError}
-	<div class="date-error-banner" role="alert">
-		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-		<span>{data.dateError}</span>
-	</div>
-{/if}
-
-<!-- ═══ Bulk selection action bar (Selection Mode only) ═══ -->
-{#if selectionMode && pageIds.length > 0}
-	<div class="bulk-bar" role="toolbar" aria-label="Selected transactions">
-		<div class="bulk-left">
-			<input
-				type="checkbox"
-				checked={allSelected}
-				use:setIndeterminate={someSelected}
-				onchange={toggleAll}
-				aria-label="Select all transactions on this page"
-			/>
-			<span class="bulk-count">{selectedCount} selected</span>
-		</div>
-		<div class="bulk-actions">
-			<Button variant="ghost" size="sm" disabled={selectedCount === 0} onclick={() => handleExport('csv', [...selectedIds])}>Export CSV</Button>
-			<Button variant="ghost" size="sm" disabled={selectedCount === 0} onclick={() => handleExport('pdf', [...selectedIds])}>Export PDF</Button>
-			<Button variant="danger" size="sm" disabled={selectedCount === 0} onclick={() => (deleteTarget = [...selectedIds])}>Delete Selected</Button>
-			<Button variant="ghost" size="sm" onclick={exitSelectionMode}>Cancel</Button>
-		</div>
-	</div>
-{/if}
-
-<!-- ═══ Transaction list (Bank Register) ═══ -->
-<TransactionList
-	transactions={data.transactions ?? []}
-	allTransactionsForBalance={data.allForBalance ?? []}
-	categories={data.categories ?? []}
-	showRunningBalance={true}
-	{showFlatView}
-	{selectionMode}
-	{selectedIds}
-	onToggleSelection={toggleSelection}
-	onEdit={(id) => {
-		const found = (data.transactions ?? []).find(t => t.id === id);
-		if (found) {
-			openEditForm(found);
-		} else {
-			goto(`/transactions/${id}/edit`);
-		}
-	}}
-	onDelete={(id) => (deleteTarget = id)}
-	onDuplicate={handleDuplicate}
-	onMakeRecurring={openMakeRecurring}
->
-	{#snippet emptyState()}
-		{#if hasActiveFilters}
-			<EmptyState
-				icon="🔍"
-				title="No results"
-				description="No transactions match your search or filters."
-				actionLabel="Clear All Filters"
-				onAction={clearAllFilters}
-			/>
-		{:else}
-			<EmptyState
-				icon="💰"
-				title="No transactions yet"
-				description="Start by adding your first transaction or importing a CSV."
-				actionLabel="Add Transaction"
-				actionHref="/transactions/new"
-				onAction={openAddForm}
-				secondaryLabel="Import"
-				onSecondaryAction={() => (importWizardOpen = true)}
-			/>
-		{/if}
-	{/snippet}
-</TransactionList>
-
-<!-- ═══ Pagination (ledger pager) ═══ -->
-{#if (data.total ?? 0) > 0 || data.dateError}
-	<div class="pager-container">
-		{#if (data.totalPages ?? 0) > 1 && (data.limit ?? 20) !== 0}
-			<nav class="pager" aria-label="Pagination">
-				<button
-					class="pager-btn"
-					disabled={(data.page ?? 1) === 1}
-					onclick={() => goToPage((data.page ?? 1) - 1)}
-					aria-label="Previous page"
-				>
-					<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-					<span class="pager-word">Prev</span>
-				</button>
-
-				<ol class="pager-pages">
-					{#each pageItems(data.page ?? 1, data.totalPages ?? 1) as item, i (i)}
-						{#if item === '…'}
-							<li class="pager-gap" aria-hidden="true">…</li>
-						{:else}
-							<li>
-								<button
-									class="pager-num"
-									class:current={item === (data.page ?? 1)}
-									onclick={() => goToPage(item)}
-									aria-label={`Page ${item}`}
-									aria-current={item === (data.page ?? 1) ? 'page' : undefined}
-								>{item}</button>
-							</li>
-						{/if}
-					{/each}
-				</ol>
-
-				<button
-					class="pager-btn"
-					disabled={(data.page ?? 1) === (data.totalPages ?? 1)}
-					onclick={() => goToPage((data.page ?? 1) + 1)}
-					aria-label="Next page"
-				>
-					<span class="pager-word">Next</span>
-					<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-				</button>
-			</nav>
-		{/if}
-		<div class="pager-footer">
-			<span class="pager-count">{countLabel}</span>
-			<div class="rows-per-page">
-				<label for="rows-select">Rows per page:</label>
-				<select
-					id="rows-select"
-					class="rows-select"
-					value={data.limit === 0 ? 'all' : String(data.limit ?? 20)}
-					onchange={(e) => handleLimitChange(e.currentTarget.value)}
-					aria-label="Rows per page"
-				>
-					<option value="20">20</option>
-					<option value="50">50</option>
-					<option value="100">100</option>
-					<option value="200">200</option>
-					<option value="500">500</option>
-					<option value="all">All</option>
-				</select>
-			</div>
-		</div>
-	</div>
-{/if}
-
-<!-- ═══ Mobile filters bottom sheet ═══
-     Rendered by SearchFilterPill (mobile) — no page-level sheet. -->
-
-<!-- ═══ Delete confirmation modal (single or bulk) ═══ -->
+<!-- ═══ Modals & SlideOvers ═══ -->
 {#if deleteTarget !== null}
 	{@const isBulk = Array.isArray(deleteTarget) && deleteTarget.length > 1}
 	{@const deleteCount = Array.isArray(deleteTarget) ? deleteTarget.length : 1}
 	<ModalDialog open={deleteTarget !== null} onclose={() => (deleteTarget = null)} title={isBulk ? 'Delete Transactions' : 'Delete Transaction'}>
-		<p>
-			Are you sure you want to delete {deleteCount} transaction{deleteCount !== 1 ? 's' : ''}?
-			This action cannot be undone.
-		</p>
+		<p>Are you sure you want to delete {deleteCount} transaction{deleteCount !== 1 ? 's' : ''}? This action cannot be undone.</p>
 		<form
 			method="POST"
 			action="?/delete"
 			use:enhance={() => {
-				return async ({
-					result,
-					update,
-				}: {
-					result: { type: string; data?: { error?: string; deleted?: number } };
-					update: () => Promise<void>;
-				}) => {
+				return async ({ result, update }: { result: { type: string; data?: { error?: string; deleted?: number } }; update: () => Promise<void> }) => {
 					if (result.type === 'success') {
 						const deleted = result.data?.deleted ?? deleteCount;
 						exitSelectionMode();
 						deleteTarget = null;
 						showSuccess(`${deleted} transaction${deleted !== 1 ? 's' : ''} deleted`);
-					} else if (result.type === 'failure') {
-						showError(result.data?.error || 'Failed to delete transaction');
-					}
+					} else if (result.type === 'failure') showError(result.data?.error || 'Failed to delete transaction');
 					await update();
 				};
 			}}
 		>
-			<input
-				type="hidden"
-				name="id"
-				value={Array.isArray(deleteTarget) ? deleteTarget.join(',') : String(deleteTarget)}
-			/>
+			<input type="hidden" name="id" value={Array.isArray(deleteTarget) ? deleteTarget.join(',') : String(deleteTarget)} />
 			<div class="modal-actions">
 				<Button variant="danger" type="submit">Delete</Button>
 				<Button variant="ghost" type="button" onclick={() => (deleteTarget = null)}>Cancel</Button>
@@ -941,13 +874,12 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 	</ModalDialog>
 {/if}
 
-<!-- ═══ Import Wizard Modal ═══ -->
 <ImportWizard
 	open={importWizardOpen}
 	onClose={() => (importWizardOpen = false)}
 	fields={DEFAULT_IMPORT_FIELDS}
 	columns={previewColumns}
-	buildRows={buildRows as unknown as (rawRows: string[][], headers: string[], mapping: Record<string, string>, config: ImportMappingConfig) => Record<string, unknown>[]}
+	buildRows={buildRows}
 	validateRows={validateRows as unknown as (rows: Record<string, unknown>[], deps: Record<string, unknown>, config: ImportMappingConfig) => ImportValidationResult<Record<string, unknown>>}
 	deps={importDeps}
 	title="Import Transactions"
@@ -958,7 +890,6 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 	templateFilename="transactions-import-template.xlsx"
 />
 
-<!-- ═══ Add / Edit Transaction SlideOver ═══ -->
 {#if isFormOpen}
 	<SlideOver isOpen={isFormOpen} title={editingTransaction ? "Edit Transaction" : "Add Transaction"} onClose={closeForm}>
 		<TransactionForm
@@ -968,20 +899,14 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 			spendingMap={spendingMap}
 			categoryTxnCounts={categoryTxnCounts}
 			onCancel={closeForm}
-			onSuccess={() => {
-				closeForm();
-				invalidateAll();
-			}}
+			onSuccess={() => { closeForm(); invalidateAll(); }}
 		/>
 	</SlideOver>
 {/if}
 
-<!-- ═══ Create Recurring Schedule slide-over ═══ -->
 {#if makeRecurringTxn}
 	<SlideOver isOpen={true} title="Create Recurring Schedule" onClose={closeMakeRecurring}>
 		<p class="rr-subtitle">Future transactions will be created automatically using these settings.</p>
-
-		<!-- Source transaction card -->
 		<div class="source-card">
 			<span class="source-label">Source transaction</span>
 			<div class="source-line1">
@@ -994,8 +919,6 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 				The original transaction won't be modified.
 			</span>
 		</div>
-
-		<!-- Next scheduled transaction card (the scheduler's computed next_run) -->
 		<div class="next-run-card">
 			<svg class="next-run-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
 			<div class="next-run-body">
@@ -1003,9 +926,6 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 				<span class="next-run-date">{formatDate(makeRecurringNextRun)}</span>
 			</div>
 		</div>
-
-		<p class="rr-helper">This creates a recurring schedule based on this transaction. The original transaction won't be modified.</p>
-
 		<RecurringForm
 			categories={data.categories ?? []}
 			initial={makeRecurringInitial ?? undefined}
@@ -1014,15 +934,11 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 			onCancel={closeMakeRecurring}
 			bind:dirty={formDirty}
 			submitLabel="Create Recurring Schedule"
-			successToast={{
-				message: 'Recurring schedule created. Future transactions will be generated automatically.',
-				action: { label: 'Open Recurring', href: '/recurring' },
-			}}
+			successToast={{ message: 'Recurring schedule created.', action: { label: 'Open Recurring', href: '/recurring' } }}
 		/>
 	</SlideOver>
 {/if}
 
-<!-- ═══ Discard recurring schedule confirmation (dirty close) ═══ -->
 {#if discardOpen}
 	<ModalDialog open={discardOpen} onclose={() => (discardOpen = false)} title="Discard recurring schedule?">
 		<p>Your changes haven't been saved.</p>
@@ -1034,49 +950,29 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 {/if}
 
 <style>
-	/* ─── 8-point section rhythm: Header → Toolbar ─── */
-	/* Raise the header's stacking context so the OverflowMenu dropdown
-	   (trapped inside the header's backdrop-filter context) paints above
-	   the toolbar and summary cards that follow it in the DOM.
-	   The header→content gap is owned by PageHeader's scoped margin; we
-	   normalize it per breakpoint lower down. */
-	:global(.page-header) {
+	/* ─── Elevate Desktop Header Stacking Context ─── */
+	/* PageHeader has backdrop-filter which creates a stacking context.
+	   z-index: 30 ensures the OverflowMenu dropdown (top: 100%) paints ABOVE
+	   TransactionSummary cards and toolbar that follow in DOM order. */
+	:global(.desktop-transactions .page-header) {
 		position: relative;
 		z-index: 30;
 	}
 
-	/* ─── Primary button lead glyph ─── */
-	.btn-lead {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		flex-shrink: 0;
-		width: 18px;
-		height: 18px;
-		font-weight: var(--font-weight-extrabold);
+	/* ─── Desktop vs. Mobile Composition Scoping ─── */
+	.desktop-transactions {
+		display: block;
 	}
 
-	/* ─── Context subline ─── */
-	.context-subline {
-		font-family: var(--font-mono);
-		font-variant-numeric: tabular-nums;
-		font-size: var(--font-size-xs);
-		letter-spacing: 0.02em;
-		color: var(--muted);
+	.mobile-transactions {
+		display: none;
 	}
 
-	/* ─── Toolbar ─── */
-	/* Working controls for the list: sits below the KPI cards and hugs the
-	   register beneath it (tight bottom gap) so it reads as one unit.
-	   Desktop: the unified filter dock fills the left, view toggle on the
-	   right. The dock wraps onto its own row on tablet rather than overflow —
-	   no horizontal scroll ever. Both .toolbar-desktop and .toolbar-mobile are
-	   rendered and toggled via CSS (hydration-safe breakpoint; see the toolbar
-	   markup). IMPORTANT: no transform/filter on these wrappers — the dock's
-	   menus are position:fixed and must stay anchored to the viewport. */
+	/* ─── Desktop Toolbar (Single Row Layout: Left Filters | Right ViewToggle) ─── */
 	.txn-toolbar {
 		display: flex;
 		align-items: center;
+		justify-content: space-between;
 		gap: var(--space-md);
 		margin-bottom: var(--space-md);
 	}
@@ -1098,17 +994,6 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		min-width: 0;
 	}
 
-	.toolbar-mobile {
-		display: none;
-	}
-
-	/* Header actions: overflow + add transaction, right side of header */
-	.header-actions {
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
-	}
-
 	.toolbar-right {
 		flex-shrink: 0;
 		display: flex;
@@ -1116,209 +1001,21 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		gap: var(--space-md);
 	}
 
-	/* Mobile filter sheet panel: TransactionFilterPanel is a self-contained
-	   in-sheet accordion (Date/Category/Type sections + Clear All). It owns its
-	   layout — no page-level overrides needed. The FiltersSheet body provides
-	   the horizontal padding and scrolls when a section is expanded. */
-
-	/* ─── Bulk selection action bar (Selection Mode only) ─── */
-	.bulk-bar {
+	/* ─── Desktop Pagination (Single Row Pager Track + Footer) ─── */
+	.pager-container {
 		display: flex;
+		flex-direction: column;
 		align-items: center;
-		justify-content: space-between;
-		flex-wrap: wrap;
-		gap: var(--space-sm);
-		padding: var(--space-sm) var(--space-md);
-		margin-bottom: var(--space-md);
-		background: var(--color-surface);
-		border: 1px solid var(--color-hairline);
-		border-radius: var(--radius-xl);
-		box-shadow: var(--shadow-sm);
-		animation: bulkIn 200ms var(--ease) both;
+		gap: var(--space-md);
+		margin-top: var(--space-xl);
 	}
 
-	.bulk-left {
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
-		min-height: 44px;
-	}
-
-	.bulk-left input[type='checkbox'] {
-		width: 18px;
-		height: 18px;
-		margin: 0;
-		accent-color: var(--color-teal);
-		cursor: pointer;
-	}
-
-	.bulk-count {
-		font-family: var(--font-mono);
-		font-variant-numeric: tabular-nums;
-		font-size: var(--font-size-sm);
-		font-weight: var(--font-weight-semibold);
-		color: var(--color-teal);
-		letter-spacing: 0.02em;
-	}
-
-	.bulk-actions {
-		display: flex;
-		align-items: center;
-		gap: var(--space-xs);
-		flex-wrap: wrap;
-	}
-
-	/* Keep the compact sm buttons at the 44px interactive minimum */
-	.bulk-bar :global(.btn) {
-		min-height: 44px;
-	}
-
-	@keyframes bulkIn {
-		from {
-			opacity: 0;
-			transform: translateY(-6px);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0);
-		}
-	}
-
-	@media (max-width: 768px) {
-		.bulk-bar {
-			align-items: stretch;
-			flex-direction: column;
-			gap: var(--space-sm);
-		}
-
-		/* Stack the actions as an even 2×2 grid beneath the status row, with a
-		   solid hairline seam separating "N selected" from the actions. */
-		.bulk-actions {
-			display: grid;
-			grid-template-columns: repeat(2, 1fr);
-			gap: var(--space-xs);
-			width: 100%;
-			border-top: 1px solid var(--color-hairline);
-			padding-top: var(--space-sm);
-		}
-
-		.bulk-actions :global(.btn) {
-			width: 100%;
-		}
-	}
-
-	/* ─── Mobile / Desktop visibility ─── */
-	.desktop-only {
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
-	}
-
-	.mobile-only {
-		display: none;
-	}
-
-	@media (max-width: 768px) {
-		.desktop-only {
-			display: none !important;
-		}
-
-		.mobile-only {
-			display: flex;
-			align-items: center;
-		}
-
-		/* Desktop toolbar (filter dock) is hidden; the toolbar stacks into two
-		   full-width rows — the unified search/filter pill first, the view
-		   toggle (a stretched 50/50 segmented control) below it — matching the
-		   borrowed/lending toolbar rhythm. */
-		.toolbar-desktop {
-			display: none;
-		}
-
-		.toolbar-mobile {
-			display: block;
-			width: 100%;
-		}
-
-		.txn-toolbar {
-			flex-direction: column;
-			align-items: stretch;
-			gap: var(--space-sm);
-			margin-bottom: var(--space-xs);
-		}
-
-		.toolbar-left {
-			flex-direction: column;
-			align-items: stretch;
-			width: 100%;
-		}
-
-		.toolbar-right {
-			justify-content: flex-start;
-			width: 100%;
-		}
-	}
-
-	/* ≤480px: the transaction rows become inset cards (8px gutters). Pull the
-	   summary rail and toolbar in to share the same starting column, so
-	   summary → search → list all read on one vertical rhythm. */
-	@media (max-width: 480px) {
-		:global(.search-filter-pill) {
-			margin: 0 var(--space-sm);
-		}
-
-		.toolbar-right {
-			margin: 0 var(--space-sm);
-		}
-
-		:global(main.main-content .summary-cards) {
-			margin: 0 var(--space-sm) var(--space-md);
-		}
-	}
-
-	/* ─── Compact summary strip (mobile only; TransactionSummary untouched) ───
-	   Same `main.main-content` anchoring as the header override so these win
-	   against TransactionSummary's scoped rules regardless of injection order. */
-	@media (max-width: 768px) {
-		:global(main.main-content .summary-cards) {
-			margin-bottom: var(--space-md);
-		}
-
-		:global(main.main-content .summary-cards .card) {
-			padding: var(--space-sm) var(--space-md);
-		}
-
-		:global(main.main-content .summary-cards .card-icon) {
-			width: 24px;
-			height: 24px;
-		}
-
-		:global(main.main-content .summary-cards .card-value) {
-			font-size: 18px;
-		}
-
-		:global(main.main-content .summary-cards .hero-value) {
-			font-size: 20px;
-		}
-
-		:global(main.main-content .summary-cards .card-trend) {
-			font-size: 9px;
-			padding: 0 6px;
-			margin-top: 1px;
-		}
-	}
-
-	/* ─── Pagination (ledger pager) ───
-	   Number track in the ledger mono face; the current page is a solid teal
-	   pill with a gold "you are here" tick — the same teal/gold pairing as the
-	   document header band. */
 	.pager {
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		gap: var(--space-sm);
-		margin-top: var(--space-xl);
+		margin-top: 0;
 		flex-wrap: wrap;
 	}
 
@@ -1424,7 +1121,7 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		width: 14px;
 		height: 3px;
 		border-radius: var(--radius-pill);
-		background: var(--teal-deep);
+		background: var(--color-teal-dark);
 	}
 
 	.pager-gap {
@@ -1433,23 +1130,6 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		font-family: var(--font-mono);
 		font-size: var(--font-size-sm);
 		user-select: none;
-	}
-
-	.pager-container {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: var(--space-md);
-		margin-top: var(--space-xl);
-	}
-
-	.pager {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: var(--space-sm);
-		margin-top: 0;
-		flex-wrap: wrap;
 	}
 
 	.pager-footer {
@@ -1494,37 +1174,184 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		letter-spacing: 0.02em;
 	}
 
-	.date-error-banner {
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
-		padding: var(--space-sm) var(--space-md);
-		margin-bottom: var(--space-md);
-		border: 1px solid var(--color-coral);
-		border-radius: var(--radius-lg);
-		background: var(--color-coral-bg);
-		color: var(--color-coral);
-		font-size: var(--font-size-sm);
-		font-weight: var(--font-weight-semibold);
-	}
+	@media (max-width: 768px) {
+		.desktop-transactions {
+			display: none !important;
+		}
 
-	/* ─── Modal actions ─── */
-	.modal-actions {
-		display: flex;
-		gap: var(--space-sm);
-		margin-top: var(--space-md);
-	}
+		.mobile-transactions {
+			display: flex;
+			flex-direction: column;
+			gap: var(--space-md);
+			padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 24px);
+		}
 
-	.modal-actions :global(.btn) {
-		flex: 1;
-	}
+		.mobile-app-header {
+			position: sticky;
+			top: 0;
+			z-index: 20;
+			background: var(--color-bg);
+			backdrop-filter: blur(12px);
+			-webkit-backdrop-filter: blur(12px);
+			padding: var(--space-xs) 0 var(--space-sm);
+			border-bottom: 1px solid var(--color-hairline);
+			margin-bottom: var(--space-xs);
+		}
 
-	/* ─── Create Recurring Schedule slide-over content ─── */
-	.rr-subtitle {
-		font-size: var(--font-size-sm);
-		color: var(--muted);
-		margin: 0 0 var(--space-md);
-		line-height: 1.5;
+		.mobile-header-main {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: var(--space-sm);
+		}
+
+		.mobile-title-wrap {
+			display: flex;
+			flex-direction: column;
+			gap: 2px;
+			min-width: 0;
+		}
+
+		.mobile-page-title {
+			font-family: var(--font-display);
+			font-size: var(--font-size-lg);
+			font-weight: var(--font-weight-extrabold);
+			color: var(--color-ink);
+			margin: 0;
+			letter-spacing: var(--letter-spacing-heading);
+			line-height: 1.2;
+		}
+
+		.mobile-header-actions {
+			display: flex;
+			align-items: center;
+			gap: var(--space-xs);
+		}
+
+		.mobile-shell {
+			display: flex;
+			flex-direction: column;
+			gap: var(--space-md);
+		}
+
+		.mobile-section {
+			display: flex;
+			flex-direction: column;
+			gap: var(--space-xs);
+		}
+
+		.active-filter-chips {
+			display: flex;
+			align-items: center;
+			overflow-x: auto;
+			-webkit-overflow-scrolling: touch;
+			gap: var(--space-xs);
+			margin-top: 4px;
+			padding-bottom: 2px;
+			scrollbar-width: none;
+		}
+
+		.active-filter-chips::-webkit-scrollbar {
+			display: none;
+		}
+
+		.filter-chip {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+			padding: 4px 10px;
+			min-height: 36px;
+			border-radius: var(--radius-pill);
+			background: var(--color-teal-bg);
+			color: var(--color-teal);
+			border: 1px solid var(--color-hairline);
+			font-size: var(--font-size-xs);
+			font-weight: 600;
+			cursor: pointer;
+			white-space: nowrap;
+			flex-shrink: 0;
+			transition: all var(--transition-fast);
+		}
+
+		.filter-chip:active {
+			transform: scale(0.94);
+		}
+
+		.filter-chip-clear {
+			background: none;
+			border: none;
+			color: var(--color-text-muted);
+			font-size: var(--font-size-xs);
+			font-weight: 600;
+			cursor: pointer;
+			padding: 4px 8px;
+			min-height: 36px;
+			white-space: nowrap;
+			flex-shrink: 0;
+		}
+
+		.mobile-pager-wrap {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: var(--space-sm);
+			margin-top: var(--space-md);
+		}
+
+		.mobile-pager {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			width: 100%;
+			gap: var(--space-sm);
+			background: var(--color-surface);
+			border: 1px solid var(--color-hairline);
+			border-radius: var(--radius-pill);
+			padding: 4px 6px;
+			box-shadow: var(--shadow-card);
+		}
+
+		.mobile-pager-btn {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+			min-height: 44px;
+			padding: 0 var(--space-md);
+			border-radius: var(--radius-pill);
+			border: none;
+			background: transparent;
+			color: var(--color-ink);
+			font-size: var(--font-size-sm);
+			font-weight: 600;
+			cursor: pointer;
+			transition: all var(--transition-fast);
+		}
+
+		.mobile-pager-btn:active:not(:disabled) {
+			transform: scale(0.94);
+			color: var(--color-teal);
+			background: var(--color-teal-bg);
+		}
+
+		.mobile-pager-btn:disabled {
+			opacity: 0.35;
+			cursor: not-allowed;
+		}
+
+		.mobile-pager-status {
+			font-family: var(--font-mono);
+			font-size: var(--font-size-xs);
+			font-weight: 600;
+			color: var(--color-text-muted);
+			font-variant-numeric: tabular-nums;
+		}
+
+		.mobile-pager-count {
+			font-family: var(--font-mono);
+			font-size: var(--font-size-xs);
+			color: var(--color-text-muted);
+			font-variant-numeric: tabular-nums;
+		}
 	}
 
 	.source-card {
@@ -1650,30 +1477,14 @@ import { getCurrentMonth, getToday } from '$lib/shared/utils/format';
 		line-height: 1.5;
 	}
 
-	/* ─── Responsive ─── */
-	@media (max-width: 768px) {
-		.pager {
-			gap: var(--space-xs);
-		}
+	.modal-actions {
+		display: flex;
+		gap: var(--space-sm);
+		margin-top: var(--space-md);
+	}
 
-		.pager-btn {
-			min-width: 44px;
-			justify-content: center;
-			padding: 0 var(--space-sm);
-		}
-
-		.pager-word {
-			display: none;
-		}
-
-		.pager-pages {
-			flex-wrap: wrap;
-			justify-content: center;
-		}
-
-		.pager-num {
-			min-width: 36px;
-		}
+	.modal-actions :global(.btn) {
+		flex: 1;
 	}
 
 	@media (prefers-reduced-motion: reduce) {

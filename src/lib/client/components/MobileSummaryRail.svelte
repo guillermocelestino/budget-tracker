@@ -278,7 +278,7 @@
     height: 32px;
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 768px) {
     .rail-outer {
       display: flex;
       flex-direction: column;

@@ -260,12 +260,93 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
 {/snippet}
 
+{#snippet mobileCard(iou: LendingWithPayments)}
+  {@const state = computeState(iou)}
+  {@const cd = countdownLabel(iou)}
+  {@const progressPct = iou.amount > 0 ? Math.min((iou.resolved_total / iou.amount) * 100, 100) : 0}
+  {@const pct = Math.round(progressPct)}
+  {@const init = iou.borrower_name.charAt(0).toUpperCase()}
+  {@const accent = stateAccentColor(state)}
+  {@const bg = stateBgColor(state)}
+  {@const fg = stateTextColor(state)}
+  {@const dueText = formatDueForCard(iou, cd)}
+  <div
+    class="iou-mobile-card"
+    class:overdue={state === 'overdue'}
+    class:paid={iou.status === 'paid'}
+  >
+    <div class="mc-head">
+      {#if selectionMode}
+        <button
+          class="mc-checkbox"
+          type="button"
+          aria-label="{selectedIds.has(iou.id) ? 'Deselect' : 'Select'} {iou.borrower_name}"
+          onclick={(e) => { e.stopPropagation(); onToggleSelection?.(iou.id); }}
+        >
+          <input type="checkbox" checked={selectedIds.has(iou.id)} aria-hidden="true" tabindex="-1" readonly />
+        </button>
+      {/if}
+
+      <div class="mc-avatar" style="border-color: {accent}; background: {bg};">
+        <span style="color: {fg};">{init}</span>
+      </div>
+
+      <div class="mc-head-main">
+        <span class="mc-name" class:struck={iou.status === 'paid'}>{iou.borrower_name}</span>
+        <span class="mc-badge" style="background: {bg}; color: {fg};">{stateLabel(state)}</span>
+      </div>
+
+      <button
+        class="mc-kebab"
+        type="button"
+        aria-label="More actions for {iou.borrower_name}"
+        aria-haspopup="menu"
+        aria-expanded={menuIou?.id === iou.id}
+        onclick={(e) => { menuAnchor = e.currentTarget as HTMLElement; menuIou = iou; }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+      </button>
+    </div>
+
+    <span class="mc-meta">
+      {direction === 'lent' ? 'Lent' : 'Borrowed'} {formatDate(iou.date_lent)}
+      {#if iou.notes && iou.notes.length > 0} · {iou.notes}{/if}
+    </span>
+
+    <div class="mc-cells">
+      <div class="mc-row">
+        <span class="mc-cell">
+          <span class="mc-k">Amount</span>
+          <span class="mc-v mc-amount" class:struck={iou.status === 'paid'} style="color: {moneyDirectionColor()};">{formatDirectionalAmount(iou.remaining)}</span>
+        </span>
+        <span class="mc-cell mc-right">
+          <span class="mc-k">Due</span>
+          <span class="mc-v">{dueText}</span>
+        </span>
+      </div>
+
+      <div class="mc-row">
+        <span class="mc-cell">
+          <span class="mc-k">Progress</span>
+          <span class="mc-v mc-progress">
+            <span class="mc-track" aria-hidden="true"><span class="mc-fill" style="width: {pct}%; background: {accent};"></span></span>
+            <span class="mc-pct">{pct}%</span>
+          </span>
+        </span>
+        <span class="mc-cell mc-right">
+          <span class="mc-k">Interest</span>
+          <span class="mc-v mc-interest">{formatCurrency(calculateProjectedInterestForLending(iou))}</span>
+        </span>
+      </div>
+    </div>
+  </div>
+{/snippet}
+
 <!-- ════════════════════════════════════════
      MOBILE COMPACT CARDS (below md, < 768px)
-     The ONLY list presentation on phones/tablets: one compact card per
-     record with avatar, name, status badge, "⋯" menu, amount, and the
-     DUE / PROGRESS / PROJECTED INTEREST values in tight label+value rows.
-     Card height = content height (no fixed/min heights). Hidden at md+.
+     Hidden at md+ (≥ 768px). Responsive to viewMode:
+     - Grouped mode ('card'): grouped under triage status headers
+     - Table mode ('table'): rendered as a flat compact list
      ════════════════════════════════════════ -->
 <div class="iou-mobile-list">
   {#if ious.length === 0}
@@ -283,87 +364,24 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
         {direction === 'lent' ? 'No outstanding loans right now' : 'Add a borrowing to start tracking'}
       </p>
     </div>
-  {:else}
-    {#each ious as iou (iou.id)}
-      {@const state = computeState(iou)}
-      {@const cd = countdownLabel(iou)}
-      {@const progressPct = iou.amount > 0 ? Math.min((iou.resolved_total / iou.amount) * 100, 100) : 0}
-      {@const pct = Math.round(progressPct)}
-      {@const init = iou.borrower_name.charAt(0).toUpperCase()}
-      {@const accent = stateAccentColor(state)}
-      {@const bg = stateBgColor(state)}
-      {@const fg = stateTextColor(state)}
-      {@const dueText = formatDueForCard(iou, cd)}
-      <div
-        class="iou-mobile-card"
-        class:overdue={state === 'overdue'}
-        class:paid={iou.status === 'paid'}
-      >
-        <div class="mc-head">
-          {#if selectionMode}
-            <button
-              class="mc-checkbox"
-              type="button"
-              aria-label="{selectedIds.has(iou.id) ? 'Deselect' : 'Select'} {iou.borrower_name}"
-              onclick={(e) => { e.stopPropagation(); onToggleSelection?.(iou.id); }}
-            >
-              <input type="checkbox" checked={selectedIds.has(iou.id)} aria-hidden="true" tabindex="-1" readonly />
-            </button>
-          {/if}
-
-          <div class="mc-avatar" style="border-color: {accent}; background: {bg};">
-            <span style="color: {fg};">{init}</span>
-          </div>
-
-          <div class="mc-head-main">
-            <span class="mc-name" class:struck={iou.status === 'paid'}>{iou.borrower_name}</span>
-            <span class="mc-badge" style="background: {bg}; color: {fg};">{stateLabel(state)}</span>
-          </div>
-
-          <button
-            class="mc-kebab"
-            type="button"
-            aria-label="More actions for {iou.borrower_name}"
-            aria-haspopup="menu"
-            aria-expanded={menuIou?.id === iou.id}
-            onclick={(e) => { menuAnchor = e.currentTarget as HTMLElement; menuIou = iou; }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-          </button>
+  {:else if viewMode === 'card'}
+    {#each triageGroups as group (group.id)}
+      <div class="mobile-triage-group" data-group={group.id}>
+        <div class="group-header" style="border-bottom-color: {stateAccentColor(group.state)};">
+          <span class="group-emoji">{group.emoji}</span>
+          <span class="group-label">{group.label}</span>
+          <span class="group-count">• {group.count} loan{group.count === 1 ? '' : 's'}</span>
         </div>
-
-        <span class="mc-meta">
-          {direction === 'lent' ? 'Lent' : 'Borrowed'} {formatDate(iou.date_lent)}
-          {#if iou.notes && iou.notes.length > 0} · {iou.notes}{/if}
-        </span>
-
-        <div class="mc-cells">
-          <div class="mc-row">
-            <span class="mc-cell">
-              <span class="mc-k">Amount</span>
-              <span class="mc-v mc-amount" class:struck={iou.status === 'paid'} style="color: {moneyDirectionColor()};">{formatDirectionalAmount(iou.remaining)}</span>
-            </span>
-            <span class="mc-cell mc-right">
-              <span class="mc-k">Due</span>
-              <span class="mc-v">{dueText}</span>
-            </span>
-          </div>
-
-          <div class="mc-row">
-            <span class="mc-cell">
-              <span class="mc-k">Progress</span>
-              <span class="mc-v mc-progress">
-                <span class="mc-track" aria-hidden="true"><span class="mc-fill" style="width: {pct}%; background: {accent};"></span></span>
-                <span class="mc-pct">{pct}%</span>
-              </span>
-            </span>
-            <span class="mc-cell mc-right">
-              <span class="mc-k">Interest</span>
-              <span class="mc-v mc-interest">{formatCurrency(calculateProjectedInterestForLending(iou))}</span>
-            </span>
-          </div>
+        <div class="mobile-group-items">
+          {#each group.items as iou (iou.id)}
+            {@render mobileCard(iou)}
+          {/each}
         </div>
       </div>
+    {/each}
+  {:else}
+    {#each ious as iou (iou.id)}
+      {@render mobileCard(iou)}
     {/each}
   {/if}
 </div>
@@ -1971,6 +1989,18 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
     }
 
     .iou-mobile-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .mobile-triage-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .mobile-group-items {
       display: flex;
       flex-direction: column;
       gap: var(--space-sm);

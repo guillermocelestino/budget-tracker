@@ -1405,9 +1405,9 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
     .txn-row::before { transition: none; }
   }
 
-  /* ── Mobile (< 640px) ── */
-  @media (max-width: 640px) {
-    .cat-pill { display: none; }
+  /* ── Mobile (<= 768px) ── */
+  @media (max-width: 768px) {
+    .balance-col { display: none !important; }
     .hover-slot { display: none; }
     .cat-stripe { display: none; }
     .flat-header { display: none; }
@@ -1435,16 +1435,15 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
 
   @media (max-width: 480px) {
     .txn-row {
-      flex-wrap: wrap;
-      padding: 5px var(--space-md);
-      padding-left: calc(var(--space-md) + 4px);
-      min-height: 44px;
-      gap: 2px;
+      flex-wrap: nowrap;
+      padding: var(--space-xs) var(--space-md);
+      min-height: 52px;
+      gap: var(--space-sm);
       background: var(--color-surface);
       border: 1px solid var(--color-hairline);
       border-left: 4px solid transparent;
       border-radius: var(--radius-lg);
-      margin: 0 var(--space-sm) 6px;
+      margin: 0 0 8px;
     }
 
     .txn-row::before { display: none; }
@@ -1461,24 +1460,17 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
       overflow: visible;
     }
 
-    .cat-circle { width: 24px; height: 24px; font-size: 10px; }
+    .cat-circle { width: 32px; height: 32px; font-size: 12px; flex-shrink: 0; }
 
-    .txn-info { flex: 1 1 auto; min-width: 0; order: 1; }
-    .txn-amount-col { order: 2; min-width: auto; margin-left: auto; flex-shrink: 0; }
-    .row-menu-btn { order: 2; margin-left: var(--space-xs); margin-right: 0; }
+    .txn-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .txn-desc { font-size: var(--font-size-sm); font-weight: 700; color: var(--color-ink); }
+    .cat-pill { display: inline-flex; width: fit-content; font-size: 10px; padding: 1px 6px; }
 
-    .balance-col {
-      order: 3;
-      width: 100%;
-      flex-direction: row;
-      justify-content: flex-end;
-      align-items: center;
-      gap: 4px;
-      margin-top: 0;
-      padding-top: 2px;
-      border-top: 1px solid var(--color-hairline);
-      min-width: auto;
-    }
+    .txn-amount-col { order: 2; min-width: auto; margin-left: auto; flex-shrink: 0; text-align: right; }
+    .txn-amount { font-size: var(--font-size-base); font-weight: 800; }
+    .row-menu-btn { display: none; }
+
+    .balance-col { display: none !important; }
 
     .balance-label { font-size: 8px; }
     .balance-value { font-size: 12px; }
