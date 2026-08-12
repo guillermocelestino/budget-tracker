@@ -576,6 +576,7 @@
 
 <ActiveIouList
 	ious={showLendings}
+	showProjectedInterest
 	onPay={(id) => { const l = showLendings.find(l => l.id === id); if (l) recordPaymentLending = l; }}
 	onViewHistory={async (id) => {
 		const l = showLendings.find(l => l.id === id);

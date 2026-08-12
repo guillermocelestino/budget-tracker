@@ -134,15 +134,16 @@
 
 <style>
 	/* Reserved quick-action cluster — empty at rest (opacity 0, pointer-events
-	   none) so nothing shifts; revealed on [data-hover-row] hover / focus. */
+	   none) so nothing shifts; revealed on [data-hover-row] hover / focus.
+	   Zero layout shift: only opacity/pointer-events change on hover — never
+	   position, transform, or width. */
 	.hover-actions {
 		display: flex;
 		align-items: center;
 		gap: 4px;
 		opacity: 0;
-		transform: translateX(4px);
 		pointer-events: none;
-		transition: opacity 140ms ease-out, transform 140ms ease-out;
+		transition: opacity 140ms ease-out;
 	}
 
 	.quick-btn-wrap {
@@ -199,9 +200,12 @@
 	   bg with teal-deep text; own hover = mint tile. Retains the base 44px
 	   height and --focus focus-visible ring from .quick-btn (only bg/color/
 	   padding/width are overridden). Solid teal fill exists only outside the
-	   cluster (modals, detail CTAs) — one primary per screen. */
+	   cluster (modals, detail CTAs) — one primary per screen.
+	   min-width: 44px keeps the pill footprint identical to the icon buttons
+	   so the cluster width never changes between hover and rest. */
 	.quick-btn.pill {
 		width: auto;
+		min-width: 44px;
 		padding: 0 16px;
 		border-radius: var(--radius-pill);
 		background: transparent;
@@ -263,12 +267,12 @@
 	}
 
 	/* Hover / focus gating — hover-capable pointers only. The row tints first
-	   (no delay); the cluster fades in 70ms later. */
+	   (no delay); the cluster fades in 70ms later. Only opacity/pointer-events
+	   change — no transform, so nothing shifts on hover. */
 	@media (hover: hover) and (pointer: fine) {
 		:global([data-hover-row]:hover) .hover-actions,
 		:global([data-hover-row]:focus-within) .hover-actions {
 			opacity: 1;
-			transform: translateX(0);
 			pointer-events: auto;
 			transition-delay: 70ms;
 		}
