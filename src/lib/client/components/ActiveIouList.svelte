@@ -20,6 +20,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
     selectedIds = new Set<number>(),
     onToggleSelection,
     showProjectedInterest = false,
+    emptyState,
   }: {
     ious: LendingWithPayments[];
     onPay?: (id: number) => void;
@@ -34,11 +35,29 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
     onToggleSelection?: (id: number) => void;
     /** Lending-only: show the derived Projected Interest column (default off for /borrowed). */
     showProjectedInterest?: boolean;
+    emptyState?: import('svelte').Snippet;
   } = $props();
 
   // ─── Compute today from app helper (respects DEMO_TODAY) ───
   const todayStr = getToday();
   const today = new Date(todayStr + 'T00:00:00');
+
+  let dueSortOrder = $state<'desc' | 'asc'>('desc');
+
+  function toggleDueSort() {
+    dueSortOrder = dueSortOrder === 'desc' ? 'asc' : 'desc';
+  }
+
+  const sortedIous = $derived.by(() => {
+    const list = [...ious];
+    return list.sort((a, b) => {
+      const dateA = a.due_date || a.date_lent;
+      const dateB = b.due_date || b.date_lent;
+      const cmp = dateA.localeCompare(dateB);
+      if (cmp !== 0) return dueSortOrder === 'desc' ? -cmp : cmp;
+      return dueSortOrder === 'desc' ? b.id - a.id : a.id - b.id;
+    });
+  });
 
   // ─── Scroll reveal state ───
   let reducedMotion = $state(false);
@@ -350,20 +369,24 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
      ════════════════════════════════════════ -->
 <div class="iou-mobile-list">
   {#if ious.length === 0}
-    <div class="empty-state">
-      <div class="empty-icon">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
-          <path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
-        </svg>
+    {#if emptyState}
+      {@render emptyState()}
+    {:else}
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
+            <path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
+          </svg>
+        </div>
+        <p class="empty-title">
+          {direction === 'lent' ? 'All settled up!' : 'No debts — that\'s the best position to be in 🏆'}
+        </p>
+        <p class="empty-sub">
+          {direction === 'lent' ? 'No outstanding loans right now' : 'Add a borrowing to start tracking'}
+        </p>
       </div>
-      <p class="empty-title">
-        {direction === 'lent' ? 'All settled up!' : 'No debts — that\'s the best position to be in 🏆'}
-      </p>
-      <p class="empty-sub">
-        {direction === 'lent' ? 'No outstanding loans right now' : 'Add a borrowing to start tracking'}
-      </p>
-    </div>
+    {/if}
   {:else if viewMode === 'card'}
     {#each triageGroups as group (group.id)}
       <div class="mobile-triage-group" data-group={group.id}>
@@ -394,20 +417,24 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 <div class="iou-desktop-area">
 {#if viewMode === 'card'}
   {#if ious.length === 0}
-    <div class="empty-state">
-      <div class="empty-icon">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
-          <path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
-        </svg>
+    {#if emptyState}
+      {@render emptyState()}
+    {:else}
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
+            <path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
+          </svg>
+        </div>
+        <p class="empty-title">
+          {direction === 'lent' ? 'All settled up!' : 'No debts — that\'s the best position to be in 🏆'}
+        </p>
+        <p class="empty-sub">
+          {direction === 'lent' ? 'No outstanding loans right now' : 'Add a borrowing to start tracking'}
+        </p>
       </div>
-      <p class="empty-title">
-        {direction === 'lent' ? 'All settled up!' : 'No debts — that\'s the best position to be in 🏆'}
-      </p>
-      <p class="empty-sub">
-        {direction === 'lent' ? 'No outstanding loans right now' : 'Add a borrowing to start tracking'}
-      </p>
-    </div>
+    {/if}
   {:else}
     <div class="iou-container">
       {#each triageGroups as group (group.id)}
@@ -567,11 +594,15 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
      ════════════════════════════════════════ -->
 {:else}
   {#if ious.length === 0}
-    <div class="iou-register">
-      <div class="empty-state table-empty">
-        <p>No records to show</p>
+    {#if emptyState}
+      {@render emptyState()}
+    {:else}
+      <div class="iou-register">
+        <div class="empty-state table-empty">
+          <p>No records to show</p>
+        </div>
       </div>
-    </div>
+    {/if}
   {:else}
     <div class="iou-register">
       <!-- Sticky column header (mono uppercase, like the transactions register) -->
@@ -588,7 +619,35 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
         {#if selectionMode}<span class="rh-check" aria-hidden="true"></span>{/if}
         <span class="rh-circle" aria-hidden="true"></span>
         <span class="rh-name">{direction === 'lent' ? 'Borrower' : 'Lender'}</span>
-        <span class="rh-due">Due</span>
+        <span class="rh-due">
+          <button
+            type="button"
+            class="rh-due-btn"
+            onclick={toggleDueSort}
+            aria-label={`Sort by date (${dueSortOrder === 'desc' ? 'newest first' : 'oldest first'})`}
+            title={`Sort by date (${dueSortOrder === 'desc' ? 'newest first' : 'oldest first'})`}
+          >
+            <span>Due</span>
+            <svg
+              class="sort-icon"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              {#if dueSortOrder === 'desc'}
+                <path d="M12 5v14M19 12l-7 7-7-7" />
+              {:else}
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              {/if}
+            </svg>
+          </button>
+        </span>
         <span class="rh-progress">Progress</span>
         <span class="rh-amount">Amount</span>
         {#if showProjectedInterest}<span class="rh-projected">Projected Interest</span>{/if}
@@ -597,7 +656,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
         <span class="rh-kebab" aria-hidden="true"></span>
       </div>
 
-      {#each ious as iou (iou.id)}
+      {#each sortedIous as iou (iou.id)}
         {@const state = computeState(iou)}
         {@const cd = countdownLabel(iou)}
         {@const progressPct = iou.amount > 0 ? Math.min((iou.resolved_total / iou.amount) * 100, 100) : 0}
@@ -1263,6 +1322,42 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 
   .rh-name { min-width: 0; }
   .rh-due { min-width: 0; }
+  .rh-due-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    border-radius: var(--radius-sm, 4px);
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+
+  .rh-due-btn:hover {
+    background: var(--color-surface-hover, rgba(0, 0, 0, 0.05));
+    color: var(--color-teal, #0d9488);
+  }
+
+  [data-theme="dark"] .rh-due-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-teal, #14b8a6);
+  }
+
+  .rh-due-btn:focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: 1px;
+  }
+
+  .rh-due-btn .sort-icon {
+    flex-shrink: 0;
+    color: var(--color-teal, #0d9488);
+  }
   .rh-progress { text-align: right; }
   .rh-amount { text-align: right; }
   .rh-projected { text-align: right; }

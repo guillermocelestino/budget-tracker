@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { page } from '$app/stores';
+	import { page, navigating } from '$app/stores';
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import PageHeader from '$lib/client/components/PageHeader.svelte';
@@ -19,6 +19,7 @@
 	import OverflowMenu from '$lib/client/components/OverflowMenu.svelte';
 	import ViewToggle from '$lib/client/components/ViewToggle.svelte';
 	import ListToolbar from '$lib/client/components/ListToolbar.svelte';
+	import EmptyState from '$lib/client/components/EmptyState.svelte';
 	import SearchFilterPill from '$lib/client/components/SearchFilterPill.svelte';
 	import LendingFilterToolbar from '$lib/client/components/LendingFilterToolbar.svelte';
 	import LendingFilters from '$lib/client/components/LendingFilters.svelte';
@@ -138,6 +139,11 @@
 			if (searchTimer) clearTimeout(searchTimer);
 		};
 	});
+
+	const isSearching = $derived(searchInput !== searchTerm || !!$navigating);
+	const hasActiveFilters = $derived(
+		Boolean(searchInput || activeTab !== 'active' || dateFilters.date)
+	);
 
 	// Sync filter state -> URL (drops page to reset to page 1)
 	$effect(() => {
@@ -486,200 +492,234 @@
 	direction="borrowed"
 />
 
-<!-- ═══ ListToolbar: unified Search|Filter pill (left), view mode (right) ═══ -->
-<ListToolbar>
-	{#snippet filters()}
-		<div class="toolbar-desktop">
-			<LendingFilterToolbar
-				bind:value={searchInput}
-				activeFilters={{
-					status: activeTab,
-					date: dateFilters.date,
-					customFrom: dateFilters.customFrom,
-					customTo: dateFilters.customTo,
-				}}
-				{counts}
-				paidLabel="Repaid"
-				onFilterChange={(f) => {
-					activeTab = f.status;
-					dateFilters = { date: f.date, customFrom: f.customFrom ?? '', customTo: f.customTo ?? '' };
-				}}
-				onClearAll={() => {
-					searchInput = '';
-					activeTab = 'active';
-					dateFilters = { date: '', customFrom: '', customTo: '' };
-				}}
-				placeholder="Search borrower, lender, notes…"
-				ariaLabel="Search borrowings"
+<!-- ═══ Table Card Container (Integrates Toolbar as Table Header) ═══ -->
+<div class="table-card-wrapper">
+	{#if isSearching}
+		<div class="table-loading-bar" role="progressbar" aria-label="Loading data">
+			<div class="loading-bar-fill"></div>
+		</div>
+	{/if}
+	<!-- ═══ ListToolbar: unified Search|Filter pill (left), view mode (right) ═══ -->
+	<ListToolbar>
+		{#snippet filters()}
+			<div class="toolbar-desktop">
+				<LendingFilterToolbar
+					bind:value={searchInput}
+					loading={isSearching}
+					activeFilters={{
+						status: activeTab,
+						date: dateFilters.date,
+						customFrom: dateFilters.customFrom,
+						customTo: dateFilters.customTo,
+					}}
+					{counts}
+					paidLabel="Repaid"
+					onFilterChange={(f) => {
+						activeTab = f.status;
+						dateFilters = { date: f.date, customFrom: f.customFrom ?? '', customTo: f.customTo ?? '' };
+					}}
+					onClearAll={() => {
+						searchInput = '';
+						activeTab = 'active';
+						dateFilters = { date: '', customFrom: '', customTo: '' };
+					}}
+					placeholder="Search borrower, lender, notes…"
+					ariaLabel="Search borrowings"
+				/>
+			</div>
+			<div class="toolbar-mobile">
+				<SearchFilterPill
+					bind:value={searchInput}
+					loading={isSearching}
+					bind:open={filtersOpen}
+					activeFilterCount={activeFilterCount}
+					placeholder="Search borrower, lender, notes…"
+					ariaLabel="Search borrowings"
+					filterAriaLabel="Filter borrowings"
+				>
+					{#snippet panel(mode, close)}
+						<LendingFilters
+							status={activeTab}
+							onStatusChange={(s) => (activeTab = s)}
+							date={dateFilters.date}
+							customFrom={dateFilters.customFrom}
+							customTo={dateFilters.customTo}
+							onFilterChange={(f) => {
+								activeTab = f.status;
+								dateFilters = { date: f.date, customFrom: f.customFrom ?? '', customTo: f.customTo ?? '' };
+							}}
+							counts={counts}
+							paidLabel="Repaid"
+							{mode}
+							onApply={close}
+						/>
+					{/snippet}
+				</SearchFilterPill>
+			</div>
+		{/snippet}
+		{#snippet views()}
+			<ViewToggle
+				options={[
+					{ value: 'card', icon: 'grid', label: 'Grouped', ariaLabel: 'Card view' },
+					{ value: 'table', icon: 'table', label: 'Table', ariaLabel: 'Table view' },
+				]}
+				value={viewMode}
+				onSelect={(v) => (viewMode = v as 'card' | 'table')}
+				ariaLabel="Borrowing list view"
+				slidingThumb
+				stretch
 			/>
+		{/snippet}
+	</ListToolbar>
+
+	<!-- ═══ Invalid date range alert ═══ -->
+	{#if data.dateError}
+		<div class="date-error-banner" role="alert">
+			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+			<span>{data.dateError}</span>
 		</div>
-		<div class="toolbar-mobile">
-			<SearchFilterPill
-				bind:value={searchInput}
-				bind:open={filtersOpen}
-				activeFilterCount={activeFilterCount}
-				placeholder="Search borrower, lender, notes…"
-				ariaLabel="Search borrowings"
-				filterAriaLabel="Filter borrowings"
-			>
-				{#snippet panel(mode, close)}
-					<LendingFilters
-						status={activeTab}
-						onStatusChange={(s) => (activeTab = s)}
-						date={dateFilters.date}
-						customFrom={dateFilters.customFrom}
-						customTo={dateFilters.customTo}
-						onFilterChange={(f) => {
-							activeTab = f.status;
-							dateFilters = { date: f.date, customFrom: f.customFrom ?? '', customTo: f.customTo ?? '' };
-						}}
-						counts={counts}
-						paidLabel="Repaid"
-						{mode}
-						onApply={close}
-					/>
-				{/snippet}
-			</SearchFilterPill>
-		</div>
-	{/snippet}
-	{#snippet views()}
-		<ViewToggle
-			options={[
-				{ value: 'card', icon: 'grid', label: 'Grouped', ariaLabel: 'Card view' },
-				{ value: 'table', icon: 'table', label: 'Table', ariaLabel: 'Table view' },
-			]}
-			value={viewMode}
-			onSelect={(v) => (viewMode = v as 'card' | 'table')}
-			ariaLabel="Borrowing list view"
-			slidingThumb
-			stretch
-		/>
-	{/snippet}
-</ListToolbar>
+	{/if}
 
-<!-- ═══ Invalid date range alert ═══ -->
-{#if data.dateError}
-	<div class="date-error-banner" role="alert">
-		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-		<span>{data.dateError}</span>
-	</div>
-{/if}
-
-<!-- ═══ Bulk selection action bar (Selection Mode only) ═══ -->
-{#if selectionMode && pageIds.length > 0}
-	<div class="bulk-bar" role="toolbar" aria-label="Selected borrowings">
-		<div class="bulk-left">
-			<input
-				type="checkbox"
-				checked={allSelected}
-				use:setIndeterminate={someSelected}
-				onchange={toggleAll}
-				aria-label="Select all borrowings on this page"
-			/>
-			<span class="bulk-count">{selectedCount} selected</span>
-		</div>
-		<div class="bulk-actions">
-			<Button variant="danger" size="sm" disabled={selectedCount === 0} onclick={() => (deleteTarget = [...selectedIds])}>Delete Selected</Button>
-			<Button variant="ghost" size="sm" onclick={exitSelectionMode}>Cancel</Button>
-		</div>
-	</div>
-{/if}
-
-<ActiveIouList
-	ious={showLendings}
-	onPay={(id) => { const l = showLendings.find(l => l.id === id); if (l) recordPaymentLending = l; }}
-	onViewHistory={async (id) => {
-		const l = showLendings.find(l => l.id === id);
-		if (!l) return;
-		const res = await fetch(`/api/lendings/${id}/payments`);
-		if (res.ok) {
-			historyPayments = await res.json();
-			historyLending = l;
-			historyOpen = true;
-		}
-	}}
-	onEdit={(id) => {
-		const l = showLendings.find(l => l.id === id);
-		if (l) {
-			editingLendingHasPayments = l.resolved_total > 0;
-			openEdit(l);
-		}
-	}}
-	onDelete={(id) => deleteTarget = id}
-	onDuplicate={handleDuplicate}
-	direction="borrowed"
-	viewMode={viewMode}
-	selectionMode={selectionMode}
-	selectedIds={selectedIds}
-	onToggleSelection={toggleSelection}
-/>
-
-<!-- ═══ Pagination (ledger pager) ═══ -->
-{#if (data.total ?? 0) > 0 || data.dateError}
-	<div class="pager-container">
-		{#if (data.totalPages ?? 0) > 1 && (data.limit ?? 20) !== 0}
-			<nav class="pager" aria-label="Pagination">
-				<button
-					class="pager-btn"
-					disabled={(data.page ?? 1) === 1}
-					onclick={() => goToPage((data.page ?? 1) - 1)}
-					aria-label="Previous page"
-				>
-					<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-					<span class="pager-word">Prev</span>
-				</button>
-
-				<ol class="pager-pages">
-					{#each pageItems(data.page ?? 1, data.totalPages ?? 1) as item, i (i)}
-						{#if item === '…'}
-							<li class="pager-gap" aria-hidden="true">…</li>
-						{:else}
-							<li>
-								<button
-									class="pager-num"
-									class:current={item === (data.page ?? 1)}
-									onclick={() => goToPage(item)}
-									aria-label={`Page ${item}`}
-									aria-current={item === (data.page ?? 1) ? 'page' : undefined}
-								>{item}</button>
-							</li>
-						{/if}
-					{/each}
-				</ol>
-
-				<button
-					class="pager-btn"
-					disabled={(data.page ?? 1) === (data.totalPages ?? 1)}
-					onclick={() => goToPage((data.page ?? 1) + 1)}
-					aria-label="Next page"
-				>
-					<span class="pager-word">Next</span>
-					<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-				</button>
-			</nav>
-		{/if}
-		<div class="pager-footer">
-			<span class="pager-count">{countLabel}</span>
-			<div class="rows-per-page">
-				<label for="rows-select">Rows per page:</label>
-				<select
-					id="rows-select"
-					class="rows-select"
-					value={data.limit === 0 ? 'all' : String(data.limit ?? 20)}
-					onchange={(e) => handleLimitChange(e.currentTarget.value)}
-					aria-label="Rows per page"
-				>
-					<option value="20">20</option>
-					<option value="50">50</option>
-					<option value="100">100</option>
-					<option value="200">200</option>
-					<option value="500">500</option>
-					<option value="all">All</option>
-				</select>
+	<!-- ═══ Bulk selection action bar (Selection Mode only) ═══ -->
+	{#if selectionMode && pageIds.length > 0}
+		<div class="bulk-bar" role="toolbar" aria-label="Selected borrowings">
+			<div class="bulk-left">
+				<input
+					type="checkbox"
+					checked={allSelected}
+					use:setIndeterminate={someSelected}
+					onchange={toggleAll}
+					aria-label="Select all borrowings on this page"
+				/>
+				<span class="bulk-count">{selectedCount} selected</span>
+			</div>
+			<div class="bulk-actions">
+				<Button variant="danger" size="sm" disabled={selectedCount === 0} onclick={() => (deleteTarget = [...selectedIds])}>Delete Selected</Button>
+				<Button variant="ghost" size="sm" onclick={exitSelectionMode}>Cancel</Button>
 			</div>
 		</div>
-	</div>
-{/if}
+	{/if}
+
+	<ActiveIouList
+		ious={showLendings}
+		onPay={(id) => { const l = showLendings.find(l => l.id === id); if (l) recordPaymentLending = l; }}
+		onViewHistory={async (id) => {
+			const l = showLendings.find(l => l.id === id);
+			if (!l) return;
+			const res = await fetch(`/api/lendings/${id}/payments`);
+			if (res.ok) {
+				historyPayments = await res.json();
+				historyLending = l;
+				historyOpen = true;
+			}
+		}}
+		onEdit={(id) => {
+			const l = showLendings.find(l => l.id === id);
+			if (l) {
+				editingLendingHasPayments = l.resolved_total > 0;
+				openEdit(l);
+			}
+		}}
+		onDelete={(id) => deleteTarget = id}
+		onDuplicate={handleDuplicate}
+		direction="borrowed"
+		viewMode={viewMode}
+		selectionMode={selectionMode}
+		selectedIds={selectedIds}
+		onToggleSelection={toggleSelection}
+	>
+		{#snippet emptyState()}
+			{#if hasActiveFilters}
+				<EmptyState
+					icon="🔍"
+					title="No results"
+					description="No borrowed records match your search or filters."
+					actionLabel="Clear All Filters"
+					onAction={() => {
+						searchInput = '';
+						activeTab = 'active';
+						dateFilters = { date: '', customFrom: '', customTo: '' };
+					}}
+				/>
+			{:else}
+				<EmptyState
+					icon="💳"
+					title="No borrowed records yet"
+					description="Track money you owe to stay on top of repayments."
+					actionLabel="Record Money Borrowed"
+					onAction={openAdd}
+				/>
+			{/if}
+		{/snippet}
+	</ActiveIouList>
+
+	<!-- ═══ Pagination (ledger pager) ═══ -->
+	{#if (data.total ?? 0) > 0 || data.dateError}
+		<div class="pager-container">
+			{#if (data.totalPages ?? 0) > 1 && (data.limit ?? 20) !== 0}
+				<nav class="pager" aria-label="Pagination">
+					<button
+						class="pager-btn"
+						disabled={(data.page ?? 1) === 1}
+						onclick={() => goToPage((data.page ?? 1) - 1)}
+						aria-label="Previous page"
+					>
+						<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+						<span class="pager-word">Prev</span>
+					</button>
+
+					<ol class="pager-pages">
+						{#each pageItems(data.page ?? 1, data.totalPages ?? 1) as item, i (i)}
+							{#if item === '…'}
+								<li class="pager-gap" aria-hidden="true">…</li>
+							{:else}
+								<li>
+									<button
+										class="pager-num"
+										class:current={item === (data.page ?? 1)}
+										onclick={() => goToPage(item)}
+										aria-label={`Page ${item}`}
+										aria-current={item === (data.page ?? 1) ? 'page' : undefined}
+									>{item}</button>
+								</li>
+							{/if}
+						{/each}
+					</ol>
+
+					<button
+						class="pager-btn"
+						disabled={(data.page ?? 1) === (data.totalPages ?? 1)}
+						onclick={() => goToPage((data.page ?? 1) + 1)}
+						aria-label="Next page"
+					>
+						<span class="pager-word">Next</span>
+						<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+					</button>
+				</nav>
+			{/if}
+			<div class="pager-footer">
+				<span class="pager-count">{countLabel}</span>
+				<div class="rows-per-page">
+					<label for="rows-select">Rows per page:</label>
+					<select
+						id="rows-select"
+						class="rows-select"
+						value={data.limit === 0 ? 'all' : String(data.limit ?? 20)}
+						onchange={(e) => handleLimitChange(e.currentTarget.value)}
+						aria-label="Rows per page"
+					>
+						<option value="20">20</option>
+						<option value="50">50</option>
+						<option value="100">100</option>
+						<option value="200">200</option>
+						<option value="500">500</option>
+						<option value="all">All</option>
+					</select>
+				</div>
+			</div>
+		</div>
+	{/if}
+</div>
 
 <!-- ═══ Record Payment Modal ═══ -->
 {#if recordPaymentLending}
@@ -783,6 +823,96 @@
 	:global(.page-header) {
 		position: relative;
 		z-index: 30;
+	}
+
+	/* ─── Table Card Container ─── */
+	.table-card-wrapper {
+		position: relative;
+		background: var(--color-surface, #ffffff);
+		border: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		border-radius: var(--radius-xl, 16px);
+		overflow: hidden;
+		box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+		margin-top: var(--space-xl);
+	}
+
+	[data-theme="dark"] .table-card-wrapper {
+		background: var(--color-surface, #0f172a);
+		border-color: rgba(51, 65, 85, 0.7);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	}
+
+	.table-loading-bar {
+		position: relative;
+		height: 3px;
+		width: 100%;
+		background: var(--color-teal-bg, rgba(13, 148, 136, 0.15));
+		overflow: hidden;
+	}
+
+	.loading-bar-fill {
+		position: absolute;
+		top: 0;
+		left: 0;
+		height: 100%;
+		width: 40%;
+		background: var(--color-teal, #0d9488);
+		border-radius: var(--radius-pill, 9999px);
+		animation: loadingBarProgress 1s infinite ease-in-out;
+	}
+
+	@keyframes loadingBarProgress {
+		0% { left: -40%; width: 40%; }
+		50% { width: 60%; }
+		100% { left: 100%; width: 40%; }
+	}
+
+	.table-card-wrapper :global(.list-toolbar) {
+		margin: 0;
+		padding: var(--space-md) var(--space-lg);
+		border-bottom: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		background: var(--color-surface, #ffffff);
+	}
+
+	[data-theme="dark"] .table-card-wrapper :global(.list-toolbar) {
+		background: var(--color-surface, #0f172a);
+		border-bottom-color: rgba(51, 65, 85, 0.7);
+	}
+
+	.table-card-wrapper .bulk-bar {
+		margin: 0;
+		padding: var(--space-sm) var(--space-lg);
+		border-top: none;
+		border-left: none;
+		border-right: none;
+		border-bottom: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		border-radius: 0;
+		box-shadow: none;
+		background: var(--color-surface, #ffffff);
+	}
+
+	[data-theme="dark"] .table-card-wrapper .bulk-bar {
+		background: var(--color-surface, #0f172a);
+		border-bottom-color: rgba(51, 65, 85, 0.7);
+	}
+
+	.table-card-wrapper :global(.iou-register),
+	.table-card-wrapper :global(.iou-container) {
+		border: none !important;
+		border-radius: 0 !important;
+		box-shadow: none !important;
+	}
+
+	.table-card-wrapper .pager-container {
+		margin-top: 0;
+		border-top: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		padding: var(--space-md) var(--space-lg);
+		background: var(--color-surface, #ffffff);
+	}
+
+	[data-theme="dark"] .table-card-wrapper .pager-container {
+		background: var(--color-surface, #0f172a);
+		border-top-color: rgba(51, 65, 85, 0.7);
 	}
 
 	/* ─── Bulk selection action bar (Selection Mode only) ─── */

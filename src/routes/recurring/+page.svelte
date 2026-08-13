@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page, navigating } from '$app/stores';
 	import { browser } from '$app/environment';
 	import { goto, invalidateAll } from '$app/navigation';
 	import PageHeader from '$lib/client/components/PageHeader.svelte';
@@ -12,6 +12,7 @@
 	import ModalDialog from '$lib/client/components/ModalDialog.svelte';
 	import Button from '$lib/client/components/Button.svelte';
 	import CountChip from '$lib/client/components/CountChip.svelte';
+	import EmptyState from '$lib/client/components/EmptyState.svelte';
 	import { enhance } from '$app/forms';
 	import { untrack } from 'svelte';
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
@@ -102,7 +103,9 @@
 	// Sync the input from the URL on navigation
 	$effect(() => {
 		const urlSearch = $page.url.searchParams.get('search') ?? '';
-		if (urlSearch !== searchInput) searchInput = urlSearch;
+		untrack(() => {
+			if (urlSearch !== searchInput) searchInput = urlSearch;
+		});
 	});
 
 	// Debounce writing the typed value into the filter state
@@ -117,6 +120,11 @@
 			if (debounceTimer) clearTimeout(debounceTimer);
 		};
 	});
+
+	const isSearching = $derived(searchInput !== (filters.search || '') || !!$navigating);
+	const hasActiveFilters = $derived(
+		Boolean(filters.search || filters.type || filters.frequency || filters.status || filters.category)
+	);
 
 	// Restore category filter from URL
 	let lastHydratedCatId = '';
@@ -263,10 +271,12 @@
 	}
 
 	function resetFilters() {
+		searchInput = '';
 		stagedFilters.type = '';
 		stagedFilters.frequency = '';
 		stagedFilters.status = '';
 		stagedFilters.category = '';
+		filters.search = '';
 		filters.type = '';
 		filters.frequency = '';
 		filters.status = '';
@@ -534,197 +544,215 @@
 
 <PageBackground />
 
-<!-- Search & Filter Pill -->
-<SearchFilterPill
-	bind:value={searchInput}
-	placeholder="Search recurring transactions..."
-	bind:open={filtersOpen}
-	activeFilterCount={activeFilterCount}
->
-	{#snippet panel(mode, close)}
-		<div class="filter-sheet-content">
-			<div class="filter-section">
-				<h3 class="filter-section-title">Type</h3>
-				<div class="filter-chips">
-					<button class="filter-chip" class:active={stagedFilters.type === 'income'} onclick={() => stagedFilters.type = stagedFilters.type === 'income' ? '' : 'income'}>
-						💰 Income
-					</button>
-					<button class="filter-chip" class:active={stagedFilters.type === 'expense'} onclick={() => stagedFilters.type = stagedFilters.type === 'expense' ? '' : 'expense'}>
-						💸 Expense
-					</button>
-				</div>
-			</div>
-
-			<div class="filter-section">
-				<h3 class="filter-section-title">Frequency</h3>
-				<div class="filter-chips">
-					<button class="filter-chip" class:active={stagedFilters.frequency === 'daily'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'daily' ? '' : 'daily'}>
-						📅 Daily
-					</button>
-					<button class="filter-chip" class:active={stagedFilters.frequency === 'weekly'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'weekly' ? '' : 'weekly'}>
-						📅 Weekly
-					</button>
-					<button class="filter-chip" class:active={stagedFilters.frequency === 'monthly'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'monthly' ? '' : 'monthly'}>
-						📅 Monthly
-					</button>
-					<button class="filter-chip" class:active={stagedFilters.frequency === 'yearly'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'yearly' ? '' : 'yearly'}>
-						📅 Yearly
-					</button>
-				</div>
-			</div>
-
-			<div class="filter-section">
-				<h3 class="filter-section-title">Status</h3>
-				<div class="filter-chips">
-					<button class="filter-chip" class:active={stagedFilters.status === 'active'} onclick={() => stagedFilters.status = stagedFilters.status === 'active' ? '' : 'active'}>
-						✅ Active
-					</button>
-					<button class="filter-chip" class:active={stagedFilters.status === 'paused'} onclick={() => stagedFilters.status = stagedFilters.status === 'paused' ? '' : 'paused'}>
-						⏸️ Paused
-					</button>
-				</div>
-			</div>
-
-			<div class="filter-section">
-				<h3 class="filter-section-title">Category</h3>
-				<div class="filter-category-select">
-					<select
-						value={stagedFilters.category}
-						onchange={(e) => stagedFilters.category = (e.target as HTMLSelectElement).value}
-					>
-						<option value="">All Categories</option>
-						{#each data.categories as cat (cat.id)}
-							<option value={cat.name}>{cat.icon} {cat.name}</option>
-						{/each}
-					</select>
-				</div>
-			</div>
+<!-- ═══ Table Card Container (Integrates Toolbar as Table Header) ═══ -->
+<div class="table-card-wrapper">
+	{#if isSearching}
+		<div class="table-loading-bar" role="progressbar" aria-label="Loading data">
+			<div class="loading-bar-fill"></div>
 		</div>
-		<FilterFooter
-			canApply={canApply}
-			canClear={canClear}
-			onApply={() => { applyFilters(); close(); }}
-			onClear={resetFilters}
-			{mode}
-		/>
-	{/snippet}
-</SearchFilterPill>
+	{/if}
+	<div class="table-toolbar">
+		<!-- Search & Filter Pill -->
+		<SearchFilterPill
+			bind:value={searchInput}
+			loading={isSearching}
+			placeholder="Search recurring transactions..."
+			bind:open={filtersOpen}
+			activeFilterCount={activeFilterCount}
+		>
+			{#snippet panel(mode, close)}
+				<div class="filter-sheet-content">
+					<div class="filter-section">
+						<h3 class="filter-section-title">Type</h3>
+						<div class="filter-chips">
+							<button class="filter-chip" class:active={stagedFilters.type === 'income'} onclick={() => stagedFilters.type = stagedFilters.type === 'income' ? '' : 'income'}>
+								💰 Income
+							</button>
+							<button class="filter-chip" class:active={stagedFilters.type === 'expense'} onclick={() => stagedFilters.type = stagedFilters.type === 'expense' ? '' : 'expense'}>
+								💸 Expense
+							</button>
+						</div>
+					</div>
 
-<!-- ═══ Bulk selection action bar (Selection Mode only) ═══ -->
-{#if selectionMode && pageIds.length > 0}
-	<div class="bulk-bar" role="toolbar" aria-label="Selected recurring transactions">
-		<div class="bulk-left">
-			<input
-				type="checkbox"
-				checked={allSelected}
-				use:setIndeterminate={someSelected}
-				onchange={toggleAll}
-				aria-label="Select all recurring transactions on this page"
-			/>
-			<span class="bulk-count">{selectedCount} selected</span>
-		</div>
-		<div class="bulk-actions">
-			<Button variant="danger" size="sm" disabled={selectedCount === 0} onclick={() => (deleteTarget = [...selectedIds])}>Delete Selected</Button>
-			<Button variant="ghost" size="sm" onclick={exitSelectionMode}>Cancel</Button>
-		</div>
+					<div class="filter-section">
+						<h3 class="filter-section-title">Frequency</h3>
+						<div class="filter-chips">
+							<button class="filter-chip" class:active={stagedFilters.frequency === 'daily'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'daily' ? '' : 'daily'}>
+								📅 Daily
+							</button>
+							<button class="filter-chip" class:active={stagedFilters.frequency === 'weekly'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'weekly' ? '' : 'weekly'}>
+								📅 Weekly
+							</button>
+							<button class="filter-chip" class:active={stagedFilters.frequency === 'monthly'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'monthly' ? '' : 'monthly'}>
+								📅 Monthly
+							</button>
+							<button class="filter-chip" class:active={stagedFilters.frequency === 'yearly'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'yearly' ? '' : 'yearly'}>
+								📅 Yearly
+							</button>
+						</div>
+					</div>
+
+					<div class="filter-section">
+						<h3 class="filter-section-title">Status</h3>
+						<div class="filter-chips">
+							<button class="filter-chip" class:active={stagedFilters.status === 'active'} onclick={() => stagedFilters.status = stagedFilters.status === 'active' ? '' : 'active'}>
+								✅ Active
+							</button>
+							<button class="filter-chip" class:active={stagedFilters.status === 'paused'} onclick={() => stagedFilters.status = stagedFilters.status === 'paused' ? '' : 'paused'}>
+								⏸️ Paused
+							</button>
+						</div>
+					</div>
+
+					<div class="filter-section">
+						<h3 class="filter-section-title">Category</h3>
+						<div class="filter-category-select">
+							<select
+								value={stagedFilters.category}
+								onchange={(e) => stagedFilters.category = (e.target as HTMLSelectElement).value}
+							>
+								<option value="">All Categories</option>
+								{#each data.categories as cat (cat.id)}
+									<option value={cat.name}>{cat.icon} {cat.name}</option>
+								{/each}
+							</select>
+						</div>
+					</div>
+				</div>
+				<FilterFooter
+					canApply={canApply}
+					canClear={canClear}
+					onApply={() => { applyFilters(); close(); }}
+					onClear={resetFilters}
+					{mode}
+				/>
+			{/snippet}
+		</SearchFilterPill>
 	</div>
-{/if}
 
-<!-- Recurring List -->
-<div class="recurring-page-content">
-	<RecurringList
-		recurring={data.recurring ?? []}
-		onDelete={(id) => deleteTarget = id}
-		onEdit={openEdit}
-		onDuplicate={handleDuplicate}
-		onRunNow={handleRunNow}
-		onPause={handlePause}
-		onResume={handleResume}
-		loading={false}
-		selectionMode={selectionMode}
-		selectedIds={selectedIds}
-		onToggleSelection={toggleSelection}
-	>
-		{#snippet emptyState()}
-			<div class="rr-empty">
-				<div class="rr-empty-icon">
-					<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>
-					</svg>
-				</div>
-				<p class="rr-empty-title">No recurring transactions yet</p>
-				<p class="rr-empty-sub">Add your first recurring transaction to automate your finances</p>
-				<button class="rr-empty-btn" onclick={openAdd} type="button">Add Recurring Transaction</button>
+	<!-- ═══ Bulk selection action bar (Selection Mode only) ═══ -->
+	{#if selectionMode && pageIds.length > 0}
+		<div class="bulk-bar" role="toolbar" aria-label="Selected recurring transactions">
+			<div class="bulk-left">
+				<input
+					type="checkbox"
+					checked={allSelected}
+					use:setIndeterminate={someSelected}
+					onchange={toggleAll}
+					aria-label="Select all recurring transactions on this page"
+				/>
+				<span class="bulk-count">{selectedCount} selected</span>
 			</div>
-		{/snippet}
-	</RecurringList>
-
-	<!-- Pagination -->
-	{#if (data.total ?? 0) > 0}
-		<div class="pager-container">
-			{#if (data.totalPages ?? 0) > 1 && (data.limit ?? 20) !== 0}
-				<nav class="pager" aria-label="Pagination">
-					<button
-						class="pager-btn"
-						disabled={(data.page ?? 1) === 1}
-						onclick={() => goToPage((data.page ?? 1) - 1)}
-						aria-label="Previous page"
-					>
-						<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-						<span class="pager-word">Prev</span>
-					</button>
-
-					<ol class="pager-pages">
-						{#each pageItems(data.page ?? 1, data.totalPages ?? 1) as item, i (i)}
-							{#if item === '…'}
-								<li class="pager-gap" aria-hidden="true">…</li>
-							{:else}
-								<li>
-									<button
-										class="pager-num"
-										class:current={item === (data.page ?? 1)}
-										onclick={() => goToPage(item)}
-										aria-label={`Page ${item}`}
-										aria-current={item === (data.page ?? 1) ? 'page' : undefined}
-									>{item}</button>
-								</li>
-							{/if}
-						{/each}
-					</ol>
-
-					<button
-						class="pager-btn"
-						disabled={(data.page ?? 1) === (data.totalPages ?? 1)}
-						onclick={() => goToPage((data.page ?? 1) + 1)}
-						aria-label="Next page"
-					>
-						<span class="pager-word">Next</span>
-						<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-					</button>
-				</nav>
-			{/if}
-			<div class="pager-footer">
-				<span class="pager-count">{countLabel}</span>
-				<div class="rows-per-page">
-					<label for="rows-select">Rows per page:</label>
-					<select
-						id="rows-select"
-						class="rows-select"
-						value={data.limit === 0 ? 'all' : String(data.limit ?? 20)}
-						onchange={(e) => handleLimitChange(e.currentTarget.value)}
-						aria-label="Rows per page"
-					>
-						<option value="20">20</option>
-						<option value="50">50</option>
-						<option value="100">100</option>
-						<option value="200">200</option>
-						<option value="500">500</option>
-						<option value="all">All</option>
-					</select>
-				</div>
+			<div class="bulk-actions">
+				<Button variant="danger" size="sm" disabled={selectedCount === 0} onclick={() => (deleteTarget = [...selectedIds])}>Delete Selected</Button>
+				<Button variant="ghost" size="sm" onclick={exitSelectionMode}>Cancel</Button>
 			</div>
 		</div>
 	{/if}
+
+	<!-- Recurring List -->
+	<div class="recurring-page-content">
+		<RecurringList
+			recurring={data.recurring ?? []}
+			onDelete={(id) => deleteTarget = id}
+			onEdit={openEdit}
+			onDuplicate={handleDuplicate}
+			onRunNow={handleRunNow}
+			onPause={handlePause}
+			onResume={handleResume}
+			loading={false}
+			selectionMode={selectionMode}
+			selectedIds={selectedIds}
+			onToggleSelection={toggleSelection}
+		>
+			{#snippet emptyState()}
+				{#if hasActiveFilters}
+					<EmptyState
+						icon="🔍"
+						title="No results"
+						description="No recurring transactions match your search or filters."
+						actionLabel="Clear All Filters"
+						onAction={resetFilters}
+					/>
+				{:else}
+					<EmptyState
+						icon="🔄"
+						title="No recurring transactions yet"
+						description="Add your first recurring transaction to automate your finances."
+						actionLabel="Add Recurring Transaction"
+						onAction={openAdd}
+					/>
+				{/if}
+			{/snippet}
+		</RecurringList>
+
+		<!-- Pagination -->
+		{#if (data.total ?? 0) > 0}
+			<div class="pager-container">
+				{#if (data.totalPages ?? 0) > 1 && (data.limit ?? 20) !== 0}
+					<nav class="pager" aria-label="Pagination">
+						<button
+							class="pager-btn"
+							disabled={(data.page ?? 1) === 1}
+							onclick={() => goToPage((data.page ?? 1) - 1)}
+							aria-label="Previous page"
+						>
+							<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+							<span class="pager-word">Prev</span>
+						</button>
+
+						<ol class="pager-pages">
+							{#each pageItems(data.page ?? 1, data.totalPages ?? 1) as item, i (i)}
+								{#if item === '…'}
+									<li class="pager-gap" aria-hidden="true">…</li>
+								{:else}
+									<li>
+										<button
+											class="pager-num"
+											class:current={item === (data.page ?? 1)}
+											onclick={() => goToPage(item)}
+											aria-label={`Page ${item}`}
+											aria-current={item === (data.page ?? 1) ? 'page' : undefined}
+										>{item}</button>
+									</li>
+								{/if}
+							{/each}
+						</ol>
+
+						<button
+							class="pager-btn"
+							disabled={(data.page ?? 1) === (data.totalPages ?? 1)}
+							onclick={() => goToPage((data.page ?? 1) + 1)}
+							aria-label="Next page"
+						>
+							<span class="pager-word">Next</span>
+							<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+						</button>
+					</nav>
+				{/if}
+				<div class="pager-footer">
+					<span class="pager-count">{countLabel}</span>
+					<div class="rows-per-page">
+						<label for="rows-select">Rows per page:</label>
+						<select
+							id="rows-select"
+							class="rows-select"
+							value={data.limit === 0 ? 'all' : String(data.limit ?? 20)}
+							onchange={(e) => handleLimitChange(e.currentTarget.value)}
+							aria-label="Rows per page"
+						>
+							<option value="20">20</option>
+							<option value="50">50</option>
+							<option value="100">100</option>
+							<option value="200">200</option>
+							<option value="500">500</option>
+							<option value="all">All</option>
+						</select>
+					</div>
+				</div>
+			</div>
+		{/if}
+	</div>
 </div>
 
 <!-- Add/Edit Panel -->
@@ -803,6 +831,101 @@
 	:global(.page-header) {
 		position: relative;
 		z-index: 30;
+	}
+
+	/* ─── Table Card Container (Integrates Toolbar as Table Header) ─── */
+	.table-card-wrapper {
+		position: relative;
+		background: var(--color-surface, #ffffff);
+		border: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		border-radius: var(--radius-xl, 16px);
+		overflow: hidden;
+		box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+		margin-top: var(--space-xl);
+	}
+
+	[data-theme="dark"] .table-card-wrapper {
+		background: var(--color-surface, #0f172a);
+		border-color: rgba(51, 65, 85, 0.7);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	}
+
+	.table-loading-bar {
+		position: relative;
+		height: 3px;
+		width: 100%;
+		background: var(--color-teal-bg, rgba(13, 148, 136, 0.15));
+		overflow: hidden;
+	}
+
+	.loading-bar-fill {
+		position: absolute;
+		top: 0;
+		left: 0;
+		height: 100%;
+		width: 40%;
+		background: var(--color-teal, #0d9488);
+		border-radius: var(--radius-pill, 9999px);
+		animation: loadingBarProgress 1s infinite ease-in-out;
+	}
+
+	@keyframes loadingBarProgress {
+		0% { left: -40%; width: 40%; }
+		50% { width: 60%; }
+		100% { left: 100%; width: 40%; }
+	}
+
+	.table-toolbar {
+		padding: var(--space-md) var(--space-lg);
+		border-bottom: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		background: var(--color-surface, #ffffff);
+	}
+
+	[data-theme="dark"] .table-toolbar {
+		background: var(--color-surface, #0f172a);
+		border-bottom-color: rgba(51, 65, 85, 0.7);
+	}
+
+	.table-card-wrapper .bulk-bar {
+		margin: 0;
+		padding: var(--space-sm) var(--space-lg);
+		border-top: none;
+		border-left: none;
+		border-right: none;
+		border-bottom: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		border-radius: 0;
+		box-shadow: none;
+		background: var(--color-surface, #ffffff);
+	}
+
+	[data-theme="dark"] .table-card-wrapper .bulk-bar {
+		background: var(--color-surface, #0f172a);
+		border-bottom-color: rgba(51, 65, 85, 0.7);
+	}
+
+	.table-card-wrapper :global(.recurring-table),
+	.table-card-wrapper :global(.recurring-header),
+	.table-card-wrapper :global(.recurring-row),
+	.table-card-wrapper :global(.recurring-list),
+	.table-card-wrapper :global(.rr-register) {
+		border-radius: 0 !important;
+		box-shadow: none !important;
+	}
+
+	.table-card-wrapper :global(.recurring-table) {
+		border: none !important;
+	}
+
+	.table-card-wrapper .pager-container {
+		margin-top: 0;
+		border-top: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		padding: var(--space-md) var(--space-lg);
+		background: var(--color-surface, #ffffff);
+	}
+
+	[data-theme="dark"] .table-card-wrapper .pager-container {
+		background: var(--color-surface, #0f172a);
+		border-top-color: rgba(51, 65, 85, 0.7);
 	}
 
 	/* ─── Bulk selection action bar (Selection Mode only) ─── */
@@ -994,7 +1117,7 @@
 	.recurring-page-content {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-xl);
+		gap: 0;
 	}
 
 	/* ─── Pagination (Pager Container & Footer) ─── */

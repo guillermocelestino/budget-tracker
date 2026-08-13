@@ -18,6 +18,7 @@
 		activeFilters = { date: '', category: '', type: '', customFrom: '', customTo: '' },
 		onFilterChange,
 		onClearAll,
+		loading = false,
 	}: {
 		value?: string;
 		placeholder?: string;
@@ -26,6 +27,7 @@
 		activeFilters?: { date: string; category: string; type: string; customFrom?: string; customTo?: string };
 		onFilterChange?: (filters: { date: string; category: string; type: string; customFrom?: string; customTo?: string }) => void;
 		onClearAll?: () => void;
+		loading?: boolean;
 	} = $props();
 
 	// ─── State (single open segment — opening one closes the others) ──
@@ -244,10 +246,16 @@
 <div class="filter-dock" role="group" aria-label="Search and filter transactions">
 	<!-- Search region -->
 	<div class="dock-search">
-		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-			<circle cx="11" cy="11" r="8"/>
-			<line x1="21" y1="21" x2="16.65" y2="16.65"/>
-		</svg>
+		{#if loading}
+			<svg class="search-spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-label="Searching">
+				<path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+			</svg>
+		{:else}
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<circle cx="11" cy="11" r="8"/>
+				<line x1="21" y1="21" x2="16.65" y2="16.65"/>
+			</svg>
+		{/if}
 		<input
 			type="search"
 			{placeholder}
@@ -505,5 +513,15 @@
 		.chip-chevron {
 			transition: none;
 		}
+	}
+	.search-spinner {
+		animation: searchSpin 600ms linear infinite;
+		color: var(--color-teal, #0d9488);
+		flex-shrink: 0;
+	}
+
+	@keyframes searchSpin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
 	}
 </style>

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { page } from '$app/stores';
+	import { page, navigating } from '$app/stores';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import PageHeader from '$lib/client/components/PageHeader.svelte';
@@ -127,6 +127,8 @@
 			if (debounceTimer) clearTimeout(debounceTimer);
 		};
 	});
+
+	const isSearching = $derived(searchInput !== (filters.search || '') || !!$navigating);
 
 	let lastHydratedCatId = '';
 	$effect(() => {
@@ -509,11 +511,17 @@
 	/>
 
 	<div class="table-card-wrapper">
+		{#if isSearching}
+			<div class="table-loading-bar" role="progressbar" aria-label="Loading data">
+				<div class="loading-bar-fill"></div>
+			</div>
+		{/if}
 		<div class="txn-toolbar">
 			<div class="toolbar-left">
 				<div class="toolbar-desktop">
 					<TransactionFilterToolbar
 						bind:value={searchInput}
+						loading={isSearching}
 						categories={data.categories ?? []}
 						activeFilters={{
 							date: filters.date,
@@ -602,73 +610,73 @@
 				{/if}
 			{/snippet}
 		</TransactionList>
-	</div>
 
-	{#if (data.total ?? 0) > 0 || data.dateError}
-		<div class="pager-container">
-			{#if (data.totalPages ?? 0) > 1 && (data.limit ?? 20) !== 0}
-				<nav class="pager" aria-label="Pagination">
-					<button
-						class="pager-btn"
-						disabled={(data.page ?? 1) === 1}
-						onclick={() => goToPage((data.page ?? 1) - 1)}
-						aria-label="Previous page"
-					>
-						<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-						<span class="pager-word">Prev</span>
-					</button>
+		{#if (data.total ?? 0) > 0 || data.dateError}
+			<div class="pager-container">
+				{#if (data.totalPages ?? 0) > 1 && (data.limit ?? 20) !== 0}
+					<nav class="pager" aria-label="Pagination">
+						<button
+							class="pager-btn"
+							disabled={(data.page ?? 1) === 1}
+							onclick={() => goToPage((data.page ?? 1) - 1)}
+							aria-label="Previous page"
+						>
+							<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+							<span class="pager-word">Prev</span>
+						</button>
 
-					<ol class="pager-pages">
-						{#each pageItems(data.page ?? 1, data.totalPages ?? 1) as item, i (i)}
-							{#if item === '…'}
-								<li class="pager-gap" aria-hidden="true">…</li>
-							{:else}
-								<li>
-									<button
-										class="pager-num"
-										class:current={item === (data.page ?? 1)}
-										onclick={() => goToPage(item)}
-										aria-label={`Page ${item}`}
-										aria-current={item === (data.page ?? 1) ? 'page' : undefined}
-									>{item}</button>
-								</li>
-							{/if}
-						{/each}
-					</ol>
+						<ol class="pager-pages">
+							{#each pageItems(data.page ?? 1, data.totalPages ?? 1) as item, i (i)}
+								{#if item === '…'}
+									<li class="pager-gap" aria-hidden="true">…</li>
+								{:else}
+									<li>
+										<button
+											class="pager-num"
+											class:current={item === (data.page ?? 1)}
+											onclick={() => goToPage(item)}
+											aria-label={`Page ${item}`}
+											aria-current={item === (data.page ?? 1) ? 'page' : undefined}
+										>{item}</button>
+									</li>
+								{/if}
+							{/each}
+						</ol>
 
-					<button
-						class="pager-btn"
-						disabled={(data.page ?? 1) === (data.totalPages ?? 1)}
-						onclick={() => goToPage((data.page ?? 1) + 1)}
-						aria-label="Next page"
-					>
-						<span class="pager-word">Next</span>
-						<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-					</button>
-				</nav>
-			{/if}
-			<div class="pager-footer">
-				<span class="pager-count">{countLabel}</span>
-				<div class="rows-per-page">
-					<label for="rows-select">Rows per page:</label>
-					<select
-						id="rows-select"
-						class="rows-select"
-						value={data.limit === 0 ? 'all' : String(data.limit ?? 20)}
-						onchange={(e) => handleLimitChange(e.currentTarget.value)}
-						aria-label="Rows per page"
-					>
-						<option value="20">20</option>
-						<option value="50">50</option>
-						<option value="100">100</option>
-						<option value="200">200</option>
-						<option value="500">500</option>
-						<option value="all">All</option>
-					</select>
+						<button
+							class="pager-btn"
+							disabled={(data.page ?? 1) === (data.totalPages ?? 1)}
+							onclick={() => goToPage((data.page ?? 1) + 1)}
+							aria-label="Next page"
+						>
+							<span class="pager-word">Next</span>
+							<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+						</button>
+					</nav>
+				{/if}
+				<div class="pager-footer">
+					<span class="pager-count">{countLabel}</span>
+					<div class="rows-per-page">
+						<label for="rows-select">Rows per page:</label>
+						<select
+							id="rows-select"
+							class="rows-select"
+							value={data.limit === 0 ? 'all' : String(data.limit ?? 20)}
+							onchange={(e) => handleLimitChange(e.currentTarget.value)}
+							aria-label="Rows per page"
+						>
+							<option value="20">20</option>
+							<option value="50">50</option>
+							<option value="100">100</option>
+							<option value="200">200</option>
+							<option value="500">500</option>
+							<option value="all">All</option>
+						</select>
+					</div>
 				</div>
 			</div>
-		</div>
-	{/if}
+		{/if}
+	</div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -704,6 +712,7 @@
 		<section class="mobile-section">
 			<SearchFilterPill
 				bind:value={searchInput}
+				loading={isSearching}
 				bind:open={mobileFiltersOpen}
 				{activeFilterCount}
 				placeholder="Search transactions"
@@ -972,6 +981,7 @@
 
 	/* ─── Table Card Container (Integrates Toolbar as Table Header) ─── */
 	.table-card-wrapper {
+		position: relative;
 		background: var(--color-surface, #ffffff);
 		border: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
 		border-radius: var(--radius-xl, 16px);
@@ -983,6 +993,31 @@
 		background: var(--color-surface, #0f172a);
 		border-color: rgba(51, 65, 85, 0.7);
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	}
+
+	.table-loading-bar {
+		position: relative;
+		height: 3px;
+		width: 100%;
+		background: var(--color-teal-bg, rgba(13, 148, 136, 0.15));
+		overflow: hidden;
+	}
+
+	.loading-bar-fill {
+		position: absolute;
+		top: 0;
+		left: 0;
+		height: 100%;
+		width: 40%;
+		background: var(--color-teal, #0d9488);
+		border-radius: var(--radius-pill, 9999px);
+		animation: loadingBarProgress 1s infinite ease-in-out;
+	}
+
+	@keyframes loadingBarProgress {
+		0% { left: -40%; width: 40%; }
+		50% { width: 60%; }
+		100% { left: 100%; width: 40%; }
 	}
 
 	/* ─── Desktop Toolbar (Single Row Layout: Left Filters | Right ViewToggle) ─── */
@@ -1129,6 +1164,18 @@
 	}
 
 	/* ─── Desktop Pagination (Single Row Pager Track + Footer) ─── */
+	.table-card-wrapper .pager-container {
+		margin-top: 0;
+		border-top: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		padding: var(--space-md) var(--space-lg);
+		background: var(--color-surface, #ffffff);
+	}
+
+	[data-theme="dark"] .table-card-wrapper .pager-container {
+		background: var(--color-surface, #0f172a);
+		border-top-color: rgba(51, 65, 85, 0.7);
+	}
+
 	.pager-container {
 		display: flex;
 		flex-direction: column;
