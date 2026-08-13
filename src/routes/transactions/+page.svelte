@@ -508,99 +508,101 @@
 		onCardClick={handleCardClick}
 	/>
 
-	<div class="txn-toolbar">
-		<div class="toolbar-left">
-			<div class="toolbar-desktop">
-				<TransactionFilterToolbar
-					bind:value={searchInput}
-					categories={data.categories ?? []}
-					activeFilters={{
-						date: filters.date,
-						category: filters.category,
-						type: filters.type,
-						customFrom: filters.customFrom,
-						customTo: filters.customTo,
-					}}
-					onFilterChange={handleFilterChange}
-					onClearAll={clearAllFilters}
-					placeholder="Search transactions"
-					ariaLabel="Search transactions"
-				/>
+	<div class="table-card-wrapper">
+		<div class="txn-toolbar">
+			<div class="toolbar-left">
+				<div class="toolbar-desktop">
+					<TransactionFilterToolbar
+						bind:value={searchInput}
+						categories={data.categories ?? []}
+						activeFilters={{
+							date: filters.date,
+							category: filters.category,
+							type: filters.type,
+							customFrom: filters.customFrom,
+							customTo: filters.customTo,
+						}}
+						onFilterChange={handleFilterChange}
+						onClearAll={clearAllFilters}
+						placeholder="Search transactions"
+						ariaLabel="Search transactions"
+					/>
+				</div>
+			</div>
+			<div class="toolbar-right">
+				<ViewToggle {showFlatView} onChange={(flat) => showFlatView = flat} stretch />
 			</div>
 		</div>
-		<div class="toolbar-right">
-			<ViewToggle {showFlatView} onChange={(flat) => showFlatView = flat} stretch />
-		</div>
+
+		{#if data.dateError}
+			<div class="date-error-banner" role="alert">
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+				<span>{data.dateError}</span>
+			</div>
+		{/if}
+
+		{#if selectionMode && pageIds.length > 0}
+			<div class="bulk-bar" role="toolbar" aria-label="Selected transactions">
+				<div class="bulk-left">
+					<input
+						type="checkbox"
+						checked={allSelected}
+						use:setIndeterminate={someSelected}
+						onchange={toggleAll}
+						aria-label="Select all transactions on this page"
+					/>
+					<span class="bulk-count">{selectedCount} selected</span>
+				</div>
+				<div class="bulk-actions">
+					<Button variant="ghost" size="sm" disabled={selectedCount === 0} onclick={() => handleExport('csv', [...selectedIds])}>Export CSV</Button>
+					<Button variant="ghost" size="sm" disabled={selectedCount === 0} onclick={() => handleExport('pdf', [...selectedIds])}>Export PDF</Button>
+					<Button variant="danger" size="sm" disabled={selectedCount === 0} onclick={() => (deleteTarget = [...selectedIds])}>Delete Selected</Button>
+					<Button variant="ghost" size="sm" onclick={exitSelectionMode}>Cancel</Button>
+				</div>
+			</div>
+		{/if}
+
+		<TransactionList
+			transactions={data.transactions ?? []}
+			allTransactionsForBalance={data.allForBalance ?? []}
+			categories={data.categories ?? []}
+			showRunningBalance={true}
+			{showFlatView}
+			{selectionMode}
+			{selectedIds}
+			onToggleSelection={toggleSelection}
+			onEdit={(id) => {
+				const found = (data.transactions ?? []).find(t => t.id === id);
+				if (found) openEditForm(found); else goto(`/transactions/${id}/edit`);
+			}}
+			onDelete={(id) => (deleteTarget = id)}
+			onDuplicate={handleDuplicate}
+			onMakeRecurring={openMakeRecurring}
+		>
+			{#snippet emptyState()}
+				{#if hasActiveFilters}
+					<EmptyState
+						icon="🔍"
+						title="No results"
+						description="No transactions match your search or filters."
+						actionLabel="Clear All Filters"
+						onAction={clearAllFilters}
+					/>
+				{:else}
+					<EmptyState
+						icon="💰"
+						title="No transactions yet"
+						description="Start by adding your first transaction or importing a CSV."
+						actionLabel="Add Transaction"
+						actionHref="/transactions/new"
+						onAction={openAddForm}
+						secondaryLabel="Import"
+						onSecondaryAction={() => (importWizardOpen = true)}
+					/>
+				{/if}
+			{/snippet}
+		</TransactionList>
 	</div>
-
-	{#if data.dateError}
-		<div class="date-error-banner" role="alert">
-			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-			<span>{data.dateError}</span>
-		</div>
-	{/if}
-
-	{#if selectionMode && pageIds.length > 0}
-		<div class="bulk-bar" role="toolbar" aria-label="Selected transactions">
-			<div class="bulk-left">
-				<input
-					type="checkbox"
-					checked={allSelected}
-					use:setIndeterminate={someSelected}
-					onchange={toggleAll}
-					aria-label="Select all transactions on this page"
-				/>
-				<span class="bulk-count">{selectedCount} selected</span>
-			</div>
-			<div class="bulk-actions">
-				<Button variant="ghost" size="sm" disabled={selectedCount === 0} onclick={() => handleExport('csv', [...selectedIds])}>Export CSV</Button>
-				<Button variant="ghost" size="sm" disabled={selectedCount === 0} onclick={() => handleExport('pdf', [...selectedIds])}>Export PDF</Button>
-				<Button variant="danger" size="sm" disabled={selectedCount === 0} onclick={() => (deleteTarget = [...selectedIds])}>Delete Selected</Button>
-				<Button variant="ghost" size="sm" onclick={exitSelectionMode}>Cancel</Button>
-			</div>
-		</div>
-	{/if}
-
-	<TransactionList
-		transactions={data.transactions ?? []}
-		allTransactionsForBalance={data.allForBalance ?? []}
-		categories={data.categories ?? []}
-		showRunningBalance={true}
-		{showFlatView}
-		{selectionMode}
-		{selectedIds}
-		onToggleSelection={toggleSelection}
-		onEdit={(id) => {
-			const found = (data.transactions ?? []).find(t => t.id === id);
-			if (found) openEditForm(found); else goto(`/transactions/${id}/edit`);
-		}}
-		onDelete={(id) => (deleteTarget = id)}
-		onDuplicate={handleDuplicate}
-		onMakeRecurring={openMakeRecurring}
-	>
-		{#snippet emptyState()}
-			{#if hasActiveFilters}
-				<EmptyState
-					icon="🔍"
-					title="No results"
-					description="No transactions match your search or filters."
-					actionLabel="Clear All Filters"
-					onAction={clearAllFilters}
-				/>
-			{:else}
-				<EmptyState
-					icon="💰"
-					title="No transactions yet"
-					description="Start by adding your first transaction or importing a CSV."
-					actionLabel="Add Transaction"
-					actionHref="/transactions/new"
-					onAction={openAddForm}
-					secondaryLabel="Import"
-					onSecondaryAction={() => (importWizardOpen = true)}
-				/>
-			{/if}
-		{/snippet}
-	</TransactionList>
 
 	{#if (data.total ?? 0) > 0 || data.dateError}
 		<div class="pager-container">
@@ -968,13 +970,43 @@
 		display: none;
 	}
 
+	/* ─── Table Card Container (Integrates Toolbar as Table Header) ─── */
+	.table-card-wrapper {
+		background: var(--color-surface, #ffffff);
+		border: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		border-radius: var(--radius-xl, 16px);
+		overflow: hidden;
+		box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+	}
+
+	[data-theme="dark"] .table-card-wrapper {
+		background: var(--color-surface, #0f172a);
+		border-color: rgba(51, 65, 85, 0.7);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	}
+
 	/* ─── Desktop Toolbar (Single Row Layout: Left Filters | Right ViewToggle) ─── */
 	.txn-toolbar {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: var(--space-md);
-		margin-bottom: var(--space-md);
+		padding: var(--space-md) var(--space-lg);
+		border-bottom: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		background: var(--color-surface, #ffffff);
+		margin-bottom: 0;
+	}
+
+	[data-theme="dark"] .txn-toolbar {
+		background: var(--color-surface, #0f172a);
+		border-bottom-color: rgba(51, 65, 85, 0.7);
+	}
+
+	:global(.table-card-wrapper .flat-register),
+	:global(.table-card-wrapper .grouped-list) {
+		border: none !important;
+		border-radius: 0 !important;
+		box-shadow: none !important;
 	}
 
 	.toolbar-left {

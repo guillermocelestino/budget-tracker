@@ -86,6 +86,59 @@
     return noDataText ? { text: noDataText } : undefined;
   }
 
+  // ─── Sparkline series generation ─────────
+
+  const incomeSparkline = $derived.by(() => {
+    const incomeTxns = transactions.filter((t) => t.type === 'income');
+    if (incomeTxns.length < 2) return [];
+    const sorted = [...incomeTxns].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const numPoints = Math.min(10, sorted.length);
+    const chunkSize = Math.max(1, Math.floor(sorted.length / numPoints));
+    const points: number[] = [];
+    let running = 0;
+    for (let i = 0; i < sorted.length; i++) {
+      running += sorted[i].amount;
+      if (i % chunkSize === 0 || i === sorted.length - 1) {
+        points.push(running);
+      }
+    }
+    return points;
+  });
+
+  const expenseSparkline = $derived.by(() => {
+    const expenseTxns = transactions.filter((t) => t.type === 'expense');
+    if (expenseTxns.length < 2) return [];
+    const sorted = [...expenseTxns].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const numPoints = Math.min(10, sorted.length);
+    const chunkSize = Math.max(1, Math.floor(sorted.length / numPoints));
+    const points: number[] = [];
+    let running = 0;
+    for (let i = 0; i < sorted.length; i++) {
+      running += sorted[i].amount;
+      if (i % chunkSize === 0 || i === sorted.length - 1) {
+        points.push(running);
+      }
+    }
+    return points;
+  });
+
+  const netSparkline = $derived.by(() => {
+    if (transactions.length < 2) return [];
+    const sorted = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const numPoints = Math.min(10, sorted.length);
+    const chunkSize = Math.max(1, Math.floor(sorted.length / numPoints));
+    const points: number[] = [];
+    let runningNet = 0;
+    for (let i = 0; i < sorted.length; i++) {
+      const t = sorted[i];
+      runningNet += t.type === 'income' ? t.amount : -t.amount;
+      if (i % chunkSize === 0 || i === sorted.length - 1) {
+        points.push(runningNet);
+      }
+    }
+    return points;
+  });
+
   function handleCardClick(type: string) {
     // If clicking the already-active card, deactivate (clear filter)
     onCardClick?.(activeType === type ? '' : type);
@@ -124,6 +177,7 @@
     onclick={() => handleCardClick('income')}
     ariaPressed={activeType === 'income'}
     trend={buildTrend(incomeTrend, false, totalIncome > 0)}
+    sparklineData={incomeSparkline}
   />
   <SummaryCard
     label="Expenses"
@@ -135,6 +189,7 @@
     onclick={() => handleCardClick('expense')}
     ariaPressed={activeType === 'expense'}
     trend={buildTrend(expenseTrend, true, totalExpenses > 0)}
+    sparklineData={expenseSparkline}
   />
   <SummaryCard
     label="Net Balance"
@@ -148,6 +203,7 @@
     onclick={() => handleCardClick('net')}
     ariaPressed={activeType === 'net'}
     trend={buildTrend(netTrend, false, transactions.length > 0, 'No transactions')}
+    sparklineData={netSparkline}
   />
 </div>
 
