@@ -1033,6 +1033,101 @@
 		gap: var(--space-md);
 	}
 
+	/* ─── Bulk selection action bar (Selection Mode only) ─── */
+	.bulk-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: var(--space-sm);
+		padding: var(--space-sm) var(--space-md);
+		margin-top: var(--space-md);
+		margin-bottom: var(--space-md);
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-xl);
+		box-shadow: var(--shadow-sm);
+		animation: bulkIn 200ms var(--ease) both;
+	}
+
+	.table-card-wrapper .bulk-bar {
+		margin: 0;
+		padding: var(--space-sm) var(--space-lg);
+		border-top: none;
+		border-left: none;
+		border-right: none;
+		border-bottom: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		border-radius: 0;
+		box-shadow: none;
+		background: var(--color-surface, #ffffff);
+	}
+
+	[data-theme="dark"] .table-card-wrapper .bulk-bar {
+		background: var(--color-surface, #0f172a);
+		border-bottom-color: rgba(51, 65, 85, 0.7);
+	}
+
+	.bulk-left {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		min-height: 44px;
+	}
+
+	.bulk-left input[type='checkbox'] {
+		width: 18px;
+		height: 18px;
+		margin: 0;
+		accent-color: var(--color-teal);
+		cursor: pointer;
+	}
+
+	.bulk-count {
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
+		color: var(--color-teal);
+		letter-spacing: 0.02em;
+	}
+
+	.bulk-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-xs);
+		flex-wrap: wrap;
+	}
+
+	.bulk-bar :global(.btn) {
+		min-height: 44px;
+	}
+
+	@keyframes bulkIn {
+		from {
+			opacity: 0;
+			transform: translateY(-6px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	@media (max-width: 768px) {
+		.bulk-bar {
+			align-items: stretch;
+			flex-direction: column;
+			gap: var(--space-sm);
+		}
+
+		.bulk-actions {
+			display: grid;
+			grid-template-columns: repeat(2, 1fr);
+			gap: var(--space-xs);
+			width: 100%;
+		}
+	}
+
 	/* ─── Desktop Pagination (Single Row Pager Track + Footer) ─── */
 	.pager-container {
 		display: flex;

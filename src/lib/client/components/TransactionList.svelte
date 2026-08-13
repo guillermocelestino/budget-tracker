@@ -55,6 +55,11 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
   let inlineEditValue = $state('');
   let menuTxn = $state<Transaction | null>(null);
   let menuAnchor = $state<HTMLElement | null>(null); // kebab el → anchors desktop popover
+  let dateSortOrder = $state<'desc' | 'asc'>('desc');
+
+  function toggleDateSort() {
+    dateSortOrder = dateSortOrder === 'desc' ? 'asc' : 'desc';
+  }
 
   // Cleanup: when selection mode becomes active, drop any in-progress edit/swipe
   // state. Internal reset only — never touched again throughout the mode.
@@ -156,13 +161,18 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
       });
     }
 
-    // Keep the prop's display order (newest first) but attach balance fields and
-    // normalize dates to strings so grouping keys never see a Postgres Date.
-    return transactions.map(txn => ({
+    // Attach balance fields and sort according to dateSortOrder
+    const list = transactions.map(txn => ({
       ...txn,
       date: dateToString(txn.date) ?? txn.date,
       ...balanceMap.get(txn.id)!,
     }));
+
+    return list.sort((a, b) => {
+      const cmp = a.date.localeCompare(b.date);
+      if (cmp !== 0) return dateSortOrder === 'desc' ? -cmp : cmp;
+      return dateSortOrder === 'desc' ? b.id - a.id : a.id - b.id;
+    });
   });
 
   type DateGroup = { date: string; label: string; items: (Transaction & { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean })[]; subtotal: number };
@@ -174,7 +184,9 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(txn);
     }
-    const sorted = [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+    const sorted = [...map.entries()].sort((a, b) => {
+      return dateSortOrder === 'desc' ? b[0].localeCompare(a[0]) : a[0].localeCompare(b[0]);
+    });
 
     const today = getToday();
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
@@ -590,7 +602,35 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
         {/if}
         <span class="fh-circle" aria-hidden="true"></span>
         <span class="fh-desc">Description</span>
-        <span class="fh-date">Date</span>
+        <span class="fh-date">
+          <button
+            type="button"
+            class="fh-date-btn"
+            onclick={toggleDateSort}
+            aria-label={`Sort by date (${dateSortOrder === 'desc' ? 'newest first' : 'oldest first'})`}
+            title={`Sort by date (${dateSortOrder === 'desc' ? 'newest first' : 'oldest first'})`}
+          >
+            <span>Date</span>
+            <svg
+              class="sort-icon"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              {#if dateSortOrder === 'desc'}
+                <path d="M12 5v14M19 12l-7 7-7-7" />
+              {:else}
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              {/if}
+            </svg>
+          </button>
+        </span>
         {#if showRunningBalance}
           <span class="fh-balance">Balance</span>
         {/if}
@@ -670,6 +710,38 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
 
   .fh-desc { flex: 1; min-width: 0; }
   .fh-date { min-width: 76px; text-align: left; flex-shrink: 0; }
+  .fh-date-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    border-radius: var(--radius-sm, 4px);
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .fh-date-btn:hover {
+    background: var(--color-surface-hover, rgba(0, 0, 0, 0.05));
+    color: var(--color-teal, #0d9488);
+  }
+  [data-theme="dark"] .fh-date-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-teal, #14b8a6);
+  }
+  .fh-date-btn:focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: 1px;
+  }
+  .sort-icon {
+    flex-shrink: 0;
+    color: var(--color-teal, #0d9488);
+  }
   .fh-balance { min-width: 90px; text-align: right; flex-shrink: 0; }
   .fh-amount { min-width: 90px; text-align: right; flex-shrink: 0; }
 

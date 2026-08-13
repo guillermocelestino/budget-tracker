@@ -12,6 +12,7 @@
 		icon: _icon,
 		active = false,
 		dimmed = false,
+		href,
 		onclick,
 		ariaPressed,
 		trend,
@@ -25,6 +26,7 @@
 		icon?: Snippet;
 		active?: boolean;
 		dimmed?: boolean;
+		href?: string;
 		onclick?: () => void;
 		ariaPressed?: boolean;
 		trend?: Trend;
@@ -155,7 +157,17 @@
 	</div>
 {/snippet}
 
-{#if onclick}
+{#if href}
+	<a
+		{href}
+		class="card image-style-card {className}"
+		class:active
+		class:dimmed
+		class:negative={isOut}
+	>
+		{@render cardInner()}
+	</a>
+{:else if onclick}
 	<button
 		type="button"
 		class="card image-style-card {className}"
@@ -191,18 +203,30 @@
 		box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
 		transition: all 200ms ease;
 		-webkit-tap-highlight-color: transparent;
+		text-decoration: none !important;
+		color: inherit;
 	}
 
-	[data-theme="dark"] .card {
-		background: var(--color-surface, #0f172a);
+	:global([data-theme="dark"]) .card {
+		background: var(--color-surface, #161a18);
 		border-color: rgba(51, 65, 85, 0.7);
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+	}
+
+	.card:hover,
+	.card:hover * {
+		text-decoration: none !important;
 	}
 
 	.card:hover {
 		border-color: rgba(148, 163, 184, 0.8);
 		box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06);
 		transform: translateY(-2px);
+	}
+
+	:global([data-theme="dark"]) .card:hover {
+		border-color: rgba(255, 255, 255, 0.25);
+		box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
 	}
 
 	.card:active {
@@ -245,6 +269,14 @@
 		color: #dc2626;
 	}
 
+	:global([data-theme="dark"]) .icon-in {
+		color: #4ade80;
+	}
+
+	:global([data-theme="dark"]) .icon-out {
+		color: #f87171;
+	}
+
 	.card-label {
 		font-size: 14px;
 		font-weight: 500;
@@ -252,7 +284,7 @@
 		letter-spacing: -0.01em;
 	}
 
-	[data-theme="dark"] .card-label {
+	:global([data-theme="dark"]) .card-label {
 		color: #94a3b8;
 	}
 
@@ -280,12 +312,17 @@
 		color: #b91c1c;
 	}
 
-	[data-theme="dark"] .card-trend-pill.positive {
+	:global([data-theme="dark"]) .card-trend-pill {
+		background: rgba(255, 255, 255, 0.08);
+		color: #94a3b8;
+	}
+
+	:global([data-theme="dark"]) .card-trend-pill.positive {
 		background: rgba(34, 197, 94, 0.18);
 		color: #4ade80;
 	}
 
-	[data-theme="dark"] .card-trend-pill.negative {
+	:global([data-theme="dark"]) .card-trend-pill.negative {
 		background: rgba(244, 63, 94, 0.18);
 		color: #fb7185;
 	}
@@ -313,11 +350,11 @@
 		color: #dc2626;
 	}
 
-	[data-theme="dark"] .arrow-in {
+	:global([data-theme="dark"]) .arrow-in {
 		color: #4ade80;
 	}
 
-	[data-theme="dark"] .arrow-out {
+	:global([data-theme="dark"]) .arrow-out {
 		color: #f87171;
 	}
 
@@ -345,15 +382,15 @@
 		color: #7f1d1d;
 	}
 
-	[data-theme="dark"] .card-amount {
+	:global([data-theme="dark"]) .card-amount {
 		color: #f8fafc;
 	}
 
-	[data-theme="dark"] .amount-in {
+	:global([data-theme="dark"]) .amount-in {
 		color: #4ade80;
 	}
 
-	[data-theme="dark"] .amount-out {
+	:global([data-theme="dark"]) .amount-out {
 		color: #f87171;
 	}
 
@@ -379,6 +416,12 @@
 	.card.active {
 		border-color: #0d9488;
 		box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.25), 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+	}
+
+	:global([data-theme="dark"]) .card.active {
+		border-color: #2ba8a2;
+		background: rgba(43, 168, 162, 0.12);
+		box-shadow: 0 0 0 2px rgba(43, 168, 162, 0.35), 0 4px 16px rgba(0, 0, 0, 0.4);
 	}
 
 	.card.dimmed {
