@@ -123,7 +123,9 @@
 	$effect(() => {
 		const urlSearch = $page.url.searchParams.get('search') ?? '';
 		untrack(() => {
-			if (urlSearch !== searchInput) searchInput = urlSearch;
+			if (searchTerm === searchInput && urlSearch !== searchInput) {
+				searchInput = urlSearch;
+			}
 		});
 	});
 

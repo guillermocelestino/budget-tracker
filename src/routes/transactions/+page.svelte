@@ -19,6 +19,7 @@
 	import ModalDialog from '$lib/client/components/ModalDialog.svelte';
 	import SlideOver from '$lib/client/components/SlideOver.svelte';
 	import TransactionForm from '$lib/client/components/TransactionForm.svelte';
+	import TransactionImpactFlash from '$lib/client/components/TransactionImpactFlash.svelte';
 	import RecurringForm from '$lib/client/components/RecurringForm.svelte';
 	import ImportWizard from '$lib/client/components/ImportWizard.svelte';
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
@@ -35,7 +36,7 @@
 		type ImportValidationResult,
 		DEFAULT_IMPORT_FIELDS,
 	} from '$lib/shared/utils/importValidation';
-	import type { Category, Transaction, RecurringFormInitial } from '$lib/types';
+	import type { Category, Transaction, RecurringFormInitial, TransactionType } from '$lib/types';
 
 	let data = $derived($page.data as App.PageData);
 	let deleteTarget = $state<number | number[] | null>(null);
@@ -45,6 +46,7 @@
 
 	let isFormOpen = $state(false);
 	let editingTransaction = $state<Transaction | null>(null);
+	let impactData = $state<{ type: TransactionType; amount: number; categoryName: string } | null>(null);
 
 	const spendingMap = $derived.by(() => {
 		const map: Record<number, number> = {};
@@ -112,7 +114,9 @@
 	$effect(() => {
 		const urlSearch = $page.url.searchParams.get('search') ?? '';
 		untrack(() => {
-			if (urlSearch !== searchInput) searchInput = urlSearch;
+			if (filters.search === searchInput && urlSearch !== searchInput) {
+				searchInput = urlSearch;
+			}
 		});
 	});
 
@@ -490,10 +494,6 @@
 		{/snippet}
 		{#snippet action()}
 			<span class="header-actions desktop-only">
-				<Button variant="primary" href="/transactions/new" onclick={(e) => { e.preventDefault(); openAddForm(); }}>
-					<span class="btn-lead" aria-hidden="true">+</span>
-					Add Transaction
-				</Button>
 				<OverflowMenu
 					onImportCsv={() => (importWizardOpen = true)}
 					onExportCsv={() => handleExport('csv')}
@@ -677,6 +677,21 @@
 			</div>
 		{/if}
 	</div>
+
+	<!-- Sticky Right-Side Floating Action Button (Desktop) -->
+	<button
+		type="button"
+		class="desktop-fab-add"
+		onclick={openAddForm}
+		aria-label="Add transaction"
+		title="Add transaction"
+	>
+		<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+			<line x1="12" y1="5" x2="12" y2="19"/>
+			<line x1="5" y1="12" x2="19" y2="12"/>
+		</svg>
+		<span class="fab-tooltip" role="tooltip">Add transaction</span>
+	</button>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -910,9 +925,25 @@
 			spendingMap={spendingMap}
 			categoryTxnCounts={categoryTxnCounts}
 			onCancel={closeForm}
-			onSuccess={() => { closeForm(); invalidateAll(); }}
+			onSuccess={(payload) => {
+				const isEdit = !!editingTransaction;
+				closeForm();
+				invalidateAll();
+				if (!isEdit && payload && payload.amount > 0) {
+					impactData = payload;
+				}
+			}}
 		/>
 	</SlideOver>
+{/if}
+
+{#if impactData}
+	<TransactionImpactFlash
+		type={impactData.type}
+		amount={impactData.amount}
+		categoryName={impactData.categoryName}
+		onComplete={() => (impactData = null)}
+	/>
 {/if}
 
 {#if makeRecurringTxn}
@@ -1346,6 +1377,82 @@
 		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
 		letter-spacing: 0.02em;
+	}
+
+	/* ─── Sticky Right-Side Floating Action Button (Desktop) ─── */
+	.desktop-fab-add {
+		position: fixed;
+		right: 16px;
+		top: 50%;
+		transform: translateY(-50%);
+		z-index: var(--z-sidebar, 90);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 56px;
+		height: 56px;
+		border-radius: var(--radius-full, 9999px);
+		background: var(--color-gold, #FFD23F);
+		color: var(--color-on-gold, #14302E);
+		border: 1px solid rgba(255, 255, 255, 0.4);
+		box-shadow: 0 4px 20px rgba(255, 210, 63, 0.45), 0 2px 8px rgba(20, 48, 46, 0.12);
+		cursor: pointer;
+		outline: none;
+		transition: transform 200ms var(--ease), box-shadow 200ms var(--ease), background 200ms var(--ease);
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.desktop-fab-add:hover {
+		background: var(--color-gold-light, #FFE47A);
+		box-shadow: 0 8px 28px rgba(255, 210, 63, 0.60), 0 4px 12px rgba(20, 48, 46, 0.16);
+		transform: translateY(-50%) scale(1.08);
+	}
+
+	.desktop-fab-add:active {
+		transform: translateY(-50%) scale(0.95);
+		box-shadow: 0 2px 10px rgba(255, 210, 63, 0.35);
+	}
+
+	.desktop-fab-add:focus-visible {
+		outline: 3px solid var(--color-teal, #2BA8A2);
+		outline-offset: 3px;
+	}
+
+	.fab-tooltip {
+		position: absolute;
+		right: calc(100% + 12px);
+		top: 50%;
+		transform: translateY(-50%) translateX(6px);
+		background: var(--color-ink, #14302E);
+		color: var(--color-ink-inverse, #ffffff);
+		font-family: var(--font-body);
+		font-size: var(--font-size-xs, 0.75rem);
+		font-weight: 600;
+		padding: 6px 12px;
+		border-radius: var(--radius-md, 8px);
+		white-space: nowrap;
+		pointer-events: none;
+		opacity: 0;
+		visibility: hidden;
+		transition: opacity 180ms var(--ease), transform 180ms var(--ease), visibility 180ms var(--ease);
+		box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+	}
+
+	.desktop-fab-add:hover .fab-tooltip,
+	.desktop-fab-add:focus-visible .fab-tooltip {
+		opacity: 1;
+		visibility: visible;
+		transform: translateY(-50%) translateX(0);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.desktop-fab-add,
+		.fab-tooltip {
+			transition: none;
+		}
+		.desktop-fab-add:hover {
+			transform: translateY(-50%);
+		}
 	}
 
 	@media (max-width: 768px) {

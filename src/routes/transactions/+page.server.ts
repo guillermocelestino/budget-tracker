@@ -45,7 +45,7 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 
 	const filters = {
 		type: type && ['income', 'expense'].includes(type) ? (type as 'income' | 'expense') : undefined,
-		category_id: category_id ? parseInt(category_id, 10) : undefined,
+		category_id: category_id && !isNaN(parseInt(category_id, 10)) ? parseInt(category_id, 10) : undefined,
 		date_from: date_from || undefined,
 		date_to: date_to || undefined,
 		search: search || undefined
