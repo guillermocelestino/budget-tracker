@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import PageHeader from '$lib/client/components/PageHeader.svelte';
 	import PageBackground from '$lib/client/components/PageBackground.svelte';
 	import CommandCenterKpiStrip from '$lib/client/components/CommandCenterKpiStrip.svelte';
 	import HeroBalanceWidget from '$lib/client/components/HeroBalanceWidget.svelte';

@@ -6,12 +6,10 @@
   import Button from '$lib/client/components/Button.svelte';
   import CategoryList from '$lib/client/components/CategoryList.svelte';
   import type { EnrichedCategory } from '$lib/client/components/CategoryList.svelte';
-  import CategoryForm from '$lib/client/components/CategoryForm.svelte';
   import CategoryModal from '$lib/client/components/CategoryModal.svelte';
   import ModalDialog from '$lib/client/components/ModalDialog.svelte';
   import PageBackground from '$lib/client/components/PageBackground.svelte';
   import MonthPicker from '$lib/client/components/MonthPicker.svelte';
-  import SlideOver from '$lib/client/components/SlideOver.svelte';
   import SearchFilterPill from '$lib/client/components/SearchFilterPill.svelte';
   import ViewToggle from '$lib/client/components/ViewToggle.svelte';
   import { showSuccess, showError } from '$lib/client/stores/toast.svelte';

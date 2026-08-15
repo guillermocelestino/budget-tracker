@@ -55,6 +55,21 @@ declare global {
 			year?: string;
 			month?: string;
 			netWorth?: NetWorthSnapshot;
+			moneyGoneStats?: {
+				wreckedToday: number;
+				wreckedThisMonth: number;
+				outflowVelocity: number;
+				daysElapsed: number;
+				largestOutflow: { amount: number; description?: string; category_name?: string } | null;
+			};
+			moneyCommittedStats?: {
+				totalCommitted: number;
+				next7Days: number;
+				next30Days: number;
+				debtOwed: number;
+				borrowedActiveCount: number;
+			};
+			borrowedLendings?: LendingWithPayments[];
 			yoyData?: {
 				prevYearMonth: string;
 				currentMonth: { income: number; expense: number; balance: number };
@@ -68,6 +83,8 @@ declare global {
 					ytdExpenseChange: number;
 				};
 			};
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			[key: string]: any;
 		}
 	}
 }

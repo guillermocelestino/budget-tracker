@@ -8,7 +8,7 @@
 
 	let {
 		lending,
-		direction = 'lent',
+		direction: _direction = 'lent',
 		onclose,
 	}: {
 		lending: LendingWithPayments;
@@ -25,9 +25,6 @@
 	let modalRef = $state<HTMLElement | null>(null);
 
 	const inputAmount = $derived(rawAmount ? parseFloat(rawAmount) || 0 : 0);
-	const validAmount = $derived(inputAmount > 0 && inputAmount <= lending.remaining ? inputAmount : 0);
-	const remainingAfter = $derived(lending.remaining - validAmount);
-	const totalPaid = $derived(lending.cash_paid + validAmount);
 	const recoveryPct = $derived(
 		lending.amount > 0 ? Math.min((lending.cash_paid / lending.amount) * 100, 100) : 0
 	);
@@ -36,8 +33,11 @@
 	const canSubmit = $derived(inputAmount > 0 && inputAmount <= lending.remaining && !!paymentDate);
 
 	const statusLabel = $derived.by(() => {
-		if (lending.status === 'settled' || lending.remaining <= 0) return 'Settled';
-		if (lending.status === 'overdue') return 'Overdue';
+		if (lending.derived_status === 'paid' || lending.remaining <= 0) return 'Settled';
+		if (lending.due_date) {
+			const diff = Math.ceil((new Date(lending.due_date).getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24));
+			if (diff < 0) return 'Overdue';
+		}
 		return 'Active';
 	});
 

@@ -286,10 +286,10 @@
 								<button
 									type="button"
 									class="freq-pill"
-									class:active={frequency === 'biweekly'}
-									onclick={() => (frequency = 'biweekly')}
+									class:active={frequency === 'daily'}
+									onclick={() => (frequency = 'daily')}
 								>
-									Biweekly
+									Daily
 								</button>
 								<button
 									type="button"

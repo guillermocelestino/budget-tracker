@@ -4,7 +4,6 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import PageBackground from '$lib/client/components/PageBackground.svelte';
 	import MoneyCommittedModal from '$lib/client/components/MoneyCommittedModal.svelte';
-	import RecurringForm from '$lib/client/components/RecurringForm.svelte';
 	import RecurringList from '$lib/client/components/RecurringList.svelte';
 	import OverflowMenu from '$lib/client/components/OverflowMenu.svelte';
 	import SearchFilterPill from '$lib/client/components/SearchFilterPill.svelte';
@@ -19,11 +18,9 @@
 	import type { RecurringTransaction } from '$lib/types';
 
 	let data = $derived($page.data as App.PageData);
-	let activeCount = $derived(data.activeCount ?? 0);
 	let deleteTarget = $state<number | number[] | null>(null);
 	let showAddPanel = $state(false);
 	let modalMode = $state<'scheduled' | 'debt'>('scheduled');
-	let editingRecurring = $state<RecurringTransaction | null>(null);
 	let panelEl = $state<HTMLDivElement | null>(null);
 	let addBtnEl = $state<HTMLElement | null>(null);
 	let filtersOpen = $state(false);
@@ -287,18 +284,16 @@
 	}
 
 	function openAdd() {
-		editingRecurring = null;
 		showAddPanel = true;
 	}
 
-	function openEdit(recurring: RecurringTransaction) {
-		editingRecurring = recurring;
+	function openEdit(_recurring: RecurringTransaction) {
+		modalMode = 'scheduled';
 		showAddPanel = true;
 	}
 
 	function closePanel() {
 		showAddPanel = false;
-		editingRecurring = null;
 	}
 
 	// Accessible dialog: move focus in, trap Tab, close on Escape, restore focus on close.
@@ -442,49 +437,6 @@
 
 	// Slide panel form submission via fetch to the API
 	// (avoids needing SvelteKit form actions on the main listing page)
-	async function handleFormSubmit(formData: FormData): Promise<boolean> {
-		try {
-			const id = formData.get('id');
-			const isEdit = id && id !== '';
-			const url = isEdit ? `/api/recurring/${id}` : '/api/recurring';
-			const method = isEdit ? 'PUT' : 'POST';
-
-			// Build JSON body from form data
-			const body: Record<string, unknown> = {
-				type: formData.get('type'),
-				amount: parseFloat(formData.get('amount') as string),
-				description: formData.get('description'),
-				category_id: parseInt(formData.get('category_id') as string),
-				frequency: formData.get('frequency'),
-				interval: parseInt(formData.get('interval') as string) || 1,
-				day_of_week: null,
-				day_of_month: null,
-				month_of_year: null,
-				start_date: formData.get('start_date'),
-				end_date: formData.get('end_date') || null,
-				active: formData.get('active') === 'on',
-			};
-
-			const res = await fetch(url, {
-				method,
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(body),
-			});
-			const result = await res.json();
-
-			if (result.success) {
-				await invalidateAll();
-				return true;
-			} else {
-				showError(result.error || 'Failed to save');
-				return false;
-			}
-		} catch {
-			showError('Failed to save');
-			return false;
-		}
-	}
-
 	function buildFilterQs(): string {
 		const params = new URLSearchParams();
 		if (filters.type) params.set('type', filters.type);
@@ -1127,12 +1079,6 @@
 		margin-top: var(--space-xl);
 	}
 
-	[data-theme="dark"] .table-card-wrapper {
-		background: var(--color-surface, #0f172a);
-		border-color: rgba(51, 65, 85, 0.7);
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-	}
-
 	.table-loading-bar {
 		position: relative;
 		height: 3px;
@@ -1164,11 +1110,6 @@
 		background: var(--color-surface, #ffffff);
 	}
 
-	[data-theme="dark"] .table-toolbar {
-		background: var(--color-surface, #0f172a);
-		border-bottom-color: rgba(51, 65, 85, 0.7);
-	}
-
 	.table-card-wrapper .bulk-bar {
 		margin: 0;
 		padding: var(--space-sm) var(--space-lg);
@@ -1179,11 +1120,6 @@
 		border-radius: 0;
 		box-shadow: none;
 		background: var(--color-surface, #ffffff);
-	}
-
-	[data-theme="dark"] .table-card-wrapper .bulk-bar {
-		background: var(--color-surface, #0f172a);
-		border-bottom-color: rgba(51, 65, 85, 0.7);
 	}
 
 	.table-card-wrapper :global(.recurring-table),
@@ -1204,11 +1140,6 @@
 		border-top: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
 		padding: var(--space-md) var(--space-lg);
 		background: var(--color-surface, #ffffff);
-	}
-
-	[data-theme="dark"] .table-card-wrapper .pager-container {
-		background: var(--color-surface, #0f172a);
-		border-top-color: rgba(51, 65, 85, 0.7);
 	}
 
 	/* ─── Bulk selection action bar (Selection Mode only) ─── */
@@ -1306,95 +1237,7 @@
 		box-shadow: 0 0 0 2px rgba(79, 157, 136, 0.35);
 	}
 
-	.rr-empty-btn:focus-visible {
-		outline: 2px solid var(--teal-deep);
-		outline-offset: 2px;
-	}
 
-	.modal-actions {
-		display: flex;
-		gap: var(--space-sm);
-		margin-top: var(--space-md);
-	}
-
-	.modal-actions :global(.btn) {
-		flex: 1;
-	}
-
-	/* ── Empty state — mint circle icon + mint pill create button ── */
-	.rr-empty {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		padding: var(--space-2xl) var(--space-lg);
-		text-align: center;
-		background: var(--color-surface);
-		border: 1px solid var(--line);
-		border-radius: 22px;
-		box-shadow: 0 8px 28px rgba(79, 157, 136, 0.10);
-		gap: 8px;
-	}
-
-	.rr-empty-icon {
-		width: 88px;
-		height: 88px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: 50%;
-		background: var(--mint-tint);
-		color: var(--teal-deep);
-		margin-bottom: 4px;
-	}
-
-	.rr-empty-title {
-		font-family: var(--font-display);
-		font-size: var(--font-size-lg);
-		font-weight: 700;
-		color: var(--ink);
-		margin: 0;
-	}
-
-	.rr-empty-sub {
-		font-size: var(--font-size-sm);
-		color: var(--muted);
-		margin: 0 0 4px;
-		max-width: 300px;
-		line-height: 1.5;
-	}
-
-	/* Teal CTA — a gold header Add coexists on this page, so the empty-state
-	   CTA stays teal (rule: gold only when it is the sole create affordance). */
-	.rr-empty-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		min-height: 44px;
-		padding: 0 var(--space-xl);
-		border: none;
-		border-radius: var(--radius-pill);
-		background: var(--teal);
-		color: var(--color-surface);
-		font-family: var(--font-display);
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		cursor: pointer;
-		transition: background 140ms ease-out, box-shadow 140ms ease-out;
-		-webkit-tap-highlight-color: transparent;
-	}
-
-	.rr-empty-btn:hover {
-		background: var(--teal-deep);
-		box-shadow: 0 4px 16px rgba(79, 157, 136, 0.22);
-	}
-
-	/* ── Header actions ── */
-	.header-actions {
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
-	}
 
 	/* ── Page content ── */
 	.recurring-page-content {
@@ -1576,85 +1419,7 @@
 		letter-spacing: 0.02em;
 	}
 
-	/* ── Slide panel ── */
-	.panel-overlay {
-		position: fixed;
-		inset: 0;
-		background: rgba(20, 48, 46, 0.40);
-		backdrop-filter: blur(4px);
-		-webkit-backdrop-filter: blur(4px);
-		z-index: 95;
-		animation: overlayIn 200ms ease;
-		border: none;
-		padding: 0;
-		cursor: pointer;
-	}
 
-	.slide-panel {
-		position: fixed;
-		top: 0;
-		right: 0;
-		width: 100%;
-		max-width: 520px;
-		height: 100vh;
-		height: 100dvh;
-		background: var(--color-surface);
-		border-left: 1px solid var(--color-hairline);
-		box-shadow: var(--shadow-lg);
-		z-index: 96;
-		display: flex;
-		flex-direction: column;
-		animation: slideIn 300ms var(--bounce);
-		overflow: hidden;
-	}
-
-	@keyframes slideIn {
-		from { transform: translateX(100%); }
-		to { transform: translateX(0); }
-	}
-
-	.panel-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: var(--space-md) var(--space-lg);
-		border-bottom: 1px solid var(--color-hairline);
-		flex-shrink: 0;
-	}
-
-	.panel-title {
-		font-family: var(--font-display);
-		font-size: var(--font-size-lg);
-		font-weight: 700;
-		color: var(--color-text);
-		margin: 0;
-	}
-
-	.panel-close {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 40px;
-		height: 40px;
-		border: none;
-		background: transparent;
-		color: var(--color-text-muted);
-		border-radius: var(--radius-md);
-		cursor: pointer;
-		transition: all 150ms var(--ease);
-		-webkit-tap-highlight-color: transparent;
-	}
-
-	.panel-close:hover {
-		background: var(--color-bg);
-		color: var(--color-teal);
-	}
-
-	.panel-content {
-		flex: 1;
-		overflow-y: auto;
-		padding: var(--space-lg);
-	}
 
 	/* ── Filter sheet ──
 	   No internal max-height/scroll here: the popover/sheet host scrolls the
@@ -1740,21 +1505,8 @@
 	}
 
 	@media (max-width: 480px) {
-		.header-actions {
-			flex-direction: column;
-			width: 100%;
-		}
-
 		:global(.header-actions .btn) {
 			width: 100%;
-		}
-
-		.slide-panel {
-			max-width: 100%;
-		}
-
-		.panel-content {
-			padding: var(--space-md);
 		}
 	}
 

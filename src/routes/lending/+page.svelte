@@ -5,7 +5,6 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import SlideOver from '$lib/client/components/SlideOver.svelte';
 	import PageBackground from '$lib/client/components/PageBackground.svelte';
-	import LendingForm from '$lib/client/components/LendingForm.svelte';
 	import SendMoneyAwayModal from '$lib/client/components/SendMoneyAwayModal.svelte';
 	import ModalDialog from '$lib/client/components/ModalDialog.svelte';
 	import ActiveIouList from '$lib/client/components/ActiveIouList.svelte';
@@ -45,7 +44,6 @@
 	let editPaymentLending = $state<LendingWithPayments | null>(null);
 	let editPayment = $state<LendingPayment | null>(null);
 	let deletePayment = $state<LendingPayment | null>(null);
-	let editingLendingHasPayments = $state(false);
 	let filtersOpen = $state(false);
 	let importWizardOpen = $state(false);
 
@@ -609,7 +607,6 @@
 		onEdit={(id) => {
 			const l = showLendings.find(l => l.id === id);
 			if (l) {
-				editingLendingHasPayments = l.resolved_total > 0;
 				openEdit(l);
 			}
 		}}

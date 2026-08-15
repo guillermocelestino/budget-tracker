@@ -10,14 +10,15 @@ const CURRENCY_MAP: Record<string, { locale: string; symbol: string }> = {
 	JPY: { locale: 'ja-JP', symbol: '¥' },
 };
 
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number | null | undefined): string {
+	const val = amount == null || isNaN(amount) ? 0 : amount;
 	const code = (typeof prefs !== 'undefined' ? prefs.currency : 'PHP') || 'PHP';
 	const cfg = CURRENCY_MAP[code] ?? CURRENCY_MAP.PHP;
-	const formatted = Math.abs(amount).toLocaleString(cfg.locale, {
+	const formatted = Math.abs(val).toLocaleString(cfg.locale, {
 		minimumFractionDigits: 2,
 		maximumFractionDigits: 2,
 	});
-	return amount < 0 ? `-${cfg.symbol}${formatted}` : `${cfg.symbol}${formatted}`;
+	return val < 0 ? `-${cfg.symbol}${formatted}` : `${cfg.symbol}${formatted}`;
 }
 
 /**
@@ -25,8 +26,9 @@ export function formatCurrency(amount: number): string {
  * U+2212 MINUS "−" for outflows. Used for the mono, tabular-nums money
  * figures across list pages (rule 2).
  */
-export function formatSignedCurrency(amount: number): string {
-	return (amount >= 0 ? '+' : '−') + formatCurrency(Math.abs(amount));
+export function formatSignedCurrency(amount: number | null | undefined): string {
+	const val = amount == null || isNaN(amount) ? 0 : amount;
+	return (val >= 0 ? '+' : '−') + formatCurrency(Math.abs(val));
 }
 
 /**

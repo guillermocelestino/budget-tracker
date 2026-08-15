@@ -4,7 +4,7 @@
   import '$lib/client/utils/chart';
   import { Line } from 'svelte-chartjs';
   import { formatCurrency } from '$lib/client/utils/format';
-  import type { ChartData, ChartOptions } from 'chart.js';
+  import type { ChartOptions } from 'chart.js';
   import PageBackground from '$lib/client/components/PageBackground.svelte';
   import NetWorthHero from '$lib/client/components/NetWorthHero.svelte';
   import type { NetWorthSnapshot } from '$lib/types';

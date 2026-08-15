@@ -14,7 +14,6 @@
 	import ViewToggle from '$lib/client/components/ViewToggle.svelte';
 	import ModalDialog from '$lib/client/components/ModalDialog.svelte';
 	import SlideOver from '$lib/client/components/SlideOver.svelte';
-	import TransactionForm from '$lib/client/components/TransactionForm.svelte';
 	import RecordMoneyModal from '$lib/client/components/RecordMoneyModal.svelte';
 	import TransactionImpactFlash from '$lib/client/components/TransactionImpactFlash.svelte';
 	import RecurringForm from '$lib/client/components/RecurringForm.svelte';
@@ -44,26 +43,6 @@
 	let isFormOpen = $state(false);
 	let editingTransaction = $state<Transaction | null>(null);
 	let impactData = $state<{ type: TransactionType; amount: number; categoryName: string } | null>(null);
-
-	const spendingMap = $derived.by(() => {
-		const map: Record<number, number> = {};
-		const txns = data.allForBalance ?? data.transactions ?? [];
-		for (const t of txns) {
-			if (!map[t.category_id]) map[t.category_id] = 0;
-			map[t.category_id] += Number(t.amount);
-		}
-		return map;
-	});
-
-	const categoryTxnCounts = $derived.by(() => {
-		const map: Record<number, number> = {};
-		const txns = data.allForBalance ?? data.transactions ?? [];
-		for (const t of txns) {
-			if (!map[t.category_id]) map[t.category_id] = 0;
-			map[t.category_id] += 1;
-		}
-		return map;
-	});
 
 	function openAddForm() {
 		editingTransaction = null;
@@ -105,7 +84,7 @@
 		search: $page.url.searchParams.get('search') || '',
 	});
 
-	let searchInput = $state(filters.search);
+	let searchInput = $state($page.url.searchParams.get('search') || '');
 	let mobileFiltersOpen = $state(false);
 
 	$effect(() => {
@@ -207,7 +186,6 @@
 		}
 	}
 
-	const totalCount = $derived(data.total ?? 0);
 	const activeFilterCount = $derived([filters.type, filters.category, filters.date].filter(Boolean).length);
 	const hasActiveFilters = $derived(filters.type || filters.category || filters.date || filters.search);
 
@@ -1189,12 +1167,6 @@
 		box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
 	}
 
-	[data-theme="dark"] .table-card-wrapper {
-		background: var(--color-surface, #0f172a);
-		border-color: rgba(51, 65, 85, 0.7);
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-	}
-
 	.table-loading-bar {
 		position: relative;
 		height: 3px;
@@ -1230,11 +1202,6 @@
 		border-bottom: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
 		background: var(--color-surface, #ffffff);
 		margin-bottom: 0;
-	}
-
-	[data-theme="dark"] .txn-toolbar {
-		background: var(--color-surface, #0f172a);
-		border-bottom-color: rgba(51, 65, 85, 0.7);
 	}
 
 	:global(.table-card-wrapper .flat-register),
@@ -1295,11 +1262,6 @@
 		border-radius: 0;
 		box-shadow: none;
 		background: var(--color-surface, #ffffff);
-	}
-
-	[data-theme="dark"] .table-card-wrapper .bulk-bar {
-		background: var(--color-surface, #0f172a);
-		border-bottom-color: rgba(51, 65, 85, 0.7);
 	}
 
 	.bulk-left {
@@ -1369,11 +1331,6 @@
 		border-top: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
 		padding: var(--space-md) var(--space-lg);
 		background: var(--color-surface, #ffffff);
-	}
-
-	[data-theme="dark"] .table-card-wrapper .pager-container {
-		background: var(--color-surface, #0f172a);
-		border-top-color: rgba(51, 65, 85, 0.7);
 	}
 
 	.pager-container {

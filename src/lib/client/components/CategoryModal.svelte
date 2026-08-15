@@ -2,7 +2,6 @@
 	import { enhance } from '$app/forms';
 	import { tick, untrack } from 'svelte';
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
-	import { formatWithCommas } from '$lib/shared/utils/format';
 	import type { Category } from '$lib/types';
 
 	let {

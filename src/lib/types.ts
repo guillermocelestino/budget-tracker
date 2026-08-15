@@ -113,6 +113,7 @@ export interface LendingWithPayments extends Lending {
 	derived_status: 'active' | 'paid';
 	/** Actual settlement date (final payment date) when fully paid, else null. */
 	settlement_date: string | null;
+	payments?: LendingPayment[];
 }
 
 export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -190,6 +191,8 @@ export interface LegDelta {
 }
 
 export interface NetWorthSnapshot {
+	/** liquid cash in register */
+	cash?: number;
 	/** total net = cash + lent − borrowed */
 	net: number;
 	/** individual legs */
