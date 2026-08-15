@@ -948,16 +948,18 @@
 		color: var(--color-text-muted);
 	}
 
-	.hero-amount-section input {
+	.hero-amount-section input,
+	.hero-amount-section input[type="text"],
+	.hero-amount-section #amount {
 		border: none !important;
 		background: transparent !important;
-		font-family: var(--font-display);
-		font-size: 36px;
+		font-family: var(--font-display) !important;
+		font-size: 36px !important;
 		font-weight: 800;
 		color: var(--color-text);
 		width: 100%;
 		text-align: left;
-		padding: 0;
+		padding: 0 !important;
 		min-height: 48px;
 		box-shadow: none !important;
 	}
