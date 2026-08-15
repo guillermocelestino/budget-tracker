@@ -70,6 +70,20 @@
 	let hoveredNodeId = $state<string | null>(null);
 	let selectedNode = $state<NodeDetailData | null>(null);
 
+	// Modality Filter State
+	type ModalityFilter = 'all' | 'gone' | 'away' | 'committed' | 'returning' | 'net';
+	let activeFilter = $state<ModalityFilter>('all');
+
+	function isNodeFilteredOut(nodeType: string): boolean {
+		if (activeFilter === 'all') return false;
+		if (activeFilter === 'gone') return nodeType !== 'expense';
+		if (activeFilter === 'away') return nodeType !== 'lending';
+		if (activeFilter === 'committed') return nodeType !== 'recurring';
+		if (activeFilter === 'returning') return nodeType !== 'income';
+		if (activeFilter === 'net') return nodeType !== 'net';
+		return false;
+	}
+
 	// Active focus ID (either hovered node or selected node)
 	const activeFocusId = $derived(hoveredNodeId || selectedNode?.id || null);
 
@@ -386,7 +400,7 @@
 					selectedNode?.id === n.id ||
 					selectedNode?.id === 'net-money';
 
-				const isDimmed = activeFocusId !== null && !isHighlighted;
+				const isDimmed = (activeFocusId !== null && !isHighlighted) || isNodeFilteredOut(n.type);
 
 				return {
 					id: `conn-${n.id}`,
@@ -494,6 +508,7 @@
 	}
 
 	function resetMap() {
+		activeFilter = 'all';
 		calculatePositions();
 	}
 
@@ -505,12 +520,21 @@
 <svelte:window onpointermove={handlePointerMove} onpointerup={handlePointerUp} />
 
 <div class="money-map-canvas-card flip7-card">
-	<!-- Canvas Control Buttons -->
+	<!-- Canvas Control Buttons & Modality Filter Bar -->
 	<div class="canvas-controls">
 		<button class="control-btn" onclick={zoomIn} title="Zoom In (+)" aria-label="Zoom in">+</button>
 		<button class="control-btn" onclick={zoomOut} title="Zoom Out (−)" aria-label="Zoom out">−</button>
 		<div class="control-divider"></div>
-		<button class="control-btn text-btn" onclick={resetMap} title="Reset Map View">Reset Map</button>
+		<button class="control-btn text-btn" onclick={resetMap} title="Reset Map View">Reset View</button>
+		<div class="control-divider"></div>
+		<div class="filter-pill-group" role="tablist" aria-label="Filter modalities">
+			<button class="filter-pill" class:active={activeFilter === 'all'} onclick={() => activeFilter = 'all'}>All</button>
+			<button class="filter-pill coral" class:active={activeFilter === 'gone'} onclick={() => activeFilter = 'gone'}>🔥 Gone</button>
+			<button class="filter-pill sky" class:active={activeFilter === 'away'} onclick={() => activeFilter = 'away'}>🌊 Away</button>
+			<button class="filter-pill gold" class:active={activeFilter === 'committed'} onclick={() => activeFilter = 'committed'}>🔒 Committed</button>
+			<button class="filter-pill teal" class:active={activeFilter === 'returning'} onclick={() => activeFilter = 'returning'}>↩ Returning</button>
+			<button class="filter-pill true-pos" class:active={activeFilter === 'net'} onclick={() => activeFilter = 'net'}>🎯 Position</button>
+		</div>
 	</div>
 
 	<!-- Interactive Map Viewport -->
@@ -575,7 +599,7 @@
 							color={node.color}
 							isCentral={node.type === 'net'}
 							isHighlighted={hoveredNodeId === node.id || selectedNode?.id === node.id}
-							isDimmed={activeFocusId !== null && activeFocusId !== node.id && activeFocusId !== 'net-money'}
+							isDimmed={(activeFocusId !== null && activeFocusId !== node.id && activeFocusId !== 'net-money') || isNodeFilteredOut(node.type)}
 							isSelected={selectedNode?.id === node.id}
 							onselect={handleNodeSelect}
 							ondragstart={handleNodeDragStart}
@@ -670,6 +694,35 @@
 		background: var(--color-hairline);
 		margin: 0 2px;
 	}
+
+	/* Modality Filter Pills */
+	.filter-pill-group {
+		display: flex;
+		align-items: center;
+		gap: 3px;
+	}
+
+	.filter-pill {
+		background: none;
+		border: 1px solid transparent;
+		font-family: var(--font-display, sans-serif);
+		font-size: 11px;
+		font-weight: 700;
+		color: var(--color-text-muted);
+		padding: 2px 8px;
+		border-radius: var(--radius-pill, 999px);
+		cursor: pointer;
+		white-space: nowrap;
+		transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+	}
+
+	.filter-pill:hover { background: var(--color-teal-bg, rgba(30, 140, 134, 0.12)); color: var(--color-text); }
+	.filter-pill.active { background: var(--color-surface); border-color: var(--color-hairline); color: var(--color-text); }
+	.filter-pill.coral.active { background: rgba(239, 108, 74, 0.15); color: var(--color-money-gone, #EF6C4A); border-color: var(--color-money-gone, #EF6C4A); }
+	.filter-pill.sky.active { background: rgba(93, 173, 226, 0.15); color: var(--color-money-away, #5DADE2); border-color: var(--color-money-away, #5DADE2); }
+	.filter-pill.gold.active { background: rgba(255, 210, 63, 0.18); color: var(--color-money-committed, #D97706); border-color: var(--color-money-committed, #D97706); }
+	.filter-pill.teal.active { background: rgba(30, 140, 134, 0.15); color: var(--color-money-returning, #1E8C86); border-color: var(--color-money-returning, #1E8C86); }
+	.filter-pill.true-pos.active { background: rgba(30, 140, 134, 0.20); color: var(--color-true-position, #1E8C86); border-color: var(--color-true-position, #1E8C86); }
 
 	/* Viewport Canvas */
 	.canvas-viewport {

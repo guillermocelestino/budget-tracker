@@ -21,17 +21,23 @@
 </script>
 
 <svelte:head>
-	<title>Money Map — Flip7 Budget Tracker</title>
-	<meta name="description" content="See how your money flows: income coming in, net balance, expenses, lending, and recurring commitments in an interactive financial map." />
+	<title>Money Map — GET WRECK</title>
+	<meta name="description" content="Trace where your money came from, where it went, and what is still in motion in an interactive financial flow network." />
 </svelte:head>
 
 <PageBackground />
 
 <div class="money-map-page fade-in-up">
-	<PageHeader title="Money Map">
+	<PageHeader title="WHERE IS MY MONEY GOING?">
+		{#snippet badge()}
+			<div class="header-badge teal">
+				<span class="badge-icon">🗺</span>
+				<span class="badge-text">MONEY MAP</span>
+			</div>
+		{/snippet}
 		{#snippet subtitle()}
 			<p class="header-desc">
-				See where your money comes from and where it goes in an interactive financial ecosystem.
+				Trace where your money came from, where it went, and what is still in motion.
 			</p>
 		{/snippet}
 
@@ -61,6 +67,25 @@
 		flex-direction: column;
 		gap: var(--space-lg);
 		padding-bottom: var(--space-2xl);
+	}
+
+	.header-badge.teal {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 3px 10px;
+		background: var(--color-teal-bg, rgba(30, 140, 134, 0.12));
+		border-radius: var(--radius-pill, 999px);
+		width: fit-content;
+		margin-bottom: 4px;
+	}
+
+	.header-badge.teal .badge-text {
+		font-family: var(--font-display);
+		font-size: 11px;
+		font-weight: 800;
+		color: var(--color-true-position, #1E8C86);
+		letter-spacing: 0.12em;
 	}
 
 	.header-desc {

@@ -39,31 +39,32 @@
 
 <!-- ═══ Bottom navigation bar ═══ -->
 <nav class="bottom-nav" aria-label="Mobile navigation">
-  <!-- Dashboard -->
-  <a
-    href="/dashboard"
-    class="bn-item"
-    class:active={isActive('/dashboard')}
-    aria-label="Dashboard"
-  >
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/>
-      <rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>
-    </svg>
-    <span class="bn-label">Home</span>
-  </a>
-
-  <!-- Transactions -->
+  <!-- Gone -->
   <a
     href="/transactions"
-    class="bn-item"
+    class="bn-item bn-gone"
     class:active={isActive('/transactions')}
-    aria-label="Transactions"
+    aria-label="Money Gone"
   >
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/>
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
     </svg>
-    <span class="bn-label">Activity</span>
+    <span class="bn-label">Gone</span>
+  </a>
+
+  <!-- Away -->
+  <a
+    href="/lending"
+    class="bn-item bn-away"
+    class:active={isActive('/lending')}
+    aria-label="Money Away"
+  >
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.6 2 5.1 2 2.5 0 2.5-2 5.1-2 1.3 0 1.9.5 2.5 1"/>
+      <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5 2 2.6 0 2.6 2 5.1 2 2.5 0 2.5-2 5.1-2 1.3 0 1.9.5 2.5 1"/>
+      <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5 2 2.6 0 2.6 2 5.1 2 2.5 0 2.5-2 5.1-2 1.3 0 1.9.5 2.5 1"/>
+    </svg>
+    <span class="bn-label">Away</span>
   </a>
 
   <!-- ═══ Speed Dial FAB (centered, expandable) ═══ -->
@@ -71,18 +72,33 @@
     <SpeedDial />
   </div>
 
-  <!-- Lending -->
+  <!-- Committed -->
   <a
-    href="/lending"
-    class="bn-item"
-    class:active={isActive('/lending')}
-    aria-label="Lending"
+    href="/recurring"
+    class="bn-item bn-committed"
+    class:active={isActive('/recurring')}
+    aria-label="Money Committed"
   >
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="m20.42 4.58-7.65 7.65-2.12-2.12a1.5 1.5 0 0 0-2.12 2.12l3.54 3.54a1.5 1.5 0 0 0 2.12-2.12L12 12"/>
-      <path d="m8.58 15.42-3.54 3.54"/><path d="m15.42 8.58 3.54-3.54"/>
+      <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
     </svg>
-    <span class="bn-label">Lending</span>
+    <span class="bn-label">Committed</span>
+  </a>
+
+  <!-- Position -->
+  <a
+    href="/net-worth"
+    class="bn-item bn-position"
+    class:active={isActive('/net-worth')}
+    aria-label="True Position"
+  >
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <circle cx="12" cy="12" r="6"/>
+      <circle cx="12" cy="12" r="2"/>
+    </svg>
+    <span class="bn-label">Position</span>
   </a>
 
   <!-- More (opens popup) -->
@@ -91,7 +107,7 @@
     class="bn-item bn-more-btn"
     class:active={moreOpen}
     onclick={() => (moreOpen = !moreOpen)}
-    aria-label="More"
+    aria-label="More options"
     aria-expanded={moreOpen}
   >
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -110,6 +126,13 @@
     role="menu"
     transition:fly={{ y: 12, duration: 150, opacity: 0 }}
   >
+    <a href="/dashboard" class="more-item" role="menuitem" class:active={isActive('/dashboard')} onclick={() => (moreOpen = false)}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/>
+        <rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>
+      </svg>
+      Command Center
+    </a>
     <a href="/money-map" class="more-item" role="menuitem" class:active={isActive('/money-map')} onclick={() => (moreOpen = false)}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/>
@@ -123,7 +146,7 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>
       </svg>
-      Reports
+      Analysis
     </a>
     <a href="/borrowed" class="more-item" role="menuitem" class:active={isActive('/borrowed')} onclick={() => (moreOpen = false)}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -131,20 +154,6 @@
         <path d="m15.42 8.58 3.54-3.54"/><path d="m8.58 15.42-3.54 3.54"/>
       </svg>
       Borrowed
-    </a>
-    <a href="/recurring" class="more-item" role="menuitem" class:active={isActive('/recurring')} onclick={() => (moreOpen = false)}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <polyline points="12 6 12 12 16 14"/>
-        <path d="M12 2a10 10 0 0 1 0 20 10 10 0 0 1 0-20"/>
-      </svg>
-      Recurring
-    </a>
-    <a href="/net-worth" class="more-item" role="menuitem" class:active={isActive('/net-worth')} onclick={() => (moreOpen = false)}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-      </svg>
-      Net Worth
     </a>
     <a href="/categories" class="more-item" role="menuitem" class:active={isActive('/categories')} onclick={() => (moreOpen = false)}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -230,7 +239,43 @@
     background: var(--color-teal-bg);
   }
 
-  /* Dark: the active item reads as a glowing teal pill */
+  .bn-item.bn-gone.active {
+    color: var(--color-money-gone);
+    background: rgba(239, 108, 74, 0.12);
+  }
+  .bn-item.bn-gone.active svg,
+  .bn-item.bn-gone.active .bn-label {
+    color: var(--color-money-gone);
+  }
+
+  .bn-item.bn-away.active {
+    color: var(--color-money-away);
+    background: rgba(93, 173, 226, 0.12);
+  }
+  .bn-item.bn-away.active svg,
+  .bn-item.bn-away.active .bn-label {
+    color: var(--color-money-away);
+  }
+
+  .bn-item.bn-committed.active {
+    color: var(--color-money-committed);
+    background: rgba(255, 210, 63, 0.15);
+  }
+  .bn-item.bn-committed.active svg,
+  .bn-item.bn-committed.active .bn-label {
+    color: var(--color-money-committed);
+  }
+
+  .bn-item.bn-position.active {
+    color: var(--color-true-position);
+    background: var(--color-teal-bg);
+  }
+  .bn-item.bn-position.active svg,
+  .bn-item.bn-position.active .bn-label {
+    color: var(--color-true-position);
+  }
+
+  /* Dark: the active item reads as a glowing pill */
   [data-theme="dark"] .bn-item.active {
     box-shadow: var(--glow-card);
   }
@@ -246,7 +291,6 @@
 
   .bn-item.active svg {
     transform: scale(1.1);
-    color: var(--color-teal);
   }
 
   /* Gold dot indicator on active tab */

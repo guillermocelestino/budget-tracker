@@ -7,6 +7,8 @@ describe('recurringService — Drizzle / Postgres path (recorded fake client)', 
 	let updateRecurringTransaction: typeof import('$lib/server/services/recurringService').updateRecurringTransaction;
 	let getActiveRecurringCount: typeof import('$lib/server/services/recurringService').getActiveRecurringCount;
 	let getUpcomingRecurring: typeof import('$lib/server/services/recurringService').getUpcomingRecurring;
+	let getUpcomingCommitmentsTotal: typeof import('$lib/server/services/recurringService').getUpcomingCommitmentsTotal;
+	let getMonthlyCommittedTotal: typeof import('$lib/server/services/recurringService').getMonthlyCommittedTotal;
 
 	function makeDrizzleData(data: any[]) {
 		const chain: any = {};
@@ -57,6 +59,8 @@ describe('recurringService — Drizzle / Postgres path (recorded fake client)', 
 		updateRecurringTransaction = svc.updateRecurringTransaction;
 		getActiveRecurringCount = svc.getActiveRecurringCount;
 		getUpcomingRecurring = svc.getUpcomingRecurring;
+		getUpcomingCommitmentsTotal = svc.getUpcomingCommitmentsTotal;
+		getMonthlyCommittedTotal = svc.getMonthlyCommittedTotal;
 	});
 
 	it('lists recurring transactions via Drizzle', async () => {
@@ -117,5 +121,15 @@ describe('recurringService — Drizzle / Postgres path (recorded fake client)', 
 	it('gets upcoming recurring via Drizzle', async () => {
 		const result = await getUpcomingRecurring(42, 3);
 		expect(result).toHaveLength(0);
+	});
+
+	it('gets upcoming commitments total for a given day window', async () => {
+		const total = await getUpcomingCommitmentsTotal(42, 7, '2026-08-15');
+		expect(total).toBe(0);
+	});
+
+	it('gets monthly committed total returning normalized sum', async () => {
+		const total = await getMonthlyCommittedTotal(42);
+		expect(total).toBe(0);
 	});
 });

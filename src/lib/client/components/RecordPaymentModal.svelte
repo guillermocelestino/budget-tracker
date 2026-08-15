@@ -1,11 +1,9 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { fade } from 'svelte/transition';
+	import { tick } from 'svelte';
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
 	import { formatCurrency, formatDate } from '$lib/client/utils/format';
-import { formatWithCommas, getToday } from '$lib/shared/utils/format';
-	import ModalDialog from '$lib/client/components/ModalDialog.svelte';
-	import Button from '$lib/client/components/Button.svelte';
+	import { formatWithCommas, getToday } from '$lib/shared/utils/format';
 	import type { LendingWithPayments, PaymentType } from '$lib/types';
 
 	let {
@@ -24,64 +22,40 @@ import { formatWithCommas, getToday } from '$lib/shared/utils/format';
 	let createTransaction = $state(true);
 	let paymentType = $state<PaymentType>('payment');
 	let submitting = $state(false);
+	let modalRef = $state<HTMLElement | null>(null);
 
-	// Preview value element + last rendered value (drives the subtle opacity pulse)
-	let previewValueEl = $state<HTMLElement | null>(null);
-	let prevPreviewValue = $state<number | null>(null);
-
-	// Live remaining preview — derived from VALID input only, so it never overruns
 	const inputAmount = $derived(rawAmount ? parseFloat(rawAmount) || 0 : 0);
 	const validAmount = $derived(inputAmount > 0 && inputAmount <= lending.remaining ? inputAmount : 0);
 	const remainingAfter = $derived(lending.remaining - validAmount);
-	const settledTotal = $derived(lending.cash_paid + lending.written_off + validAmount);
-	const progressPct = $derived(lending.amount > 0 ? Math.min((settledTotal / lending.amount) * 100, 100) : 0);
+	const totalPaid = $derived(lending.cash_paid + validAmount);
+	const recoveryPct = $derived(
+		lending.amount > 0 ? Math.min((lending.cash_paid / lending.amount) * 100, 100) : 0
+	);
 
 	const isWriteOff = $derived(paymentType === 'write_off');
-	const showCreateTransaction = $derived(!isWriteOff);
-	// Settle only when the input is valid and matches the remaining balance to the cent
-	const isSettling = $derived(
-		validAmount > 0 && Math.round(validAmount * 100) === Math.round(lending.remaining * 100)
-	);
-	const amountHelperInvalid = $derived(inputAmount > lending.remaining);
-	// Disable submit for empty / non-positive / over-remaining amounts or a missing date
 	const canSubmit = $derived(inputAmount > 0 && inputAmount <= lending.remaining && !!paymentDate);
 
-	const initials = $derived(
-		lending.borrower_name
-			.split(/\s+/)
-			.filter(Boolean)
-			.slice(0, 2)
-			.map((w) => w[0].toUpperCase())
-			.join('') || '?'
-	);
-
-	// Header subtitle (mode-adaptive)
-	const headerSubtitle = $derived(
-		direction === 'lent' ? 'Add a payment to this lending' : 'Add a payment to this borrowing'
-	);
-
-	// Footer reassurance line (mode-adaptive)
-	const reassuranceText = $derived(
-		isWriteOff
-			? 'This will be recorded as a write-off and cannot exceed the remaining balance.'
-			: 'This will be recorded as a payment and cannot exceed the remaining balance.'
-	);
-
-	// Contextual helper text — display only, validation is untouched
-	const amountHelper = $derived.by(() => {
-		if (inputAmount === 0) {
-			return `Available to record: ${formatCurrency(lending.remaining)}`;
-		}
-		if (amountHelperInvalid) {
-			return 'Cannot exceed remaining balance.';
-		}
-		if (remainingAfter === 0) {
-			return isWriteOff
-				? 'This write-off will clear this lending.'
-				: 'This payment will complete this lending.';
-		}
-		return `You'll still have ${formatCurrency(remainingAfter)} remaining.`;
+	const statusLabel = $derived.by(() => {
+		if (lending.status === 'settled' || lending.remaining <= 0) return 'Settled';
+		if (lending.status === 'overdue') return 'Overdue';
+		return 'Active';
 	});
+
+	const formattedInputAmount = $derived(
+		rawAmount && !isNaN(parseFloat(rawAmount)) && parseFloat(rawAmount) > 0
+			? formatWithCommas(rawAmount)
+			: ''
+	);
+
+	const ctaLabel = $derived(
+		isWriteOff
+			? (formattedInputAmount ? `Record ₱${formattedInputAmount} Write-off` : 'Record Write-off')
+			: (formattedInputAmount ? `Record ₱${formattedInputAmount} Recovered` : 'Mark as Recovered')
+	);
+
+	const dueSubtitle = $derived(
+		lending.due_date ? `Expected back ${formatDate(lending.due_date)}` : `Lent on ${formatDate(lending.date_lent)}`
+	);
 
 	function onAmountInput(e: Event) {
 		const input = e.target as HTMLInputElement;
@@ -111,21 +85,19 @@ import { formatWithCommas, getToday } from '$lib/shared/utils/format';
 		}
 	}
 
-	// Subtle opacity pulse on the preview value whenever it changes (CSS transition only — no JS animation)
-	$effect(() => {
-		const el = previewValueEl;
-		if (!el) return;
-		const value = remainingAfter;
-		if (prevPreviewValue !== null && value === prevPreviewValue) return;
-		prevPreviewValue = value;
-		el.style.opacity = '0.4';
-		requestAnimationFrame(() => {
-			el.style.opacity = '1';
-		});
-	});
+	function close() {
+		if (!submitting) onclose?.();
+	}
+
+	function handleBackdrop(e: MouseEvent) {
+		if (e.target === e.currentTarget) close();
+	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') close();
+	}
 
 	function handleEnhance(opts: { cancel: () => void }) {
-		// Prevent duplicate submissions
 		if (submitting) {
 			opts.cancel();
 			return;
@@ -134,7 +106,7 @@ import { formatWithCommas, getToday } from '$lib/shared/utils/format';
 		return async ({ result, update }: { result: { type: string; data?: { error?: string } }; update: () => Promise<void> }) => {
 			submitting = false;
 			if (result.type === 'success') {
-				showSuccess('Payment recorded successfully');
+				showSuccess(isWriteOff ? 'Write-off recorded' : 'Recovery recorded successfully!');
 				onclose?.();
 			} else if (result.type === 'failure') {
 				showError(result.data?.error || 'An error occurred');
@@ -142,795 +114,673 @@ import { formatWithCommas, getToday } from '$lib/shared/utils/format';
 			await update();
 		};
 	}
+
+	$effect(() => {
+		tick().then(() => {
+			const amountInput = modalRef?.querySelector<HTMLElement>('input[name="amount_input"]');
+			amountInput?.focus();
+		});
+	});
 </script>
 
-{#snippet headerIcon()}
-	<span class="header-icon-chip">
-		<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-			<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/>
-			<path d="M8 7h8M8 11h8M8 15h4"/>
-		</svg>
-	</span>
-{/snippet}
+<svelte:window onkeydown={handleKeydown} />
 
-<ModalDialog open={true} onclose={submitting ? undefined : onclose} title="Record Payment" icon={headerIcon} subtitle={headerSubtitle}>
-	<div class="modal-shell">
-		<!-- Borrower context card -->
-		<div class="context-card">
-			<div class="ctx-avatar" class:borrowed={direction === 'borrowed'}>{initials}</div>
-			<div class="ctx-info">
-				<span class="ctx-name">{lending.borrower_name}</span>
-				<span class="ctx-meta">{direction === 'lent' ? 'Lent' : 'Borrowed'} • {formatDate(lending.date_lent)}</span>
-			</div>
-			<span class="ctx-loan-pill">{direction === 'lent' ? '#L-' : '#B-'}{lending.id}</span>
+<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+<div class="modal-backdrop" onclick={handleBackdrop} role="dialog" aria-modal="true" aria-label="Record Recovery">
+	<div class="modal-card" bind:this={modalRef}>
+		<!-- Header -->
+		<div class="modal-header">
+			<div class="header-badge">MONEY AWAY</div>
+			<h2 class="header-title">{lending.borrower_name}</h2>
+			<p class="header-subtitle">{dueSubtitle}</p>
+			<button type="button" class="close-btn" onclick={close} aria-label="Close">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+					<line x1="18" y1="6" x2="6" y2="18"/>
+					<line x1="6" y1="6" x2="18" y2="18"/>
+				</svg>
+			</button>
 		</div>
 
-		<!-- Summary context -->
-		<div class="payment-summary">
-			<div class="summary-row">
-				<span class="summary-chip">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<rect x="2" y="6" width="20" height="12" rx="2"/>
-						<circle cx="12" cy="12" r="2"/>
-						<path d="M6 12h.01M18 12h.01"/>
-					</svg>
-				</span>
-				<span class="summary-label">Original</span>
-				<span class="summary-value">{formatCurrency(lending.amount)}</span>
-			</div>
-			<div class="summary-row">
-				<span class="summary-chip">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M12 3v12"/>
-						<path d="m6 9 6 6 6-6"/>
-						<path d="M4 21h16"/>
-					</svg>
-				</span>
-				<span class="summary-label">{direction === 'lent' ? 'Collected' : 'Repaid'}</span>
-				<span class="summary-value muted">{formatCurrency(lending.cash_paid)}</span>
-			</div>
-			{#if lending.written_off > 0}
-				<div class="summary-row">
-					<span class="summary-chip">
-						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/>
-							<path d="M22 21H7"/>
-							<path d="m5 11 9 9"/>
-						</svg>
-					</span>
-					<span class="summary-label">Written Off</span>
-					<span class="summary-value muted">{formatCurrency(lending.written_off)}</span>
-				</div>
-			{/if}
-			<div class="summary-row remaining">
-				<span class="summary-chip">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/>
-						<path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/>
-						<path d="M7 21h10"/>
-						<path d="M12 3v18"/>
-						<path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>
-					</svg>
-				</span>
-				<span class="summary-label">Remaining</span>
-				<span class="summary-value" class:teal={direction === 'lent'} class:rose={direction === 'borrowed'}>
-					{formatCurrency(lending.remaining)}
-				</span>
-			</div>
-		</div>
-
-		<form method="POST" action="?/recordPayment" use:enhance={handleEnhance}>
-			<input type="hidden" name="lending_id" value={lending.id} />
-			<input type="hidden" name="payment_type" value={paymentType} />
-			<input type="hidden" name="amount" value={rawAmount} />
-
-			<div class="modal-scroll">
-				<!-- Payment type selector -->
-				<div class="payment-type-toggle" role="group" aria-label="Payment type">
-					<button
-						type="button"
-						class="mode-pay"
-						class:active={paymentType === 'payment'}
-						aria-pressed={paymentType === 'payment'}
-						onclick={() => paymentType = 'payment'}
-					>
-						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<rect x="2" y="6" width="20" height="12" rx="2"/>
-							<circle cx="12" cy="12" r="2"/>
-							<path d="M6 12h.01M18 12h.01"/>
-						</svg>
-						Payment
-					</button>
-					<button
-						type="button"
-						class="mode-off"
-						class:active={paymentType === 'write_off'}
-						aria-pressed={paymentType === 'write_off'}
-						onclick={() => { paymentType = 'write_off'; createTransaction = false; }}
-					>
-						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/>
-							<path d="M22 21H7"/>
-							<path d="m5 11 9 9"/>
-						</svg>
-						Write-off
-					</button>
+		<div class="modal-scroll-area">
+			<!-- CARD 1: Status & Remaining Card -->
+			<div class="status-card">
+				<div class="status-card-header">
+					<span class="status-card-label">REMAINING</span>
+					<span class="remaining-value">{formatCurrency(lending.remaining)}</span>
 				</div>
 
-				<!-- Amount -->
-				<div class="form-group">
-					<label class="form-label" for="payment_amount">Payment Amount<span class="req">*</span></label>
-					<div class="amount-wrap">
-						<span class="amount-prefix">₱</span>
+				<!-- Progress Bar -->
+				<div class="progress-container">
+					<div class="progress-track">
+						<div class="progress-fill" style="width: {recoveryPct}%;"></div>
+					</div>
+					<div class="progress-text">{Math.round(recoveryPct)}% recovered</div>
+				</div>
+
+				<!-- 3-Column Metadata Row -->
+				<div class="meta-grid">
+					<div class="meta-col">
+						<span class="meta-label">ORIGINAL</span>
+						<span class="meta-value">{formatCurrency(lending.amount)}</span>
+					</div>
+					<div class="meta-col">
+						<span class="meta-label">RECOVERED</span>
+						<span class="meta-value">{formatCurrency(lending.cash_paid)}</span>
+					</div>
+					<div class="meta-col">
+						<span class="meta-label">STATUS</span>
+						<span class="status-badge" class:settled={statusLabel === 'Settled'} class:overdue={statusLabel === 'Overdue'}>
+							{statusLabel}
+						</span>
+					</div>
+				</div>
+			</div>
+
+			<!-- CARD 2: RECORD RECOVERY Form Card -->
+			<div class="form-card">
+				<form method="POST" action="?/recordPayment" use:enhance={handleEnhance}>
+					<input type="hidden" name="lending_id" value={lending.id} />
+					<input type="hidden" name="payment_type" value={paymentType} />
+					<input type="hidden" name="amount" value={rawAmount} />
+					<input type="hidden" name="payment_date" value={paymentDate} />
+					{#if createTransaction && !isWriteOff}
+						<input type="hidden" name="create_transaction" value="on" />
+					{/if}
+
+					<!-- Section Label & Optional Write-off toggle -->
+					<div class="form-card-head">
+						<span class="form-card-label">RECORD RECOVERY</span>
+						<div class="mode-toggle">
+							<button
+								type="button"
+								class="mode-btn"
+								class:active={paymentType === 'payment'}
+								onclick={() => paymentType = 'payment'}
+							>
+								Payment
+							</button>
+							<button
+								type="button"
+								class="mode-btn mode-writeoff"
+								class:active={paymentType === 'write_off'}
+								onclick={() => { paymentType = 'write_off'; createTransaction = false; }}
+							>
+								Write-off
+							</button>
+						</div>
+					</div>
+
+					<!-- Field 1: Amount -->
+					<div class="field-group">
+						<div class="pill-input amount-input-wrap" class:invalid={inputAmount > lending.remaining}>
+							<span class="currency-prefix">₱</span>
+							<input
+								id="amount_input"
+								name="amount_input"
+								type="text"
+								inputmode="decimal"
+								required
+								placeholder="0.00"
+								value={formattedInputAmount}
+								oninput={onAmountInput}
+								onfocus={onAmountFocus}
+								onblur={onAmountBlur}
+								autocomplete="off"
+								class="amount-input"
+							/>
+						</div>
+						{#if inputAmount > lending.remaining}
+							<p class="error-text">Cannot exceed remaining balance ({formatCurrency(lending.remaining)})</p>
+						{/if}
+					</div>
+
+					<!-- Field 2: Note (optional) -->
+					<div class="field-group">
 						<input
-							id="payment_amount"
+							id="notes"
+							name="notes"
 							type="text"
-							inputmode="decimal"
-							required
-							placeholder="0.00"
-							oninput={onAmountInput}
-							onfocus={onAmountFocus}
-							onblur={onAmountBlur}
-							autocomplete="off"
+							placeholder="Note (optional)"
+							bind:value={notes}
+							class="pill-input note-input"
 						/>
 					</div>
-					<p class="amount-helper" class:error={amountHelperInvalid}>{amountHelper}</p>
-				</div>
 
-				<!-- Settlement pill (only when the amount fully resolves the loan) -->
-				{#if isSettling}
-					<div class="settle-pill" transition:fade|local={{ duration: 180 }} role="status">
-						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M20 6L9 17l-5-5"/>
-						</svg>
-						This will fully settle the loan
-					</div>
-				{/if}
-
-				<!-- Live preview (always compact — shows the current state at input 0) -->
-				<div class="remaining-preview">
-					<span class="preview-title">After this payment</span>
-					<div class="preview-body" aria-live="polite" role="status">
-						<div class="preview-row">
-							<span class="preview-label">Remaining</span>
-							<span
-								class="preview-value"
-								class:teal={direction === 'lent'}
-								class:rose={direction === 'borrowed'}
-								bind:this={previewValueEl}
-							>{formatCurrency(remainingAfter)}</span>
-						</div>
-						<div class="progress-track">
-							<div class="progress-fill" style="width: {progressPct}%;"></div>
-						</div>
-						<div class="progress-caption">
-							{formatCurrency(settledTotal)} of {formatCurrency(lending.amount)} ({Math.round(progressPct)}% settled)
-						</div>
-					</div>
-				</div>
-
-				<div class="form-group">
-					<label class="form-label" for="payment_date">Payment Date<span class="req">*</span></label>
-					<input
-						id="payment_date"
-						name="payment_date"
-						type="date"
-						required
-						bind:value={paymentDate}
-					/>
-				</div>
-
-				<div class="form-group">
-					<label class="form-label" for="notes">Notes (optional)</label>
-					<textarea
-						id="notes"
-						name="notes"
-						rows="2"
-						placeholder="Optional notes"
-						bind:value={notes}
-					></textarea>
-					<span class="char-count">{notes.length} / 500</span>
-				</div>
-
-				<!-- Create Transaction card -->
-				{#if showCreateTransaction}
-					<label class="create-tx-card" transition:fade|local={{ duration: 200 }}>
-						<input type="checkbox" name="create_transaction" bind:checked={createTransaction} />
-						<span class="ct-content">
-							<strong class="ct-title">Create Transaction</strong>
-							<span class="ct-desc">
-								{direction === 'lent'
-									? 'Creates an income transaction for this payment'
-									: 'Creates an expense transaction for this payment'}
-							</span>
-						</span>
-					</label>
-				{/if}
+					<!-- Submit Button -->
+					<button type="submit" class="cta-button" disabled={!canSubmit || submitting}>
+						{#if submitting}
+							<span class="spinner"></span>
+							<span>Saving...</span>
+						{:else}
+							<span>{ctaLabel}</span>
+						{/if}
+					</button>
+				</form>
 			</div>
 
-			<!-- Pinned footer — Cancel on the left, Primary on the right, reassurance below -->
-			<div class="modal-footer">
-				<div class="footer-actions">
-					<Button variant="ghost" type="button" onclick={onclose} disabled={submitting}>Cancel</Button>
-					<div class="footer-primary-wrap">
-						<Button variant="teal" type="submit" disabled={submitting || !canSubmit}>
-							{#if submitting}
-								<span class="btn-spinner" aria-hidden="true"></span>
-								<span>Recording...</span>
-							{:else}
-								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-									<path d="M20 6L9 17l-5-5"/>
-								</svg>
-								<span>Record {isWriteOff ? 'Write-off' : 'Payment'}</span>
-							{/if}
-						</Button>
+			<!-- CARD 3: PAYMENT HISTORY (If history exists) -->
+			{#if lending.payments && lending.payments.length > 0}
+				<div class="history-card">
+					<span class="form-card-label">PAYMENT HISTORY</span>
+					<div class="history-list">
+						{#each lending.payments as p (p.id)}
+							<div class="history-item">
+								<div class="item-left">
+									<span class="item-date">{formatDate(p.payment_date)}</span>
+									{#if p.notes}
+										<span class="item-note">{p.notes}</span>
+									{/if}
+								</div>
+								<div class="item-right">
+									<span class="item-amount" class:writeoff={p.payment_type === 'write_off'}>
+										+{formatCurrency(p.amount)}
+									</span>
+									<span class="item-tag">{p.payment_type === 'write_off' ? 'Write-off' : 'Payment'}</span>
+								</div>
+							</div>
+						{/each}
 					</div>
 				</div>
-				<p class="footer-note">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-						<path d="m9 12 2 2 4-4"/>
-					</svg>
-					<span>{reassuranceText}</span>
-				</p>
-			</div>
-		</form>
+			{/if}
+		</div>
 	</div>
-</ModalDialog>
+</div>
 
 <style>
-	/* ═══ Viewport-aware shell: footer stays pinned, only the field region scrolls ═══ */
-	.modal-shell {
+	/* ─── Backdrop ─── */
+	.modal-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(14, 42, 39, 0.45);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+		padding: var(--space-md);
+	}
+
+	/* ─── Modal Shell ─── */
+	.modal-card {
+		background: var(--color-bg, #EFF8F7);
+		border-radius: 28px;
+		max-width: 480px;
+		width: 100%;
+		position: relative;
+		box-shadow: 0 20px 40px rgba(14, 42, 39, 0.15), 0 0 0 1px rgba(43, 168, 162, 0.2);
+		animation: modalPop 280ms var(--bounce, cubic-bezier(0.34, 1.56, 0.64, 1));
+		overflow: hidden;
+		padding: 28px 24px;
+		max-height: calc(100dvh - 40px);
 		display: flex;
 		flex-direction: column;
-		max-height: calc(100dvh - 130px);
 	}
 
-	.modal-shell > .context-card,
-	.modal-shell > .payment-summary {
-		flex-shrink: 0;
+	[data-theme="dark"] .modal-card {
+		background: #101715;
+		box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(60, 196, 189, 0.25);
 	}
 
-	.modal-shell form {
-		display: flex;
-		flex-direction: column;
-		flex: 1;
-		min-height: 0;
+	@keyframes modalPop {
+		from {
+			opacity: 0;
+			transform: scale(0.94) translateY(12px);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1) translateY(0);
+		}
 	}
 
-	.modal-scroll {
-		flex: 1 1 auto;
-		min-height: 0;
+	.modal-scroll-area {
 		overflow-y: auto;
 		overflow-x: hidden;
-	}
-
-	/* ═══ Header icon chip (rendered inside the modal header) ═══ */
-	.header-icon-chip {
-		width: 40px;
-		height: 40px;
-		flex-shrink: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: var(--mint-tint);
-		color: var(--teal-deep);
-		border-radius: var(--radius-md);
-	}
-
-	/* ═══ Borrower context card ═══ */
-	.context-card {
-		display: flex;
-		align-items: center;
-		gap: var(--space-md);
-		padding: var(--space-sm) var(--space-md);
-		background: var(--color-surface);
-		border: 1px solid var(--color-hairline);
-		border-radius: var(--radius-md);
-		margin-bottom: var(--space-md);
-	}
-
-	.ctx-avatar {
-		width: 40px;
-		height: 40px;
-		border-radius: var(--radius-full);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		flex-shrink: 0;
-		background: var(--mint-tint);
-		box-shadow: inset 0 0 0 2px var(--teal-deep);
-		color: var(--teal-deep);
-		font-family: var(--font-display);
-		font-weight: var(--font-weight-bold);
-		font-size: var(--font-size-base);
-	}
-
-	.ctx-avatar.borrowed {
-		background: var(--rose-soft);
-		box-shadow: inset 0 0 0 2px var(--rose);
-		color: var(--rose);
-	}
-
-	.ctx-info {
-		display: flex;
-		flex-direction: column;
-		min-width: 0;
-	}
-
-	.ctx-name {
-		font-family: var(--font-display);
-		font-weight: var(--font-weight-bold);
-		font-size: var(--font-size-base);
-		color: var(--color-text);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.ctx-meta {
-		font-size: var(--font-size-xs);
-		color: var(--color-text-muted);
-	}
-
-	/* Mint mono loan-ID pill */
-	.ctx-loan-pill {
-		margin-left: auto;
-		padding: 2px var(--space-sm);
-		background: var(--mint-tint);
-		color: var(--teal-deep);
-		border-radius: var(--radius-pill);
-		font-family: var(--font-mono);
-		font-size: var(--font-size-xs);
-		font-weight: var(--font-weight-bold);
-		white-space: nowrap;
-	}
-
-	/* ═══ Summary card — white card, per-row icon chips, mint accent on Remaining ═══ */
-	.payment-summary {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-xs);
-		padding: var(--space-sm) var(--space-md);
-		background: var(--color-surface);
-		border: 1px solid var(--color-hairline);
-		border-radius: var(--radius-md);
-		margin-bottom: var(--space-md);
-	}
-
-	.summary-row {
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
-	}
-
-	.summary-chip {
-		width: 28px;
-		height: 28px;
-		flex-shrink: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: var(--mint-tint);
-		color: var(--teal-deep);
-		border-radius: var(--radius-sm);
-	}
-
-	.summary-label {
-		font-size: var(--font-size-sm);
-		color: var(--color-text-muted);
-		margin-right: auto;
-	}
-
-	.summary-value {
-		font-family: var(--font-mono);
-		font-size: var(--font-size-sm);
-		font-weight: var(--font-weight-semibold);
-		font-variant-numeric: tabular-nums;
-		color: var(--color-text);
-	}
-
-	.summary-value.muted {
-		color: var(--color-text-muted);
-	}
-
-	.summary-row.remaining {
-		margin-top: var(--space-xs);
-		padding: var(--space-xs) var(--space-sm);
-		background: var(--mint-tint);
-		border-radius: var(--radius-sm);
-	}
-
-	.summary-row.remaining .summary-chip {
-		background: var(--color-surface);
-	}
-
-	.summary-row.remaining .summary-value {
-		font-size: var(--font-size-base);
-		font-weight: var(--font-weight-bold);
-	}
-
-	.summary-value.teal {
-		color: var(--teal-deep);
-	}
-
-	.summary-value.rose {
-		color: var(--rose);
-	}
-
-	/* ═══ Payment / Write-off toggle — tinted active, never a solid teal block ═══ */
-	.payment-type-toggle {
-		display: flex;
-		gap: var(--space-xs);
-		margin-bottom: var(--space-md);
-		padding: 4px;
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-	}
-
-	.payment-type-toggle button {
 		flex: 1;
-		display: inline-flex;
+		padding-right: 2px;
+	}
+
+	/* ─── Header ─── */
+	.modal-header {
+		position: relative;
+		margin-bottom: 18px;
+		flex-shrink: 0;
+	}
+
+	.header-badge {
+		font-family: var(--font-body);
+		font-size: 11px;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--color-text-muted, #5C7A78);
+		margin-bottom: 2px;
+	}
+
+	.header-title {
+		font-family: var(--font-display);
+		font-size: clamp(2rem, 5vw, 2.5rem);
+		font-weight: 800;
+		color: var(--color-ink, #0E2A27);
+		margin: 0 0 4px 0;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
+	}
+
+	.header-subtitle {
+		font-size: 13px;
+		line-height: 1.4;
+		color: var(--color-text-muted, #5C7A78);
+		margin: 0;
+		padding-right: 32px;
+	}
+
+	.close-btn {
+		position: absolute;
+		top: -4px;
+		right: -4px;
+		width: 36px;
+		height: 36px;
+		border-radius: 50%;
+		border: none;
+		background: rgba(20, 48, 46, 0.06);
+		color: var(--color-text-muted, #5C7A78);
+		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: var(--space-xs);
-		padding: var(--space-sm) var(--space-md);
-		border: none;
-		border-radius: var(--radius-sm);
-		background: transparent;
-		color: var(--muted);
-		font-weight: var(--font-weight-semibold);
-		font-size: var(--font-size-sm);
-		font-family: var(--font-body);
 		cursor: pointer;
-		min-height: 40px;
-		transition: background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+		transition: all 180ms ease;
 	}
 
-	.payment-type-toggle button:hover {
-		background: var(--color-surface-inset);
-		color: var(--color-text);
+	.close-btn:hover {
+		background: rgba(239, 108, 74, 0.15);
+		color: var(--color-coral, #EF6C4A);
+		transform: rotate(90deg);
 	}
 
-	.payment-type-toggle button:focus-visible {
-		outline: none;
-		box-shadow: var(--focus);
+	/* ─── Card 1: Status & Remaining Card ─── */
+	.status-card {
+		background: var(--color-surface, #FFFFFF);
+		border-radius: 22px;
+		padding: 20px;
+		box-shadow: 0 4px 16px rgba(14, 42, 39, 0.04);
+		border: 1px solid var(--color-hairline, rgba(20, 48, 46, 0.08));
+		border-left: 4.5px solid var(--color-money-away, #5DADE2);
+		margin-bottom: 16px;
 	}
 
-	.payment-type-toggle button.mode-pay.active {
-		background: var(--mint-tint);
-		color: var(--teal-deep);
+	[data-theme="dark"] .status-card {
+		background: #161F1C;
+		border-color: rgba(255, 255, 255, 0.08);
+		border-left-color: var(--color-money-away, #6FC0F0);
 	}
 
-	.payment-type-toggle button.mode-off.active {
-		background: var(--rose-soft);
-		color: var(--rose);
-	}
-
-	/* ═══ Form fields ═══ */
-	.form-group {
+	.status-card-header {
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
-		margin-bottom: var(--space-md);
+		margin-bottom: 12px;
 	}
 
-	.form-label {
-		font-family: var(--font-display);
-		font-size: var(--font-size-sm);
-		font-weight: var(--font-weight-semibold);
-		color: var(--color-text);
-		letter-spacing: 0.02em;
-	}
-
-	.form-label .req {
-		color: var(--rose);
-		margin-left: 2px;
-	}
-
-	.form-group input,
-	.form-group textarea {
-		padding: var(--space-sm) var(--space-md);
-		border: 1px solid var(--color-hairline);
-		border-radius: var(--radius-md);
-		font-size: var(--font-size-base);
+	.status-card-label {
 		font-family: var(--font-body);
-		background: var(--color-cream);
-		color: var(--color-text);
-		width: 100%;
-		min-height: 44px;
-		transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-		appearance: none;
-		-webkit-appearance: none;
+		font-size: 11px;
+		font-weight: 800;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--color-text-muted, #5C7A78);
+		margin-bottom: 4px;
 	}
 
-	.form-group input:focus,
-	.form-group textarea:focus {
-		outline: none;
-		border-color: var(--color-teal);
-		box-shadow: var(--focus);
-	}
-
-	.form-group textarea {
-		min-height: 80px;
-		resize: vertical;
-	}
-
-	.char-count {
-		align-self: flex-end;
-		font-size: var(--font-size-sm);
-		color: var(--color-text-muted);
-		opacity: 0.55;
-	}
-
-	.amount-wrap {
-		display: flex;
-		align-items: stretch;
-		border: 1px solid var(--color-hairline);
-		border-radius: var(--radius-md);
-		background: var(--color-cream);
-		overflow: hidden;
-		transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-	}
-
-	.amount-wrap:focus-within {
-		border-color: var(--color-teal);
-		box-shadow: var(--focus);
-	}
-
-	.amount-prefix {
-		display: flex;
-		align-items: center;
-		padding: 0 var(--space-md) 0 var(--space-lg);
+	.remaining-value {
 		font-family: var(--font-display);
-		font-size: 22px;
-		font-weight: var(--font-weight-bold);
-		color: var(--color-text-muted);
-		background: transparent;
+		font-size: clamp(2rem, 5vw, 2.75rem);
+		font-weight: 800;
+		color: var(--color-money-away, #5DADE2);
+		letter-spacing: -0.02em;
+		line-height: 1;
 	}
 
-	.amount-wrap input {
-		border: none !important;
-		background: transparent !important;
-		font-family: var(--font-display);
-		font-size: 24px;
-		font-weight: var(--font-weight-bold);
-		color: var(--color-text);
-		padding: 8px var(--space-lg) 8px 0;
-		min-height: 48px;
-		box-shadow: none !important;
-		letter-spacing: -0.01em;
-	}
-
-	.amount-wrap input:focus {
-		box-shadow: none !important;
-	}
-
-	.amount-helper {
-		margin: 0;
-		font-size: var(--font-size-xs);
-		color: var(--color-text-muted);
-	}
-
-	.amount-helper.error {
-		color: var(--rose);
-	}
-
-	/* ═══ Settlement pill ═══ */
-	.settle-pill {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-xs);
-		padding: var(--space-xs) var(--space-md);
-		margin: 0 0 var(--space-md);
-		background: var(--mint-tint);
-		color: var(--teal-deep);
-		border: 1px solid var(--teal-deep);
-		border-radius: var(--radius-pill);
-		font-size: var(--font-size-xs);
-		font-weight: var(--font-weight-bold);
-	}
-
-	/* ═══ Live preview card — compact, always rendered ═══ */
-	.remaining-preview {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-sm);
-		padding: var(--space-md);
-		background: var(--color-surface);
-		border: 1px solid var(--color-hairline);
-		border-radius: var(--radius-md);
-		margin-bottom: var(--space-md);
-	}
-
-	.preview-title {
-		font-family: var(--font-display);
-		font-size: var(--font-size-sm);
-		font-weight: var(--font-weight-semibold);
-		color: var(--color-text);
-	}
-
-	.preview-body {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-sm);
-	}
-
-	.preview-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-	}
-
-	.preview-label {
-		font-size: var(--font-size-sm);
-		color: var(--color-text-muted);
-	}
-
-	.preview-value {
-		font-family: var(--font-mono);
-		font-size: var(--font-size-lg);
-		font-weight: var(--font-weight-bold);
-		font-variant-numeric: tabular-nums;
-		line-height: 1.1;
-		transition: opacity 200ms var(--ease);
-	}
-
-	.preview-value.teal {
-		color: var(--teal-deep);
-	}
-
-	.preview-value.rose {
-		color: var(--rose);
+	/* ─── Progress Bar ─── */
+	.progress-container {
+		margin-bottom: 18px;
 	}
 
 	.progress-track {
-		height: 9px;
-		background: var(--color-hairline);
-		border-radius: var(--radius-pill);
+		height: 10px;
+		background: var(--color-gold-bg, rgba(255, 210, 63, 0.18));
+		border-radius: 999px;
 		overflow: hidden;
+		margin-bottom: 6px;
 	}
 
 	.progress-fill {
 		height: 100%;
-		background: var(--teal-deep);
-		border-radius: var(--radius-pill);
-		transition: width 300ms var(--ease);
+		background: var(--color-money-away, #5DADE2);
+		border-radius: 999px;
+		transition: width 400ms var(--ease, ease);
 	}
 
-	.progress-caption {
-		font-family: var(--font-mono);
-		font-size: var(--font-size-xs);
-		color: var(--color-text-muted);
-		font-variant-numeric: tabular-nums;
+	.progress-text {
+		font-size: 12px;
+		font-weight: 700;
+		color: var(--color-text-muted, #5C7A78);
 	}
 
-	/* ═══ Create Transaction card ═══ */
-	.create-tx-card {
-		display: flex;
-		align-items: flex-start;
-		gap: var(--space-sm);
-		padding: var(--space-sm) var(--space-md);
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		cursor: pointer;
-		transition: background var(--transition-fast), border-color var(--transition-fast);
+	/* ─── 3-Column Metadata Row ─── */
+	.meta-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 12px;
+		padding-top: 14px;
+		border-top: 1px solid var(--color-hairline, rgba(20, 48, 46, 0.08));
 	}
 
-	.create-tx-card:hover {
-		background: var(--mint-tint);
-		border-color: var(--teal-deep);
-	}
-
-	.create-tx-card input {
-		margin-top: 2px;
-		accent-color: var(--teal-deep);
-		width: 18px;
-		height: 18px;
-		flex-shrink: 0;
-		appearance: auto;
-		-webkit-appearance: auto;
-		outline: none;
-		box-shadow: none;
-	}
-
-	.ct-content {
+	.meta-col {
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
-		font-size: var(--font-size-sm);
-		color: var(--color-text);
-		line-height: 1.4;
 	}
 
-	.ct-title {
-		font-family: var(--font-display);
-		font-weight: var(--font-weight-bold);
+	.meta-label {
+		font-size: 10px;
+		font-weight: 800;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--color-text-muted, #5C7A78);
 	}
 
-	.ct-desc {
-		font-weight: var(--font-weight-normal);
-		color: var(--color-text-secondary);
-		font-size: var(--font-size-xs);
+	.meta-value {
+		font-family: var(--font-mono);
+		font-size: 14px;
+		font-weight: 800;
+		color: var(--color-ink, #14302E);
 	}
 
-	/* ═══ Pinned footer — buttons row + reassurance line ═══ */
-	.modal-footer {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-sm);
-		flex-shrink: 0;
-		margin: var(--space-md) calc(-1 * var(--space-lg)) calc(-1 * var(--space-lg));
-		padding: var(--space-md) var(--space-lg);
-		border-top: 1px solid var(--color-border);
-		background: var(--color-surface);
-		border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+	[data-theme="dark"] .meta-value {
+		color: #EAF7F5;
 	}
 
-	.footer-actions {
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
+	.status-badge {
+		font-family: var(--font-body);
+		font-size: 13px;
+		font-weight: 800;
+		color: var(--color-teal, #2BA8A2);
 	}
 
-	.modal-footer :global(.btn-ghost) {
-		flex: 1;
-		color: var(--teal-deep);
-		border-color: var(--teal-deep);
-	}
-
-	.modal-footer :global(.btn-ghost:hover) {
-		background: var(--mint-tint);
-	}
-
-	.footer-primary-wrap {
-		flex: 1.25;
-		display: flex;
-		min-width: 0;
-	}
-
-	.footer-primary-wrap :global(.btn-teal) {
-		flex: 1;
-		background: var(--teal-deep);
-		color: var(--color-surface);
-		box-shadow: var(--shadow-sm);
-		white-space: nowrap;
-	}
-
-	.footer-primary-wrap :global(.btn-teal:hover) {
-		background: var(--color-teal-dark);
-		box-shadow: var(--shadow-sm);
-		transform: translateY(-1px);
-	}
-
-	.footer-note {
-		display: flex;
-		align-items: center;
-		gap: var(--space-xs);
-		margin: 0;
-		font-size: var(--font-size-xs);
+	.status-badge.settled {
 		color: var(--color-text-muted);
 	}
 
-	.footer-note svg {
-		flex-shrink: 0;
-		color: var(--teal-deep);
+	.status-badge.overdue {
+		color: var(--color-coral, #EF6C4A);
 	}
 
-	.btn-spinner {
-		width: 16px;
-		height: 16px;
-		flex-shrink: 0;
-		border: 2px solid var(--color-surface);
-		border-top-color: transparent;
-		border-radius: 50%;
-		opacity: 0.9;
-		animation: btn-spin 700ms linear infinite;
+	/* ─── Card 2: RECORD RECOVERY Form Card ─── */
+	.form-card {
+		background: var(--color-surface, #FFFFFF);
+		border-radius: 22px;
+		padding: 20px;
+		box-shadow: 0 4px 16px rgba(14, 42, 39, 0.04);
+		border: 1px solid var(--color-hairline, rgba(20, 48, 46, 0.08));
+		margin-bottom: 16px;
 	}
 
-	@keyframes btn-spin {
-		to { transform: rotate(360deg); }
+	[data-theme="dark"] .form-card {
+		background: #161F1C;
+		border-color: rgba(255, 255, 255, 0.08);
+	}
+
+	.form-card-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 14px;
+	}
+
+	.form-card-label {
+		font-family: var(--font-body);
+		font-size: 11px;
+		font-weight: 800;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--color-text-muted, #5C7A78);
+	}
+
+	.mode-toggle {
+		display: flex;
+		gap: 4px;
+		padding: 2px;
+		background: var(--color-surface-inset, #F0F9F8);
+		border-radius: var(--radius-pill, 999px);
+		border: 1px solid var(--color-hairline);
+	}
+
+	.mode-btn {
+		padding: 3px 10px;
+		border: none;
+		border-radius: var(--radius-pill);
+		background: transparent;
+		font-size: 10px;
+		font-weight: 800;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		transition: all 180ms ease;
+	}
+
+	.mode-btn.active {
+		background: var(--color-teal, #2BA8A2);
+		color: #FFFFFF;
+	}
+
+	.mode-btn.mode-writeoff.active {
+		background: var(--color-coral, #EF6C4A);
+	}
+
+	/* ─── Field Groups & Inputs ─── */
+	.field-group {
+		display: flex;
+		flex-direction: column;
+		margin-bottom: 14px;
+	}
+
+	.pill-input {
+		width: 100%;
+		height: 48px;
+		border-radius: 14px;
+		border: 1px dashed var(--color-money-returning, rgba(43, 168, 162, 0.4));
+		background: var(--color-surface, #FFFFFF);
+		color: var(--color-ink, #14302E);
+		padding: 0 16px;
+		font-family: var(--font-body);
+		font-size: 15px;
+		font-weight: 600;
+		transition: all 180ms ease;
+		outline: none;
+		box-sizing: border-box;
+	}
+
+	[data-theme="dark"] .pill-input {
+		background: #1A2421;
+		color: #EAF7F5;
+		border-color: rgba(60, 196, 189, 0.35);
+	}
+
+	.pill-input:focus,
+	.pill-input:focus-within {
+		border-style: solid;
+		border-color: var(--color-money-returning, #2BA8A2);
+		box-shadow: 0 0 0 3.5px rgba(43, 168, 162, 0.25);
+	}
+
+	.pill-input.invalid {
+		border-color: var(--color-coral);
+	}
+
+	.amount-input-wrap {
+		display: flex;
+		align-items: center;
+		padding: 0 16px;
+	}
+
+	.currency-prefix {
+		font-family: var(--font-display);
+		font-size: 22px;
+		font-weight: 800;
+		color: var(--color-text-muted, #5C7A78);
+		margin-right: 6px;
+	}
+
+	.amount-input {
+		flex: 1;
+		border: none !important;
+		background: transparent !important;
+		padding: 0 !important;
+		font-family: var(--font-display);
+		font-size: 24px;
+		font-weight: 800;
+		color: var(--color-ink, #14302E);
+		letter-spacing: -0.02em;
+		box-shadow: none !important;
+	}
+
+	[data-theme="dark"] .amount-input {
+		color: #EAF7F5;
+	}
+
+	.note-input {
+		font-size: 13px;
+		font-weight: 500;
+		border-style: solid;
+		border-color: var(--color-hairline);
+	}
+
+	.note-input::placeholder {
+		color: var(--color-text-muted);
+		opacity: 0.7;
+	}
+
+	.error-text {
+		font-size: 11px;
+		color: var(--color-coral);
+		margin: 4px 0 0 4px;
+		font-weight: 700;
+	}
+
+	/* ─── CTA Button ─── */
+	.cta-button {
+		width: 100%;
+		height: 50px;
+		border-radius: 999px;
+		border: none;
+		background: var(--color-money-returning, #2BA8A2);
+		color: #FFFFFF;
+		font-family: var(--font-display);
+		font-size: 16px;
+		font-weight: 800;
+		letter-spacing: -0.01em;
+		cursor: pointer;
+		box-shadow: 0 6px 20px rgba(43, 168, 162, 0.35);
+		transition: all 180ms var(--bounce, ease);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+	}
+
+	.cta-button:hover:not(:disabled) {
+		transform: translateY(-1px);
+		box-shadow: 0 8px 24px rgba(43, 168, 162, 0.5);
+		filter: brightness(1.05);
+	}
+
+	.cta-button:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+		transform: none;
+		box-shadow: none;
+	}
+
+	/* ─── Card 3: PAYMENT HISTORY Card ─── */
+	.history-card {
+		background: var(--color-surface, #FFFFFF);
+		border-radius: 22px;
+		padding: 20px;
+		box-shadow: 0 4px 16px rgba(14, 42, 39, 0.04);
+		border: 1px solid var(--color-hairline, rgba(20, 48, 46, 0.08));
+	}
+
+	[data-theme="dark"] .history-card {
+		background: #161F1C;
+		border-color: rgba(255, 255, 255, 0.08);
+	}
+
+	.history-list {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin-top: 10px;
+	}
+
+	.history-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 8px 12px;
+		background: var(--color-surface-inset, #F0F9F8);
+		border-radius: var(--radius-md);
+		font-size: 12px;
+	}
+
+	[data-theme="dark"] .history-item {
+		background: rgba(255, 255, 255, 0.04);
+	}
+
+	.item-left {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+	}
+
+	.item-date {
+		font-weight: 700;
+		color: var(--color-ink);
+	}
+
+	.item-note {
+		font-size: 11px;
+		color: var(--color-text-muted);
+	}
+
+	.item-right {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 1px;
+	}
+
+	.item-amount {
+		font-family: var(--font-mono);
+		font-weight: 800;
+		color: var(--color-teal);
+	}
+
+	.item-amount.writeoff {
+		color: var(--color-coral);
+	}
+
+	.item-tag {
+		font-size: 10px;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+	}
+
+	@media (max-width: 480px) {
+		.modal-card {
+			padding: 20px 16px;
+			border-radius: 24px;
+		}
+		.status-card, .form-card, .history-card {
+			padding: 16px;
+		}
 	}
 </style>

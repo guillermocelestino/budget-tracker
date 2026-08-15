@@ -3,11 +3,8 @@
 	import { page, navigating } from '$app/stores';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { enhance } from '$app/forms';
-	import PageHeader from '$lib/client/components/PageHeader.svelte';
 	import PageBackground from '$lib/client/components/PageBackground.svelte';
 	import Button from '$lib/client/components/Button.svelte';
-	import TransactionSummary from '$lib/client/components/TransactionSummary.svelte';
-	import TransactionMobileSummary from '$lib/client/components/TransactionMobileSummary.svelte';
 	import TransactionFilterPanel from '$lib/client/components/TransactionFilterPanel.svelte';
 	import TransactionFilterToolbar from '$lib/client/components/TransactionFilterToolbar.svelte';
 	import TransactionList from '$lib/client/components/TransactionList.svelte';
@@ -15,10 +12,10 @@
 	import EmptyState from '$lib/client/components/EmptyState.svelte';
 	import SearchFilterPill from '$lib/client/components/SearchFilterPill.svelte';
 	import ViewToggle from '$lib/client/components/ViewToggle.svelte';
-	import CountChip from '$lib/client/components/CountChip.svelte';
 	import ModalDialog from '$lib/client/components/ModalDialog.svelte';
 	import SlideOver from '$lib/client/components/SlideOver.svelte';
 	import TransactionForm from '$lib/client/components/TransactionForm.svelte';
+	import RecordMoneyModal from '$lib/client/components/RecordMoneyModal.svelte';
 	import TransactionImpactFlash from '$lib/client/components/TransactionImpactFlash.svelte';
 	import RecurringForm from '$lib/client/components/RecurringForm.svelte';
 	import ImportWizard from '$lib/client/components/ImportWizard.svelte';
@@ -210,7 +207,6 @@
 		}
 	}
 
-	const activeType = $derived(filters.type);
 	const totalCount = $derived(data.total ?? 0);
 	const activeFilterCount = $derived([filters.type, filters.category, filters.date].filter(Boolean).length);
 	const hasActiveFilters = $derived(filters.type || filters.category || filters.date || filters.search);
@@ -237,23 +233,6 @@
 		return chips;
 	});
 
-	const contextSubline = $derived.by(() => {
-		const monthLabel = (() => {
-			if (!filters.date || filters.date === 'this-month') {
-				const [y, m] = getCurrentMonth().split('-').map(Number);
-				return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date(y, m - 1));
-			}
-			const range = dateRangeFromFilter(filters.date, filters.customFrom, filters.customTo);
-			if (range.from) {
-				const [y, m] = range.from.split('-').map(Number);
-				const label = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date(y, m - 1));
-				if (range.to && range.from.slice(0, 7) === range.to.slice(0, 7)) return label;
-				return `From ${label}`;
-			}
-			return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
-		})();
-		return `${monthLabel} · ${totalCount} transaction${totalCount !== 1 ? 's' : ''}`;
-	});
 
 	let showFlatView = $state(true);
 	let mobileShowFlatView = $state(false);
@@ -369,10 +348,6 @@
 		filters = { date: newFilters.date, category: newFilters.category, type: newFilters.type, customFrom: newFilters.customFrom || '', customTo: newFilters.customTo || '', search: filters.search };
 	}
 
-	function handleCardClick(type: string) {
-		filters = { ...filters, type };
-	}
-
 	function clearAllFilters() {
 		filters = { date: '', category: '', type: '', customFrom: '', customTo: '', search: '' };
 		searchInput = '';
@@ -476,39 +451,66 @@
 </script>
 
 <svelte:head>
-	<title>Transactions — Finance Tracker</title>
+	<title>Money Gone — GET WRECK</title>
 </svelte:head>
 
 <PageBackground />
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     DESKTOP COMPOSITION (viewports > 768px)
+     MONEY GONE DESKTOP COMPOSITION
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="desktop-transactions">
-	<PageHeader title="Transactions" flush borderless>
-		{#snippet badge()}
-			<CountChip count={totalCount} />
-		{/snippet}
-		{#snippet subtitle()}
-			<span class="context-subline">{contextSubline}</span>
-		{/snippet}
-		{#snippet action()}
-			<span class="header-actions desktop-only">
-				<OverflowMenu
-					onImportCsv={() => (importWizardOpen = true)}
-					onExportCsv={() => handleExport('csv')}
-					onExportPdf={() => handleExport('pdf')}
-					onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
-				/>
-			</span>
-		{/snippet}
-	</PageHeader>
+	<header class="money-gone-hero">
+		<div class="hero-left">
+			<div class="hero-badge">
+				<span class="fire-icon">🔥</span>
+				<span class="badge-text">MONEY GONE</span>
+			</div>
+			<h1 class="hero-title">WHERE IS MY MONEY GOING?</h1>
+			<p class="hero-subtitle">Every peso here already left — irreversible, consumed, accounted for.</p>
+		</div>
+		<div class="hero-actions">
+			<button class="btn-record-expense" onclick={openAddForm} aria-label="Record Expense">
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+					<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+				</svg>
+				Record Expense
+			</button>
+			<OverflowMenu
+				onImportCsv={() => (importWizardOpen = true)}
+				onExportCsv={() => handleExport('csv')}
+				onExportPdf={() => handleExport('pdf')}
+				onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
+			/>
+		</div>
+	</header>
 
-	<TransactionSummary
-		transactions={[...(data.allForBalance ?? [])].reverse()}
-		{activeType}
-		onCardClick={handleCardClick}
-	/>
+	<!-- ═══ Money Gone 4-Metric KPI Summary Strip ═══ -->
+	<div class="money-gone-kpis">
+		<div class="kpi-card">
+			<span class="kpi-label">Wrecked Today</span>
+			<span class="kpi-value coral">{formatCurrency(data.moneyGoneStats?.wreckedToday ?? 0)}</span>
+		</div>
+		<div class="kpi-card">
+			<span class="kpi-label">Wrecked This Month</span>
+			<span class="kpi-value">{formatCurrency(data.moneyGoneStats?.wreckedThisMonth ?? 0)}</span>
+		</div>
+		<div class="kpi-card">
+			<span class="kpi-label">Outflow Velocity</span>
+			<span class="kpi-value">{formatCurrency(data.moneyGoneStats?.outflowVelocity ?? 0)} <span class="kpi-unit">/ day</span></span>
+		</div>
+		<div class="kpi-card">
+			<span class="kpi-label">Largest Outflow</span>
+			<span class="kpi-value">
+				{data.moneyGoneStats?.largestOutflow ? formatCurrency(data.moneyGoneStats.largestOutflow.amount) : '₱0'}
+			</span>
+			{#if data.moneyGoneStats?.largestOutflow}
+				<span class="kpi-subtext">
+					{data.moneyGoneStats.largestOutflow.description || data.moneyGoneStats.largestOutflow.category_name || ''}
+				</span>
+			{/if}
+		</div>
+	</div>
 
 	<div class="table-card-wrapper">
 		{#if isSearching}
@@ -701,10 +703,20 @@
 	<header class="mobile-app-header">
 		<div class="mobile-header-main">
 			<div class="mobile-title-wrap">
-				<h1 class="mobile-page-title">Transactions</h1>
-				<span class="context-subline">{contextSubline}</span>
+				<div class="hero-badge">
+					<span class="fire-icon">🔥</span>
+					<span class="badge-text">MONEY GONE</span>
+				</div>
+				<h1 class="mobile-page-title">WHERE IS MY MONEY GOING?</h1>
+				<span class="context-subline">Every peso here already left.</span>
 			</div>
 			<div class="mobile-header-actions">
+				<button class="btn-record-expense mobile-cta" onclick={openAddForm} aria-label="Record Expense">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+						<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+					</svg>
+					Record
+				</button>
 				<OverflowMenu
 					onImportCsv={() => (importWizardOpen = true)}
 					onExportCsv={() => handleExport('csv')}
@@ -717,11 +729,26 @@
 
 	<div class="mobile-shell">
 		<section class="mobile-section">
-			<TransactionMobileSummary
-				transactions={[...(data.allForBalance ?? [])].reverse()}
-				{activeType}
-				onCardClick={handleCardClick}
-			/>
+			<div class="money-gone-kpis mobile-kpis">
+				<div class="kpi-card">
+					<span class="kpi-label">Wrecked Today</span>
+					<span class="kpi-value coral">{formatCurrency(data.moneyGoneStats?.wreckedToday ?? 0)}</span>
+				</div>
+				<div class="kpi-card">
+					<span class="kpi-label">Wrecked Month</span>
+					<span class="kpi-value">{formatCurrency(data.moneyGoneStats?.wreckedThisMonth ?? 0)}</span>
+				</div>
+				<div class="kpi-card">
+					<span class="kpi-label">Velocity</span>
+					<span class="kpi-value">{formatCurrency(data.moneyGoneStats?.outflowVelocity ?? 0)} <span class="kpi-unit">/day</span></span>
+				</div>
+				<div class="kpi-card">
+					<span class="kpi-label">Largest</span>
+					<span class="kpi-value">
+						{data.moneyGoneStats?.largestOutflow ? formatCurrency(data.moneyGoneStats.largestOutflow.amount) : '₱0'}
+					</span>
+				</div>
+			</div>
 		</section>
 
 		<section class="mobile-section">
@@ -916,26 +943,22 @@
 	templateFilename="transactions-import-template.xlsx"
 />
 
-{#if isFormOpen}
-	<SlideOver isOpen={isFormOpen} title={editingTransaction ? "Edit Transaction" : "Add Transaction"} onClose={closeForm}>
-		<TransactionForm
-			categories={data.categories ?? []}
-			transaction={editingTransaction ?? undefined}
-			action={editingTransaction ? `?/update` : `?/create`}
-			spendingMap={spendingMap}
-			categoryTxnCounts={categoryTxnCounts}
-			onCancel={closeForm}
-			onSuccess={(payload) => {
-				const isEdit = !!editingTransaction;
-				closeForm();
-				invalidateAll();
-				if (!isEdit && payload && payload.amount > 0) {
-					impactData = payload;
-				}
-			}}
-		/>
-	</SlideOver>
-{/if}
+<!-- ═══ Record Money Modal (Add / Edit) ═══ -->
+<RecordMoneyModal
+	open={isFormOpen}
+	categories={data.categories ?? []}
+	transaction={editingTransaction ?? undefined}
+	action={editingTransaction ? `?/update` : `?/create`}
+	onClose={closeForm}
+	onSuccess={(payload) => {
+		const isEdit = !!editingTransaction;
+		closeForm();
+		invalidateAll();
+		if (!isEdit && payload && payload.amount > 0) {
+			impactData = payload;
+		}
+	}}
+/>
 
 {#if impactData}
 	<TransactionImpactFlash
@@ -1008,6 +1031,152 @@
 
 	.mobile-transactions {
 		display: none;
+	}
+
+	/* ─── MONEY GONE HERO & KPIS ─── */
+	.money-gone-hero {
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-lg, 16px);
+		padding: 18px 24px;
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: 24px;
+		box-shadow: var(--shadow-sm);
+		margin-bottom: var(--space-md, 12px);
+	}
+
+	.hero-left {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.hero-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 3px 10px;
+		background: var(--color-coral-bg, rgba(239, 108, 74, 0.12));
+		border-radius: var(--radius-pill, 999px);
+		width: fit-content;
+		margin-bottom: 2px;
+	}
+
+	.badge-text {
+		font-family: var(--font-display);
+		font-size: 11px;
+		font-weight: 800;
+		color: var(--color-money-gone, #EF6C4A);
+		letter-spacing: 0.12em;
+	}
+
+	.hero-title {
+		font-family: var(--font-display);
+		font-size: clamp(20px, 2.4vw, 26px);
+		font-weight: 800;
+		color: var(--color-ink);
+		margin: 0;
+		letter-spacing: -0.02em;
+		line-height: 1.15;
+	}
+
+	.hero-subtitle {
+		font-size: var(--font-size-sm, 14px);
+		color: var(--color-text-muted);
+		margin: 2px 0 0 0;
+	}
+
+	.hero-actions {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-shrink: 0;
+	}
+
+	.btn-record-expense {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 20px;
+		min-height: 44px;
+		background: var(--color-money-gone, #EF6C4A);
+		color: #ffffff;
+		border: none;
+		border-radius: 22px;
+		font-family: var(--font-display);
+		font-size: 14px;
+		font-weight: 700;
+		cursor: pointer;
+		box-shadow: 0 4px 16px rgba(239, 108, 74, 0.35);
+		transition: transform 140ms ease, background 140ms ease;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.btn-record-expense:hover {
+		background: var(--color-coral-dark, #D45233);
+		transform: translateY(-1px);
+	}
+
+	.btn-record-expense:active {
+		transform: scale(0.97);
+	}
+
+	/* KPI summary strip */
+	.money-gone-kpis {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: var(--space-md, 12px);
+		margin-bottom: var(--space-md, 12px);
+	}
+
+	.kpi-card {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		padding: 14px 18px;
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: 18px;
+		box-shadow: var(--shadow-sm);
+	}
+
+	.kpi-label {
+		font-size: 11px;
+		font-weight: 700;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		margin-bottom: 4px;
+	}
+
+	.kpi-value {
+		font-family: var(--font-display);
+		font-size: 20px;
+		font-weight: 800;
+		color: var(--color-ink);
+	}
+
+	.kpi-value.coral {
+		color: var(--color-money-gone, #EF6C4A);
+	}
+
+	.kpi-unit {
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--color-text-muted);
+	}
+
+	.kpi-subtext {
+		font-size: 11px;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		margin-top: 2px;
 	}
 
 	/* ─── Table Card Container (Integrates Toolbar as Table Header) ─── */

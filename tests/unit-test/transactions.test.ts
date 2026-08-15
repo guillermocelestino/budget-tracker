@@ -22,6 +22,9 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 	let getCashBalance: typeof import('$lib/server/services/transactions').getCashBalance;
 	let getMonthlyCashFlows: typeof import('$lib/server/services/transactions').getMonthlyCashFlows;
 	let getTransactionsForDuplicateCheck: typeof import('$lib/server/services/transactions').getTransactionsForDuplicateCheck;
+	let getWreckedToday: typeof import('$lib/server/services/transactions').getWreckedToday;
+	let getOutflowVelocity: typeof import('$lib/server/services/transactions').getOutflowVelocity;
+	let getLargestOutflow: typeof import('$lib/server/services/transactions').getLargestOutflow;
 
 	let calls: {
 		selects: number;
@@ -131,6 +134,9 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 		getCashBalance = svc.getCashBalance;
 		getMonthlyCashFlows = svc.getMonthlyCashFlows;
 		getTransactionsForDuplicateCheck = svc.getTransactionsForDuplicateCheck;
+		getWreckedToday = svc.getWreckedToday;
+		getOutflowVelocity = svc.getOutflowVelocity;
+		getLargestOutflow = svc.getLargestOutflow;
 	});
 
 	beforeEach(() => {
@@ -470,6 +476,43 @@ describe('transactions service — Drizzle / Postgres path (recorded fake client
 			selectRows = [{ count: 8 }];
 			const result = await listTransactions(12, { date_from: '2026-01-01', date_to: '2026-03-31' }, 1, 20);
 			expect(result.total).toBe(8);
+		});
+	});
+
+	describe('Money Gone KPI service aggregations', () => {
+		it('getWreckedToday computes expense sum for specific date', async () => {
+			selectRows = [{ total: '1250.50' }];
+			const total = await getWreckedToday(12, '2026-08-15');
+			expect(total).toBe(1250.50);
+			expect(calls.selects).toBe(1);
+		});
+
+		it('getWreckedToday handles zero expenses on empty day', async () => {
+			selectRows = [{ total: '0' }];
+			const total = await getWreckedToday(12, '2026-08-15');
+			expect(total).toBe(0);
+		});
+
+		it('getOutflowVelocity computes daily velocity based on elapsed days', async () => {
+			// Mock monthly summary returned expense of 3000
+			selectRows = [{ totalIncome: '0', totalExpenses: '3000' }];
+			const velocity = await getOutflowVelocity(12, '2026-08');
+			expect(velocity.totalExpenses).toBe(3000);
+			expect(velocity.daysElapsed).toBeGreaterThanOrEqual(1);
+			expect(velocity.velocity).toBe(3000 / velocity.daysElapsed);
+		});
+
+		it('getLargestOutflow returns single max expense row or null when empty', async () => {
+			selectRows = [{ amount: '12500.00', description: 'Monthly Rent', category_name: 'Bills', category_color: '#EF6C4A' }];
+			const largest = await getLargestOutflow(12, '2026-08');
+			expect(largest).not.toBeNull();
+			expect(largest?.amount).toBe(12500);
+			expect(largest?.description).toBe('Monthly Rent');
+			expect(largest?.category_name).toBe('Bills');
+
+			selectRows = [];
+			const emptyLargest = await getLargestOutflow(12, '2026-08');
+			expect(emptyLargest).toBeNull();
 		});
 	});
 });

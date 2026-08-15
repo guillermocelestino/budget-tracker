@@ -58,6 +58,13 @@
   --color-negative: #E74C3C;
   --color-hairline: rgba(20, 48, 46, 0.10);
 
+  /* ─── GET WRECK Product Modality Tokens ─── */
+  --color-money-gone: var(--color-coral);
+  --color-money-away: var(--color-sky);
+  --color-money-committed: var(--color-gold);
+  --color-money-returning: var(--color-teal);
+  --color-true-position: var(--color-teal-dark);
+
   /* ─── Legacy mappings for components that still reference old names ─── */
   --color-border: rgba(20, 48, 46, 0.12);
   --color-primary: var(--color-gold);
@@ -244,6 +251,13 @@
   --color-positive: #34D27E;
   --color-negative: #FF7A6B;
   --color-hairline: rgba(255, 255, 255, 0.08);
+
+  /* ─── GET WRECK Product Modality Tokens (Dark) ─── */
+  --color-money-gone: var(--color-coral);
+  --color-money-away: var(--color-sky);
+  --color-money-committed: var(--color-gold);
+  --color-money-returning: var(--color-teal);
+  --color-true-position: var(--color-teal);
 
   --color-border: rgba(234, 247, 245, 0.15);
   --color-primary: var(--color-gold);

@@ -900,3 +900,85 @@ export async function getTransactionsForDuplicateCheck(
 		category_id: r.category_id
 	}));
 }
+
+/** Get total expense amount for a single date (defaults to today's UTC/local date). */
+export async function getWreckedToday(userId: number, todayStr?: string): Promise<number> {
+	const today = todayStr || new Date().toISOString().split('T')[0];
+	const db = await getDrizzle();
+	const [row] = await db
+		.select({
+			total: sql<string>`COALESCE(SUM(${transactions.amount}), 0)`
+		})
+		.from(transactions)
+		.where(and(
+			eq(transactions.user_id, userId),
+			eq(transactions.type, 'expense'),
+			eq(transactions.date, today)
+		));
+	return parseFloat(row?.total ?? '0');
+}
+
+/** Get MTD outflow velocity (average daily expense for elapsed calendar days in current month). */
+export async function getOutflowVelocity(
+	userId: number,
+	month: string
+): Promise<{ totalExpenses: number; daysElapsed: number; velocity: number }> {
+	const summary = await getMonthlySummary(userId, month);
+	const now = new Date();
+	const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+	let daysElapsed = 1;
+	if (month === currentYearMonth) {
+		daysElapsed = Math.max(1, now.getDate());
+	} else if (month < currentYearMonth) {
+		const [y, m] = month.split('-').map(Number);
+		daysElapsed = new Date(y, m, 0).getDate();
+	} else {
+		daysElapsed = 1;
+	}
+
+	const velocity = summary.totalExpenses > 0 ? summary.totalExpenses / daysElapsed : 0;
+	return {
+		totalExpenses: summary.totalExpenses,
+		daysElapsed,
+		velocity
+	};
+}
+
+/** Get the largest single expense outflow for the specified month. */
+export async function getLargestOutflow(
+	userId: number,
+	month: string
+): Promise<{ amount: number; description: string; category_name?: string; category_color?: string } | null> {
+	const firstDay = `${month}-01`;
+	const date = new Date(firstDay);
+	const lastDayDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+	const lastDay = `${month}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
+
+	const db = await getDrizzle();
+	const [row] = await db
+		.select({
+			amount: transactions.amount,
+			description: transactions.description,
+			category_name: categories.name,
+			category_color: categories.color
+		})
+		.from(transactions)
+		.leftJoin(categories, eq(transactions.category_id, categories.id))
+		.where(and(
+			eq(transactions.user_id, userId),
+			eq(transactions.type, 'expense'),
+			gte(transactions.date, firstDay),
+			lte(transactions.date, lastDay)
+		))
+		.orderBy(desc(transactions.amount), desc(transactions.id))
+		.limit(1);
+
+	if (!row) return null;
+	return {
+		amount: parseFloat(String(row.amount)),
+		description: row.description,
+		category_name: row.category_name ?? undefined,
+		category_color: row.category_color ?? undefined
+	};
+}

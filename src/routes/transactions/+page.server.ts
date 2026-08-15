@@ -1,7 +1,17 @@
 import { fail } from '@sveltejs/kit';
 import { getCategories } from '$lib/server/services/categories';
-import { listTransactions, createTransaction, updateTransaction, deleteTransaction, deleteTransactions } from '$lib/server/services/transactions';
+import {
+	listTransactions,
+	createTransaction,
+	updateTransaction,
+	deleteTransaction,
+	deleteTransactions,
+	getWreckedToday,
+	getOutflowVelocity,
+	getLargestOutflow
+} from '$lib/server/services/transactions';
 import { importTransactionsForUser } from '$lib/server/services/transactionImport';
+import { getCurrentMonth } from '$lib/shared/utils/format';
 
 export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -29,6 +39,16 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 
 	const categories = await getCategories(userId);
 
+	// Current month for Money Gone metrics
+	const currentMonthStr = getCurrentMonth();
+
+	// Fetch Money Gone KPI metrics
+	const [wreckedToday, velocityData, largestOutflow] = await Promise.all([
+		getWreckedToday(userId),
+		getOutflowVelocity(userId, currentMonthStr),
+		getLargestOutflow(userId, currentMonthStr)
+	]);
+
 	// Validate date range
 	if (date_from && date_to && date_from > date_to) {
 		return {
@@ -39,7 +59,14 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 			totalPages: 1,
 			limit: limit ?? 0,
 			categories,
-			dateError: 'From date cannot be after End date'
+			dateError: 'From date cannot be after End date',
+			moneyGoneStats: {
+				wreckedToday,
+				wreckedThisMonth: velocityData.totalExpenses,
+				outflowVelocity: velocityData.velocity,
+				daysElapsed: velocityData.daysElapsed,
+				largestOutflow
+			}
 		};
 	}
 
@@ -71,7 +98,14 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 		totalPages: result.totalPages,
 		limit: limit ?? 0,
 		categories,
-		dateError: null
+		dateError: null,
+		moneyGoneStats: {
+			wreckedToday,
+			wreckedThisMonth: velocityData.totalExpenses,
+			outflowVelocity: velocityData.velocity,
+			daysElapsed: velocityData.daysElapsed,
+			largestOutflow
+		}
 	};
 }
 

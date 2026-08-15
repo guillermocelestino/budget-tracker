@@ -2,28 +2,9 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { prefs, updatePrefs } from '$lib/client/stores/preferences.svelte';
+  import { COMMAND_CENTER_NAV, MONEY_OUT_NAV, EXPLORE_NAV } from '$lib/client/utils/modalities';
 
   let { onsearch }: { onsearch?: () => void } = $props();
-
-  // ─── Navigation Architecture ──────────────────────────────────────
-  // Two zones: Primary (core workflows, visited daily/weekly)
-  //              Secondary (configuration, visited infrequently)
-
-  const primaryNav = [
-    { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-    { href: '/transactions', label: 'Transactions', icon: 'transactions' },
-    { href: '/money-map', label: 'Money Map', icon: 'money-map' },
-    { href: '/net-worth', label: 'Net Worth', icon: 'net-worth' },
-    { href: '/lending', label: 'Lending', icon: 'lending' },
-    { href: '/borrowed', label: 'Borrowed', icon: 'borrowed' },
-    { href: '/recurring', label: 'Recurring', icon: 'recurring' },
-    { href: '/reports', label: 'Reports', icon: 'reports' },
-  ];
-
-  const secondaryNav = [
-    { href: '/categories', label: 'Categories', icon: 'categories' },
-    { href: '/settings', label: 'Settings', icon: 'settings' },
-  ];
 
   // ─── State ────────────────────────────────────────────────────────
 
@@ -80,34 +61,28 @@
       <rect width="7" height="7" x="13.5" y="13.5" rx="1.5"/>
       <rect width="7" height="7" x="3.5" y="13.5" rx="1.5"/>
     </svg>`,
-    transactions: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M4 16l6-6 4 4 6-8"/>
-      <circle cx="4" cy="16" r="2" fill="currentColor"/>
-      <circle cx="10" cy="10" r="2" fill="currentColor"/>
-      <circle cx="14" cy="14" r="2" fill="currentColor"/>
-      <circle cx="20" cy="6" r="2" fill="currentColor"/>
+    'money-gone': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+    </svg>`,
+    'money-away': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.6 2 5.1 2 2.5 0 2.5-2 5.1-2 1.3 0 1.9.5 2.5 1"/>
+      <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5 2 2.6 0 2.6 2 5.1 2 2.5 0 2.5-2 5.1-2 1.3 0 1.9.5 2.5 1"/>
+      <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5 2 2.6 0 2.6 2 5.1 2 2.5 0 2.5-2 5.1-2 1.3 0 1.9.5 2.5 1"/>
+    </svg>`,
+    'money-committed': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    </svg>`,
+    'true-position': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <circle cx="12" cy="12" r="6"/>
+      <circle cx="12" cy="12" r="2"/>
     </svg>`,
     'money-map': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/>
       <circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/>
       <line x1="7" y1="7" x2="10" y2="10"/><line x1="17" y1="7" x2="14" y2="10"/>
       <line x1="7" y1="17" x2="10" y2="14"/><line x1="17" y1="17" x2="14" y2="14"/>
-    </svg>`,
-    lending: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="m20.42 4.58-7.65 7.65-2.12-2.12a1.5 1.5 0 0 0-2.12 2.12l3.54 3.54a1.5 1.5 0 0 0 2.12-2.12L12 12"/>
-      <path d="m8.58 15.42-3.54 3.54"/><path d="m15.42 8.58 3.54-3.54"/>
-    </svg>`,
-    borrowed: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M3.58 19.42l7.65-7.65 2.12 2.12a1.5 1.5 0 0 0 2.12-2.12l-3.54-3.54a1.5 1.5 0 0 0-2.12 2.12L12 12"/>
-      <path d="m15.42 8.58 3.54-3.54"/><path d="m8.58 15.42-3.54 3.54"/>
-    </svg>`,
-    'net-worth': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-    </svg>`,
-    recurring: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <polyline points="12 6 12 12 16 14"/>
-      <path d="M12 2a10 10 0 0 1 0 20 10 10 0 0 1 0-20"/>
     </svg>`,
     reports: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -146,12 +121,12 @@
     <a href="/dashboard" class="logo-link">
       {#if !isCollapsed}
         <div class="brand-text">
-          <h2>HoneyDue</h2>
-          <span class="brand-tagline">ENTERPRISE TIER</span>
+          <h2>GET WRECK</h2>
+          <span class="brand-tagline">MONEY OUT OS</span>
         </div>
       {:else}
         <div class="brand-text collapsed-brand">
-          <h2>HD</h2>
+          <h2>GW</h2>
         </div>
       {/if}
     </a>
@@ -159,12 +134,15 @@
 
   <!-- ─── Scrollable Navigation Body ─── -->
   <div class="sidebar-body">
-    <!-- Primary Navigation (core workflows) -->
-    <nav class="sidebar-nav" aria-label="Primary">
-      {#each primaryNav as item (item.href)}
+    <!-- COMMAND CENTER Section -->
+    {#if !isCollapsed}
+      <div class="sidebar-section-header">COMMAND CENTER</div>
+    {/if}
+    <nav class="sidebar-nav" aria-label="COMMAND CENTER">
+      {#each COMMAND_CENTER_NAV as item (item.href)}
         <a
           href={item.href}
-          class="nav-item"
+          class="nav-item command-center-item"
           class:active={isActive(item.href)}
           title={isCollapsed ? item.label : undefined}
         >
@@ -179,9 +157,35 @@
     <!-- Zone divider -->
     <div class="nav-divider"></div>
 
-    <!-- Secondary Navigation (configuration) -->
-    <nav class="sidebar-nav" aria-label="Secondary">
-      {#each secondaryNav as item (item.href)}
+    <!-- MONEY OUT Section -->
+    {#if !isCollapsed}
+      <div class="sidebar-section-header">MONEY OUT</div>
+    {/if}
+    <nav class="sidebar-nav" aria-label="MONEY OUT">
+      {#each MONEY_OUT_NAV as item (item.href)}
+        <a
+          href={item.href}
+          class="nav-item modality-{item.modality}"
+          class:active={isActive(item.href)}
+          title={isCollapsed ? item.label : undefined}
+        >
+          <!-- icons is an internal map of inline SVG strings (not user input) -->
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+          <span class="nav-icon">{@html icons[item.icon]}</span>
+          <span class="nav-label">{item.label}</span>
+        </a>
+      {/each}
+    </nav>
+
+    <!-- Zone divider -->
+    <div class="nav-divider"></div>
+
+    <!-- EXPLORE Section -->
+    {#if !isCollapsed}
+      <div class="sidebar-section-header">EXPLORE</div>
+    {/if}
+    <nav class="sidebar-nav" aria-label="EXPLORE">
+      {#each EXPLORE_NAV as item (item.href)}
         <a
           href={item.href}
           class="nav-item secondary-item"
@@ -407,6 +411,22 @@
     transition: color 180ms var(--bounce);
   }
 
+  /* ─── Section Header ─── */
+  .sidebar-section-header {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--color-text-muted);
+    letter-spacing: 0.12em;
+    padding: 12px 28px 4px;
+    text-transform: uppercase;
+    opacity: 0.75;
+  }
+
+  .collapsed .sidebar-section-header {
+    display: none;
+  }
+
   /* Hover */
   .nav-item:hover {
     background: var(--color-teal-bg);
@@ -416,18 +436,54 @@
     scale: 1.05;
   }
 
-  /* Active — solid rounded teal pill + soft drop shadow + white text & icon */
+  /* Active — solid rounded pill + soft drop shadow + white text & icon */
   .nav-item.active {
     background: var(--color-teal-dark);
     color: var(--color-ink-inverse) !important;
     font-weight: 700;
-    min-height: 58px;
+    min-height: 54px;
     border-radius: 30px;
     box-shadow: 0 6px 20px -4px rgba(20, 155, 145, 0.35);
   }
 
   .nav-item.active .nav-icon {
     color: var(--color-ink-inverse) !important;
+  }
+
+  /* GET WRECK Modality Active Colors */
+  .nav-item.modality-gone.active {
+    background: var(--color-money-gone);
+    color: var(--color-ink-inverse) !important;
+    box-shadow: 0 6px 20px -4px rgba(239, 108, 74, 0.45);
+  }
+
+  .nav-item.modality-away.active {
+    background: var(--color-money-away);
+    color: var(--color-ink-inverse) !important;
+    box-shadow: 0 6px 20px -4px rgba(93, 173, 226, 0.45);
+  }
+
+  .nav-item.modality-committed.active {
+    background: var(--color-money-committed);
+    color: var(--color-on-gold) !important;
+    box-shadow: 0 6px 20px -4px rgba(255, 210, 63, 0.50);
+  }
+
+  .nav-item.modality-committed.active .nav-icon {
+    color: var(--color-on-gold) !important;
+  }
+
+  .nav-item.command-center-item.active {
+    background: var(--color-teal-dark, #149B91);
+    color: var(--color-ink-inverse) !important;
+    font-weight: 800;
+    box-shadow: 0 6px 20px -4px rgba(20, 155, 145, 0.45);
+  }
+
+  .nav-item.modality-position.active {
+    background: var(--color-true-position);
+    color: var(--color-ink-inverse) !important;
+    box-shadow: 0 6px 20px -4px rgba(30, 140, 134, 0.45);
   }
 
   .nav-item:active {

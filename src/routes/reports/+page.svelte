@@ -122,12 +122,15 @@
 </script>
 
 <svelte:head>
-  <title>Reports — Finance Tracker</title>
+  <title>Analysis — Finance Tracker</title>
 </svelte:head>
 
-<PageHeader title="Reports" flush borderless>
+<PageHeader title="WHY IS MY MONEY MOVING THIS WAY?" flush borderless>
   {#snippet subtitle()}
-    <span class="context-subline">Financial insights & trends</span>
+    <div class="analysis-badge-row">
+      <span class="analysis-badge">📊 ANALYSIS</span>
+      <span class="context-subline">Patterns, trends, and financial behavior hiding behind your numbers.</span>
+    </div>
   {/snippet}
   {#snippet action()}
     {#if hasExportableData}
@@ -178,7 +181,7 @@
   <div class="empty-page-region">
     <EmptyState
       icon="🌱"
-      title="Your reports are waiting"
+      title="Your analysis is waiting"
       description="Log a few transactions and this page turns into your money's story."
       actionLabel="Add a transaction"
       actionHref="/transactions/new"
@@ -198,8 +201,9 @@
   </div>
 {:else}
   <div class="reports-shell">
-    <!-- ════ LAYER 1: TOP KPI SUMMARY (Above the Fold) ════ -->
+    <!-- ════ LAYER 1: ANALYTICAL OVERVIEW ════ -->
     <section class="reports-section">
+      <div class="section-label">ANALYTICAL OVERVIEW</div>
       <ReportsKpiGrid
         income={currentSummary.income}
         incomeChange={changes.monthIncomeChange}
@@ -212,10 +216,11 @@
 
     <!-- ════ LAYER 2: PRIMARY TREND ANALYSIS (Cash Flow Line Chart) ════ -->
     <section class="reports-section">
+      <div class="section-label">CASH FLOW & OUTFLOW TREND</div>
       <div class="trend-card flip7-card">
         <div class="card-header">
-          <h2 class="card-title">Cash Flow Trend</h2>
-          <span class="card-subtitle">Monthly Income vs. Expenses over time</span>
+          <h2 class="card-title">Cash Flow & Outflow Trend</h2>
+          <span class="card-subtitle">Monthly Income (↩ Money Returning) vs. Expenses (🔥 Money Gone) over time</span>
         </div>
         <div class="card-body">
           <MonthlyTrendChart
@@ -229,6 +234,7 @@
 
     <!-- ════ LAYER 3: SECONDARY CATEGORY BREAKDOWN (2-Column Desktop Grid) ════ -->
     <section class="reports-section">
+      <div class="section-label">CATEGORY CONCENTRATION</div>
       <ReportsCategoryGrid
         expenseCategories={data.expenseData ?? []}
         incomeCategories={data.incomeData ?? []}
@@ -238,8 +244,9 @@
       />
     </section>
 
-    <!-- ════ LAYER 4: YEAR-OVER-YEAR COMPARISON ════ -->
+    <!-- ════ LAYER 4: YEAR-OVER-YEAR / PERIOD COMPARISON ════ -->
     <section class="reports-section">
+      <div class="section-label">PERIOD & YEAR-OVER-YEAR COMPARISON</div>
       <YearOverYearCard
         yoyData={data.yoyData}
         selectedMonth={getMonthLabel(data.month ?? '')}
@@ -248,6 +255,7 @@
 
     <!-- ════ LAYER 5: DETAILED MONTHLY BREAKDOWN TABLE ════ -->
     <section class="reports-section">
+      <div class="section-label">MONTHLY BREAKDOWN</div>
       <div class="table-card flip7-card">
         <div class="card-header">
           <h2 class="card-title">Monthly Breakdown</h2>
@@ -267,12 +275,43 @@
     z-index: 30;
   }
 
+  .analysis-badge-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex-wrap: wrap;
+    margin-top: 2px;
+  }
+
+  .analysis-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--color-teal-bg);
+    color: var(--color-true-position, var(--color-teal-dark));
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
   .context-subline {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     font-size: var(--font-size-xs);
     letter-spacing: 0.02em;
     color: var(--color-text-muted);
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-xs);
   }
 
   /* ─── Export CSV Button ─── */
@@ -440,3 +479,4 @@
     }
   }
 </style>
+

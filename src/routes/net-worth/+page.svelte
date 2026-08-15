@@ -5,7 +5,6 @@
   import { Line } from 'svelte-chartjs';
   import { formatCurrency } from '$lib/client/utils/format';
   import type { ChartData, ChartOptions } from 'chart.js';
-  import PageHeader from '$lib/client/components/PageHeader.svelte';
   import PageBackground from '$lib/client/components/PageBackground.svelte';
   import NetWorthHero from '$lib/client/components/NetWorthHero.svelte';
   import type { NetWorthSnapshot } from '$lib/types';
@@ -60,123 +59,54 @@
 
   // ─── Chart colors ───
   const tealColor = $derived(isDark ? '#3CC4BD' : '#2BA8A2');
-  const goldColor = $derived(isDark ? '#FFD23F' : '#E6B800');
-  const coralColor = $derived(isDark ? '#FF8A6A' : '#EF6C4A');
   const tickColor = $derived(isDark ? '#8FB3B0' : '#5C7A78');
   const gridColor = $derived(isDark ? 'rgba(234,247,245,0.04)' : 'rgba(20,48,46,0.04)');
 
-  // ─── Chart data: cash band + lent/borrowed end-bands ───
+  // ─── Chart data: cash band ───
   const chartLabels = $derived(filteredTrend.map(p => {
     const [y, m] = p.month.split('-');
     const d = new Date(parseInt(y), parseInt(m) - 1);
     return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
   }));
 
-  // Cash band + end-band construction
-  // The lent and borrowed are shown as flat lines at their value on the last data point
   const chartData = $derived.by(() => {
     const cashData = filteredTrend.map(p => p.cash);
-    const len = cashData.length;
-
-    // Create a filled area for cash, plus lent/borrowed as labeled single-point markers
-    // For the stacked area effect: cash fills the area, lent/borrowed appear as horizontal
-    // end-bands at the last data point.
-    const lastCash = len > 0 ? cashData[len - 1] : 0;
-    const lentVal = snapshot.lentToday;
-    const borrowedVal = snapshot.borrowedToday;
-
-    // Build datasets
-    const datasets: ChartData<'line'>['datasets'] = [
-      {
-        label: 'Cash',
-        data: cashData,
-        borderColor: tealColor,
-        backgroundColor: areaGradient,
-        fill: true,
-        tension: 0.3,
-        pointRadius: cashData.length <= 6 ? 3 : 0,
-        pointHitRadius: 6,
-        pointBackgroundColor: tealColor,
-        borderWidth: 2,
-        order: 1,
-      },
-    ];
-
-    // Add lent end-band if > 0
-    if (lentVal > 0) {
-      // Build array with nulls, only show value at last index
-      const lentLine = new Array(len).fill(null);
-      lentLine[len - 1] = lastCash + lentVal;
-      datasets.push({
-        label: 'Lent out',
-        data: lentLine,
-        borderColor: goldColor,
-        backgroundColor: 'rgba(255,210,63,0.1)',
-        fill: true,
-        tension: 0,
-        pointRadius: 5,
-        pointBackgroundColor: goldColor,
-        pointBorderColor: isDark ? '#0C1F1E' : '#FFFFFF',
-        pointBorderWidth: 2,
-        borderWidth: 2,
-        borderDash: [5, 3],
-        order: 2,
-      });
-    }
-
-    // Add borrowed end-band if > 0 (liability — subtracted)
-    if (borrowedVal > 0) {
-      const borrowLine = new Array(len).fill(null);
-      borrowLine[len - 1] = lastCash - borrowedVal;
-      datasets.push({
-        label: 'Borrowed',
-        data: borrowLine,
-        borderColor: coralColor,
-        backgroundColor: 'rgba(239,108,74,0.1)',
-        fill: true,
-        tension: 0,
-        pointRadius: 5,
-        pointBackgroundColor: coralColor,
-        pointBorderColor: isDark ? '#0C1F1E' : '#FFFFFF',
-        pointBorderWidth: 2,
-        borderWidth: 2,
-        borderDash: [5, 3],
-        order: 3,
-      });
-    }
-
-    return { labels: chartLabels, datasets };
+    
+    return {
+      labels: chartLabels,
+      datasets: [
+        {
+          label: 'Cash',
+          data: cashData,
+          borderColor: tealColor,
+          backgroundColor: areaGradient,
+          fill: true,
+          tension: 0.3,
+          pointRadius: cashData.length <= 6 ? 3 : 0,
+          pointHitRadius: 6,
+          pointBackgroundColor: tealColor,
+          borderWidth: 2,
+        },
+      ]
+    };
   });
 
-  // ─── Chart options ───
   const chartOptions = $derived<ChartOptions<'line'>>({
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 1200, easing: 'easeOutQuart' as const },
     plugins: {
-      legend: {
-        display: true,
-        position: 'bottom',
-        labels: {
-          color: tickColor,
-          font: { weight: 'bold', family: "'Nunito Sans', sans-serif", size: 11 },
-          padding: 16,
-          usePointStyle: true,
-          pointStyle: 'circle',
-        },
-      },
+      legend: { display: false },
       tooltip: {
-        backgroundColor: isDark ? '#12302E' : '#FFFFFF',
-        titleColor: tickColor,
-        bodyColor: isDark ? '#EAF7F5' : '#14302E',
-        borderColor: 'rgba(43,168,162,0.2)',
+        backgroundColor: isDark ? '#1A2928' : '#FFFFFF',
+        titleColor: isDark ? '#EAF7F5' : '#14302E',
+        bodyColor: isDark ? '#8FB3B0' : '#5C7A78',
+        borderColor: isDark ? 'rgba(60,196,189,0.3)' : 'rgba(43,168,162,0.2)',
         borderWidth: 1,
-        padding: 12,
-        cornerRadius: 12,
-        bodyFont: { weight: 600, family: "'JetBrains Mono', monospace" },
-        titleFont: { weight: 700, family: "'Nunito Sans', sans-serif" },
+        padding: 10,
+        cornerRadius: 8,
+        displayColors: false,
         callbacks: {
-          label: (ctx) => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y ?? 0)}`,
+          label: (ctx) => `Cash: ${formatCurrency(ctx.parsed.y)}`,
         },
       },
     },
@@ -199,9 +129,6 @@
       mode: 'index',
       intersect: false,
     },
-    elements: {
-      line: { borderJoinStyle: 'round' },
-    },
   });
 
   // ─── Drill-down handlers ───
@@ -216,16 +143,67 @@
 </script>
 
 <svelte:head>
-  <title>Net Worth — Finance Tracker</title>
+  <title>True Position — GET WRECK</title>
 </svelte:head>
 
-<PageHeader title="WHAT I'M WORTH">
-  {#snippet subtitle()}
-    <span class="header-sub">Cash + assets − debts</span>
-  {/snippet}
-</PageHeader>
-
 <PageBackground />
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     TRUE POSITION HERO & BREAKDOWN
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="true-position-container">
+  <header class="true-position-hero">
+    <div class="hero-left">
+      <div class="hero-badge teal">
+        <span class="target-icon">🎯</span>
+        <span class="badge-text">TRUE POSITION</span>
+      </div>
+      <h1 class="hero-title">WHAT DO I ACTUALLY HAVE?</h1>
+      <p class="hero-subtitle">Bank balance isn't the whole story.</p>
+      <p class="hero-equation">Available Cash + Money Away − Money Committed = True Position</p>
+    </div>
+    <div class="hero-right">
+      <span class="hero-val-label">TRUE POSITION</span>
+      <span class="hero-val-amount teal">{formatCurrency(snapshot.net)}</span>
+    </div>
+  </header>
+
+  <!-- ═══ 3-Leg Position Breakdown ═══ -->
+  <div class="position-breakdown-grid">
+    <div class="leg-card">
+      <span class="leg-tag">AVAILABLE CASH</span>
+      <span class="leg-val">{formatCurrency(snapshot.cash)}</span>
+      <span class="leg-desc">Liquid cash in register</span>
+    </div>
+    <div class="leg-operator">+</div>
+    <div class="leg-card">
+      <span class="leg-tag sky">MONEY AWAY</span>
+      <span class="leg-val">{formatCurrency(snapshot.lentToday)}</span>
+      <span class="leg-desc">Lent out (outside)</span>
+    </div>
+    <div class="leg-operator">−</div>
+    <div class="leg-card">
+      <span class="leg-tag gold">MONEY COMMITTED</span>
+      <span class="leg-val">{formatCurrency(snapshot.borrowedToday)}</span>
+      <span class="leg-desc">Borrowed & debt obligations</span>
+    </div>
+    <div class="leg-operator">=</div>
+    <div class="leg-card hero-leg">
+      <span class="leg-tag teal">TRUE POSITION</span>
+      <span class="leg-val teal">{formatCurrency(snapshot.net)}</span>
+      <span class="leg-desc">Your real financial standing</span>
+    </div>
+  </div>
+
+  <!-- ═══ Bank Balance ≠ Real Position Callout ═══ -->
+  <div class="position-insight-callout">
+    <div class="callout-icon">💡</div>
+    <div class="callout-content">
+      <h3 class="callout-title">BANK BALANCE ≠ REAL POSITION</h3>
+      <p class="callout-body">Cash you can see is only part of the picture. Money you've sent away and obligations you've already committed still affect where you actually stand.</p>
+    </div>
+  </div>
+</div>
 
 <!-- ═══ Empty state ═══ -->
 {#if isEmpty}
@@ -315,6 +293,234 @@
 {/if}
 
 <style>
+  /* ─── TRUE POSITION HERO & BREAKDOWN ─── */
+  .true-position-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md, 12px);
+    margin-bottom: var(--space-xl, 24px);
+  }
+
+  .true-position-hero {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-lg, 16px);
+    padding: 22px 28px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline);
+    border-radius: 24px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .hero-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .hero-badge.teal {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    background: var(--color-teal-bg, rgba(30, 140, 134, 0.12));
+    border-radius: var(--radius-pill, 999px);
+    width: fit-content;
+    margin-bottom: 2px;
+  }
+
+  .hero-badge.teal .badge-text {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--color-true-position, #1E8C86);
+    letter-spacing: 0.12em;
+  }
+
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(20px, 2.4vw, 26px);
+    font-weight: 800;
+    color: var(--color-ink);
+    margin: 0;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+
+  .hero-subtitle {
+    font-size: var(--font-size-sm, 14px);
+    color: var(--color-text-muted);
+    margin: 2px 0 0 0;
+  }
+
+  .hero-equation {
+    font-family: var(--font-mono, monospace);
+    font-size: 12px;
+    color: var(--color-true-position, #1E8C86);
+    font-weight: 600;
+    margin: 6px 0 0 0;
+    opacity: 0.9;
+  }
+
+  .hero-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .hero-val-label {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--color-text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .hero-val-amount.teal {
+    font-family: var(--font-display);
+    font-size: clamp(24px, 3vw, 36px);
+    font-weight: 900;
+    color: var(--color-true-position, #1E8C86);
+    line-height: 1.1;
+  }
+
+  /* 3-Leg Position Breakdown */
+  .position-breakdown-grid {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .leg-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 14px 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline);
+    border-radius: 18px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .leg-card.hero-leg {
+    border-color: var(--color-true-position, #1E8C86);
+    background: var(--color-surface);
+  }
+
+  .leg-tag {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--color-text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .leg-tag.sky {
+    color: var(--color-money-away, #5DADE2);
+  }
+
+  .leg-tag.gold {
+    color: var(--color-money-committed, #D97706);
+  }
+
+  .leg-tag.teal {
+    color: var(--color-true-position, #1E8C86);
+  }
+
+  .leg-val {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--color-ink);
+  }
+
+  .leg-val.teal {
+    color: var(--color-true-position, #1E8C86);
+  }
+
+  .leg-desc {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    margin-top: 2px;
+  }
+
+  .leg-operator {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--color-text-muted);
+    padding: 0 4px;
+  }
+
+  /* Insight callout */
+  .position-insight-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 20px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline);
+    border-left: 4px solid var(--color-true-position, #1E8C86);
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .callout-icon {
+    font-size: 20px;
+    line-height: 1;
+    margin-top: 2px;
+  }
+
+  .callout-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .callout-title {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--color-ink);
+    letter-spacing: 0.05em;
+    margin: 0;
+  }
+
+  .callout-body {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    margin: 0;
+    line-height: 1.45;
+  }
+
+  @media (max-width: 768px) {
+    .true-position-hero {
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 16px;
+    }
+
+    .hero-right {
+      align-items: flex-start;
+      margin-top: 8px;
+    }
+
+    .position-breakdown-grid {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .leg-operator {
+      text-align: center;
+      padding: 2px 0;
+    }
+  }
+
   .header-sub {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);

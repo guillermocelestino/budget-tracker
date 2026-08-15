@@ -7,6 +7,7 @@
   import CategoryList from '$lib/client/components/CategoryList.svelte';
   import type { EnrichedCategory } from '$lib/client/components/CategoryList.svelte';
   import CategoryForm from '$lib/client/components/CategoryForm.svelte';
+  import CategoryModal from '$lib/client/components/CategoryModal.svelte';
   import ModalDialog from '$lib/client/components/ModalDialog.svelte';
   import PageBackground from '$lib/client/components/PageBackground.svelte';
   import MonthPicker from '$lib/client/components/MonthPicker.svelte';
@@ -237,19 +238,14 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
   onDelete={(cat) => deleteTarget = cat}
 />
 
-<!-- ═══ Slide-over panel for add/edit ═══ -->
-<SlideOver
-  isOpen={showPanel}
-  title={editingCategory ? 'Edit Category' : 'Add Category'}
+<!-- ═══ Category Management Modal ═══ -->
+<CategoryModal
+  open={showPanel}
+  category={editingCategory ?? undefined}
+  action={editingCategory ? '?/update' : '?/create'}
   onClose={closePanel}
->
-  <CategoryForm
-      category={editingCategory ?? undefined}
-      action={editingCategory ? '?/update' : '?/create'}
-      onCancel={closePanel}
-      onSuccess={closePanel}
-    />
-</SlideOver>
+  onSuccess={closePanel}
+/>
 
 <!-- ═══ Delete confirmation — usage-aware (Archive is a separate future feature) ═══ -->
 {#if deleteTarget}

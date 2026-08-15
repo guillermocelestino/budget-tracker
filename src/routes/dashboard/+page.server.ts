@@ -1,11 +1,11 @@
 import { fail } from '@sveltejs/kit';
-import { getMonthlySummary, getRecentTransactions, getCategoryReport, getMonthlyTrends, deleteTransaction } from '$lib/server/services/transactions';
+import { getMonthlySummary, getRecentTransactions, getCategoryReport, getMonthlyTrends, deleteTransaction, getWreckedToday } from '$lib/server/services/transactions';
 import { getCurrentMonth } from '$lib/shared/utils/format';
 import { computeNetWorth } from '$lib/server/services/networth';
 import { processRecurringTransactions } from '$lib/server/services/recurringScheduler';
 import { getLendingTotals } from '$lib/server/services/lendingPayments';
 import { getTotalBudgeted } from '$lib/server/services/categories';
-import { getUpcomingRecurring } from '$lib/server/services/recurringService';
+import { getUpcomingRecurring, getMonthlyCommittedTotal } from '$lib/server/services/recurringService';
 
 export async function load({ locals }: { locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -15,40 +15,45 @@ export async function load({ locals }: { locals: App.Locals }) {
 	const currentMonthStr = getCurrentMonth();
 	const currentMonth = new Date(currentMonthStr + '-01');
 
-	const monthlySummary = await getMonthlySummary(userId, currentMonthStr);
+	const [
+		monthlySummary,
+		recentTransactions,
+		lentTotals,
+		borrowedTotals,
+		categoryExpenses,
+		totalBudgeted,
+		trendData,
+		netWorth,
+		upcomingRecurring,
+		monthlyCommittedTotal,
+		wreckedToday
+	] = await Promise.all([
+		getMonthlySummary(userId, currentMonthStr),
+		getRecentTransactions(userId, 5),
+		getLendingTotals(userId, 'lent'),
+		getLendingTotals(userId, 'borrowed'),
+		getCategoryReport(userId, currentMonthStr, 'expense'),
+		getTotalBudgeted(userId),
+		getMonthlyTrends(
+			userId,
+			`${currentMonth.getFullYear() - 1}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-01`
+		),
+		computeNetWorth(userId),
+		getUpcomingRecurring(userId, 3),
+		getMonthlyCommittedTotal(userId),
+		getWreckedToday(userId)
+	]);
+
 	const totalIncome = monthlySummary.totalIncome;
 	const totalExpenses = monthlySummary.totalExpenses;
-
-	const recentTransactions = await getRecentTransactions(userId, 5);
-
-	const lentTotals = await getLendingTotals(userId, 'lent');
 	const totalLent = lentTotals.total;
 	const totalRecovered = lentTotals.cashPaid;
-
-	// Borrowed stats for mobile rail
-	const borrowedTotals = await getLendingTotals(userId, 'borrowed');
 	const totalBorrowed = borrowedTotals.total;
 	const totalRepaid = borrowedTotals.cashPaid;
-
 	const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0;
 
-	// Category expense data for donut chart
-	const categoryExpenses = await getCategoryReport(userId, currentMonthStr, 'expense');
-
-	// Budget totals for Safe-to-Spend widget
-	const totalBudgeted = await getTotalBudgeted(userId);
-
-	// Monthly trend data for sparklines (last 6 months)
-	const trendData = await getMonthlyTrends(
-		userId,
-		`${currentMonth.getFullYear() - 1}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-01`
-	);
-
-	// Net worth for the dashboard teaser (same snapshot as /net-worth)
-	const netWorth = await computeNetWorth(userId);
-
-	// Upcoming recurring transactions (next 3)
-	const upcomingRecurring = await getUpcomingRecurring(userId, 3);
+	const debtOwed = borrowedTotals.outstanding;
+	const totalCommitted = monthlyCommittedTotal + debtOwed;
 
 	return {
 		summary: {
@@ -57,17 +62,39 @@ export async function load({ locals }: { locals: App.Locals }) {
 			balance: totalIncome - totalExpenses,
 			savingsRate,
 		},
+		commandCenter: {
+			moneyGone: {
+				totalExpenses,
+				wreckedToday
+			},
+			moneyAway: {
+				totalLent,
+				totalRecovered,
+				outstanding: lentTotals.outstanding
+			},
+			moneyCommitted: {
+				monthlyCommittedTotal,
+				debtOwed,
+				totalCommitted
+			},
+			truePosition: {
+				net: netWorth.net,
+				cash: netWorth.cash,
+				lentActive: netWorth.lentToday,
+				borrowedActive: netWorth.borrowedToday
+			}
+		},
 		recentTransactions,
 		totalBudgeted,
 		lendingSummary: {
 			totalLent,
 			totalRecovered,
-			outstanding: totalLent - totalRecovered,
+			outstanding: lentTotals.outstanding,
 		},
 		borrowedSummary: {
 			totalBorrowed,
 			totalRepaid,
-			outstanding: totalBorrowed - totalRepaid,
+			outstanding: borrowedTotals.outstanding,
 		},
 		categoryLabels: categoryExpenses.map(c => c.category_name),
 		categoryData: categoryExpenses.map(c => c.total),

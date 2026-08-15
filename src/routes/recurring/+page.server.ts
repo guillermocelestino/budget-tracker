@@ -1,7 +1,14 @@
 import { fail } from '@sveltejs/kit';
-import { listRecurringTransactions, getActiveRecurringCount, deleteRecurringTransactions } from '$lib/server/services/recurringService';
+import {
+	listRecurringTransactions,
+	getActiveRecurringCount,
+	deleteRecurringTransactions,
+	getMonthlyCommittedTotal,
+	getUpcomingCommitmentsTotal
+} from '$lib/server/services/recurringService';
 import type { RecurringFilters } from '$lib/server/services/recurringService';
 import { getCategories } from '$lib/server/services/categories';
+import { getLendingTotals, getLendingStatusCounts, listLendingsWithPayments } from '$lib/server/services/lendingPayments';
 
 export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const userId = locals.user!.userId;
@@ -37,25 +44,53 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 		category_id: category_id ? parseInt(category_id, 10) : undefined,
 	};
 
-	let result = await listRecurringTransactions(userId, filters, page, limit);
+	const [
+		result,
+		categories,
+		activeCount,
+		monthlyCommittedTotal,
+		upcoming7Days,
+		upcoming30Days,
+		borrowedTotals,
+		borrowedCounts,
+		borrowedResult
+	] = await Promise.all([
+		listRecurringTransactions(userId, filters, page, limit),
+		getCategories(userId),
+		getActiveRecurringCount(userId),
+		getMonthlyCommittedTotal(userId),
+		getUpcomingCommitmentsTotal(userId, 7),
+		getUpcomingCommitmentsTotal(userId, 30),
+		getLendingTotals(userId, 'borrowed'),
+		getLendingStatusCounts(userId, 'borrowed'),
+		listLendingsWithPayments(userId, 'borrowed')
+	]);
 
-	// Clamp out-of-range pages to the last available page
+	let finalResult = result;
 	if (page > result.totalPages && result.totalPages > 0) {
 		page = result.totalPages;
-		result = await listRecurringTransactions(userId, filters, page, limit);
+		finalResult = await listRecurringTransactions(userId, filters, page, limit);
 	}
 
-	const categories = await getCategories(userId);
-	const activeCount = await getActiveRecurringCount(userId);
+	const debtOwed = borrowedTotals.outstanding;
+	const totalCommitted = monthlyCommittedTotal + debtOwed;
 
 	return {
-		recurring: result.items,
-		total: result.total,
+		recurring: finalResult.items,
+		borrowedLendings: borrowedResult.items,
+		total: finalResult.total,
 		page,
-		totalPages: result.totalPages,
+		totalPages: finalResult.totalPages,
 		limit: limit ?? 0,
 		categories,
 		activeCount,
+		moneyCommittedStats: {
+			totalCommitted,
+			next7Days: upcoming7Days,
+			next30Days: upcoming30Days,
+			debtOwed,
+			borrowedActiveCount: borrowedCounts.active
+		}
 	};
 }
 

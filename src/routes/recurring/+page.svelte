@@ -2,8 +2,8 @@
 	import { page, navigating } from '$app/stores';
 	import { browser } from '$app/environment';
 	import { goto, invalidateAll } from '$app/navigation';
-	import PageHeader from '$lib/client/components/PageHeader.svelte';
 	import PageBackground from '$lib/client/components/PageBackground.svelte';
+	import MoneyCommittedModal from '$lib/client/components/MoneyCommittedModal.svelte';
 	import RecurringForm from '$lib/client/components/RecurringForm.svelte';
 	import RecurringList from '$lib/client/components/RecurringList.svelte';
 	import OverflowMenu from '$lib/client/components/OverflowMenu.svelte';
@@ -11,17 +11,18 @@
 	import FilterFooter from '$lib/client/components/FilterFooter.svelte';
 	import ModalDialog from '$lib/client/components/ModalDialog.svelte';
 	import Button from '$lib/client/components/Button.svelte';
-	import CountChip from '$lib/client/components/CountChip.svelte';
 	import EmptyState from '$lib/client/components/EmptyState.svelte';
 	import { enhance } from '$app/forms';
 	import { untrack } from 'svelte';
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
+	import { formatCurrency } from '$lib/client/utils/format';
 	import type { RecurringTransaction } from '$lib/types';
 
 	let data = $derived($page.data as App.PageData);
 	let activeCount = $derived(data.activeCount ?? 0);
 	let deleteTarget = $state<number | number[] | null>(null);
 	let showAddPanel = $state(false);
+	let modalMode = $state<'scheduled' | 'debt'>('scheduled');
 	let editingRecurring = $state<RecurringTransaction | null>(null);
 	let panelEl = $state<HTMLDivElement | null>(null);
 	let addBtnEl = $state<HTMLElement | null>(null);
@@ -519,32 +520,67 @@
 </script>
 
 <svelte:head>
-	<title>Recurring Transactions — Finance Tracker</title>
+	<title>Money Committed — GET WRECK</title>
 </svelte:head>
 
-<PageHeader title="Recurring Transactions" borderless>
-	{#snippet badge()}
-		<CountChip count={activeCount} suffix="active" />
-	{/snippet}
-	{#snippet action()}
-		<div class="header-actions">
-			<Button variant="primary" bind:el={addBtnEl} onclick={openAdd}>
+<PageBackground />
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     MONEY COMMITTED HERO & KPI SUMMARY STRIP
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="money-committed-container">
+	<header class="money-committed-hero">
+		<div class="hero-left">
+			<div class="hero-badge gold">
+				<span class="lock-icon">🔒</span>
+				<span class="badge-text">MONEY COMMITTED</span>
+			</div>
+			<h1 class="hero-title">HOW MUCH OF MY FUTURE MONEY IS ALREADY SPOKEN FOR?</h1>
+			<p class="hero-subtitle">This money hasn't left yet — but it's already promised.</p>
+		</div>
+		<div class="hero-actions">
+			<button class="btn-add-commitment" bind:this={addBtnEl} onclick={() => { modalMode = 'scheduled'; openAdd(); }} aria-label="Add Commitment">
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 					<line x1="12" y1="5" x2="12" y2="19"/>
 					<line x1="5" y1="12" x2="19" y2="12"/>
 				</svg>
-				Add Recurring
-			</Button>
+				Add Commitment
+			</button>
+			<button class="btn-add-debt" onclick={() => { modalMode = 'debt'; openAdd(); }} aria-label="Add Debt">
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+					<line x1="12" y1="5" x2="12" y2="19"/>
+					<line x1="5" y1="12" x2="19" y2="12"/>
+				</svg>
+				Add Debt
+			</button>
 			<OverflowMenu
 				selectLabel="Select Recurring"
 				onExportCsv={handleExportCsv}
 				onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
 			/>
 		</div>
-	{/snippet}
-</PageHeader>
+	</header>
 
-<PageBackground />
+	<!-- ═══ Money Committed 4-Metric KPI Summary Strip ═══ -->
+	<div class="money-committed-kpis">
+		<div class="kpi-card">
+			<span class="kpi-label">Total Committed</span>
+			<span class="kpi-value gold">{formatCurrency(data.moneyCommittedStats?.totalCommitted ?? 0)}</span>
+		</div>
+		<div class="kpi-card">
+			<span class="kpi-label">Next 7 Days</span>
+			<span class="kpi-value">{formatCurrency(data.moneyCommittedStats?.next7Days ?? 0)}</span>
+		</div>
+		<div class="kpi-card">
+			<span class="kpi-label">Next 30 Days</span>
+			<span class="kpi-value">{formatCurrency(data.moneyCommittedStats?.next30Days ?? 0)}</span>
+		</div>
+		<div class="kpi-card">
+			<span class="kpi-label">Debt Owed</span>
+			<span class="kpi-value">{formatCurrency(data.moneyCommittedStats?.debtOwed ?? 0)}</span>
+		</div>
+	</div>
+</div>
 
 <!-- ═══ Table Card Container (Integrates Toolbar as Table Header) ═══ -->
 <div class="table-card-wrapper">
@@ -748,7 +784,6 @@
 							<option value="100">100</option>
 							<option value="200">200</option>
 							<option value="500">500</option>
-							<option value="all">All</option>
 						</select>
 					</div>
 				</div>
@@ -757,28 +792,40 @@
 	</div>
 </div>
 
-<!-- Add/Edit Panel -->
-{#if showAddPanel}
-	<button class="panel-overlay" onclick={closePanel} aria-label="Close panel"></button>
-	<div class="slide-panel" bind:this={panelEl} role="dialog" aria-modal="true" aria-labelledby="panel-title">
-		<div class="panel-header">
-			<h2 id="panel-title" class="panel-title">{editingRecurring ? 'Edit Recurring Transaction' : 'Add Recurring Transaction'}</h2>
-			<button class="panel-close" onclick={closePanel} aria-label="Close">
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-			</button>
+<!-- ═══ Debt Obligations Section ═══ -->
+<section class="debt-obligations-section">
+	<div class="debt-header">
+		<div class="debt-title-wrap">
+			<span class="debt-badge">DEBT OBLIGATIONS</span>
+			<h2 class="debt-title">Money promised to be returned to lenders</h2>
 		</div>
-		<div class="panel-content">
-		{#key editingRecurring?.id ?? 'new'}
-			<RecurringForm
-				categories={data.categories ?? []}
-				recurring={editingRecurring ?? undefined}
-				onSubmit={handleFormSubmit}
-				onSuccess={onFormSuccess}
-			/>
-		{/key}
+		<a href="/borrowed" class="btn-view-borrowed">
+			View Borrowed
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+				<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+			</svg>
+		</a>
+	</div>
+	<div class="debt-grid">
+		<div class="debt-stat-card">
+			<span class="debt-stat-label">Outstanding Debt</span>
+			<span class="debt-stat-value">{formatCurrency(data.moneyCommittedStats?.debtOwed ?? 0)}</span>
+		</div>
+		<div class="debt-stat-card">
+			<span class="debt-stat-label">Active Borrowed IOUs</span>
+			<span class="debt-stat-value">{data.moneyCommittedStats?.borrowedActiveCount ?? 0}</span>
 		</div>
 	</div>
-{/if}
+</section>
+
+<!-- ═══ Money Committed Modal (Add Commitment / Add Debt) ═══ -->
+<MoneyCommittedModal
+	open={showAddPanel}
+	initialMode={modalMode}
+	categories={data.categories ?? []}
+	onClose={closePanel}
+	onSuccess={onFormSuccess}
+/>
 
 <!-- Delete Modal -->
 {#if deleteTarget !== null}
@@ -827,12 +874,246 @@
 {/if}
 
 <style>
-	/* Raise the header's stacking context so the OverflowMenu dropdown
-	   (trapped inside the header's backdrop-filter context) paints above
-	   the content that follows it. Matches /transactions & /lending. */
-	:global(.page-header) {
+	/* ─── MONEY COMMITTED HERO & KPIS ─── */
+	.money-committed-container {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md, 12px);
+		margin-bottom: var(--space-md, 12px);
+	}
+
+	.money-committed-hero {
 		position: relative;
-		z-index: 30;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-lg, 16px);
+		padding: 18px 24px;
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: 24px;
+		box-shadow: var(--shadow-sm);
+	}
+
+	.hero-left {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.hero-badge.gold {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 3px 10px;
+		background: var(--color-amber-bg, rgba(255, 210, 63, 0.15));
+		border-radius: var(--radius-pill, 999px);
+		width: fit-content;
+		margin-bottom: 2px;
+	}
+
+	.hero-badge.gold .badge-text {
+		font-family: var(--font-display);
+		font-size: 11px;
+		font-weight: 800;
+		color: var(--color-money-committed, #D97706);
+		letter-spacing: 0.12em;
+	}
+
+	.hero-title {
+		font-family: var(--font-display);
+		font-size: clamp(20px, 2.4vw, 26px);
+		font-weight: 800;
+		color: var(--color-ink);
+		margin: 0;
+		letter-spacing: -0.02em;
+		line-height: 1.15;
+	}
+
+	.hero-subtitle {
+		font-size: var(--font-size-sm, 14px);
+		color: var(--color-text-muted);
+		margin: 2px 0 0 0;
+	}
+
+	.hero-actions {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-shrink: 0;
+	}
+
+	.btn-add-commitment {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 20px;
+		min-height: 44px;
+		background: var(--color-money-committed, #FFD23F);
+		color: #111827;
+		border: none;
+		border-radius: 22px;
+		font-family: var(--font-display);
+		font-size: 14px;
+		font-weight: 700;
+		cursor: pointer;
+		box-shadow: 0 4px 16px rgba(255, 210, 63, 0.4);
+		transition: transform 140ms ease, background 140ms ease;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.btn-add-commitment:hover {
+		background: #e6ba32;
+		transform: translateY(-1px);
+	}
+
+	.btn-add-commitment:active {
+		transform: scale(0.97);
+	}
+
+	.money-committed-kpis {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: var(--space-md, 12px);
+	}
+
+	.kpi-card {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		padding: 14px 18px;
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: 18px;
+		box-shadow: var(--shadow-sm);
+	}
+
+	.kpi-label {
+		font-size: 11px;
+		font-weight: 700;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		margin-bottom: 4px;
+	}
+
+	.kpi-value {
+		font-family: var(--font-display);
+		font-size: 20px;
+		font-weight: 800;
+		color: var(--color-ink);
+	}
+
+	.kpi-value.gold {
+		color: var(--color-money-committed, #D97706);
+	}
+
+	/* Debt obligations section */
+	.debt-obligations-section {
+		margin-top: var(--space-lg, 16px);
+		padding: 20px 24px;
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: 20px;
+		box-shadow: var(--shadow-sm);
+	}
+
+	.debt-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 16px;
+	}
+
+	.debt-badge {
+		font-family: var(--font-display);
+		font-size: 11px;
+		font-weight: 800;
+		color: var(--color-text-muted);
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+	}
+
+	.debt-title {
+		font-family: var(--font-display);
+		font-size: 16px;
+		font-weight: 700;
+		color: var(--color-ink);
+		margin: 2px 0 0 0;
+	}
+
+	.btn-view-borrowed {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 8px 16px;
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-pill, 999px);
+		font-family: var(--font-display);
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--color-ink);
+		text-decoration: none;
+		background: var(--color-surface);
+		transition: background 140ms ease, border-color 140ms ease;
+	}
+
+	.btn-view-borrowed:hover {
+		background: var(--color-surface-hover, rgba(0, 0, 0, 0.03));
+		border-color: var(--color-text-muted);
+	}
+
+	.debt-grid {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 12px;
+	}
+
+	.debt-stat-card {
+		padding: 14px 18px;
+		background: var(--color-surface-subtle, rgba(0, 0, 0, 0.02));
+		border-radius: 14px;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.debt-stat-label {
+		font-size: 11px;
+		font-weight: 700;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		margin-bottom: 4px;
+	}
+
+	.debt-stat-value {
+		font-family: var(--font-display);
+		font-size: 18px;
+		font-weight: 800;
+		color: var(--color-ink);
+	}
+
+	@media (max-width: 768px) {
+		.money-committed-hero {
+			flex-direction: column;
+			align-items: flex-start;
+			padding: 16px;
+		}
+
+		.hero-actions {
+			width: 100%;
+			justify-content: space-between;
+		}
+
+		.money-committed-kpis {
+			grid-template-columns: repeat(2, 1fr);
+			overflow-x: auto;
+		}
+
+		.debt-header {
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 12px;
+		}
 	}
 
 	/* ─── Table Card Container (Integrates Toolbar as Table Header) ─── */

@@ -3,12 +3,11 @@
 	import { page, navigating } from '$app/stores';
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
-	import PageHeader from '$lib/client/components/PageHeader.svelte';
 	import SlideOver from '$lib/client/components/SlideOver.svelte';
 	import PageBackground from '$lib/client/components/PageBackground.svelte';
 	import LendingForm from '$lib/client/components/LendingForm.svelte';
+	import SendMoneyAwayModal from '$lib/client/components/SendMoneyAwayModal.svelte';
 	import ModalDialog from '$lib/client/components/ModalDialog.svelte';
-	import LendingBalanceHeader from '$lib/client/components/LendingBalanceHeader.svelte';
 	import ActiveIouList from '$lib/client/components/ActiveIouList.svelte';
 	import RecordPaymentModal from '$lib/client/components/RecordPaymentModal.svelte';
 	import PaymentHistoryPanel from '$lib/client/components/PaymentHistoryPanel.svelte';
@@ -22,11 +21,11 @@
 	import SearchFilterPill from '$lib/client/components/SearchFilterPill.svelte';
 	import LendingFilterToolbar from '$lib/client/components/LendingFilterToolbar.svelte';
 	import LendingFilters from '$lib/client/components/LendingFilters.svelte';
-	import CountChip from '$lib/client/components/CountChip.svelte';
 	import ImportWizard from '$lib/client/components/ImportWizard.svelte';
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
 	import { downloadCsv, lendingsToCSV } from '$lib/client/utils/csv';
 	import { generateLendingPdf } from '$lib/client/utils/pdf';
+	import { formatCurrency } from '$lib/client/utils/format';
 	import { getCurrentMonth } from '$lib/shared/utils/format';
 	import { LENDING_IMPORT_FIELDS, buildMappedLendingRows, validateAllLendingRows, type MappedLendingRow } from '$lib/shared/utils/lendingImport';
 	import type { ImportPreviewColumn, ImportMappingConfig, ImportValidationResult } from '$lib/shared/utils/importValidation';
@@ -409,62 +408,64 @@
 </script>
 
 <svelte:head>
-	<title>Lending — Finance Tracker</title>
+	<title>Money Away — GET WRECK</title>
 </svelte:head>
-
-<PageHeader title="Lending" flush borderless>
-	{#snippet badge()}
-		<CountChip count={data.total ?? 0} />
-	{/snippet}
-	{#snippet subtitle()}
-		<span class="context-subline">{counts.active} active · {counts.paid} paid</span>
-	{/snippet}
-	{#snippet action()}
-		<div class="header-actions">
-			<span class="desktop-only">
-				<Button variant="primary" onclick={openAdd}>
-					<span class="btn-lead" aria-hidden="true">+</span>
-					New Lending
-				</Button>
-				<OverflowMenu
-					onImportCsv={() => (importWizardOpen = true)}
-					onExportCsv={handleExportCsv}
-					onExportPdf={handleExportPdf}
-					onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
-				/>
-			</span>
-			<span class="mobile-only">
-				<OverflowMenu
-					onImportCsv={() => (importWizardOpen = true)}
-					onExportCsv={handleExportCsv}
-					onExportPdf={handleExportPdf}
-					onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
-				/>
-			</span>
-		</div>
-	{/snippet}
-</PageHeader>
 
 <PageBackground />
 
-<LendingBalanceHeader
-	totalOwedToMe={totals.outstanding}
-	totalIOwe={0}
-/>
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     MONEY AWAY HERO & KPI SUMMARY STRIP
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="money-away-container">
+	<header class="money-away-hero">
+		<div class="hero-left">
+			<div class="hero-badge sky">
+				<span class="wave-icon">🌊</span>
+				<span class="badge-text">MONEY AWAY</span>
+			</div>
+			<h1 class="hero-title">WHERE IS MY MONEY, AND WHEN IS IT COMING BACK?</h1>
+			<p class="hero-subtitle">Money Away hasn't disappeared — it's just outside your possession right now.</p>
+		</div>
+		<div class="hero-actions">
+			<button class="btn-send-money-away" onclick={openAdd} aria-label="Send Money Away">
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+					<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+				</svg>
+				Send Money Away
+			</button>
+			<OverflowMenu
+				onImportCsv={() => (importWizardOpen = true)}
+				onExportCsv={handleExportCsv}
+				onExportPdf={handleExportPdf}
+				onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
+			/>
+		</div>
+	</header>
 
-<!-- ═══ Slide-over for Add / Edit ═══ -->
-<SlideOver
-	isOpen={showPanel}
-	title={editingLending ? 'Edit Lending' : 'New Lending'}
+	<!-- ═══ Money Away 3-Metric KPI Summary Strip ═══ -->
+	<div class="money-away-kpis">
+		<div class="kpi-card">
+			<span class="kpi-label">Currently Away</span>
+			<span class="kpi-value sky">{formatCurrency(totals.outstanding)}</span>
+		</div>
+		<div class="kpi-card">
+			<span class="kpi-label">Recovered</span>
+			<span class="kpi-value">{formatCurrency(totals.totalRecovered)}</span>
+		</div>
+		<div class="kpi-card">
+			<span class="kpi-label">Total Ever Lent</span>
+			<span class="kpi-value">{formatCurrency(totals.totalLent)}</span>
+		</div>
+	</div>
+</div>
+
+<!-- ═══ Send Money Away Modal ═══ -->
+<SendMoneyAwayModal
+	open={showPanel}
 	onClose={closePanel}
->
-	<LendingForm
-			lendingRecord={editingLending ?? undefined}
-			onCancel={closePanel}
-			onSuccess={closePanel}
-			hasPayments={editingLendingHasPayments}
-		/>
-</SlideOver>
+	onSuccess={closePanel}
+	lendingRecord={editingLending ?? undefined}
+/>
 
 <!-- ═══ Import Wizard Modal ═══ -->
 <ImportWizard
@@ -808,12 +809,156 @@
 {/if}
 
 <style>
-	/* Raise the header's stacking context so the OverflowMenu dropdown
-	   (trapped inside the header's backdrop-filter context) paints above
-	   the content that follows it. Matches /transactions. */
-	:global(.page-header) {
+	/* ─── MONEY AWAY HERO & KPIS ─── */
+	.money-away-container {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md, 12px);
+		margin-bottom: var(--space-md, 12px);
+	}
+
+	.money-away-hero {
 		position: relative;
-		z-index: 30;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-lg, 16px);
+		padding: 18px 24px;
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: 24px;
+		box-shadow: var(--shadow-sm);
+	}
+
+	.hero-left {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.hero-badge.sky {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 3px 10px;
+		background: rgba(93, 173, 226, 0.12);
+		border-radius: var(--radius-pill, 999px);
+		width: fit-content;
+		margin-bottom: 2px;
+	}
+
+	.hero-badge.sky .badge-text {
+		font-family: var(--font-display);
+		font-size: 11px;
+		font-weight: 800;
+		color: var(--color-money-away, #5DADE2);
+		letter-spacing: 0.12em;
+	}
+
+	.hero-title {
+		font-family: var(--font-display);
+		font-size: clamp(20px, 2.4vw, 26px);
+		font-weight: 800;
+		color: var(--color-ink);
+		margin: 0;
+		letter-spacing: -0.02em;
+		line-height: 1.15;
+	}
+
+	.hero-subtitle {
+		font-size: var(--font-size-sm, 14px);
+		color: var(--color-text-muted);
+		margin: 2px 0 0 0;
+	}
+
+	.hero-actions {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-shrink: 0;
+	}
+
+	.btn-send-money-away {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 20px;
+		min-height: 44px;
+		background: var(--color-money-away, #5DADE2);
+		color: #ffffff;
+		border: none;
+		border-radius: 22px;
+		font-family: var(--font-display);
+		font-size: 14px;
+		font-weight: 700;
+		cursor: pointer;
+		box-shadow: 0 4px 16px rgba(93, 173, 226, 0.35);
+		transition: transform 140ms ease, background 140ms ease;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.btn-send-money-away:hover {
+		background: #489ad3;
+		transform: translateY(-1px);
+	}
+
+	.btn-send-money-away:active {
+		transform: scale(0.97);
+	}
+
+	.money-away-kpis {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: var(--space-md, 12px);
+	}
+
+	.kpi-card {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		padding: 14px 18px;
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: 18px;
+		box-shadow: var(--shadow-sm);
+	}
+
+	.kpi-label {
+		font-size: 11px;
+		font-weight: 700;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		margin-bottom: 4px;
+	}
+
+	.kpi-value {
+		font-family: var(--font-display);
+		font-size: 20px;
+		font-weight: 800;
+		color: var(--color-ink);
+	}
+
+	.kpi-value.sky {
+		color: var(--color-money-away, #5DADE2);
+	}
+
+	@media (max-width: 768px) {
+		.money-away-hero {
+			flex-direction: column;
+			align-items: flex-start;
+			padding: 16px;
+		}
+
+		.hero-actions {
+			width: 100%;
+			justify-content: space-between;
+		}
+
+		.money-away-kpis {
+			grid-template-columns: repeat(3, 1fr);
+			overflow-x: auto;
+		}
 	}
 
 	/* ─── Table Card Container ─── */

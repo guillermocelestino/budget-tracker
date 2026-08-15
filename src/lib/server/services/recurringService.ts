@@ -1,6 +1,6 @@
 import { getDrizzle } from '$lib/server/db/drizzle';
 import { categories, recurringTransactions } from '$lib/server/db/schema';
-import { and, eq, asc, gte, or, ilike, sql, inArray } from 'drizzle-orm';
+import { and, eq, asc, gte, lte, or, ilike, sql, inArray } from 'drizzle-orm';
 import type { RecurringTransaction, RecurringFrequency, TransactionType } from '$lib/types';
 import { calculateNextRun } from '$lib/shared/utils/recurring';
 
@@ -630,4 +630,74 @@ export async function getUpcomingRecurring(
 		.limit(limit);
 
 	return rows.map((r) => mapUpcomingRow(r as unknown as UpcomingRecurringRow));
+}
+
+/**
+ * Calculate total upcoming expense commitments due within an inclusive date window [today, today + days].
+ */
+export async function getUpcomingCommitmentsTotal(
+	userId: number,
+	days: number,
+	todayStr?: string
+): Promise<number> {
+	const start = todayStr || new Date().toISOString().split('T')[0];
+	const startDate = new Date(start + 'T00:00:00');
+	const endDate = new Date(startDate.getTime() + days * 86400000);
+	const end = endDate.toISOString().split('T')[0];
+
+	const db = await getDrizzle();
+	const [row] = await db
+		.select({
+			total: sql<string>`COALESCE(SUM(${recurringTransactions.amount}), 0)`
+		})
+		.from(recurringTransactions)
+		.where(and(
+			eq(recurringTransactions.user_id, userId),
+			eq(recurringTransactions.active, true),
+			eq(recurringTransactions.type, 'expense'),
+			gte(recurringTransactions.next_run, start),
+			lte(recurringTransactions.next_run, end)
+		));
+
+	return parseFloat(row?.total ?? '0');
+}
+
+/**
+ * Calculate the monthly equivalent expense total of all active recurring rules for a user.
+ */
+export async function getMonthlyCommittedTotal(userId: number): Promise<number> {
+	const db = await getDrizzle();
+	const rows = await db
+		.select({
+			amount: recurringTransactions.amount,
+			frequency: recurringTransactions.frequency,
+			interval: recurringTransactions.interval,
+		})
+		.from(recurringTransactions)
+		.where(and(
+			eq(recurringTransactions.user_id, userId),
+			eq(recurringTransactions.active, true),
+			eq(recurringTransactions.type, 'expense')
+		));
+
+	let sum = 0;
+	for (const r of rows) {
+		const amt = parseFloat(String(r.amount));
+		const interval = Math.max(1, r.interval || 1);
+		switch (r.frequency) {
+			case 'daily':
+				sum += (amt * 30) / interval;
+				break;
+			case 'weekly':
+				sum += (amt * (52 / 12)) / interval;
+				break;
+			case 'monthly':
+				sum += amt / interval;
+				break;
+			case 'yearly':
+				sum += (amt / 12) / interval;
+				break;
+		}
+	}
+	return sum;
 }
