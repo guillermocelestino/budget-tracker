@@ -77,6 +77,28 @@
     triggerEl?.focus();
   }
 
+  function handleTriggerClick() {
+    if (open) {
+      close();
+      return;
+    }
+
+    const path = $page.url.pathname;
+    if (path.startsWith('/transactions')) {
+      goto('/transactions?add=1');
+    } else if (path.startsWith('/lending')) {
+      goto('/lending?add=1');
+    } else if (path.startsWith('/borrowed')) {
+      goto('/borrowed?add=1');
+    } else if (path.startsWith('/categories')) {
+      goto('/categories?add=1');
+    } else if (path.startsWith('/recurring')) {
+      goto('/recurring?add=1');
+    } else {
+      openDial();
+    }
+  }
+
   function select(action: DialAction) {
     close();
     action.go();
@@ -173,7 +195,7 @@
   bind:this={triggerEl}
   class="sd-trigger"
   class:open
-  onclick={() => (open ? close() : openDial())}
+  onclick={handleTriggerClick}
   aria-label="Create"
   aria-haspopup="menu"
   aria-expanded={open}

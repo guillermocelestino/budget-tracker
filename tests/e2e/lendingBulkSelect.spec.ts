@@ -1,0 +1,103 @@
+import { test, expect, type Page } from '@playwright/test';
+
+const DEMO_USERNAME = process.env.E2E_USERNAME || 'demo';
+const DEMO_PASSWORD = process.env.E2E_PASSWORD || 'Demo@2026!';
+
+async function signInAndNavigateToLending(page: Page): Promise<void> {
+	await page.goto('/login');
+	await page.getByLabel('Username', { exact: true }).fill(DEMO_USERNAME);
+	await page.getByLabel('Password', { exact: true }).fill(DEMO_PASSWORD);
+	await page.getByRole('button', { name: 'Sign In', exact: true }).click();
+	await page.waitForURL('**/dashboard');
+	await page.goto('/lending');
+	await page.waitForURL('**/lending**');
+}
+
+test.describe('Lending Bulk Select & Delete Flow', () => {
+	test('enters selection mode via OverflowMenu, selects rows, checks select-all, and cancels', async ({ page }) => {
+		await signInAndNavigateToLending(page);
+
+		// 1. Open PageHeader OverflowMenu and click "Select Transactions"
+		const overflowBtn = page.locator('.overflow-btn:visible');
+		await expect(overflowBtn).toBeVisible();
+		await overflowBtn.click();
+
+		const selectOption = page.locator('.overflow-option', { hasText: 'Select Transactions' });
+		await expect(selectOption).toBeVisible();
+		await selectOption.click();
+
+		// 2. Verify bulk-bar appears
+		const bulkBar = page.locator('.bulk-bar');
+		await expect(bulkBar).toBeVisible();
+
+		const bulkCount = page.locator('.bulk-count');
+		await expect(bulkCount).toHaveText('0 selected');
+
+		// 3. Select all using the header checkbox
+		const selectAllCheckbox = bulkBar.locator('input[type="checkbox"]');
+		await selectAllCheckbox.click();
+
+		// 4. Verify selection count is updated
+		const rowCheckboxes = page.locator('.row-checkbox, .iou-card-checkbox-btn input');
+		const rowCount = await rowCheckboxes.count();
+		if (rowCount > 0) {
+			await expect(bulkCount).toHaveText(`${rowCount} selected`);
+		}
+
+		// 5. Uncheck select-all
+		await selectAllCheckbox.click();
+		await expect(bulkCount).toHaveText('0 selected');
+
+		// 6. Click Cancel button to exit selection mode
+		const cancelBtn = bulkBar.getByRole('button', { name: 'Cancel' });
+		await cancelBtn.click();
+		await expect(bulkBar).not.toBeVisible();
+	});
+
+	test('clears selection when search or URL parameter changes', async ({ page }) => {
+		await signInAndNavigateToLending(page);
+
+		// Enter selection mode
+		await page.locator('.overflow-btn:visible').click();
+		await page.locator('.overflow-option', { hasText: 'Select Transactions' }).click();
+
+		const bulkBar = page.locator('.bulk-bar');
+		await expect(bulkBar).toBeVisible();
+
+		// Select All
+		await bulkBar.locator('input[type="checkbox"]').click();
+
+		// Perform a search
+		const searchInput = page.locator('input[placeholder*="Search"]').first();
+		if (await searchInput.isVisible()) {
+			await searchInput.fill('NonExistentSearchTerm123');
+			// Allow debounce + URL update
+			await page.waitForTimeout(400);
+
+			// Selection should reset to 0
+			await expect(page.locator('.bulk-count')).toHaveText('0 selected');
+		}
+	});
+
+	test('opens bulk delete confirmation modal with correct count', async ({ page }) => {
+		await signInAndNavigateToLending(page);
+
+		await page.locator('.overflow-btn:visible').click();
+		await page.locator('.overflow-option', { hasText: 'Select Transactions' }).click();
+
+		const bulkBar = page.locator('.bulk-bar');
+		await bulkBar.locator('input[type="checkbox"]').click();
+
+		const deleteBtn = bulkBar.getByRole('button', { name: 'Delete Selected' });
+		if (await deleteBtn.isEnabled()) {
+			await deleteBtn.click();
+
+			const modal = page.locator('[role="dialog"]', { hasText: 'Delete Lendings' });
+			await expect(modal).toBeVisible();
+
+			// Cancel modal
+			await modal.getByRole('button', { name: 'Cancel' }).click();
+			await expect(modal).not.toBeVisible();
+		}
+	});
+});

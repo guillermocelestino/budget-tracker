@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page, navigating } from '$app/stores';
 	import { browser } from '$app/environment';
 	import { goto, invalidateAll } from '$app/navigation';
 	import PageHeader from '$lib/client/components/PageHeader.svelte';
@@ -12,6 +12,9 @@
 	import ModalDialog from '$lib/client/components/ModalDialog.svelte';
 	import Button from '$lib/client/components/Button.svelte';
 	import CountChip from '$lib/client/components/CountChip.svelte';
+	import EmptyState from '$lib/client/components/EmptyState.svelte';
+	import { enhance } from '$app/forms';
+	import { untrack } from 'svelte';
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
 	import type { RecurringTransaction } from '$lib/types';
 
@@ -23,6 +26,68 @@
 	let panelEl = $state<HTMLDivElement | null>(null);
 	let addBtnEl = $state<HTMLElement | null>(null);
 	let filtersOpen = $state(false);
+
+	// Open the Add Recurring panel when arriving via the global FAB (?add=1)
+	$effect(() => {
+		const params = new URLSearchParams($page.url.searchParams);
+		if (params.get('add') === '1') {
+			params.delete('add');
+			const qs = params.toString();
+			history.replaceState(history.state, '', `${$page.url.pathname}${qs ? '?' + qs : ''}`);
+			openAdd();
+		}
+	});
+
+	// Bulk selection (Selection Mode) — entered via the header overflow menu.
+	// Selection is always page-scoped; clearing happens on page/filter change.
+	let selectionMode = $state(false);
+	let selectedIds = $state(new Set<number>());
+
+	const pageIds = $derived((data.recurring ?? []).map((r) => r.id));
+	const selectedOnPage = $derived(pageIds.filter((id) => selectedIds.has(id)).length);
+	const allSelected = $derived(pageIds.length > 0 && selectedOnPage === pageIds.length);
+	const someSelected = $derived(selectedOnPage > 0 && !allSelected);
+	const selectedCount = $derived(selectedIds.size);
+
+	function toggleSelection(id: number) {
+		const next = new Set(selectedIds);
+		if (next.has(id)) next.delete(id);
+		else next.add(id);
+		selectedIds = next;
+	}
+
+	function toggleAll() {
+		if (allSelected) {
+			selectedIds = new Set([...selectedIds].filter((id) => !pageIds.includes(id)));
+		} else {
+			selectedIds = new Set([...selectedIds, ...pageIds]);
+		}
+	}
+
+	function exitSelectionMode() {
+		selectionMode = false;
+		selectedIds = new Set();
+	}
+
+	function setIndeterminate(node: HTMLInputElement, indeterminate: boolean) {
+		node.indeterminate = indeterminate;
+		return {
+			update(indeterminate: boolean) {
+				node.indeterminate = indeterminate;
+			},
+		};
+	}
+
+	let lastFilterKey = '';
+	$effect(() => {
+		const key = $page.url.searchParams.toString();
+		untrack(() => {
+			if (lastFilterKey !== '' && key !== lastFilterKey) {
+				selectedIds = new Set();
+			}
+			lastFilterKey = key;
+		});
+	});
 
 	// Filter state - initialized from URL, synced back via $effect
 	let filters = $state({
@@ -38,7 +103,11 @@
 	// Sync the input from the URL on navigation
 	$effect(() => {
 		const urlSearch = $page.url.searchParams.get('search') ?? '';
-		if (urlSearch !== searchInput) searchInput = urlSearch;
+		untrack(() => {
+			if (filters.search === searchInput && urlSearch !== searchInput) {
+				searchInput = urlSearch;
+			}
+		});
 	});
 
 	// Debounce writing the typed value into the filter state
@@ -53,6 +122,11 @@
 			if (debounceTimer) clearTimeout(debounceTimer);
 		};
 	});
+
+	const isSearching = $derived(searchInput !== (filters.search || '') || !!$navigating);
+	const hasActiveFilters = $derived(
+		Boolean(filters.search || filters.type || filters.frequency || filters.status || filters.category)
+	);
 
 	// Restore category filter from URL
 	let lastHydratedCatId = '';
@@ -85,6 +159,9 @@
 
 		if (filters.search) params.set('search', filters.search);
 
+		const rawLimit = $page.url.searchParams.get('limit') ?? $page.url.searchParams.get('pageSize');
+		if (rawLimit) params.set('limit', rawLimit);
+
 		const newQs = params.toString();
 		const currentFilterQs = (() => {
 			const p = new URLSearchParams($page.url.searchParams);
@@ -98,6 +175,49 @@
 				noScroll: true,
 			});
 		}
+	});
+
+	async function goToPage(p: number) {
+		const y = window.scrollY;
+		const params = new URLSearchParams($page.url.searchParams);
+		params.set('page', String(p));
+		try {
+			await goto(`/recurring?${params.toString()}`, { keepFocus: true, noScroll: true });
+		} catch { return; }
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => { window.scrollTo({ top: y, behavior: 'auto' }); });
+		});
+	}
+
+	function handleLimitChange(newLimitStr: string) {
+		const params = new URLSearchParams($page.url.searchParams);
+		params.set('page', '1');
+		if (newLimitStr === 'all') params.set('limit', 'all');
+		else if (newLimitStr !== '20') params.set('limit', newLimitStr);
+		else { params.delete('limit'); params.delete('pageSize'); }
+		goto(`/recurring?${params.toString()}`, { keepFocus: true, noScroll: true });
+	}
+
+	const pageItems = $derived((currentPage: number, totalPages: number): (number | '…')[] => {
+		const pages: (number | '…')[] = [];
+		const show = 3;
+		const start = Math.max(1, currentPage - show);
+		const end = Math.min(totalPages, currentPage + show);
+		if (start > 1) { pages.push(1); if (start > 2) pages.push('…'); }
+		for (let i = start; i <= end; i++) pages.push(i);
+		if (end < totalPages) { if (end < totalPages - 1) pages.push('…'); pages.push(totalPages); }
+		return pages;
+	});
+
+	const countLabel = $derived.by(() => {
+		const page = data.page ?? 1;
+		const limitVal = data.limit ?? 20;
+		const total = data.total ?? 0;
+		if (total === 0) return 'No recurring transactions';
+		if (limitVal === 0) return `Showing all ${total} recurring transaction${total !== 1 ? 's' : ''}`;
+		const start = (page - 1) * limitVal + 1;
+		const end = Math.min(page * limitVal, total);
+		return `Showing ${start}–${end} of ${total} recurring transaction${total !== 1 ? 's' : ''}`;
 	});
 
 	// Filter summary for badge — counts APPLIED panel filters only. Search is a
@@ -153,10 +273,12 @@
 	}
 
 	function resetFilters() {
+		searchInput = '';
 		stagedFilters.type = '';
 		stagedFilters.frequency = '';
 		stagedFilters.status = '';
 		stagedFilters.category = '';
+		filters.search = '';
 		filters.type = '';
 		filters.frequency = '';
 		filters.status = '';
@@ -413,139 +535,226 @@
 				</svg>
 				Add Recurring
 			</Button>
-			<OverflowMenu onExportCsv={handleExportCsv} />
+			<OverflowMenu
+				selectLabel="Select Recurring"
+				onExportCsv={handleExportCsv}
+				onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
+			/>
 		</div>
 	{/snippet}
 </PageHeader>
 
 <PageBackground />
 
-<!-- Search & Filter Pill -->
-<SearchFilterPill
-	bind:value={searchInput}
-	placeholder="Search recurring transactions..."
-	bind:open={filtersOpen}
-	activeFilterCount={activeFilterCount}
->
-	{#snippet panel(mode, close)}
-		<div class="filter-sheet-content">
-			<div class="filter-section">
-				<h3 class="filter-section-title">Type</h3>
-				<div class="filter-chips">
-					<button class="filter-chip" class:active={stagedFilters.type === 'income'} onclick={() => stagedFilters.type = stagedFilters.type === 'income' ? '' : 'income'}>
-						💰 Income
-					</button>
-					<button class="filter-chip" class:active={stagedFilters.type === 'expense'} onclick={() => stagedFilters.type = stagedFilters.type === 'expense' ? '' : 'expense'}>
-						💸 Expense
-					</button>
-				</div>
-			</div>
+<!-- ═══ Table Card Container (Integrates Toolbar as Table Header) ═══ -->
+<div class="table-card-wrapper">
+	{#if isSearching}
+		<div class="table-loading-bar" role="progressbar" aria-label="Loading data">
+			<div class="loading-bar-fill"></div>
+		</div>
+	{/if}
+	<div class="table-toolbar">
+		<!-- Search & Filter Pill -->
+		<SearchFilterPill
+			bind:value={searchInput}
+			loading={isSearching}
+			placeholder="Search recurring transactions..."
+			bind:open={filtersOpen}
+			activeFilterCount={activeFilterCount}
+		>
+			{#snippet panel(mode, close)}
+				<div class="filter-sheet-content">
+					<div class="filter-section">
+						<h3 class="filter-section-title">Type</h3>
+						<div class="filter-chips">
+							<button class="filter-chip" class:active={stagedFilters.type === 'income'} onclick={() => stagedFilters.type = stagedFilters.type === 'income' ? '' : 'income'}>
+								💰 Income
+							</button>
+							<button class="filter-chip" class:active={stagedFilters.type === 'expense'} onclick={() => stagedFilters.type = stagedFilters.type === 'expense' ? '' : 'expense'}>
+								💸 Expense
+							</button>
+						</div>
+					</div>
 
-			<div class="filter-section">
-				<h3 class="filter-section-title">Frequency</h3>
-				<div class="filter-chips">
-					<button class="filter-chip" class:active={stagedFilters.frequency === 'daily'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'daily' ? '' : 'daily'}>
-						📅 Daily
-					</button>
-					<button class="filter-chip" class:active={stagedFilters.frequency === 'weekly'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'weekly' ? '' : 'weekly'}>
-						📅 Weekly
-					</button>
-					<button class="filter-chip" class:active={stagedFilters.frequency === 'monthly'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'monthly' ? '' : 'monthly'}>
-						📅 Monthly
-					</button>
-					<button class="filter-chip" class:active={stagedFilters.frequency === 'yearly'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'yearly' ? '' : 'yearly'}>
-						📅 Yearly
-					</button>
-				</div>
-			</div>
+					<div class="filter-section">
+						<h3 class="filter-section-title">Frequency</h3>
+						<div class="filter-chips">
+							<button class="filter-chip" class:active={stagedFilters.frequency === 'daily'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'daily' ? '' : 'daily'}>
+								📅 Daily
+							</button>
+							<button class="filter-chip" class:active={stagedFilters.frequency === 'weekly'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'weekly' ? '' : 'weekly'}>
+								📅 Weekly
+							</button>
+							<button class="filter-chip" class:active={stagedFilters.frequency === 'monthly'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'monthly' ? '' : 'monthly'}>
+								📅 Monthly
+							</button>
+							<button class="filter-chip" class:active={stagedFilters.frequency === 'yearly'} onclick={() => stagedFilters.frequency = stagedFilters.frequency === 'yearly' ? '' : 'yearly'}>
+								📅 Yearly
+							</button>
+						</div>
+					</div>
 
-			<div class="filter-section">
-				<h3 class="filter-section-title">Status</h3>
-				<div class="filter-chips">
-					<button class="filter-chip" class:active={stagedFilters.status === 'active'} onclick={() => stagedFilters.status = stagedFilters.status === 'active' ? '' : 'active'}>
-						✅ Active
-					</button>
-					<button class="filter-chip" class:active={stagedFilters.status === 'paused'} onclick={() => stagedFilters.status = stagedFilters.status === 'paused' ? '' : 'paused'}>
-						⏸️ Paused
-					</button>
-				</div>
-			</div>
+					<div class="filter-section">
+						<h3 class="filter-section-title">Status</h3>
+						<div class="filter-chips">
+							<button class="filter-chip" class:active={stagedFilters.status === 'active'} onclick={() => stagedFilters.status = stagedFilters.status === 'active' ? '' : 'active'}>
+								✅ Active
+							</button>
+							<button class="filter-chip" class:active={stagedFilters.status === 'paused'} onclick={() => stagedFilters.status = stagedFilters.status === 'paused' ? '' : 'paused'}>
+								⏸️ Paused
+							</button>
+						</div>
+					</div>
 
-			<div class="filter-section">
-				<h3 class="filter-section-title">Category</h3>
-				<div class="filter-category-select">
-					<select
-						value={stagedFilters.category}
-						onchange={(e) => stagedFilters.category = (e.target as HTMLSelectElement).value}
-					>
-						<option value="">All Categories</option>
-						{#each data.categories as cat (cat.id)}
-							<option value={cat.name}>{cat.icon} {cat.name}</option>
-						{/each}
-					</select>
+					<div class="filter-section">
+						<h3 class="filter-section-title">Category</h3>
+						<div class="filter-category-select">
+							<select
+								value={stagedFilters.category}
+								onchange={(e) => stagedFilters.category = (e.target as HTMLSelectElement).value}
+							>
+								<option value="">All Categories</option>
+								{#each data.categories as cat (cat.id)}
+									<option value={cat.name}>{cat.icon} {cat.name}</option>
+								{/each}
+							</select>
+						</div>
+					</div>
 				</div>
+				<FilterFooter
+					canApply={canApply}
+					canClear={canClear}
+					onApply={() => { applyFilters(); close(); }}
+					onClear={resetFilters}
+					{mode}
+				/>
+			{/snippet}
+		</SearchFilterPill>
+	</div>
+
+	<!-- ═══ Bulk selection action bar (Selection Mode only) ═══ -->
+	{#if selectionMode && pageIds.length > 0}
+		<div class="bulk-bar" role="toolbar" aria-label="Selected recurring transactions">
+			<div class="bulk-left">
+				<input
+					type="checkbox"
+					checked={allSelected}
+					use:setIndeterminate={someSelected}
+					onchange={toggleAll}
+					aria-label="Select all recurring transactions on this page"
+				/>
+				<span class="bulk-count">{selectedCount} selected</span>
+			</div>
+			<div class="bulk-actions">
+				<Button variant="danger" size="sm" disabled={selectedCount === 0} onclick={() => (deleteTarget = [...selectedIds])}>Delete Selected</Button>
+				<Button variant="ghost" size="sm" onclick={exitSelectionMode}>Cancel</Button>
 			</div>
 		</div>
-		<FilterFooter
-			canApply={canApply}
-			canClear={canClear}
-			onApply={() => { applyFilters(); close(); }}
-			onClear={resetFilters}
-			{mode}
-		/>
-	{/snippet}
-</SearchFilterPill>
-
-<!-- Recurring List -->
-<div class="recurring-page-content">
-	<RecurringList
-		recurring={data.recurring ?? []}
-		onDelete={(id) => deleteTarget = id}
-		onEdit={openEdit}
-		onDuplicate={handleDuplicate}
-		onRunNow={handleRunNow}
-		onPause={handlePause}
-		onResume={handleResume}
-		loading={false}
-	>
-		{#snippet emptyState()}
-			<div class="rr-empty">
-				<div class="rr-empty-icon">
-					<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>
-					</svg>
-				</div>
-				<p class="rr-empty-title">No recurring transactions yet</p>
-				<p class="rr-empty-sub">Add your first recurring transaction to automate your finances</p>
-				<button class="rr-empty-btn" onclick={openAdd} type="button">Add Recurring Transaction</button>
-			</div>
-		{/snippet}
-	</RecurringList>
-
-	<!-- Pagination -->
-	{#if (data.totalPages ?? 0) > 1}
-		<nav class="pagination" aria-label="Pagination">
-			<button
-				class="page-btn"
-				disabled={(data.page ?? 1) === 1}
-				onclick={() => goto(`/recurring?page=${(data.page ?? 1) - 1}${buildFilterQs()}`)}
-				aria-label="Previous page"
-			>
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-			</button>
-			<span class="page-info" aria-live="polite">
-				Page {data.page ?? 1} of {data.totalPages ?? 0} ({data.total} items)
-			</span>
-			<button
-				class="page-btn"
-				disabled={(data.page ?? 1) === (data.totalPages ?? 0)}
-				onclick={() => goto(`/recurring?page=${(data.page ?? 1) + 1}${buildFilterQs()}`)}
-				aria-label="Next page"
-			>
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-			</button>
-		</nav>
 	{/if}
+
+	<!-- Recurring List -->
+	<div class="recurring-page-content">
+		<RecurringList
+			recurring={data.recurring ?? []}
+			onDelete={(id) => deleteTarget = id}
+			onEdit={openEdit}
+			onDuplicate={handleDuplicate}
+			onRunNow={handleRunNow}
+			onPause={handlePause}
+			onResume={handleResume}
+			loading={false}
+			selectionMode={selectionMode}
+			selectedIds={selectedIds}
+			onToggleSelection={toggleSelection}
+		>
+			{#snippet emptyState()}
+				{#if hasActiveFilters}
+					<EmptyState
+						icon="🔍"
+						title="No results"
+						description="No recurring transactions match your search or filters."
+						actionLabel="Clear All Filters"
+						onAction={resetFilters}
+					/>
+				{:else}
+					<EmptyState
+						icon="🔄"
+						title="No recurring transactions yet"
+						description="Add your first recurring transaction to automate your finances."
+						actionLabel="Add Recurring Transaction"
+						onAction={openAdd}
+					/>
+				{/if}
+			{/snippet}
+		</RecurringList>
+
+		<!-- Pagination -->
+		{#if (data.total ?? 0) > 0}
+			<div class="pager-container">
+				{#if (data.totalPages ?? 0) > 1 && (data.limit ?? 20) !== 0}
+					<nav class="pager" aria-label="Pagination">
+						<button
+							class="pager-btn"
+							disabled={(data.page ?? 1) === 1}
+							onclick={() => goToPage((data.page ?? 1) - 1)}
+							aria-label="Previous page"
+						>
+							<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+							<span class="pager-word">Prev</span>
+						</button>
+
+						<ol class="pager-pages">
+							{#each pageItems(data.page ?? 1, data.totalPages ?? 1) as item, i (i)}
+								{#if item === '…'}
+									<li class="pager-gap" aria-hidden="true">…</li>
+								{:else}
+									<li>
+										<button
+											class="pager-num"
+											class:current={item === (data.page ?? 1)}
+											onclick={() => goToPage(item)}
+											aria-label={`Page ${item}`}
+											aria-current={item === (data.page ?? 1) ? 'page' : undefined}
+										>{item}</button>
+									</li>
+								{/if}
+							{/each}
+						</ol>
+
+						<button
+							class="pager-btn"
+							disabled={(data.page ?? 1) === (data.totalPages ?? 1)}
+							onclick={() => goToPage((data.page ?? 1) + 1)}
+							aria-label="Next page"
+						>
+							<span class="pager-word">Next</span>
+							<svg class="pager-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+						</button>
+					</nav>
+				{/if}
+				<div class="pager-footer">
+					<span class="pager-count">{countLabel}</span>
+					<div class="rows-per-page">
+						<label for="rows-select">Rows per page:</label>
+						<select
+							id="rows-select"
+							class="rows-select"
+							value={data.limit === 0 ? 'all' : String(data.limit ?? 20)}
+							onchange={(e) => handleLimitChange(e.currentTarget.value)}
+							aria-label="Rows per page"
+						>
+							<option value="20">20</option>
+							<option value="50">50</option>
+							<option value="100">100</option>
+							<option value="200">200</option>
+							<option value="500">500</option>
+							<option value="all">All</option>
+						</select>
+					</div>
+				</div>
+			</div>
+		{/if}
+	</div>
 </div>
 
 <!-- Add/Edit Panel -->
@@ -572,19 +781,233 @@
 {/if}
 
 <!-- Delete Modal -->
-<ModalDialog
-	open={deleteTarget !== null}
-	title="Delete Recurring Transaction"
-	onclose={() => deleteTarget = null}
->
-	<p>Are you sure you want to delete this recurring transaction? This action cannot be undone.</p>
-	<div class="modal-actions">
-		<Button variant="ghost" type="button" onclick={() => deleteTarget = null}>Cancel</Button>
-		<Button variant="danger" onclick={() => { handleDelete(deleteTarget!); deleteTarget = null; }}>Delete</Button>
-	</div>
-</ModalDialog>
+{#if deleteTarget !== null}
+	{@const isBulk = Array.isArray(deleteTarget)}
+	{@const deleteCount = Array.isArray(deleteTarget) ? deleteTarget.length : 1}
+	{@const deleteIdsStr = Array.isArray(deleteTarget) ? deleteTarget.join(',') : String(deleteTarget)}
+	<ModalDialog
+		open={deleteTarget !== null}
+		title={isBulk ? 'Delete Recurring Transactions' : 'Delete Recurring Transaction'}
+		onclose={() => deleteTarget = null}
+	>
+		<p>
+			Are you sure you want to delete {isBulk ? `${deleteCount} recurring transactions` : 'this recurring transaction'}?
+			This action cannot be undone.
+		</p>
+		{#if isBulk}
+			<form
+				method="POST"
+				action="?/deleteBulk"
+				use:enhance={() => {
+					return async ({ result, update }: { result: { type: string; data?: { error?: string; deleted?: number } }; update: () => Promise<void> }) => {
+						await update();
+						if (result.type === 'success') {
+							exitSelectionMode();
+							deleteTarget = null;
+							showSuccess(`${result.data?.deleted ?? deleteCount} recurring transaction${(result.data?.deleted ?? deleteCount) > 1 ? 's' : ''} deleted`);
+						} else {
+							showError((result.data as { error?: string } | undefined)?.error || 'Failed to delete');
+						}
+					};
+				}}
+			>
+				<input type="hidden" name="id" value={deleteIdsStr} />
+				<div class="modal-actions">
+					<Button variant="ghost" type="button" onclick={() => deleteTarget = null}>Cancel</Button>
+					<Button variant="danger" type="submit">Delete</Button>
+				</div>
+			</form>
+		{:else}
+			<div class="modal-actions">
+				<Button variant="ghost" type="button" onclick={() => deleteTarget = null}>Cancel</Button>
+				<Button variant="danger" onclick={() => { handleDelete(deleteTarget as number); deleteTarget = null; }}>Delete</Button>
+			</div>
+		{/if}
+	</ModalDialog>
+{/if}
 
 <style>
+	/* Raise the header's stacking context so the OverflowMenu dropdown
+	   (trapped inside the header's backdrop-filter context) paints above
+	   the content that follows it. Matches /transactions & /lending. */
+	:global(.page-header) {
+		position: relative;
+		z-index: 30;
+	}
+
+	/* ─── Table Card Container (Integrates Toolbar as Table Header) ─── */
+	.table-card-wrapper {
+		position: relative;
+		background: var(--color-surface, #ffffff);
+		border: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		border-radius: var(--radius-xl, 16px);
+		overflow: hidden;
+		box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+		margin-top: var(--space-xl);
+	}
+
+	[data-theme="dark"] .table-card-wrapper {
+		background: var(--color-surface, #0f172a);
+		border-color: rgba(51, 65, 85, 0.7);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	}
+
+	.table-loading-bar {
+		position: relative;
+		height: 3px;
+		width: 100%;
+		background: var(--color-teal-bg, rgba(13, 148, 136, 0.15));
+		overflow: hidden;
+	}
+
+	.loading-bar-fill {
+		position: absolute;
+		top: 0;
+		left: 0;
+		height: 100%;
+		width: 40%;
+		background: var(--color-teal, #0d9488);
+		border-radius: var(--radius-pill, 9999px);
+		animation: loadingBarProgress 1s infinite ease-in-out;
+	}
+
+	@keyframes loadingBarProgress {
+		0% { left: -40%; width: 40%; }
+		50% { width: 60%; }
+		100% { left: 100%; width: 40%; }
+	}
+
+	.table-toolbar {
+		padding: var(--space-md) var(--space-lg);
+		border-bottom: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		background: var(--color-surface, #ffffff);
+	}
+
+	[data-theme="dark"] .table-toolbar {
+		background: var(--color-surface, #0f172a);
+		border-bottom-color: rgba(51, 65, 85, 0.7);
+	}
+
+	.table-card-wrapper .bulk-bar {
+		margin: 0;
+		padding: var(--space-sm) var(--space-lg);
+		border-top: none;
+		border-left: none;
+		border-right: none;
+		border-bottom: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		border-radius: 0;
+		box-shadow: none;
+		background: var(--color-surface, #ffffff);
+	}
+
+	[data-theme="dark"] .table-card-wrapper .bulk-bar {
+		background: var(--color-surface, #0f172a);
+		border-bottom-color: rgba(51, 65, 85, 0.7);
+	}
+
+	.table-card-wrapper :global(.recurring-table),
+	.table-card-wrapper :global(.recurring-header),
+	.table-card-wrapper :global(.recurring-row),
+	.table-card-wrapper :global(.recurring-list),
+	.table-card-wrapper :global(.rr-register) {
+		border-radius: 0 !important;
+		box-shadow: none !important;
+	}
+
+	.table-card-wrapper :global(.recurring-table) {
+		border: none !important;
+	}
+
+	.table-card-wrapper .pager-container {
+		margin-top: 0;
+		border-top: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		padding: var(--space-md) var(--space-lg);
+		background: var(--color-surface, #ffffff);
+	}
+
+	[data-theme="dark"] .table-card-wrapper .pager-container {
+		background: var(--color-surface, #0f172a);
+		border-top-color: rgba(51, 65, 85, 0.7);
+	}
+
+	/* ─── Bulk selection action bar (Selection Mode only) ─── */
+	.bulk-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: var(--space-sm);
+		padding: var(--space-sm) var(--space-md);
+		margin-top: var(--space-md);
+		margin-bottom: var(--space-md);
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-xl);
+		box-shadow: var(--shadow-sm);
+		animation: bulkIn 200ms var(--ease) both;
+	}
+
+	.bulk-left {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		min-height: 44px;
+	}
+
+	.bulk-left input[type='checkbox'] {
+		width: 18px;
+		height: 18px;
+		margin: 0;
+		accent-color: var(--color-teal);
+		cursor: pointer;
+	}
+
+	.bulk-count {
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
+		color: var(--color-teal);
+		letter-spacing: 0.02em;
+	}
+
+	.bulk-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-xs);
+		flex-wrap: wrap;
+	}
+
+	.bulk-bar :global(.btn) {
+		min-height: 44px;
+	}
+
+	@keyframes bulkIn {
+		from {
+			opacity: 0;
+			transform: translateY(-6px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	@media (max-width: 768px) {
+		.bulk-bar {
+			align-items: stretch;
+			flex-direction: column;
+			gap: var(--space-sm);
+		}
+
+		.bulk-actions {
+			display: grid;
+			grid-template-columns: repeat(2, 1fr);
+			gap: var(--space-xs);
+			width: 100%;
+		}
+	}
+
 	/* ── Search filter pill positioning ── */
 	:global(.search-filter-pill) {
 		margin-top: var(--space-md);
@@ -696,50 +1119,180 @@
 	.recurring-page-content {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-xl);
+		gap: 0;
 	}
 
-	/* ── Pagination ── */
-	.pagination {
+	/* ─── Pagination (Pager Container & Footer) ─── */
+	.pager-container {
 		display: flex;
+		flex-direction: column;
 		align-items: center;
-		justify-content: center;
 		gap: var(--space-md);
-		margin-top: var(--space-lg);
-		padding-top: var(--space-lg);
-		border-top: 1px solid var(--color-hairline);
+		margin-top: var(--space-xl);
 	}
 
-	.page-btn {
+	.pager {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 40px;
-		height: 40px;
+		gap: var(--space-sm);
+		margin-top: 0;
+		flex-wrap: wrap;
+	}
+
+	.pager-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		min-height: 44px;
+		padding: 0 var(--space-md);
 		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-pill);
 		background: var(--color-surface);
-		border-radius: var(--radius-md);
-		color: var(--color-text);
+		color: var(--color-text-muted);
+		font-family: var(--font-body);
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
 		cursor: pointer;
-		transition: all 150ms var(--ease);
-		-webkit-tap-highlight-color: transparent;
+		transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
 	}
 
-	.page-btn:hover:not(:disabled) {
-		background: var(--color-teal-bg);
-		border-color: var(--color-teal);
+	.pager-btn:hover:not(:disabled) {
 		color: var(--color-teal);
+		border-color: var(--color-teal);
+		background: var(--color-teal-bg);
+		box-shadow: var(--glow-card);
 	}
 
-	.page-btn:disabled {
+	.pager-btn:active:not(:disabled) {
+		transform: translateY(1px);
+	}
+
+	.pager-btn:disabled {
 		opacity: 0.4;
 		cursor: not-allowed;
 	}
 
-	.page-info {
+	.pager-btn:focus-visible {
+		outline: 2px solid var(--color-teal);
+		outline-offset: 2px;
+	}
+
+	.pager-icon {
+		flex-shrink: 0;
+	}
+
+	.pager-pages {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		list-style: none;
+		padding: 0;
+		margin: 0;
+	}
+
+	.pager-pages li {
+		display: inline-flex;
+	}
+
+	.pager-num {
+		min-width: 40px;
+		height: 44px;
+		padding: 0 6px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border: 1px solid transparent;
+		border-radius: var(--radius-md);
+		background: transparent;
+		color: var(--color-text-muted);
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
+		cursor: pointer;
+		transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+		position: relative;
+	}
+
+	.pager-num:hover:not(.current) {
+		color: var(--color-teal);
+		background: var(--color-teal-bg);
+		border-color: var(--color-hairline);
+	}
+
+	.pager-num:focus-visible {
+		outline: 2px solid var(--color-teal);
+		outline-offset: 2px;
+	}
+
+	.pager-num.current {
+		background: var(--color-teal);
+		border-color: var(--color-teal);
+		color: var(--color-ink-inverse);
+		box-shadow: var(--glow-card);
+	}
+
+	.pager-num.current::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		bottom: 3px;
+		transform: translateX(-50%);
+		width: 14px;
+		height: 3px;
+		border-radius: var(--radius-pill);
+		background: var(--teal-deep);
+	}
+
+	.pager-gap {
+		padding: 0 4px;
+		color: var(--color-text-muted);
 		font-family: var(--font-mono);
 		font-size: var(--font-size-sm);
+		user-select: none;
+	}
+
+	.pager-footer {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-md);
+		flex-wrap: wrap;
+	}
+
+	.rows-per-page {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-family: var(--font-mono);
+		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
+	}
+
+	.rows-select {
+		padding: 4px 8px;
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+		color: var(--color-text);
+		font-family: var(--font-mono);
+		font-size: var(--font-size-xs);
+		cursor: pointer;
+	}
+
+	.rows-select:focus-visible {
+		outline: 2px solid var(--color-teal);
+	}
+
+	.pager-count {
+		margin: 0;
+		text-align: center;
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		letter-spacing: 0.02em;
 	}
 
 	/* ── Slide panel ── */
@@ -899,6 +1452,12 @@
 	}
 
 	/* ── Mobile ── */
+	@media (max-width: 768px) {
+		:global(.header-actions .btn-primary) {
+			display: none !important;
+		}
+	}
+
 	@media (max-width: 480px) {
 		.header-actions {
 			flex-direction: column;

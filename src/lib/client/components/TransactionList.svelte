@@ -21,7 +21,7 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
     allTransactionsForBalance = [],
     showRunningBalance = true,
     categories = [],
-    showFlatView = false,
+    showFlatView = true,
     selectionMode = false,
     selectedIds = new Set() as Set<number>,
     onToggleSelection,
@@ -55,6 +55,11 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
   let inlineEditValue = $state('');
   let menuTxn = $state<Transaction | null>(null);
   let menuAnchor = $state<HTMLElement | null>(null); // kebab el → anchors desktop popover
+  let dateSortOrder = $state<'desc' | 'asc'>('desc');
+
+  function toggleDateSort() {
+    dateSortOrder = dateSortOrder === 'desc' ? 'asc' : 'desc';
+  }
 
   // Cleanup: when selection mode becomes active, drop any in-progress edit/swipe
   // state. Internal reset only — never touched again throughout the mode.
@@ -156,13 +161,18 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
       });
     }
 
-    // Keep the prop's display order (newest first) but attach balance fields and
-    // normalize dates to strings so grouping keys never see a Postgres Date.
-    return transactions.map(txn => ({
+    // Attach balance fields and sort according to dateSortOrder
+    const list = transactions.map(txn => ({
       ...txn,
       date: dateToString(txn.date) ?? txn.date,
       ...balanceMap.get(txn.id)!,
     }));
+
+    return list.sort((a, b) => {
+      const cmp = a.date.localeCompare(b.date);
+      if (cmp !== 0) return dateSortOrder === 'desc' ? -cmp : cmp;
+      return dateSortOrder === 'desc' ? b.id - a.id : a.id - b.id;
+    });
   });
 
   type DateGroup = { date: string; label: string; items: (Transaction & { runningBalance: number; daySubtotal: number; isDayFirst: boolean; isDayLast: boolean })[]; subtotal: number };
@@ -174,7 +184,9 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(txn);
     }
-    const sorted = [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+    const sorted = [...map.entries()].sort((a, b) => {
+      return dateSortOrder === 'desc' ? b[0].localeCompare(a[0]) : a[0].localeCompare(b[0]);
+    });
 
     const today = getToday();
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
@@ -590,7 +602,35 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
         {/if}
         <span class="fh-circle" aria-hidden="true"></span>
         <span class="fh-desc">Description</span>
-        <span class="fh-date">Date</span>
+        <span class="fh-date">
+          <button
+            type="button"
+            class="fh-date-btn"
+            onclick={toggleDateSort}
+            aria-label={`Sort by date (${dateSortOrder === 'desc' ? 'newest first' : 'oldest first'})`}
+            title={`Sort by date (${dateSortOrder === 'desc' ? 'newest first' : 'oldest first'})`}
+          >
+            <span>Date</span>
+            <svg
+              class="sort-icon"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              {#if dateSortOrder === 'desc'}
+                <path d="M12 5v14M19 12l-7 7-7-7" />
+              {:else}
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              {/if}
+            </svg>
+          </button>
+        </span>
         {#if showRunningBalance}
           <span class="fh-balance">Balance</span>
         {/if}
@@ -670,6 +710,38 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
 
   .fh-desc { flex: 1; min-width: 0; }
   .fh-date { min-width: 76px; text-align: left; flex-shrink: 0; }
+  .fh-date-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    border-radius: var(--radius-sm, 4px);
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .fh-date-btn:hover {
+    background: var(--color-surface-hover, rgba(0, 0, 0, 0.05));
+    color: var(--color-teal, #0d9488);
+  }
+  [data-theme="dark"] .fh-date-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-teal, #14b8a6);
+  }
+  .fh-date-btn:focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: 1px;
+  }
+  .sort-icon {
+    flex-shrink: 0;
+    color: var(--color-teal, #0d9488);
+  }
   .fh-balance { min-width: 90px; text-align: right; flex-shrink: 0; }
   .fh-amount { min-width: 90px; text-align: right; flex-shrink: 0; }
 
@@ -1405,9 +1477,9 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
     .txn-row::before { transition: none; }
   }
 
-  /* ── Mobile (< 640px) ── */
-  @media (max-width: 640px) {
-    .cat-pill { display: none; }
+  /* ── Mobile (<= 768px) ── */
+  @media (max-width: 768px) {
+    .balance-col { display: none !important; }
     .hover-slot { display: none; }
     .cat-stripe { display: none; }
     .flat-header { display: none; }
@@ -1435,16 +1507,15 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
 
   @media (max-width: 480px) {
     .txn-row {
-      flex-wrap: wrap;
-      padding: 5px var(--space-md);
-      padding-left: calc(var(--space-md) + 4px);
-      min-height: 44px;
-      gap: 2px;
+      flex-wrap: nowrap;
+      padding: var(--space-xs) var(--space-md);
+      min-height: 52px;
+      gap: var(--space-sm);
       background: var(--color-surface);
       border: 1px solid var(--color-hairline);
       border-left: 4px solid transparent;
       border-radius: var(--radius-lg);
-      margin: 0 var(--space-sm) 6px;
+      margin: 0 0 8px;
     }
 
     .txn-row::before { display: none; }
@@ -1461,24 +1532,17 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
       overflow: visible;
     }
 
-    .cat-circle { width: 24px; height: 24px; font-size: 10px; }
+    .cat-circle { width: 32px; height: 32px; font-size: 12px; flex-shrink: 0; }
 
-    .txn-info { flex: 1 1 auto; min-width: 0; order: 1; }
-    .txn-amount-col { order: 2; min-width: auto; margin-left: auto; flex-shrink: 0; }
-    .row-menu-btn { order: 2; margin-left: var(--space-xs); margin-right: 0; }
+    .txn-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .txn-desc { font-size: var(--font-size-sm); font-weight: 700; color: var(--color-ink); }
+    .cat-pill { display: inline-flex; width: fit-content; font-size: 10px; padding: 1px 6px; }
 
-    .balance-col {
-      order: 3;
-      width: 100%;
-      flex-direction: row;
-      justify-content: flex-end;
-      align-items: center;
-      gap: 4px;
-      margin-top: 0;
-      padding-top: 2px;
-      border-top: 1px solid var(--color-hairline);
-      min-width: auto;
-    }
+    .txn-amount-col { order: 2; min-width: auto; margin-left: auto; flex-shrink: 0; text-align: right; }
+    .txn-amount { font-size: var(--font-size-base); font-weight: 800; }
+    .row-menu-btn { display: none; }
+
+    .balance-col { display: none !important; }
 
     .balance-label { font-size: 8px; }
     .balance-value { font-size: 12px; }

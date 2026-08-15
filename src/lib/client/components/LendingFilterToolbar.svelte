@@ -2,20 +2,16 @@
 	import { browser } from '$app/environment';
 	import { onMount, tick } from 'svelte';
 	import DateFilterMenu from '$lib/client/components/DateFilterMenu.svelte';
-	import CategoryFilterMenu from '$lib/client/components/CategoryFilterMenu.svelte';
-	import TypeFilterMenu from '$lib/client/components/TypeFilterMenu.svelte';
-	import type { Category } from '$lib/types';
+	import LendingStatusFilterMenu from '$lib/client/components/LendingStatusFilterMenu.svelte';
 
 	// ─── Props ────────────────────────────────────────────────────────
-	// Desktop-only: the page renders this inside .toolbar-desktop (hidden
-	// ≤768px). Search is embedded — the page's debounced URL sync keeps working
-	// through this bind:value, exactly as it did with the standalone pill.
 	let {
 		value = $bindable(''),
-		placeholder = 'Search transactions…',
-		ariaLabel = 'Search transactions',
-		categories = [] as Category[],
-		activeFilters = { date: '', category: '', type: '', customFrom: '', customTo: '' },
+		placeholder = 'Search borrower, lender, notes…',
+		ariaLabel = 'Search lendings',
+		counts = { all: 0, active: 0, paid: 0 },
+		paidLabel = 'Paid',
+		activeFilters = { status: 'active', date: '', customFrom: '', customTo: '' },
 		onFilterChange,
 		onClearAll,
 		loading = false,
@@ -23,31 +19,33 @@
 		value?: string;
 		placeholder?: string;
 		ariaLabel?: string;
-		categories?: Category[];
-		activeFilters?: { date: string; category: string; type: string; customFrom?: string; customTo?: string };
-		onFilterChange?: (filters: { date: string; category: string; type: string; customFrom?: string; customTo?: string }) => void;
+		counts?: { all: number; active: number; paid: number };
+		paidLabel?: string;
+		activeFilters?: { status: 'all' | 'active' | 'paid'; date: string; customFrom?: string; customTo?: string };
+		onFilterChange?: (filters: { status: 'all' | 'active' | 'paid'; date: string; customFrom?: string; customTo?: string }) => void;
 		onClearAll?: () => void;
 		loading?: boolean;
 	} = $props();
 
-	// ─── State (single open segment — opening one closes the others) ──
-	let openMenu: 'date' | 'category' | 'type' | null = $state(null);
-	// Menus mount hidden, are measured + clamped, then revealed (no flash)
+	// ─── State ────────────────────────────────────────────────────────
+	let openMenu: 'date' | 'status' | null = $state(null);
 	let menuVisible = $state(false);
+
 	let dateChipEl = $state<HTMLButtonElement | null>(null);
-	let categoryChipEl = $state<HTMLButtonElement | null>(null);
-	let typeChipEl = $state<HTMLButtonElement | null>(null);
+	let statusChipEl = $state<HTMLButtonElement | null>(null);
 	let dateMenuEl = $state<HTMLDivElement | null>(null);
-	let categoryMenuEl = $state<HTMLDivElement | null>(null);
-	let typeMenuEl = $state<HTMLDivElement | null>(null);
+	let statusMenuEl = $state<HTMLDivElement | null>(null);
 
 	// ─── Derived ──────────────────────────────────────────────────────
+	const isStatusActiveFilter = $derived(activeFilters.status !== 'active');
+	const isDateActiveFilter = $derived(!!activeFilters.date);
+	const isSearchActiveFilter = $derived(!!value.trim());
+
 	const activeFilterCount = $derived(
-		[activeFilters.date, activeFilters.category, activeFilters.type].filter(Boolean).length
+		(isStatusActiveFilter ? 1 : 0) + (isDateActiveFilter ? 1 : 0) + (isSearchActiveFilter ? 1 : 0)
 	);
 	const hasActiveFilters = $derived(activeFilterCount > 0);
 
-	// Date label
 	const DATE_PRESET_LABELS: Record<string, string> = {
 		any: 'Any Date',
 		today: 'Today',
@@ -72,27 +70,13 @@
 		return `Date: ${DATE_PRESET_LABELS[activeFilters.date] ?? activeFilters.date}`;
 	});
 
-	// Category label — title-case via name (categories are stored title-case)
-	const categoryLabel = $derived.by(() => {
-		if (!activeFilters.category) return 'Category';
-		const cat = categories.find(c => c.name === activeFilters.category);
-		return cat ? `Category: ${cat.icon} ${cat.name}` : `Category: ${activeFilters.category}`;
+	const statusLabel = $derived.by(() => {
+		if (activeFilters.status === 'all') return 'Status: All';
+		if (activeFilters.status === 'paid') return `Status: ${paidLabel}`;
+		return 'Status: Active';
 	});
 
-	// Type label — TITLE-CASE
-	const typeLabel = $derived.by(() => {
-		if (!activeFilters.type) return 'Type';
-		const label = activeFilters.type === 'income' ? 'Income' : 'Expense';
-		return `Type: ${label}`;
-	});
-
-	// ─── Popover positioning (viewport-clamped, fixed) ────────────────
-	// Menus are position:fixed so they overlay cleanly and never push layout.
-	// They mount `visibility: hidden`, are measured + clamped to the viewport,
-	// then revealed — no position flash. IMPORTANT: .filter-dock uses
-	// overflow:hidden to clip active-segment tints to the pill, but fixed
-	// descendants escape ancestor overflow clipping (no transform/filter
-	// ancestor here), so the menus still render above everything.
+	// ─── Popover positioning ──────────────────────────────────────────
 	function positionPopover(chipEl: HTMLElement | null, menuEl: HTMLElement | null) {
 		if (!chipEl || !menuEl) return;
 
@@ -101,16 +85,13 @@
 		const viewportWidth = window.innerWidth;
 		const viewportHeight = window.innerHeight;
 
-		// Default: below chip, left-aligned
 		let left = chipRect.left;
 		let top = chipRect.bottom + 4;
 
-		// Horizontal clamp (never overflow viewport, no horizontal scrollbar)
 		const maxLeft = viewportWidth - menuRect.width - 8;
 		if (left > maxLeft) left = Math.max(8, maxLeft);
 		if (left < 8) left = 8;
 
-		// Vertical clamp (flip up if needed)
 		if (top + menuRect.height > viewportHeight - 8) {
 			const flippedTop = chipRect.top - menuRect.height - 4;
 			if (flippedTop >= 8) {
@@ -126,8 +107,7 @@
 
 	function currentMenuEl(): HTMLDivElement | null {
 		if (openMenu === 'date') return dateMenuEl;
-		if (openMenu === 'category') return categoryMenuEl;
-		if (openMenu === 'type') return typeMenuEl;
+		if (openMenu === 'status') return statusMenuEl;
 		return null;
 	}
 
@@ -135,14 +115,12 @@
 		const menuEl = currentMenuEl();
 		if (!menuEl) return;
 		if (openMenu === 'date') positionPopover(dateChipEl, menuEl);
-		else if (openMenu === 'category') positionPopover(categoryChipEl, menuEl);
-		else if (openMenu === 'type') positionPopover(typeChipEl, menuEl);
-		// Reveal only after it's measured + clamped (no position flash)
+		else if (openMenu === 'status') positionPopover(statusChipEl, menuEl);
 		menuVisible = true;
 	}
 
 	// ─── Interaction ──────────────────────────────────────────────────
-	function toggleMenu(menu: 'date' | 'category' | 'type') {
+	function toggleMenu(menu: 'date' | 'status') {
 		openMenu = openMenu === menu ? null : menu;
 		if (openMenu) {
 			menuVisible = false;
@@ -154,52 +132,52 @@
 		const wasOpen = openMenu;
 		openMenu = null;
 		menuVisible = false;
-		// Return focus to the segment that opened it
 		if (wasOpen === 'date') dateChipEl?.focus();
-		else if (wasOpen === 'category') categoryChipEl?.focus();
-		else if (wasOpen === 'type') typeChipEl?.focus();
+		else if (wasOpen === 'status') statusChipEl?.focus();
 	}
 
 	function handleDateSelect(preset: string) {
 		if (preset === 'custom') {
 			onFilterChange?.({
+				status: activeFilters.status,
 				date: 'custom',
-				category: activeFilters.category,
-				type: activeFilters.type,
 				customFrom: activeFilters.customFrom,
 				customTo: activeFilters.customTo,
 			});
 			return;
 		}
-		// 'any' means no date filter — normalize to '' so the segment reads
-		// inactive and the filter badge doesn't count it.
 		const date = preset === 'any' ? '' : preset;
-		onFilterChange?.({ date, category: activeFilters.category, type: activeFilters.type, customFrom: '', customTo: '' });
+		onFilterChange?.({
+			status: activeFilters.status,
+			date,
+			customFrom: '',
+			customTo: '',
+		});
 		closeMenu();
 	}
 
 	function handleCustomDateApply(from: string, to: string) {
 		onFilterChange?.({
+			status: activeFilters.status,
 			date: 'custom',
-			category: activeFilters.category,
-			type: activeFilters.type,
 			customFrom: from,
 			customTo: to,
 		});
 		closeMenu();
 	}
 
-	function handleCategorySelect(category: string) {
-		onFilterChange?.({ date: activeFilters.date, category, type: activeFilters.type });
-		closeMenu();
-	}
-
-	function handleTypeSelect(type: string) {
-		onFilterChange?.({ date: activeFilters.date, category: activeFilters.category, type });
+	function handleStatusSelect(status: 'all' | 'active' | 'paid') {
+		onFilterChange?.({
+			status,
+			date: activeFilters.date,
+			customFrom: activeFilters.customFrom,
+			customTo: activeFilters.customTo,
+		});
 		closeMenu();
 	}
 
 	function handleClearAll() {
+		value = '';
 		onClearAll?.();
 		closeMenu();
 	}
@@ -208,8 +186,8 @@
 	function handleClickOutside(e: MouseEvent) {
 		if (!openMenu) return;
 		const target = e.target as Node;
-		const chipEls = [dateChipEl, categoryChipEl, typeChipEl].filter(Boolean);
-		const menuEls = [dateMenuEl, categoryMenuEl, typeMenuEl].filter(Boolean);
+		const chipEls = [dateChipEl, statusChipEl].filter(Boolean);
+		const menuEls = [dateMenuEl, statusMenuEl].filter(Boolean);
 		const clickedChip = chipEls.some(el => el?.contains(target));
 		const clickedMenu = menuEls.some(el => el?.contains(target));
 		if (!clickedChip && !clickedMenu) {
@@ -238,12 +216,7 @@
 	});
 </script>
 
-<!-- ═══ Unified filter dock ═══
-     One instrument: embedded search + Date / Category / Type segments +
-     Clear All. Segments are separated by inset hairlines; active ones light
-     up mint-teal. `overflow: hidden` clips tints to the pill — the fixed
-     popovers escape it (no transformed/filtered ancestor). -->
-<div class="filter-dock" role="group" aria-label="Search and filter transactions">
+<div class="filter-dock" role="group" aria-label="Search and filter lendings">
 	<!-- Search region -->
 	<div class="dock-search">
 		{#if loading}
@@ -269,7 +242,7 @@
 	<button
 		type="button"
 		class="dock-chip"
-		class:active={!!activeFilters.date}
+		class:active={isDateActiveFilter}
 		class:open={openMenu === 'date'}
 		onclick={() => toggleMenu('date')}
 		bind:this={dateChipEl}
@@ -281,41 +254,24 @@
 		<svg class="chip-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
 	</button>
 
-	<!-- ═══ Category segment ═══ -->
+	<!-- ═══ Status segment ═══ -->
 	<span class="dock-divider" aria-hidden="true"></span>
 	<button
 		type="button"
 		class="dock-chip"
-		class:active={!!activeFilters.category}
-		class:open={openMenu === 'category'}
-		onclick={() => toggleMenu('category')}
-		bind:this={categoryChipEl}
+		class:active={isStatusActiveFilter}
+		class:open={openMenu === 'status'}
+		onclick={() => toggleMenu('status')}
+		bind:this={statusChipEl}
 		aria-haspopup="true"
-		aria-expanded={openMenu === 'category'}
-		aria-label={activeFilters.category ? `${categoryLabel}, click to change` : `${categoryLabel}, click to filter`}
+		aria-expanded={openMenu === 'status'}
+		aria-label={isStatusActiveFilter ? `${statusLabel}, click to change` : `${statusLabel}, click to filter`}
 	>
-		<span class="chip-label">{categoryLabel}</span>
+		<span class="chip-label">{statusLabel}</span>
 		<svg class="chip-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
 	</button>
 
-	<!-- ═══ Type segment ═══ -->
-	<span class="dock-divider" aria-hidden="true"></span>
-	<button
-		type="button"
-		class="dock-chip"
-		class:active={!!activeFilters.type}
-		class:open={openMenu === 'type'}
-		onclick={() => toggleMenu('type')}
-		bind:this={typeChipEl}
-		aria-haspopup="true"
-		aria-expanded={openMenu === 'type'}
-		aria-label={activeFilters.type ? `${typeLabel}, click to change` : `${typeLabel}, click to filter`}
-	>
-		<span class="chip-label">{typeLabel}</span>
-		<svg class="chip-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-	</button>
-
-	<!-- ═══ Clear All (single reset, rose) ═══ -->
+	<!-- ═══ Clear All (clears search + date + status) ═══ -->
 	{#if hasActiveFilters}
 		<span class="dock-divider" aria-hidden="true"></span>
 		<button type="button" class="dock-chip clear" onclick={handleClearAll} aria-label={`Clear all ${activeFilterCount} filters`}>
@@ -324,7 +280,7 @@
 		</button>
 	{/if}
 
-	<!-- ═══ Popovers (fixed, hidden until measured+clamped) ═══ -->
+	<!-- ═══ Popovers ═══ -->
 	{#if openMenu === 'date'}
 		<div class="filter-popover" class:visible={menuVisible} bind:this={dateMenuEl} role="menu" aria-label="Date filter">
 			<DateFilterMenu
@@ -338,22 +294,13 @@
 		</div>
 	{/if}
 
-	{#if openMenu === 'category'}
-		<div class="filter-popover" class:visible={menuVisible} bind:this={categoryMenuEl} role="menu" aria-label="Category filter">
-			<CategoryFilterMenu
-				categories={categories}
-				activeFilter={activeFilters.category}
-				onSelect={handleCategorySelect}
-				closePopover={closeMenu}
-			/>
-		</div>
-	{/if}
-
-	{#if openMenu === 'type'}
-		<div class="filter-popover" class:visible={menuVisible} bind:this={typeMenuEl} role="menu" aria-label="Type filter">
-			<TypeFilterMenu
-				activeFilter={activeFilters.type}
-				onSelect={handleTypeSelect}
+	{#if openMenu === 'status'}
+		<div class="filter-popover" class:visible={menuVisible} bind:this={statusMenuEl} role="menu" aria-label="Status filter">
+			<LendingStatusFilterMenu
+				activeFilter={activeFilters.status}
+				{counts}
+				{paidLabel}
+				onSelect={handleStatusSelect}
 				closePopover={closeMenu}
 			/>
 		</div>
@@ -361,14 +308,11 @@
 </div>
 
 <style>
-	/* The dock: one rounded instrument holding search + filter segments.
-	   height 44px matches ViewToggle; overflow clips segment tints to the
-	   pill while the fixed popovers escape it. No transform/filter here. */
 	.filter-dock {
 		display: flex;
 		align-items: stretch;
 		height: 44px;
-		flex: 1 1 360px; /* wraps to its own row on tablet instead of squeezing */
+		flex: 1 1 360px;
 		min-width: 0;
 		border: 1px solid var(--color-hairline);
 		border-radius: var(--radius-pill);
@@ -377,7 +321,6 @@
 		overflow: hidden;
 	}
 
-	/* Search region: flexes with the toolbar, never forces horizontal scroll */
 	.dock-search {
 		flex: 1;
 		min-width: 90px;
@@ -412,7 +355,6 @@
 		-webkit-appearance: none;
 	}
 
-	/* Inset hairline separators between segments */
 	.dock-divider {
 		width: 1px;
 		align-self: stretch;
@@ -421,7 +363,6 @@
 		flex-shrink: 0;
 	}
 
-	/* Segments — active/open light up mint-teal, like one control surfacing */
 	.dock-chip {
 		display: inline-flex;
 		align-items: center;
@@ -448,7 +389,6 @@
 		box-shadow: inset 0 0 0 2px var(--color-teal);
 	}
 
-	/* Active filter: mint-tint + teal (NO glow) */
 	.dock-chip.active,
 	.dock-chip.open {
 		background: var(--color-teal-bg);
@@ -469,7 +409,6 @@
 		transform: rotate(180deg);
 	}
 
-	/* Clear All (single reset) — rose */
 	.dock-chip.clear {
 		color: var(--color-coral);
 	}
@@ -494,9 +433,6 @@
 		line-height: 1;
 	}
 
-	/* Popover: fixed so it never pushes layout; mounts hidden, measured +
-	   clamped by the positioner, then revealed via .visible (no flash).
-	   Menus do their own clamping — only Category scrolls internally. */
 	.filter-popover {
 		position: fixed;
 		z-index: 100;

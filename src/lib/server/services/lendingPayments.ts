@@ -5,9 +5,23 @@ import {
 	lendingPayments,
 	transactions
 } from '$lib/server/db/schema';
-import { and, eq, sql, desc, isNotNull, ilike } from 'drizzle-orm';
+import { and, eq, sql, desc, isNotNull, ilike, gte, lte, or, inArray } from 'drizzle-orm';
 import type { Lending, LendingPayment, LendingWithPayments, PaymentType } from '$lib/types';
 import { recordLendingTransactionInTxDrizzle } from '$lib/server/services/recordLendingTransaction';
+
+export interface LendingFilters {
+	status?: 'all' | 'active' | 'paid';
+	date_from?: string;
+	date_to?: string;
+	search?: string;
+}
+
+export interface ListLendingsResult {
+	items: LendingWithPayments[];
+	total: number;
+	page: number;
+	totalPages: number;
+}
 
 /** Drizzle client type returned by getDrizzle(). */
 type DrizzleDb = Awaited<ReturnType<typeof getDrizzle>>;
@@ -35,6 +49,8 @@ interface LendingRowWithPayments {
 	updated_at: Date;
 	cash_paid: string;
 	written_off: string;
+	/** Latest payment date (settlement) when the lending is fully paid, else null. */
+	settlement_date: string | null;
 }
 
 /**
@@ -97,6 +113,7 @@ function toLendingWithPayments(row: LendingRowWithPayments): LendingWithPayments
 	const written_off = parseFloat(String(row.written_off ?? '0'));
 	const resolved_total = cash_paid + written_off;
 	const remaining = parseFloat(String(row.amount)) - resolved_total;
+	const derived_status = remaining <= 0 ? ('paid' as const) : ('active' as const);
 	return {
 		id: row.id,
 		user_id: row.user_id,
@@ -114,7 +131,10 @@ function toLendingWithPayments(row: LendingRowWithPayments): LendingWithPayments
 		written_off,
 		resolved_total,
 		remaining,
-		derived_status: remaining <= 0 ? ('paid' as const) : ('active' as const)
+		derived_status,
+		// Settlement date is only meaningful once the loan is fully paid —
+		// it is the final payment date that brought the balance to zero.
+		settlement_date: derived_status === 'paid' ? (row.settlement_date ?? null) : null
 	};
 }
 
@@ -141,7 +161,8 @@ export async function getLendingsWithPayments(
 			created_at: lendings.created_at,
 			updated_at: lendings.updated_at,
 			cash_paid: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'payment' THEN ${lendingPayments.amount} ELSE 0 END), 0)`,
-			written_off: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'write_off' THEN ${lendingPayments.amount} ELSE 0 END), 0)`
+			written_off: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'write_off' THEN ${lendingPayments.amount} ELSE 0 END), 0)`,
+			settlement_date: sql<string | null>`MAX(${lendingPayments.payment_date})`
 		})
 		.from(lendings)
 		.leftJoin(lendingPayments, eq(lendingPayments.lending_id, lendings.id))
@@ -150,6 +171,160 @@ export async function getLendingsWithPayments(
 		.orderBy(desc(lendings.created_at));
 
 	return rows.map(toLendingWithPayments);
+}
+
+/**
+ * List lendings with payment calculations, supporting server-side filtering and pagination.
+ */
+export async function listLendingsWithPayments(
+	userId: number,
+	direction: 'lent' | 'borrowed',
+	filters: LendingFilters = {},
+	page = 1,
+	limit?: number
+): Promise<ListLendingsResult> {
+	const db = await getDrizzle();
+
+	const conditions = [
+		eq(lendings.user_id, userId),
+		eq(lendings.direction, direction)
+	];
+
+	if (filters.status && ['active', 'paid'].includes(filters.status)) {
+		conditions.push(eq(lendings.status, filters.status));
+	}
+
+	if (filters.date_from) {
+		conditions.push(gte(lendings.date_lent, filters.date_from));
+	}
+
+	if (filters.date_to) {
+		conditions.push(lte(lendings.date_lent, filters.date_to));
+	}
+
+	if (filters.search && filters.search.trim()) {
+		const pattern = `%${filters.search.trim()}%`;
+		conditions.push(
+			or(
+				ilike(lendings.borrower_name, pattern),
+				ilike(lendings.notes, pattern)
+			)!
+		);
+	}
+
+	const whereClause = and(...conditions);
+
+	const [countRow] = await db
+		.select({ count: sql<number>`count(*)::int` })
+		.from(lendings)
+		.where(whereClause);
+
+	const total = countRow?.count ? Number(countRow.count) : 0;
+
+	const effectiveLimit = limit && limit > 0 ? limit : undefined;
+	let totalPages = 1;
+	let currentPage = Math.max(1, page);
+
+	if (effectiveLimit) {
+		totalPages = total > 0 ? Math.ceil(total / effectiveLimit) : 1;
+		if (currentPage > totalPages && totalPages > 0) {
+			currentPage = totalPages;
+		}
+	}
+
+	const query = db
+		.select({
+			id: lendings.id,
+			user_id: lendings.user_id,
+			borrower_name: lendings.borrower_name,
+			amount: lendings.amount,
+			interest_rate: lendings.interest_rate,
+			date_lent: lendings.date_lent,
+			due_date: lendings.due_date,
+			status: lendings.status,
+			notes: lendings.notes,
+			direction: lendings.direction,
+			created_at: lendings.created_at,
+			updated_at: lendings.updated_at,
+			cash_paid: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'payment' THEN ${lendingPayments.amount} ELSE 0 END), 0)`,
+			written_off: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'write_off' THEN ${lendingPayments.amount} ELSE 0 END), 0)`,
+			settlement_date: sql<string | null>`MAX(${lendingPayments.payment_date})`
+		})
+		.from(lendings)
+		.leftJoin(lendingPayments, eq(lendingPayments.lending_id, lendings.id))
+		.where(whereClause)
+		.groupBy(lendings.id)
+		.orderBy(desc(lendings.created_at));
+
+	if (effectiveLimit) {
+		query.limit(effectiveLimit).offset((currentPage - 1) * effectiveLimit);
+	}
+
+	const rows = await query;
+	const items = rows.map(toLendingWithPayments);
+
+	return {
+		items,
+		total,
+		page: currentPage,
+		totalPages
+	};
+}
+
+/**
+ * Get count of lendings by status for the filter options, optionally filtered by date/search.
+ */
+export async function getLendingStatusCounts(
+	userId: number,
+	direction: 'lent' | 'borrowed',
+	filters: Omit<LendingFilters, 'status'> = {}
+): Promise<{ all: number; active: number; paid: number }> {
+	const db = await getDrizzle();
+
+	const conditions = [
+		eq(lendings.user_id, userId),
+		eq(lendings.direction, direction)
+	];
+
+	if (filters.date_from) {
+		conditions.push(gte(lendings.date_lent, filters.date_from));
+	}
+
+	if (filters.date_to) {
+		conditions.push(lte(lendings.date_lent, filters.date_to));
+	}
+
+	if (filters.search && filters.search.trim()) {
+		const pattern = `%${filters.search.trim()}%`;
+		conditions.push(
+			or(
+				ilike(lendings.borrower_name, pattern),
+				ilike(lendings.notes, pattern)
+			)!
+		);
+	}
+
+	const rows = await db
+		.select({
+			status: lendings.status,
+			count: sql<number>`count(*)::int`
+		})
+		.from(lendings)
+		.where(and(...conditions))
+		.groupBy(lendings.status);
+
+	let active = 0;
+	let paid = 0;
+	for (const row of rows) {
+		if (row.status === 'active') active = Number(row.count);
+		if (row.status === 'paid') paid = Number(row.count);
+	}
+
+	return {
+		all: active + paid,
+		active,
+		paid
+	};
 }
 
 /**
@@ -175,7 +350,8 @@ export async function getLendingWithPayments(
 			created_at: lendings.created_at,
 			updated_at: lendings.updated_at,
 			cash_paid: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'payment' THEN ${lendingPayments.amount} ELSE 0 END), 0)`,
-			written_off: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'write_off' THEN ${lendingPayments.amount} ELSE 0 END), 0)`
+			written_off: sql<string>`COALESCE(SUM(CASE WHEN ${lendingPayments.payment_type} = 'write_off' THEN ${lendingPayments.amount} ELSE 0 END), 0)`,
+			settlement_date: sql<string | null>`MAX(${lendingPayments.payment_date})`
 		})
 		.from(lendings)
 		.leftJoin(lendingPayments, eq(lendingPayments.lending_id, lendings.id))
@@ -579,6 +755,62 @@ export async function deleteLending(userId: number, lendingId: number): Promise<
 		return !!row;
 	});
 }
+
+/**
+ * Bulk-delete multiple lendings atomically.
+ *
+ * Validates that every requested ID belongs to the authenticated user BEFORE
+ * performing any destructive mutations. If any ID is unknown or belongs to
+ * another user the entire operation is rejected and nothing is deleted.
+ *
+ * Reuses `deleteLinkedTransactionsInTxDrizzle` (the same private helper that
+ * `deleteLending` uses) so the deletion semantics are identical:
+ *   single delete × N records = bulk delete
+ *
+ * Everything runs inside ONE outer Drizzle transaction — atomic roll-back if
+ * any step fails. No nested transactions (we pass `tx` to the inner helper).
+ *
+ * Returns the number of lending rows actually deleted.
+ */
+export async function deleteLendings(userId: number, ids: number[]): Promise<number> {
+	if (ids.length === 0) return 0;
+
+	const db = await getDrizzle();
+	return db.transaction(async (tx) => {
+		// ── 1. Ownership validation ────────────────────────────────────────
+		// Fetch all lending IDs that exist AND belong to this user.
+		const ownedRows = await tx
+			.select({ id: lendings.id })
+			.from(lendings)
+			.where(and(eq(lendings.user_id, userId), inArray(lendings.id, ids)));
+
+		const ownedIds = new Set(ownedRows.map((r) => r.id));
+
+		// If any requested ID is missing from the owned set, reject the entire
+		// operation without touching anything.
+		const allOwned = ids.every((id) => ownedIds.has(id));
+		if (!allOwned) {
+			throw new Error('One or more lending IDs are invalid or do not belong to this user');
+		}
+
+		// ── 2. Delete linked ledger transactions (one lending at a time) ───
+		// Must run before the lending rows are deleted so lending_payments are
+		// still queryable (they cascade-delete when the lending is removed).
+		for (const id of ids) {
+			await deleteLinkedTransactionsInTxDrizzle(tx, userId, id);
+		}
+
+		// ── 3. Bulk-delete the lending rows (cascades to lending_payments) ─
+		const deleted = await tx
+			.delete(lendings)
+			.where(and(eq(lendings.user_id, userId), inArray(lendings.id, ids)))
+			.returning({ id: lendings.id });
+
+		return deleted.length;
+	});
+}
+
+
 
 /**
  * Create a lending AND, when requested, its linked category/ledger transaction

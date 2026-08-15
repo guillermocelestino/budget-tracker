@@ -1,16 +1,14 @@
 <script lang="ts">
   import { formatCurrency, countUp } from '$lib/client/utils/format';
-  import Sparkline from './Sparkline.svelte';
+  import SummaryCard from '$lib/client/components/SummaryCard.svelte';
 
   let {
     income = 0,
     incomeChange = 0,
     incomeTrend = [] as number[],
-    incomeLabels = [] as string[],
     expenses = 0,
     expenseChange = 0,
     expenseTrend = [] as number[],
-    expenseLabels = [] as string[],
     lentOutstanding = 0,
     recovered = 0,
     borrowedOutstanding = 0,
@@ -43,109 +41,52 @@
     const c4 = countUp(borrowedOutstanding, 600, (v) => dispBorrowed = v);
     return () => { c1(); c2(); c3(); c4(); };
   });
-
-
-  // ─── Good/bad helpers ────────────────────────────────────────
-  function deltaColor(change: number, invert: boolean): string {
-    if (change === 0) return 'var(--color-text-muted)';
-    // invert=true for expenses: positive change = bad (coral)
-    const isGood = invert ? change < 0 : change > 0;
-    return isGood ? 'var(--color-positive)' : 'var(--color-negative)';
-  }
-
-  function deltaArrow(change: number, invert: boolean): string {
-    if (change > 0) return invert ? '↑' : '↑';
-    if (change < 0) return invert ? '↓' : '↓';
-    return '→';
-  }
-
-  function goodBad(change: number, invert: boolean): string {
-    if (change === 0) return 'neutral';
-    return invert ? (change < 0 ? 'good' : 'bad') : (change > 0 ? 'good' : 'bad');
-  }
-
-  const incomeGood = $derived(goodBad(incomeChange, false));
-  const expenseGood = $derived(goodBad(expenseChange, true));
 </script>
 
 <div class="rail-outer">
-  <div
-    class="rail-inner"
-  >
+  <div class="rail-inner">
     <!-- ═══ Card 1: Income ═══ -->
-    <a href="/transactions?type=income" class="kpi-card">
-      <div class="kpi-accent teal"></div>
-      <div class="kpi-body">
-        <span class="kpi-label">Income</span>
-        <span class="kpi-value">{formatCurrency(dispIncome)}</span>
-        {#if incomeChange !== 0}
-          <span class="kpi-delta {incomeGood}" style="--delta-color: {deltaColor(incomeChange, false)}">
-            <span class="delta-arrow">{deltaArrow(incomeChange, false)}</span>
-            {incomeChange > 0 ? '+' : ''}{incomeChange.toFixed(1)}%
-          </span>
-        {/if}
-      </div>
-      {#if incomeTrend.length > 1}
-        <div class="kpi-spark">
-          <Sparkline labels={incomeLabels} data={incomeTrend} />
-        </div>
-      {/if}
-    </a>
+    <SummaryCard
+      label="Income"
+      value={dispIncome}
+      tone="in"
+      href="/transactions?type=income"
+      trend={incomeChange !== 0 ? { text: `${incomeChange > 0 ? '↑ +' : '↓ '}${Math.abs(incomeChange).toFixed(1)}%`, sentiment: incomeChange >= 0 ? 'positive' : 'negative' } : undefined}
+      sparklineData={incomeTrend}
+    />
 
     <!-- ═══ Card 2: Expenses ═══ -->
-    <a href="/transactions?type=expense" class="kpi-card">
-      <div class="kpi-accent coral"></div>
-      <div class="kpi-body">
-        <span class="kpi-label">Expenses</span>
-        <span class="kpi-value">{formatCurrency(dispExpenses)}</span>
-        {#if expenseChange !== 0}
-          <span class="kpi-delta {expenseGood}" style="--delta-color: {deltaColor(expenseChange, true)}">
-            <span class="delta-arrow">{deltaArrow(expenseChange, true)}</span>
-            {expenseChange > 0 ? '+' : ''}{expenseChange.toFixed(1)}%
-          </span>
-        {/if}
-      </div>
-      {#if expenseTrend.length > 1}
-        <div class="kpi-spark">
-          <Sparkline labels={expenseLabels} data={expenseTrend} />
-        </div>
-      {/if}
-    </a>
+    <SummaryCard
+      label="Expenses"
+      value={dispExpenses}
+      tone="out"
+      href="/transactions?type=expense"
+      trend={expenseChange !== 0 ? { text: `${expenseChange > 0 ? '↑ +' : '↓ '}${Math.abs(expenseChange).toFixed(1)}%`, sentiment: expenseChange <= 0 ? 'positive' : 'negative' } : undefined}
+      sparklineData={expenseTrend}
+    />
 
     <!-- ═══ Card 3: Lent Out ═══ -->
-    <a href="/lending" class="kpi-card">
-      <div class="kpi-accent gold"></div>
-      <div class="kpi-body">
-        <span class="kpi-label">Lent Out</span>
-        <span class="kpi-value">{formatCurrency(dispLent)}</span>
-        {#if recovered > 0}
-          <span class="kpi-delta good" style="--delta-color: var(--color-positive)">
-            <span class="delta-arrow">↑</span>
-            {formatCurrency(recovered)} recovered
-          </span>
-        {/if}
-      </div>
-    </a>
+    <SummaryCard
+      label="Lent Out"
+      value={dispLent}
+      tone="out"
+      href="/lending"
+      trend={recovered > 0 ? { text: `↑ ${formatCurrency(recovered)}`, sentiment: 'positive' } : undefined}
+    />
 
     <!-- ═══ Card 4: Owe ═══ -->
-    <a href="/borrowed" class="kpi-card">
-      <div class="kpi-accent sky"></div>
-      <div class="kpi-body">
-        <span class="kpi-label">Owe</span>
-        <span class="kpi-value">{formatCurrency(dispBorrowed)}</span>
-        {#if repaid > 0}
-          <span class="kpi-delta good" style="--delta-color: var(--color-positive)">
-            <span class="delta-arrow">↑</span>
-            {formatCurrency(repaid)} repaid
-          </span>
-        {/if}
-      </div>
-    </a>
+    <SummaryCard
+      label="Owe"
+      value={dispBorrowed}
+      tone="in"
+      href="/borrowed"
+      trend={repaid > 0 ? { text: `↑ ${formatCurrency(repaid)}`, sentiment: 'positive' } : undefined}
+    />
   </div>
 </div>
 
 <style>
-  /* ─── Rail outer — constrains width, shows at ≤640px ─── */
+  /* ─── Rail outer — constrains width, shows at ≤768px ─── */
   .rail-outer {
     width: 100%;
     max-width: 100%;
@@ -175,110 +116,14 @@
     display: none;
   }
 
-  /* ─── KPI Card ─── */
-  .kpi-card {
+  .rail-inner :global(.card) {
     flex: 0 0 auto;
-    width: min(78vw, 280px);
+    width: min(78vw, 260px);
     min-width: 0;
     scroll-snap-align: start;
-    position: relative;
-    background: var(--color-surface);
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--radius-xl);
-    padding: var(--space-md) var(--space-lg);
-    padding-left: calc(var(--space-lg) + 12px);
-    box-shadow: var(--shadow-card);
-    text-decoration: none;
-    color: inherit;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xs);
-    transition: transform 200ms var(--bounce), box-shadow 200ms var(--ease);
-    -webkit-tap-highlight-color: transparent;
-    overflow: hidden;
   }
 
-  .kpi-card:active {
-    transform: scale(0.97);
-  }
-
-  @media (pointer: fine) {
-    .kpi-card:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--glow-card);
-    }
-  }
-
-  /* ─── Left accent bar ─── */
-  .kpi-accent {
-    position: absolute;
-    left: 0;
-    top: 4px;
-    bottom: 4px;
-    width: 5px;
-    border-radius: 0 3px 3px 0;
-  }
-
-  .kpi-accent.teal { background: var(--color-teal); }
-  .kpi-accent.coral { background: var(--color-coral); }
-  .kpi-accent.gold { background: var(--color-gold); }
-  .kpi-accent.sky { background: var(--color-sky); }
-
-  /* ─── Card body ─── */
-  .kpi-body {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  .kpi-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-  }
-
-  .kpi-value {
-    font-family: var(--font-display);
-    font-size: var(--font-size-xl);
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
-    line-height: 1.15;
-    color: var(--color-ink);
-  }
-
-  .kpi-delta {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: var(--font-size-xs);
-    font-weight: 700;
-    margin-top: 2px;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .kpi-delta.good { color: var(--color-positive); }
-  .kpi-delta.bad { color: var(--color-negative); }
-  .kpi-delta.neutral { color: var(--color-text-muted); }
-
-  .delta-arrow {
-    font-size: 10px;
-  }
-
-  /* ─── Sparkline ─── */
-  .kpi-spark {
-    height: 32px;
-    margin-top: var(--space-xs);
-    width: 100%;
-  }
-
-  .kpi-spark :global(.sparkline-container) {
-    height: 32px;
-  }
-
-  @media (max-width: 640px) {
+  @media (max-width: 768px) {
     .rail-outer {
       display: flex;
       flex-direction: column;

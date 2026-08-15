@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { formatCurrency, formatDate } from '$lib/client/utils/format';
 import { dateToString, getToday } from '$lib/shared/utils/format';
+  import { calculateProjectedInterestForLending } from '$lib/shared/utils/projectedInterest';
   import RowActionsMenu from '$lib/client/components/RowActionsMenu.svelte';
   import RowHoverActions from '$lib/client/components/RowHoverActions.svelte';
   import type { LendingWithPayments } from '$lib/types';
@@ -14,7 +15,12 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
     onDuplicate,
     onViewHistory,
     direction = 'lent',
-    viewMode = 'card',
+    viewMode = 'table',
+    selectionMode = false,
+    selectedIds = new Set<number>(),
+    onToggleSelection,
+    showProjectedInterest = false,
+    emptyState,
   }: {
     ious: LendingWithPayments[];
     onPay?: (id: number) => void;
@@ -24,11 +30,34 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
     onViewHistory?: (id: number) => void;
     direction?: 'lent' | 'borrowed';
     viewMode?: 'card' | 'table';
+    selectionMode?: boolean;
+    selectedIds?: Set<number>;
+    onToggleSelection?: (id: number) => void;
+    /** Lending-only: show the derived Projected Interest column (default off for /borrowed). */
+    showProjectedInterest?: boolean;
+    emptyState?: import('svelte').Snippet;
   } = $props();
 
   // ─── Compute today from app helper (respects DEMO_TODAY) ───
   const todayStr = getToday();
   const today = new Date(todayStr + 'T00:00:00');
+
+  let dueSortOrder = $state<'desc' | 'asc'>('desc');
+
+  function toggleDueSort() {
+    dueSortOrder = dueSortOrder === 'desc' ? 'asc' : 'desc';
+  }
+
+  const sortedIous = $derived.by(() => {
+    const list = [...ious];
+    return list.sort((a, b) => {
+      const dateA = a.due_date || a.date_lent;
+      const dateB = b.due_date || b.date_lent;
+      const cmp = dateA.localeCompare(dateB);
+      if (cmp !== 0) return dueSortOrder === 'desc' ? -cmp : cmp;
+      return dueSortOrder === 'desc' ? b.id - a.id : a.id - b.id;
+    });
+  });
 
   // ─── Scroll reveal state ───
   let reducedMotion = $state(false);
@@ -233,39 +262,179 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
   function formatDirectionalAmount(amount: number): string {
     return (direction === 'borrowed' ? '+' : '−') + formatCurrency(amount);
   }
+
+  // Compact-card DUE cell: countdown + due date on one line.
+  function formatDueForCard(iou: LendingWithPayments, cd: { text: string; color: string } | null): string {
+    const datePart = iou.due_date ? formatDate(iou.due_date) : null;
+    if (cd) return datePart ? `${cd.text} · ${datePart}` : cd.text;
+    return datePart ?? '—';
+  }
 </script>
 
 {#snippet editIcon()}
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
 {/snippet}
 
-{#snippet dupIcon()}
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-{/snippet}
-
 {#snippet trashIcon()}
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
 {/snippet}
 
+{#snippet mobileCard(iou: LendingWithPayments)}
+  {@const state = computeState(iou)}
+  {@const cd = countdownLabel(iou)}
+  {@const progressPct = iou.amount > 0 ? Math.min((iou.resolved_total / iou.amount) * 100, 100) : 0}
+  {@const pct = Math.round(progressPct)}
+  {@const init = iou.borrower_name.charAt(0).toUpperCase()}
+  {@const accent = stateAccentColor(state)}
+  {@const bg = stateBgColor(state)}
+  {@const fg = stateTextColor(state)}
+  {@const dueText = formatDueForCard(iou, cd)}
+  <div
+    class="iou-mobile-card"
+    class:overdue={state === 'overdue'}
+    class:paid={iou.status === 'paid'}
+  >
+    <div class="mc-head">
+      {#if selectionMode}
+        <button
+          class="mc-checkbox"
+          type="button"
+          aria-label="{selectedIds.has(iou.id) ? 'Deselect' : 'Select'} {iou.borrower_name}"
+          onclick={(e) => { e.stopPropagation(); onToggleSelection?.(iou.id); }}
+        >
+          <input type="checkbox" checked={selectedIds.has(iou.id)} aria-hidden="true" tabindex="-1" readonly />
+        </button>
+      {/if}
+
+      <div class="mc-avatar" style="border-color: {accent}; background: {bg};">
+        <span style="color: {fg};">{init}</span>
+      </div>
+
+      <div class="mc-head-main">
+        <span class="mc-name" class:struck={iou.status === 'paid'}>{iou.borrower_name}</span>
+        <span class="mc-badge" style="background: {bg}; color: {fg};">{stateLabel(state)}</span>
+      </div>
+
+      <button
+        class="mc-kebab"
+        type="button"
+        aria-label="More actions for {iou.borrower_name}"
+        aria-haspopup="menu"
+        aria-expanded={menuIou?.id === iou.id}
+        onclick={(e) => { menuAnchor = e.currentTarget as HTMLElement; menuIou = iou; }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+      </button>
+    </div>
+
+    <span class="mc-meta">
+      {direction === 'lent' ? 'Lent' : 'Borrowed'} {formatDate(iou.date_lent)}
+      {#if iou.notes && iou.notes.length > 0} · {iou.notes}{/if}
+    </span>
+
+    <div class="mc-cells">
+      <div class="mc-row">
+        <span class="mc-cell">
+          <span class="mc-k">Amount</span>
+          <span class="mc-v mc-amount" class:struck={iou.status === 'paid'} style="color: {moneyDirectionColor()};">{formatDirectionalAmount(iou.remaining)}</span>
+        </span>
+        <span class="mc-cell mc-right">
+          <span class="mc-k">Due</span>
+          <span class="mc-v">{dueText}</span>
+        </span>
+      </div>
+
+      <div class="mc-row">
+        <span class="mc-cell">
+          <span class="mc-k">Progress</span>
+          <span class="mc-v mc-progress">
+            <span class="mc-track" aria-hidden="true"><span class="mc-fill" style="width: {pct}%; background: {accent};"></span></span>
+            <span class="mc-pct">{pct}%</span>
+          </span>
+        </span>
+        <span class="mc-cell mc-right">
+          <span class="mc-k">Interest</span>
+          <span class="mc-v mc-interest">{formatCurrency(calculateProjectedInterestForLending(iou))}</span>
+        </span>
+      </div>
+    </div>
+  </div>
+{/snippet}
+
 <!-- ════════════════════════════════════════
+     MOBILE COMPACT CARDS (below md, < 768px)
+     Hidden at md+ (≥ 768px). Responsive to viewMode:
+     - Grouped mode ('card'): grouped under triage status headers
+     - Table mode ('table'): rendered as a flat compact list
+     ════════════════════════════════════════ -->
+<div class="iou-mobile-list">
+  {#if ious.length === 0}
+    {#if emptyState}
+      {@render emptyState()}
+    {:else}
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
+            <path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
+          </svg>
+        </div>
+        <p class="empty-title">
+          {direction === 'lent' ? 'All settled up!' : 'No debts — that\'s the best position to be in 🏆'}
+        </p>
+        <p class="empty-sub">
+          {direction === 'lent' ? 'No outstanding loans right now' : 'Add a borrowing to start tracking'}
+        </p>
+      </div>
+    {/if}
+  {:else if viewMode === 'card'}
+    {#each triageGroups as group (group.id)}
+      <div class="mobile-triage-group" data-group={group.id}>
+        <div class="group-header" style="border-bottom-color: {stateAccentColor(group.state)};">
+          <span class="group-emoji">{group.emoji}</span>
+          <span class="group-label">{group.label}</span>
+          <span class="group-count">• {group.count} loan{group.count === 1 ? '' : 's'}</span>
+        </div>
+        <div class="mobile-group-items">
+          {#each group.items as iou (iou.id)}
+            {@render mobileCard(iou)}
+          {/each}
+        </div>
+      </div>
+    {/each}
+  {:else}
+    {#each ious as iou (iou.id)}
+      {@render mobileCard(iou)}
+    {/each}
+  {/if}
+</div>
+
+<!-- ════════════════════════════════════════
+     DESKTOP VIEW (md+, ≥ 768px) — markup unchanged. Hidden below md so
+     phones always get the compact card list above.
      CARD VIEW (Primary: triage-grouped)
      ════════════════════════════════════════ -->
+<div class="iou-desktop-area">
 {#if viewMode === 'card'}
   {#if ious.length === 0}
-    <div class="empty-state">
-      <div class="empty-icon">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
-          <path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
-        </svg>
+    {#if emptyState}
+      {@render emptyState()}
+    {:else}
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v1h6V5a3 3 0 0 0-3-3z"/>
+            <path d="M5 8h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
+          </svg>
+        </div>
+        <p class="empty-title">
+          {direction === 'lent' ? 'All settled up!' : 'No debts — that\'s the best position to be in 🏆'}
+        </p>
+        <p class="empty-sub">
+          {direction === 'lent' ? 'No outstanding loans right now' : 'Add a borrowing to start tracking'}
+        </p>
       </div>
-      <p class="empty-title">
-        {direction === 'lent' ? 'All settled up!' : 'No debts — that\'s the best position to be in 🏆'}
-      </p>
-      <p class="empty-sub">
-        {direction === 'lent' ? 'No outstanding loans right now' : 'Add a borrowing to start tracking'}
-      </p>
-    </div>
+    {/if}
   {:else}
     <div class="iou-container">
       {#each triageGroups as group (group.id)}
@@ -286,9 +455,27 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
               class="iou-card reveal-on-scroll"
               class:paid={iou.status === 'paid'}
               class:overdue={state === 'overdue'}
+              class:iou-card-selected={selectionMode && selectedIds.has(iou.id)}
               data-hover-row
               style="border-color: {stateAccentColor(state)}40;"
             >
+              <!-- Selection checkbox (card view, top-right corner) -->
+              {#if selectionMode}
+                <button
+                  class="iou-card-checkbox-btn"
+                  type="button"
+                  aria-label="{selectedIds.has(iou.id) ? 'Deselect' : 'Select'} {iou.borrower_name}"
+                  onclick={(e) => { e.stopPropagation(); onToggleSelection?.(iou.id); }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(iou.id)}
+                    aria-hidden="true"
+                    tabindex="-1"
+                    readonly
+                  />
+                </button>
+              {/if}
               <!-- Left accent bar (STATE, not sign) -->
               <div class="iou-accent" style="background: {stateAccentColor(state)};"></div>
 
@@ -304,6 +491,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
                   {direction === 'lent' ? 'Lent' : 'Borrowed'} {formatDate(iou.date_lent)}
                   {#if iou.due_date} · Due {formatDate(iou.due_date)}{/if}
                   {#if iou.interest_rate > 0} · {iou.interest_rate}% interest{/if}
+                  {#if showProjectedInterest} · Proj. {formatCurrency(calculateProjectedInterestForLending(iou))}{/if}
                   {#if iou.notes && iou.notes.length > 0} · {iou.notes}{/if}
                 </span>
 
@@ -342,7 +530,6 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
                       actions={[
                         { id: 'pay', label: 'Record Payment', text: 'Record Payment', onClick: () => onPay?.(iou.id) },
                         { id: 'edit', label: 'Edit', icon: editIcon, onClick: () => onEdit?.(iou.id) },
-                        { id: 'duplicate', label: 'Duplicate', icon: dupIcon, onClick: () => onDuplicate?.(iou.id) },
                         // Quick-delete: last, danger-tone, same confirm modal
                         // as the kebab. Conditional — no dead button.
                         ...(onDelete
@@ -407,24 +594,69 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
      ════════════════════════════════════════ -->
 {:else}
   {#if ious.length === 0}
-    <div class="iou-register">
-      <div class="empty-state table-empty">
-        <p>No records to show</p>
+    {#if emptyState}
+      {@render emptyState()}
+    {:else}
+      <div class="iou-register">
+        <div class="empty-state table-empty">
+          <p>No records to show</p>
+        </div>
       </div>
-    </div>
+    {/if}
   {:else}
     <div class="iou-register">
       <!-- Sticky column header (mono uppercase, like the transactions register) -->
-      <div class="register-header" role="rowheader">
+      <div
+        class="register-header"
+        class:show-projected={showProjectedInterest}
+        role="rowheader"
+        style={selectionMode
+          ? 'grid-template-columns: 44px 28px minmax(0, 1fr) 96px 108px 116px 110px 300px 48px;'
+          : showProjectedInterest
+            ? 'grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 110px 300px 48px;'
+            : ''}
+      >
+        {#if selectionMode}<span class="rh-check" aria-hidden="true"></span>{/if}
         <span class="rh-circle" aria-hidden="true"></span>
         <span class="rh-name">{direction === 'lent' ? 'Borrower' : 'Lender'}</span>
-        <span class="rh-due">Due</span>
+        <span class="rh-due">
+          <button
+            type="button"
+            class="rh-due-btn"
+            onclick={toggleDueSort}
+            aria-label={`Sort by date (${dueSortOrder === 'desc' ? 'newest first' : 'oldest first'})`}
+            title={`Sort by date (${dueSortOrder === 'desc' ? 'newest first' : 'oldest first'})`}
+          >
+            <span>Due</span>
+            <svg
+              class="sort-icon"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              {#if dueSortOrder === 'desc'}
+                <path d="M12 5v14M19 12l-7 7-7-7" />
+              {:else}
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              {/if}
+            </svg>
+          </button>
+        </span>
         <span class="rh-progress">Progress</span>
         <span class="rh-amount">Amount</span>
+        {#if showProjectedInterest}<span class="rh-projected">Projected Interest</span>{/if}
+        <!-- Reserved actions zone header — empty, ~300px wide -->
+        <span class="rh-actions-zone" aria-hidden="true"></span>
         <span class="rh-kebab" aria-hidden="true"></span>
       </div>
 
-      {#each ious as iou (iou.id)}
+      {#each sortedIous as iou (iou.id)}
         {@const state = computeState(iou)}
         {@const cd = countdownLabel(iou)}
         {@const progressPct = iou.amount > 0 ? Math.min((iou.resolved_total / iou.amount) * 100, 100) : 0}
@@ -436,19 +668,43 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
           class="iou-row"
           class:overdue={state === 'overdue'}
           class:paid={iou.status === 'paid'}
+          class:iou-row-selected={selectionMode && selectedIds.has(iou.id)}
+          class:show-projected={showProjectedInterest}
           data-hover-row
-          style="--row-accent: {accent};"
+          style="--row-accent: {accent};{selectionMode
+            ? ' grid-template-columns: 44px 28px minmax(0, 1fr) 96px 108px 116px 110px 300px 48px;'
+            : showProjectedInterest
+              ? ' grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 110px 300px 48px;'
+              : ' grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 300px 48px;'}"
           role="button"
           tabindex="0"
-          aria-label="View payment history for {iou.borrower_name}"
-          onclick={() => onViewHistory?.(iou.id)}
+          aria-label="{selectionMode ? (selectedIds.has(iou.id) ? 'Deselect' : 'Select') + ' ' + iou.borrower_name : 'View payment history for ' + iou.borrower_name}"
+          onclick={() => {
+            if (selectionMode) { onToggleSelection?.(iou.id); }
+            else { onViewHistory?.(iou.id); }
+          }}
           onkeydown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              onViewHistory?.(iou.id);
+              if (selectionMode) { onToggleSelection?.(iou.id); }
+              else { onViewHistory?.(iou.id); }
             }
           }}
         >
+
+          <!-- Checkbox column (selection mode only) -->
+          {#if selectionMode}
+            <span class="row-check-cell">
+              <input
+                type="checkbox"
+                class="row-checkbox"
+                checked={selectedIds.has(iou.id)}
+                aria-label="{selectedIds.has(iou.id) ? 'Deselect' : 'Select'} {iou.borrower_name}"
+                onclick={(e) => e.stopPropagation()}
+                onchange={() => onToggleSelection?.(iou.id)}
+              />
+            </span>
+          {/if}
           <!-- Leading state-tinted ring -->
           <span class="row-circle" style="background: {bg}; color: {fg};">{init}</span>
 
@@ -494,17 +750,19 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
             <span class="amount-num" class:struck={iou.status === 'paid'} style="color: {moneyDirectionColor()};">{formatDirectionalAmount(iou.remaining)}</span>
           </div>
 
-          <!-- Reserved actions cell: holds the hover cluster (active rows only)
-               and the kebab (all rows). <1200px the cluster is an absolute
-               overlay inside the name cell; ≥1200px this cell is a real grid
-               column holding both in-flow. -->
-          <div class="row-actions-cell">
+          <!-- Projected Interest (Lending-only derived column) -->
+          {#if showProjectedInterest}
+            <div class="row-projected" data-label="Projected Interest">
+              <span class="projected-num">{formatCurrency(calculateProjectedInterestForLending(iou))}</span>
+            </div>
+          {/if}
+
+          <!-- Reserved actions zone: fixed-width ~300px column on desktop (md+).
+               Empty header + empty in non-hovered rows.
+               On hover, the quick actions fade in INSIDE this zone,
+               right-aligned and vertically centered. -->
+          <div class="row-actions-zone">
             {#if iou.status !== 'paid'}
-              <!-- Reserved actions column holds the hover cluster in-flow (≥1200px).
-                   <1200px the cluster is an absolute overlay inside the name cell;
-                   Duplicate is not a quick action here because the cluster + kebab
-                   exceed the 320px fallback width (see reserved-column arithmetic),
-                   so it moves to the kebab alongside View History. -->
               <div class="row-actions">
                 <RowHoverActions
                   actions={[
@@ -519,15 +777,18 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
                 />
               </div>
             {/if}
-            <button class="row-kebab" aria-label="Actions for {iou.borrower_name}" onclick={(e) => { e.stopPropagation(); menuAnchor = e.currentTarget as HTMLElement; menuIou = iou; }} type="button">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-            </button>
           </div>
+
+          <!-- Always-visible kebab menu in its own separate column -->
+          <button class="row-kebab" aria-label="Actions for {iou.borrower_name}" onclick={(e) => { e.stopPropagation(); menuAnchor = e.currentTarget as HTMLElement; menuIou = iou; }} type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </button>
         </div>
       {/each}
     </div>
   {/if}
 {/if}
+</div>
 
 <!-- ═══ Per-card overflow menu (mobile) ═══ -->
 {#if menuIou}
@@ -1044,9 +1305,13 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
     color: var(--color-text-muted);
   }
 
-  @media (min-width: 1200px) {
+  @media (min-width: 768px) {
     .register-header {
-      grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 300px;
+      grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 300px 48px;
+    }
+
+    .register-header.show-projected {
+      grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 110px 300px 48px;
     }
   }
 
@@ -1057,8 +1322,127 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 
   .rh-name { min-width: 0; }
   .rh-due { min-width: 0; }
+  .rh-due-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    border-radius: var(--radius-sm, 4px);
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+
+  .rh-due-btn:hover {
+    background: var(--color-surface-hover, rgba(0, 0, 0, 0.05));
+    color: var(--color-teal, #0d9488);
+  }
+
+  [data-theme="dark"] .rh-due-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-teal, #14b8a6);
+  }
+
+  .rh-due-btn:focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: 1px;
+  }
+
+  .rh-due-btn .sort-icon {
+    flex-shrink: 0;
+    color: var(--color-teal, #0d9488);
+  }
   .rh-progress { text-align: right; }
   .rh-amount { text-align: right; }
+  .rh-projected { text-align: right; }
+
+  /* Reserved actions zone header cell — empty, ~300px wide on desktop (≥768px).
+     Hidden below 768px — mobile/tablet layout is unchanged. */
+  .rh-actions-zone {
+    display: none;
+  }
+
+  @media (min-width: 768px) {
+    .rh-actions-zone {
+      display: block;
+      width: 300px;
+    }
+  }
+
+  /* ── Selection check column header ── */
+  .rh-check {
+    width: 44px;
+    height: 28px;
+    flex-shrink: 0;
+  }
+
+  /* ── Row checkbox cell ── */
+  .row-check-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    flex-shrink: 0;
+  }
+
+  .row-checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-teal);
+    cursor: pointer;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+  }
+
+  /* ── Selected row highlight ── */
+  .iou-row-selected {
+    background: var(--color-teal-bg, rgba(79, 157, 136, 0.06)) !important;
+  }
+
+  .iou-row-selected::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-left: 3px solid var(--color-teal);
+    pointer-events: none;
+  }
+
+  /* ── Card selection checkbox ── */
+  .iou-card-checkbox-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+    border-radius: var(--radius-sm);
+  }
+
+  .iou-card-checkbox-btn input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-teal);
+    cursor: pointer;
+    pointer-events: none;
+  }
+
+  .iou-card-selected {
+    outline: 2px solid var(--color-teal);
+    outline-offset: -1px;
+  }
 
   /* Desktop (≥769px): comfortable minimum header height. min-height (not
      fixed height) so the header can still grow if content wraps. */
@@ -1084,7 +1468,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
     cursor: pointer; /* clickable row → opens payment history (same as .txn-row) */
   }
 
-  /* ≥1200px: the trailing column becomes a reserved actions column holding
+  /* ≥768px: the trailing column becomes a reserved actions column holding
      the hover cluster + kebab together (money never shifts). Sized from
      measured arithmetic so overlap is impossible by construction:
        Record Payment pill ≈ 140px  (13px "Record Payment" ~108px + 32px padding)
@@ -1096,13 +1480,15 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
        kebab                  44px
        cell gap (flex)         4px
        ─ reserved column      297px → 300px
-     (With Duplicate still in the cluster the subtotal would be 345px, over the
-     320px fallback threshold, so Duplicate lives in the kebab here instead.)
      Grid-template-columns must match .register-header exactly so header and
      rows never drift. */
-  @media (min-width: 1200px) {
+  @media (min-width: 768px) {
     .iou-row {
-      grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 300px;
+      grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 300px 48px;
+    }
+
+    .iou-row.show-projected {
+      grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 110px 300px 48px;
     }
   }
 
@@ -1305,41 +1691,48 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
     color: var(--color-text-muted) !important;
   }
 
-  /* ── Reserved actions cell ──
-     <1200px: transparent to layout (display: contents) so the cluster is an
-     absolute overlay inside the name cell and the kebab is its own grid
-     column. ≥1200px: a real flex cell holding cluster + kebab in-flow. */
-  .row-actions-cell {
-    display: contents;
+  /* Projected Interest — Lending-only derived column */
+  .row-projected {
+    min-width: 0;
+    text-align: right;
   }
 
-  /* 760–1199px: hover cluster — absolute overlay anchored to the NAME cell's
-     grid area (column 2, position:relative via .row-main), inset 8px from its
-     right edge. The name cell's right edge sits before the Progress column,
-     so the slot structurally cannot cross into PROGRESS / AMOUNT / kebab —
-     it can only grow leftward over the name text. The single-gradient
-     backdrop (solid row-hover tint with a left-fading edge) blends into the
-     hovered row instead of colliding with the progress label. */
-  .row-actions {
-    position: absolute;
-    grid-column: 2 / 3;
-    grid-row: 1 / 2;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    z-index: 3;
+  .projected-num {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    color: var(--color-text-muted);
   }
 
-  /* Register backdrop: 760–1199px only, no border-radius (blend, not chip) */
-  @media (min-width: 760px) and (max-width: 1199px) {
-    .row-actions :global(.hover-actions) {
-      background: linear-gradient(to right, transparent, var(--row-hover-bg) 24px);
-      padding-left: 24px;
+  /* Reserved actions zone row cell — invisible on mobile/tablet,
+     fixed ~300px on desktop (≥768px). On hover, the quick actions
+     fade in INSIDE this zone, right-aligned and vertically centered. */
+  .row-actions-zone {
+    display: none;
+  }
+
+  @media (min-width: 768px) {
+    .row-actions-zone {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      width: 300px;
     }
   }
+
+  /* Reserved actions — always rendered; show with opacity-0 group-hover:opacity-100.
+     The parent row has data-hover-row which RowHoverActions.css uses to reveal. */
+  .row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
+  }
+
+  /* RowHoverActions hover-actions opacity handled by its own CSS via
+     :global([data-hover-row]:hover) .hover-actions */
 
   /* Kebab — always visible, quiet at rest. Opens the overflow sheet holding
      View History / Duplicate / Edit / Delete (the cluster carries only the
@@ -1364,27 +1757,6 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
   .row-kebab:focus-visible {
     background: var(--mint-tint);
     color: var(--teal-deep);
-  }
-
-  /* ≥1200px: reserved actions column — cluster + kebab sit in-flow together */
-  @media (min-width: 1200px) {
-    .row-actions-cell {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 4px;
-    }
-
-    .row-actions {
-      position: static;
-      transform: none;
-    }
-
-    .row-actions :global(.hover-actions) {
-      background: none;
-      padding: 0;
-      border-radius: 0;
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1562,7 +1934,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
       opacity: 0.7;
     }
 
-    /* Line 1: circle + name/chip left, amount right */
+    /* Line 1: circle + name/chip left, kebab top right, amount below kebab */
     .row-circle {
       grid-column: 1;
       grid-row: 1;
@@ -1575,9 +1947,17 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
       grid-row: 1;
     }
 
-    .row-amount {
+    .row-kebab {
       grid-column: 3;
       grid-row: 1;
+      justify-self: end;
+      align-self: start;
+      margin-top: 2px;
+    }
+
+    .row-amount {
+      grid-column: 3;
+      grid-row: 2;
       align-self: start;
       margin-top: 2px;
     }
@@ -1586,9 +1966,15 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
       white-space: normal;
     }
 
+    /* Hide the desktop-only actions zone on mobile — it creates an empty gap */
+    .row-actions-zone {
+      display: none;
+    }
+
     /* Labeled rows: label (::before) left, value group right */
     .row-due,
-    .row-progress {
+    .row-progress,
+    .row-projected {
       grid-column: 1 / -1;
       display: flex;
       align-items: center;
@@ -1599,17 +1985,23 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
     }
 
     .row-due {
-      grid-row: 2;
-      flex-direction: row;
-    }
-
-    .row-progress {
       grid-row: 3;
       flex-direction: row;
     }
 
+    .row-progress {
+      grid-row: 4;
+      flex-direction: row;
+    }
+
+    .row-projected {
+      grid-row: 5;
+      flex-direction: row;
+    }
+
     .row-due::before,
-    .row-progress::before {
+    .row-progress::before,
+    .row-projected::before {
       content: attr(data-label);
       font-family: var(--font-display);
       font-size: var(--font-size-xs);
@@ -1626,11 +2018,11 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
       gap: 6px;
     }
 
-    /* Actions: full-width button bar */
+    /* Actions: full-width button bar at bottom */
     .row-actions {
       position: static;
       grid-column: 1 / -1;
-      grid-row: 4;
+      grid-row: 6;
       display: flex;
       align-items: center;
       width: 100%;
@@ -1640,25 +2032,15 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
       border-top: 1px solid var(--color-hairline);
     }
 
-    /* Kebab survives on every mobile row — the single actions path on touch */
-    .row-kebab {
-      display: inline-flex;
-      grid-column: 3;
-      grid-row: 4;
-      justify-self: end;
-      align-self: center;
-    }
-
     /* Cluster hidden on touch / narrow — kebab is the only actions path */
     .row-actions {
       display: none;
     }
   }
 
-  /* <760px (narrow desktop) and touch: no hover cluster — the kebab is the
-     only actions path. The name cell is too narrow to host the overlay, and
-     touch has no hover intent. */
-  @media (max-width: 759px) {
+  /* <768px (narrow desktop/tablet) and touch: no hover cluster — the kebab is the
+     only actions path. The actions-zone column is hidden on mobile/tablet. */
+  @media (max-width: 767px) {
     .row-actions {
       display: none;
     }
@@ -1677,6 +2059,256 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
     }
     .row-kebab {
       display: inline-flex;
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     MOBILE COMPACT CARDS — the ONLY list presentation < 768px
+     (below md). Desktop (≥ 768px) keeps the card/table views above;
+     the desktop area and the mobile list are mutually exclusive by
+     breakpoint. Compact label+value rows, no fixed/min heights.
+     ═══════════════════════════════════════════════════════ */
+  .iou-mobile-list {
+    display: none;
+  }
+
+  /* Desktop (md+) — wrapper is transparent so the card/table views lay
+     out exactly as before (no extra box in the DOM flow). */
+  .iou-desktop-area {
+    display: contents;
+  }
+
+  @media (max-width: 767px) {
+    .iou-desktop-area {
+      display: none;
+    }
+
+    .iou-mobile-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .mobile-triage-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .mobile-group-items {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .iou-mobile-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      padding: 14px 16px;
+      background: var(--color-surface);
+      border: 1px solid var(--color-hairline);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .iou-mobile-card.overdue {
+      background: rgba(239, 108, 74, 0.04);
+    }
+
+    .iou-mobile-card.paid {
+      opacity: 0.7;
+    }
+
+    /* Head row: [checkbox] [avatar] [name + badge] [⋯] */
+    .mc-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .mc-checkbox {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+      margin-right: 10px;
+      border: none;
+      border-radius: var(--radius-full);
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .mc-checkbox input {
+      width: 20px;
+      height: 20px;
+      margin: 0;
+      accent-color: var(--color-teal);
+      pointer-events: none;
+    }
+
+    .mc-avatar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+      border: 2px solid;
+      border-radius: var(--radius-full);
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .mc-head-main {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .mc-name {
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      color: var(--color-ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .mc-name.struck {
+      text-decoration: line-through;
+      color: var(--color-text-muted);
+    }
+
+    .mc-badge {
+      align-self: flex-start;
+      padding: 1px 8px;
+      border-radius: var(--radius-pill);
+      font-family: var(--font-display);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+
+    .mc-kebab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      flex-shrink: 0;
+      border: none;
+      border-radius: var(--radius-pill);
+      background: transparent;
+      color: var(--color-text-muted);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Meta line: "Lent Jun 1, 2026 · notes" */
+    .mc-meta {
+      margin-top: 2px;
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Label + value rows (divider above the first row) */
+    .mc-cells {
+      display: flex;
+      flex-direction: column;
+      margin-top: 10px;
+    }
+
+    .mc-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-md);
+      padding-top: 8px;
+      margin-top: 8px;
+      border-top: 1px solid var(--color-hairline);
+    }
+
+    .mc-cell {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .mc-right {
+      justify-content: flex-end;
+    }
+
+    .mc-k {
+      flex-shrink: 0;
+      font-family: var(--font-display);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+
+    .mc-v {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .mc-amount {
+      font-size: var(--font-size-sm);
+      font-weight: 700;
+    }
+
+    .mc-amount.struck {
+      text-decoration: line-through;
+      color: var(--color-text-muted) !important;
+    }
+
+    .mc-progress {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .mc-track {
+      width: 56px;
+      height: 4px;
+      border-radius: var(--radius-pill);
+      background: var(--color-hairline);
+      overflow: hidden;
+    }
+
+    .mc-fill {
+      display: block;
+      height: 100%;
+      border-radius: var(--radius-pill);
+    }
+
+    .mc-pct {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      white-space: nowrap;
+    }
+
+    .mc-interest {
+      color: var(--color-text-muted);
     }
   }
 </style>

@@ -566,7 +566,7 @@
   }
 
   /* Mobile compact: hide inline tiles + lending strip (moved to rail) */
-  @media (max-width: 640px) {
+  @media (max-width: 768px) {
     .vault-metrics {
       display: none;
     }

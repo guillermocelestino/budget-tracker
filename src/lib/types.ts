@@ -111,6 +111,8 @@ export interface LendingWithPayments extends Lending {
 	resolved_total: number;
 	remaining: number;
 	derived_status: 'active' | 'paid';
+	/** Actual settlement date (final payment date) when fully paid, else null. */
+	settlement_date: string | null;
 }
 
 export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';

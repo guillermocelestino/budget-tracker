@@ -495,6 +495,12 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
     to { opacity: 1; transform: translateY(0); }
   }
 
+  @media (max-width: 768px) {
+    :global(.page-header .page-actions .btn-primary) {
+      display: none !important;
+    }
+  }
+
   /* ─── Mobile: bottom sheet ─── */
   @media (max-width: 640px) {
     .slide-over {

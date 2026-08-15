@@ -1,6 +1,6 @@
 import { getDrizzle } from '$lib/server/db/drizzle';
 import { categories, recurringTransactions } from '$lib/server/db/schema';
-import { and, eq, asc, gte, or, ilike, sql } from 'drizzle-orm';
+import { and, eq, asc, gte, or, ilike, sql, inArray } from 'drizzle-orm';
 import type { RecurringTransaction, RecurringFrequency, TransactionType } from '$lib/types';
 import { calculateNextRun } from '$lib/shared/utils/recurring';
 
@@ -330,10 +330,11 @@ export async function listRecurringTransactions(
 	userId: number,
 	filters: RecurringFilters = {},
 	page = 1,
-	limit = 20
+	limit?: number
 ): Promise<{ items: RecurringTransaction[]; total: number; page: number; totalPages: number }> {
+	const shouldPaginate = limit !== undefined && limit > 0;
 	const safePage = Math.max(1, page);
-	const safeLimit = Math.min(100, Math.max(1, limit));
+	const safeLimit = shouldPaginate ? Math.max(1, limit) : 20;
 
 	const db = await getDrizzle();
 	const conditions = [eq(recurringTransactions.user_id, userId)];
@@ -371,11 +372,11 @@ export async function listRecurringTransactions(
 		.where(where);
 
 	const total = Number(count);
-	const totalPages = Math.ceil(total / safeLimit);
-	const safePageClamped = Math.max(1, Math.min(safePage, totalPages || 1));
+	const totalPages = shouldPaginate ? Math.ceil(total / safeLimit) : (total > 0 ? 1 : 0);
+	const safePageClamped = shouldPaginate ? Math.max(1, Math.min(safePage, totalPages || 1)) : 1;
 	const offsetClamped = (safePageClamped - 1) * safeLimit;
 
-	const rows = await db
+	const baseQuery = db
 		.select({
 			id: recurringTransactions.id,
 			user_id: recurringTransactions.user_id,
@@ -401,9 +402,11 @@ export async function listRecurringTransactions(
 		.from(recurringTransactions)
 		.leftJoin(categories, eq(recurringTransactions.category_id, categories.id))
 		.where(where)
-		.orderBy(asc(recurringTransactions.next_run), asc(recurringTransactions.id))
-		.limit(safeLimit)
-		.offset(offsetClamped);
+		.orderBy(asc(recurringTransactions.next_run), asc(recurringTransactions.id));
+
+	const rows = shouldPaginate
+		? await baseQuery.limit(safeLimit).offset(offsetClamped)
+		: await baseQuery;
 
 	return {
 		items: rows.map((r) => mapRecurringRow(r as unknown as RecurringRowWithCategory)),
@@ -479,6 +482,49 @@ export async function deleteRecurringTransaction(userId: number, id: number): Pr
 		.where(and(eq(recurringTransactions.user_id, userId), eq(recurringTransactions.id, id)))
 		.returning({ id: recurringTransactions.id });
 	return result.length > 0;
+}
+
+/**
+ * Bulk-delete multiple recurring transaction rules atomically.
+ *
+ * Validates that every requested ID belongs to the authenticated user BEFORE
+ * any destructive mutation. If any ID is unknown or belongs to another user,
+ * the entire operation is rejected and nothing is deleted.
+ *
+ * CRITICAL: Only the `recurring_transactions` rules are deleted.
+ * Already-generated historical rows in the `transactions` table are NOT
+ * touched — identical to the single-record delete behaviour.
+ *
+ * Returns the number of rules actually deleted.
+ */
+export async function deleteRecurringTransactions(userId: number, ids: number[]): Promise<number> {
+	if (ids.length === 0) return 0;
+
+	const db = await getDrizzle();
+	return db.transaction(async (tx) => {
+		// ── 1. Ownership validation ──────────────────────────────────────────
+		// Fetch which of the requested IDs actually exist and belong to this user.
+		const ownedRows = await tx
+			.select({ id: recurringTransactions.id })
+			.from(recurringTransactions)
+			.where(and(eq(recurringTransactions.user_id, userId), inArray(recurringTransactions.id, ids)));
+
+		const ownedIds = new Set(ownedRows.map((r) => r.id));
+
+		// Reject the entire operation if any ID is unknown / belongs to another user.
+		const allOwned = ids.every((id) => ownedIds.has(id));
+		if (!allOwned) {
+			throw new Error('One or more recurring transaction IDs are invalid or do not belong to this user');
+		}
+
+		// ── 2. Atomic bulk delete ────────────────────────────────────────────
+		const deleted = await tx
+			.delete(recurringTransactions)
+			.where(and(eq(recurringTransactions.user_id, userId), inArray(recurringTransactions.id, ids)))
+			.returning({ id: recurringTransactions.id });
+
+		return deleted.length;
+	});
 }
 
 /** Raw row shape for the upcoming-recurring (dashboard teaser) query. */

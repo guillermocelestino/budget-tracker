@@ -6,11 +6,13 @@
     onExportCsv,
     onExportPdf,
     onSelect,
+    selectLabel = 'Select Transactions',
   }: {
     onImportCsv?: () => void;
     onExportCsv?: () => void;
     onExportPdf?: () => void;
     onSelect?: () => void;
+    selectLabel?: string;
   } = $props();
 
   let isOpen = $state(false);
@@ -77,27 +79,30 @@
   </button>
 
   {#if isOpen}
-    <div bind:this={menuEl} class="overflow-menu" role="menu" aria-label="Import, export, and select transactions">
-      <button class="overflow-option" onclick={() => { onSelect?.(); close(); }} role="menuitem" type="button">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="3"/>
-          <polyline points="8.5 12 11 14.5 15.5 9.5"/>
-        </svg>
-        <span class="overflow-label">Select Transactions</span>
-      </button>
+    <div bind:this={menuEl} class="overflow-menu" role="menu" aria-label="Import, export, and select options">
+      {#if onSelect}
+        <button class="overflow-option" onclick={() => { onSelect(); close(); }} role="menuitem" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="3"/>
+            <polyline points="8.5 12 11 14.5 15.5 9.5"/>
+          </svg>
+          <span class="overflow-label">{selectLabel}</span>
+        </button>
+      {/if}
 
-      <div class="overflow-divider"></div>
-
-      <p class="overflow-group-label">Import</p>
-      <button class="overflow-option" onclick={() => { onImportCsv?.(); close(); }} role="menuitem" type="button">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        <span class="overflow-label">Import</span>
-        <span class="overflow-tag">CSV / Excel</span>
-      </button>
+      {#if onImportCsv}
+        <div class="overflow-divider"></div>
+        <p class="overflow-group-label">Import</p>
+        <button class="overflow-option" onclick={() => { onImportCsv(); close(); }} role="menuitem" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span class="overflow-label">Import</span>
+          <span class="overflow-tag">CSV / Excel</span>
+        </button>
+      {/if}
 
       <div class="overflow-divider"></div>
 

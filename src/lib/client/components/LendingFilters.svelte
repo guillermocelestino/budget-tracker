@@ -1,20 +1,19 @@
 <script lang="ts">
   import FilterFooter from '$lib/client/components/FilterFooter.svelte';
+  import DateFilterMenu from '$lib/client/components/DateFilterMenu.svelte';
 
   /**
    * LendingFilters — the filter panel for /lending and /borrowed.
    * Rendered inside the SearchFilterPill popover (desktop) or FiltersSheet
-   * (mobile). The single future-proof home for lending filters: new filters
-   * (Interest Rate, Due Date, Overdue Only, Has Notes, Sort By) are added as
-   * additional `.filter-section` blocks — the toolbar itself never grows.
-   *
-   * Status edits are STAGED inside the open panel (`staged`); they are
-   * committed to the host via `onStatusChange` on Apply, and discarded when
-   * the panel closes without Apply. Reset returns to `defaultStatus`.
+   * (mobile).
    */
   let {
     status = 'active',
     onStatusChange,
+    date = '',
+    customFrom = '',
+    customTo = '',
+    onFilterChange,
     counts = { all: 0, active: 0, paid: 0 },
     paidLabel = 'Paid',
     defaultStatus = 'active',
@@ -23,6 +22,10 @@
   }: {
     status?: 'all' | 'active' | 'paid';
     onStatusChange?: (status: 'all' | 'active' | 'paid') => void;
+    date?: string;
+    customFrom?: string;
+    customTo?: string;
+    onFilterChange?: (filters: { status: 'all' | 'active' | 'paid'; date: string; customFrom: string; customTo: string }) => void;
     counts?: { all: number; active: number; paid: number };
     paidLabel?: string;
     defaultStatus?: 'all' | 'active' | 'paid';
@@ -30,22 +33,68 @@
     onApply?: () => void;
   } = $props();
 
-  // The panel remounts every open, so `staged` always starts from the applied
-  // status — edits below it are staged until Apply.
   // svelte-ignore state_referenced_locally
-  let staged = $state<'all' | 'active' | 'paid'>(status);
+  let stagedStatus = $state<'all' | 'active' | 'paid'>(status);
+  // svelte-ignore state_referenced_locally
+  let stagedDate = $state<string>(date);
+  // svelte-ignore state_referenced_locally
+  let stagedFrom = $state<string>(customFrom);
+  // svelte-ignore state_referenced_locally
+  let stagedTo = $state<string>(customTo);
 
-  const canApply = $derived(staged !== status);
-  const canClear = $derived(status !== defaultStatus || staged !== defaultStatus);
+  const isRangeInvalid = $derived(!!stagedFrom && !!stagedTo && stagedFrom > stagedTo);
+
+  const canApply = $derived(
+    !isRangeInvalid &&
+    (stagedStatus !== status || stagedDate !== date || stagedFrom !== customFrom || stagedTo !== customTo)
+  );
+
+  const canClear = $derived(
+    status !== defaultStatus || date !== '' || customFrom !== '' || customTo !== '' ||
+    stagedStatus !== defaultStatus || stagedDate !== '' || stagedFrom !== '' || stagedTo !== ''
+  );
 
   function handleApply() {
-    onStatusChange?.(staged);
+    if (isRangeInvalid) return;
+    onStatusChange?.(stagedStatus);
+    onFilterChange?.({
+      status: stagedStatus,
+      date: stagedDate,
+      customFrom: stagedFrom,
+      customTo: stagedTo,
+    });
     onApply?.();
   }
 
   function handleClear() {
-    staged = defaultStatus;
+    stagedStatus = defaultStatus;
+    stagedDate = '';
+    stagedFrom = '';
+    stagedTo = '';
     onStatusChange?.(defaultStatus);
+    onFilterChange?.({
+      status: defaultStatus,
+      date: '',
+      customFrom: '',
+      customTo: '',
+    });
+    onApply?.();
+  }
+
+  function handleDateSelect(preset: string) {
+    if (preset === 'custom') {
+      stagedDate = 'custom';
+    } else {
+      stagedDate = preset === 'any' ? '' : preset;
+      stagedFrom = '';
+      stagedTo = '';
+    }
+  }
+
+  function handleCustomDateApply(from: string, to: string) {
+    stagedDate = 'custom';
+    stagedFrom = from;
+    stagedTo = to;
   }
 
   const statusOptions = $derived([
@@ -62,10 +111,10 @@
     {#each statusOptions as opt (opt.value)}
       <button
         class="filter-option"
-        class:active={staged === opt.value}
-        onclick={() => (staged = opt.value)}
+        class:active={stagedStatus === opt.value}
+        onclick={() => (stagedStatus = opt.value)}
         role="radio"
-        aria-checked={staged === opt.value}
+        aria-checked={stagedStatus === opt.value}
         type="button"
       >
         <span class="filter-dot" aria-hidden="true"></span>
@@ -75,9 +124,20 @@
     {/each}
   </div>
 
-  <!-- ═══ Future sections land here (Interest Rate, Due Date, …) ═══ -->
+  <!-- ═══ Date Range section ═══ -->
+  <div class="filter-section">
+    <div class="filter-section-label">Date Range</div>
+    <DateFilterMenu
+      activeFilter={stagedDate || 'any'}
+      bind:customFrom={stagedFrom}
+      bind:customTo={stagedTo}
+      onSelect={handleDateSelect}
+      onCustomApply={handleCustomDateApply}
+      embedded={true}
+    />
+  </div>
 
-  <!-- ═══ Shared footer: Reset (→ default view) / Apply (→ commit + close) ═══ -->
+  <!-- ═══ Shared footer: Reset / Apply ═══ -->
   <FilterFooter
     canApply={canApply}
     canClear={canClear}
