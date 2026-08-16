@@ -8,12 +8,15 @@
 		open = false,
 		category,
 		action = '?/create',
+		defaultType,
 		onClose,
 		onSuccess
 	}: {
 		open?: boolean;
 		category?: Category;
 		action?: string;
+		/** Type preselected when creating (per-column "+ Add" CTAs). */
+		defaultType?: 'income' | 'expense';
 		onClose?: () => void;
 		onSuccess?: () => void;
 	} = $props();
@@ -40,7 +43,7 @@
 				name = '';
 				icon = '🍔';
 				color = '#3f8f79';
-				categoryType = 'expense';
+				categoryType = defaultType ?? 'expense';
 				rawBudgetLimit = '';
 			});
 		}
@@ -81,6 +84,15 @@
 	}
 
 	const displayBudget = $derived(rawBudgetLimit ? formatCurrencyInput(rawBudgetLimit) : '');
+
+	const headerTitle = $derived(
+		categoryType === 'income' ? 'Categories organize Money In' : 'Categories organize Money Gone'
+	);
+	const headerSubtitle = $derived(
+		categoryType === 'income'
+			? 'Organize the income that brings money into your pocket.'
+			: 'Organize the expenses that take money out of your pocket.'
+	);
 
 	function close() {
 		if (!submitting) onClose?.();
@@ -129,8 +141,8 @@
 			<!-- Header -->
 			<div class="modal-header">
 				<div class="header-badge">CATEGORIES</div>
-				<h2 class="header-title">Categories organize Money Gone</h2>
-				<p class="header-subtitle">Categories primarily give Money Gone structure — they are not the primary navigation model.</p>
+				<h2 class="header-title">{headerTitle}</h2>
+				<p class="header-subtitle">{headerSubtitle}</p>
 				<button type="button" class="close-btn" onclick={close} aria-label="Close">
 					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
 						<line x1="18" y1="6" x2="6" y2="18"/>
@@ -373,7 +385,7 @@
 	.icon-picker-wrap {
 		overflow-x: auto;
 		margin-bottom: 16px;
-		padding-bottom: 4px;
+		padding: 8px 8px 12px;
 		-webkit-overflow-scrolling: touch;
 	}
 

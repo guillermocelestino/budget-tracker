@@ -34,13 +34,19 @@ import { formatDateShort } from '$lib/shared/utils/format';
     onAdd,
     compact = false,
     totalCount = 0,
+    activeType = 'expense',
+    typeCounts,
   }: {
     categories: EnrichedCategory[];
     onEdit?: (cat: EnrichedCategory) => void;
     onDelete?: (cat: EnrichedCategory) => void;
-    onAdd?: () => void;
+    onAdd?: (type: 'income' | 'expense') => void;
     compact?: boolean;
     totalCount?: number;
+    /** Which column is shown on mobile (segmented switcher state). */
+    activeType?: 'income' | 'expense';
+    /** Unfiltered per-type totals, to distinguish "empty type" from "filtered out". */
+    typeCounts?: { income: number; expense: number };
   } = $props();
 
   // Dark-mode state for category chip contrast (AA lightened text).
@@ -156,190 +162,203 @@ import { formatDateShort } from '$lib/shared/utils/format';
 {/snippet}
 
 <!-- ════════════════════════════════════════════════════════════════
-     INCOME CATEGORIES — collapsed section
+     CATEGORY BOARD — Expense + Income columns
+     Desktop (≥1024px): side-by-side columns. Below that the board
+     stacks to one column; on mobile (≤768px) only the activeType
+     column is shown (segmented switcher lives in the page).
      ════════════════════════════════════════════════════════════════ -->
-{#if incomeCategories.length > 0}
-  <details class="category-group" open={false}>
-    <summary class="group-header">
-      <span class="header-left">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="chevron-icon">
-          <path d="m9 18 6-6-6-6"/>
-        </svg>
-        <span class="group-title">Income · {incomeCategories.length}</span>
-      </span>
-      <span class="group-total">{formatCurrency(incomeCategories.reduce((s, c) => s + c.earned, 0))} earned</span>
-    </summary>
-    <div class="category-list">
-      {#each incomeCategories as cat (cat.id)}
-        {@const hue = getCategoryHue('', cat.color)}
-        {@const tint = getCategoryTint('', hue, isDark)}
-        {@const fg = getCategoryText('', hue, isDark)}
-        {#if compact}
-          {@render compactRow(cat, tint, fg)}
-        {:else}
-          <div class="category-card income-card">
-            <div class="card-accent" style="background: {hue}"></div>
-            <div class="card-body">
-              <div class="card-left">
-                <span class="cat-icon" style="background: {tint}; color: {fg}">{cat.icon}</span>
-                <div class="cat-info">
-                  <span class="cat-name">{cat.name}</span>
-                  <span class="cat-type-badge teal">Income</span>
-                  <span class="cat-usage">{cat.txnCount || 0} transactions · {cat.recurringCount || 0} recurring</span>
-                </div>
-              </div>
-              <div class="card-right">
-                <span class="income-value">{formatCurrency(cat.earned)}</span>
-                <span class="income-label">earned this month</span>
-              </div>
-              {@render cardActions(cat)}
-            </div>
-          </div>
-        {/if}
-      {/each}
+{#if totalCount === 0}
+  <div class="empty-state">
+    <div class="empty-icon">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/>
+        <line x1="7" x2="7.01" y1="7" y2="7"/>
+      </svg>
     </div>
-  </details>
-{/if}
+    <p>Start organizing your finances.</p>
+    <span>Categories help organize your income, expenses, budgets, and recurring schedules.</span>
+    {#if onAdd}
+      <button class="empty-cta" onclick={() => onAdd?.('expense')} type="button">Add First Category</button>
+    {/if}
+  </div>
+{:else}
+  <div class="board" class:single={compact}>
+    <!-- ══ EXPENSE column — the main budget surface ══ -->
+    <section class="board-column board-column--expense flip7-card accent-coral" class:inactive={activeType !== 'expense'} aria-label="Expense categories">
+      <header class="column-header">
+        <span class="column-title">💸 Expense</span>
+        <span class="column-count">{expenseCategories.length} categories</span>
+        <span class="column-total">
+          {formatCurrency(expenseCategories.reduce((s, c) => s + c.spent, 0))} spent
+          of {formatCurrency(expenseCategories.reduce((s, c) => s + c.budgeted, 0))}
+        </span>
+      </header>
+      {#if expenseCategories.length > 0}
+        <div class="category-list">
+          {#each expenseCategories as cat (cat.id)}
+            {@const hue = getCategoryHue('', cat.color)}
+            {@const tint = getCategoryTint('', hue, isDark)}
+            {@const fg = getCategoryText('', hue, isDark)}
+            {#if compact}
+              {@render compactRow(cat, tint, fg)}
+            {:else}
+              <div class="category-card" class:over-budget={statusClass(cat) === 'over'}>
+                <div class="card-accent" style="background: {hue}"></div>
 
-<!-- ════════════════════════════════════════════════════════════════
-     EXPENSE CATEGORIES — the main budget surface
-     ════════════════════════════════════════════════════════════════ -->
-{#if expenseCategories.length > 0}
-  <div class="category-group">
-    <div class="group-header">
-      <span class="group-title">Expenses · {expenseCategories.length}</span>
-      <span class="group-total">
-        {formatCurrency(expenseCategories.reduce((s, c) => s + c.spent, 0))} spent
-        of {formatCurrency(expenseCategories.reduce((s, c) => s + c.budgeted, 0))}
-      </span>
-    </div>
-    <div class="category-list">
-      {#each expenseCategories as cat (cat.id)}
-        {@const hue = getCategoryHue('', cat.color)}
-        {@const tint = getCategoryTint('', hue, isDark)}
-        {@const fg = getCategoryText('', hue, isDark)}
-        {#if compact}
-          {@render compactRow(cat, tint, fg)}
-        {:else}
-          <div class="category-card" class:over-budget={statusClass(cat) === 'over'}>
-            <div class="card-accent" style="background: {hue}"></div>
-
-            <!-- ─── Card row 1: icon + name + meta + actions ─── -->
-            <div class="card-header-area">
-              <div class="card-left">
-                <span class="cat-icon" style="background: {tint}; color: {fg}">{cat.icon}</span>
-                <div class="cat-info">
-                  <span class="cat-name">{cat.name}</span>
-                  <span class="cat-type-badge coral">Expense</span>
-                  <span class="cat-usage">{cat.txnCount || 0} transactions · {cat.recurringCount || 0} recurring</span>
+                <!-- ─── Card row 1: icon + name + meta + actions ─── -->
+                <div class="card-header-area">
+                  <div class="card-left">
+                    <span class="cat-icon" style="background: {tint}; color: {fg}">{cat.icon}</span>
+                    <div class="cat-info">
+                      <span class="cat-name">{cat.name}</span>
+                      <span class="cat-type-badge coral">Expense</span>
+                      <span class="cat-usage">{cat.txnCount || 0} transactions · {cat.recurringCount || 0} recurring</span>
+                    </div>
+                  </div>
+                  {@render cardActions(cat)}
                 </div>
-              </div>
-              {@render cardActions(cat)}
-            </div>
 
-            <!-- ─── Budget cluster: Budgeted · Spent · Available + status pill ─── -->
-            {#if cat.budget_limit != null}
-              <div class="budget-cluster">
-                <span class="cluster-item">
-                  <span class="cluster-label">Budgeted</span>
-                  {#if editingId === cat.id}
-                    <span class="budget-edit-wrap">
-                      <span class="budget-prefix">₱</span>
-                      <input
-                        type="text"
-                        inputmode="decimal"
-                        class="budget-edit-input"
-                        value={editRaw}
-                        oninput={onBudgetInput}
-                        onkeydown={(e) => handleBudgetKeydown(e, cat)}
-                        onblur={() => saveEdit(cat)}
-                        autofocus
-                        autocomplete="off"
-                      />
+                <!-- ─── Budget cluster: Budgeted · Spent · Available + status pill ─── -->
+                {#if cat.budget_limit != null}
+                  <div class="budget-cluster">
+                    <span class="cluster-item">
+                      <span class="cluster-label">Budgeted</span>
+                      {#if editingId === cat.id}
+                        <span class="budget-edit-wrap">
+                          <span class="budget-prefix">₱</span>
+                          <input
+                            type="text"
+                            inputmode="decimal"
+                            class="budget-edit-input"
+                            value={editRaw}
+                            oninput={onBudgetInput}
+                            onkeydown={(e) => handleBudgetKeydown(e, cat)}
+                            onblur={() => saveEdit(cat)}
+                            autofocus
+                            autocomplete="off"
+                          />
+                        </span>
+                      {:else}
+                        <button class="cluster-value clickable" onclick={() => startEdit(cat)} title="Edit budget">{formatCurrency(cat.budgeted)}</button>
+                      {/if}
                     </span>
-                  {:else}
-                    <button class="cluster-value clickable" onclick={() => startEdit(cat)} title="Edit budget">{formatCurrency(cat.budgeted)}</button>
-                  {/if}
-                </span>
-                <span class="cluster-sep" aria-hidden="true">·</span>
-                <span class="cluster-item">
-                  <span class="cluster-label">Spent</span>
-                  <span class="cluster-value" class:inverted={cat.spent > 0}>{formatCurrency(cat.spent)}</span>
-                </span>
-                <span class="cluster-sep" aria-hidden="true">·</span>
-                <span class="cluster-item">
-                  <span class="cluster-label">Available</span>
-                  <span class="cluster-value" class:positive={cat.budgeted - cat.spent >= 0} class:negative={cat.budgeted - cat.spent < 0}>{formatCurrency(cat.budgeted - cat.spent)}</span>
-                </span>
-                {#if statusClass(cat) === 'over'}
-                  <span class="status-badge over">Over</span>
-                {:else if statusClass(cat) === 'warn'}
-                  <span class="status-badge warn">Warn</span>
-                {:else if cat.spent > 0}
-                  <span class="status-badge ok">Under</span>
+                    <span class="cluster-sep" aria-hidden="true">·</span>
+                    <span class="cluster-item">
+                      <span class="cluster-label">Spent</span>
+                      <span class="cluster-value" class:inverted={cat.spent > 0}>{formatCurrency(cat.spent)}</span>
+                    </span>
+                    <span class="cluster-sep" aria-hidden="true">·</span>
+                    <span class="cluster-item">
+                      <span class="cluster-label">Available</span>
+                      <span class="cluster-value" class:positive={cat.budgeted - cat.spent >= 0} class:negative={cat.budgeted - cat.spent < 0}>{formatCurrency(cat.budgeted - cat.spent)}</span>
+                    </span>
+                    {#if statusClass(cat) === 'over'}
+                      <span class="status-badge over">Over</span>
+                    {:else if statusClass(cat) === 'warn'}
+                      <span class="status-badge warn">Warn</span>
+                    {:else if cat.spent > 0}
+                      <span class="status-badge ok">Under</span>
+                    {/if}
+                  </div>
+                {:else}
+                  <div class="no-budget-cluster">
+                    <span class="no-budget-text">No budget set</span>
+                    <span class="cluster-sep" aria-hidden="true">·</span>
+                    <button class="no-budget-set" onclick={() => startEdit(cat)}>+ Set budget</button>
+                  </div>
+                {/if}
+
+                <!-- ─── Card row 3: progress bar ─── -->
+                {#if cat.budget_limit != null && cat.budget_limit > 0}
+                  <div class="progress-section">
+                    <CategoryUsageBar percent={budgetPercent(cat)} status={statusClass(cat)} />
+                    <div class="progress-footer">
+                      <span class="pct-value" class:ok={statusClass(cat) === 'ok'} class:warn={statusClass(cat) === 'warn'} class:over={statusClass(cat) === 'over'}>
+                        {Math.round(budgetPercent(cat))}%
+                      </span>
+                      <span class="pct-label">
+                        {#if statusClass(cat) === 'over'}
+                          Overspent by {formatCurrency(cat.spent - cat.budgeted)}
+                        {:else}
+                          {formatCurrency(cat.budgeted - cat.spent)} remaining
+                        {/if}
+                      </span>
+                    </div>
+                  </div>
                 {/if}
               </div>
-            {:else}
-              <div class="no-budget-cluster">
-                <span class="no-budget-text">No budget set</span>
-                <span class="cluster-sep" aria-hidden="true">·</span>
-                <button class="no-budget-set" onclick={() => startEdit(cat)}>+ Set budget</button>
-              </div>
             {/if}
+          {/each}
+        </div>
+      {:else}
+        <div class="column-empty">
+          {#if (typeCounts?.expense ?? 0) > 0}
+            <p>No matching expense categories</p>
+            <span>Try a different search or filter.</span>
+          {:else}
+            <p>No expense categories yet</p>
+            <span>Track where money goes by adding your first expense category.</span>
+          {/if}
+        </div>
+      {/if}
+      {#if onAdd}
+        <button class="column-add" type="button" onclick={() => onAdd?.('expense')}>+ Add Expense</button>
+      {/if}
+    </section>
 
-            <!-- ─── Card row 3: progress bar ─── -->
-            {#if cat.budget_limit != null && cat.budget_limit > 0}
-              <div class="progress-section">
-                <CategoryUsageBar percent={budgetPercent(cat)} status={statusClass(cat)} />
-                <div class="progress-footer">
-                  <span class="pct-value" class:ok={statusClass(cat) === 'ok'} class:warn={statusClass(cat) === 'warn'} class:over={statusClass(cat) === 'over'}>
-                    {Math.round(budgetPercent(cat))}%
-                  </span>
-                  <span class="pct-label">
-                    {#if statusClass(cat) === 'over'}
-                      Overspent by {formatCurrency(cat.spent - cat.budgeted)}
-                    {:else}
-                      {formatCurrency(cat.budgeted - cat.spent)} remaining
-                    {/if}
-                  </span>
+    <!-- ══ INCOME column ══ -->
+    <section class="board-column board-column--income flip7-card accent-teal" class:inactive={activeType !== 'income'} aria-label="Income categories">
+      <header class="column-header">
+        <span class="column-title">💰 Income</span>
+        <span class="column-count">{incomeCategories.length} categories</span>
+        <span class="column-total">{formatCurrency(incomeCategories.reduce((s, c) => s + c.earned, 0))} earned</span>
+      </header>
+      {#if incomeCategories.length > 0}
+        <div class="category-list">
+          {#each incomeCategories as cat (cat.id)}
+            {@const hue = getCategoryHue('', cat.color)}
+            {@const tint = getCategoryTint('', hue, isDark)}
+            {@const fg = getCategoryText('', hue, isDark)}
+            {#if compact}
+              {@render compactRow(cat, tint, fg)}
+            {:else}
+              <div class="category-card income-card">
+                <div class="card-accent" style="background: {hue}"></div>
+                <div class="card-body">
+                  <div class="card-left">
+                    <span class="cat-icon" style="background: {tint}; color: {fg}">{cat.icon}</span>
+                    <div class="cat-info">
+                      <span class="cat-name">{cat.name}</span>
+                      <span class="cat-type-badge teal">Income</span>
+                      <span class="cat-usage">{cat.txnCount || 0} transactions · {cat.recurringCount || 0} recurring</span>
+                    </div>
+                  </div>
+                  <div class="card-right">
+                    <span class="income-value">{formatCurrency(cat.earned)}</span>
+                    <span class="income-label">earned this month</span>
+                  </div>
+                  {@render cardActions(cat)}
                 </div>
               </div>
             {/if}
-          </div>
-        {/if}
-      {/each}
-    </div>
-  </div>
-{/if}
-
-<!-- ─── Empty states ─── -->
-{#if categories.length === 0}
-  {#if totalCount > 0}
-    <div class="empty-state">
-      <div class="empty-icon">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"/>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-      </div>
-      <p>No matching categories</p>
-      <span>Try a different search or filter.</span>
-    </div>
-  {:else}
-    <div class="empty-state">
-      <div class="empty-icon">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/>
-          <line x1="7" x2="7.01" y1="7" y2="7"/>
-        </svg>
-      </div>
-      <p>Start organizing your finances.</p>
-      <span>Categories help organize your income, expenses, budgets, and recurring schedules.</span>
-      {#if onAdd}
-        <button class="empty-cta" onclick={onAdd} type="button">Add First Category</button>
+          {/each}
+        </div>
+      {:else}
+        <div class="column-empty">
+          {#if (typeCounts?.income ?? 0) > 0}
+            <p>No matching income categories</p>
+            <span>Try a different search or filter.</span>
+          {:else}
+            <p>No income categories yet</p>
+            <span>See what's coming in by adding your first income category.</span>
+          {/if}
+        </div>
       {/if}
-    </div>
-  {/if}
+      {#if onAdd}
+        <button class="column-add" type="button" onclick={() => onAdd?.('income')}>+ Add Income</button>
+      {/if}
+    </section>
+  </div>
 {/if}
 
 <style>
@@ -347,56 +366,129 @@ import { formatDateShort } from '$lib/shared/utils/format';
      CATEGORY LIST — Flip7 Design
      ═══════════════════════════════════════════════════════════════════ */
 
-  /* ─── Group headers ─── */
-  .category-group {
-    margin-bottom: var(--space-lg);
-    border: none;
+  /* ─── Board: two columns on wide desktop, stacked below ─── */
+  .board {
+    display: grid;
+    gap: var(--space-lg);
   }
 
-  .group-header {
+  /* Compact (table) view keeps the full-width single column at every size */
+  .board.single {
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 1024px) {
+    .board:not(.single) {
+      grid-template-columns: 1fr 1fr;
+      align-items: start;
+    }
+  }
+
+  /* Mobile: the segmented switcher (in the page) drives which column shows */
+  @media (max-width: 768px) {
+    .board-column.inactive {
+      display: none;
+    }
+  }
+
+  .board-column {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--space-sm) 0;
-    margin-bottom: var(--space-md);
-    cursor: pointer;
-    list-style: none;
-    user-select: none;
-    border-bottom: 1px solid var(--line);
+    flex-direction: column;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    min-width: 0;
   }
 
-  .group-header::-webkit-details-marker {
-    display: none;
-  }
-
-  .header-left {
+  .column-header {
     display: flex;
-    align-items: center;
-    gap: var(--space-xs);
+    align-items: baseline;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    padding: 0 var(--space-xs);
   }
 
-  .chevron-icon {
-    transition: transform 200ms var(--ease);
-  }
-
-  details[open] .chevron-icon {
-    transform: rotate(90deg);
-  }
-
-  .group-title {
-    font-size: var(--font-size-sm);
+  .column-title {
+    font-size: var(--font-size-base);
     font-weight: 700;
-    color: var(--color-text-muted);
+    color: var(--color-ink);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-family: var(--font-display);
   }
 
-  .group-total {
+  .board-column--expense .column-title {
+    color: var(--color-coral);
+  }
+
+  .board-column--income .column-title {
+    color: var(--color-teal);
+  }
+
+  .column-count {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-text-muted);
+  }
+
+  .column-total {
     font-size: var(--font-size-sm);
     font-weight: 700;
     color: var(--color-ink);
     font-variant-numeric: tabular-nums;
+    margin-left: auto;
+  }
+
+  /* ─── In-column empty state (type exists but nothing matches, or none yet) ─── */
+  .column-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 4px;
+    padding: var(--space-xl) var(--space-md);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+
+  .column-empty p {
+    margin: 0;
+    font-weight: 600;
+    color: var(--color-ink);
+    font-size: var(--font-size-sm);
+  }
+
+  .column-empty span {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    max-width: 260px;
+  }
+
+  /* ─── Per-column add CTA — quiet dashed footer row ─── */
+  .column-add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+    background: transparent;
+    color: var(--color-teal);
+    font-family: var(--font-display);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 150ms var(--ease), border-color 150ms var(--ease), color 150ms var(--ease);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .column-add:hover {
+    background: var(--color-teal-bg);
+    border-color: var(--color-teal);
+  }
+
+  .column-add:focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: 2px;
   }
 
   /* ─── Card list container ─── */
@@ -947,6 +1039,10 @@ import { formatDateShort } from '$lib/shared/utils/format';
 
   /* ─── Responsive ─── */
   @media (max-width: 640px) {
+    .board-column {
+      padding: var(--space-sm);
+    }
+
     .card-actions {
       opacity: 1;
     }

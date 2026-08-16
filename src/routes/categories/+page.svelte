@@ -3,7 +3,6 @@
   import { goto } from '$app/navigation';
   import { enhance } from '$app/forms';
   import PageHeader from '$lib/client/components/PageHeader.svelte';
-  import Button from '$lib/client/components/Button.svelte';
   import CategoryList from '$lib/client/components/CategoryList.svelte';
   import type { EnrichedCategory } from '$lib/client/components/CategoryList.svelte';
   import CategoryModal from '$lib/client/components/CategoryModal.svelte';
@@ -73,12 +72,20 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
   let filtersOpen = $state(false);
   let compactView = $state(false);
 
-  // Debounced search term (same 250ms idle pattern as the list pages)
+  // Board state: which column is active on mobile (segmented switcher) and
+  // which type a per-column "+ Add" CTA preselects in the CategoryModal.
+  let activeType = $state<'expense' | 'income'>('expense');
+  let addType = $state<'income' | 'expense'>('expense');
+
+  // Debounced search term (same 250ms idle pattern as the list pages).
+  // Reads searchInput synchronously so the effect re-runs per keystroke;
+  // the cleanup cancels the pending timer, giving the 250ms idle debounce.
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
+    const input = searchInput;
     if (searchTimer) clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
-      if (searchTerm !== searchInput) searchTerm = searchInput;
+      searchTerm = input;
     }, 250);
     return () => { if (searchTimer) clearTimeout(searchTimer); };
   });
@@ -112,9 +119,10 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
     expenseCats.filter(c => c.budget_limit && (spendingMap[c.id] || 0) > c.budget_limit).length
   );
 
-  function openAdd() {
+  function openAdd(type: 'income' | 'expense' = 'expense') {
     editingCategory = null;
-        showPanel = true;
+    addType = type;
+    showPanel = true;
   }
 
   function openEdit(cat: EnrichedCategory) {
@@ -134,23 +142,8 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
 
 <PageBackground />
 
-<div class="page-container page-container--compact">
-	<PageHeader title="Categories" flush borderless>
-  {#snippet action()}
-    <Button variant="primary" onclick={openAdd}>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="12" x2="12" y1="5" y2="19"/>
-        <line x1="5" x2="19" y1="12" y2="12"/>
-      </svg>
-      Add Category
-    </Button>
-  {/snippet}
-</PageHeader>
-
-<!-- ═══ Month picker ═══ -->
-<div class="month-bar">
-  <MonthPicker {selectedMonth} onChange={handleMonthChange} />
-</div>
+<div class="page-container page-container--workspace">
+	<PageHeader title="Categories" flush borderless />
 
 <!-- ═══ Category stats + monthly summary bar (one source: `categories`/maps) ═══ -->
 {#if categories.length > 0}
@@ -196,8 +189,9 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
   </div>
 {/if}
 
-<!-- ═══ Toolbar: search+filter pill (left) + view mode (right) ═══ -->
+<!-- ═══ Toolbar: month picker + search/filter pill + view mode ═══ -->
 <div class="cats-toolbar">
+  <MonthPicker {selectedMonth} onChange={handleMonthChange} />
   <SearchFilterPill
     bind:value={searchInput}
     bind:open={filtersOpen}
@@ -206,12 +200,14 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
     filterAriaLabel="Filter categories"
     activeFilterCount={typeFilter !== 'all' ? 1 : 0}
   >
-    {#snippet panel(_mode, close)}
-      <div class="filter-chips">
-        <button class="filter-chip" class:active={typeFilter === 'all'} onclick={() => { typeFilter = 'all'; close(); }}>All</button>
-        <button class="filter-chip" class:active={typeFilter === 'income'} onclick={() => { typeFilter = 'income'; close(); }}>Income</button>
-        <button class="filter-chip" class:active={typeFilter === 'expense'} onclick={() => { typeFilter = 'expense'; close(); }}>Expense</button>
-      </div>
+    {#snippet panel(mode, close)}
+      {#if mode === 'popover'}
+        <div class="filter-chips">
+          <button class="filter-chip" class:active={typeFilter === 'all'} onclick={() => { typeFilter = 'all'; close(); }}>All</button>
+          <button class="filter-chip" class:active={typeFilter === 'income'} onclick={() => { typeFilter = 'income'; close(); }}>Income</button>
+          <button class="filter-chip" class:active={typeFilter === 'expense'} onclick={() => { typeFilter = 'expense'; close(); }}>Expense</button>
+        </div>
+      {/if}
     {/snippet}
   </SearchFilterPill>
   <ViewToggle
@@ -227,12 +223,42 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
   />
 </div>
 
-<!-- ═══ Category list ═══ -->
+<!-- ═══ Mobile board switcher — Expense | Income (desktop shows both columns) ═══ -->
+<div class="board-switcher">
+  <div class="segmented-control" role="radiogroup" aria-label="Select category type">
+    <button
+      type="button"
+      class="seg-btn seg-expense"
+      class:active={activeType === 'expense'}
+      role="radio"
+      aria-checked={activeType === 'expense'}
+      onclick={() => (activeType = 'expense')}
+    >
+      <span class="seg-label">💸 Expense</span>
+      <span class="seg-badge badge-expense">{expenseCats.length}</span>
+    </button>
+    <button
+      type="button"
+      class="seg-btn seg-income"
+      class:active={activeType === 'income'}
+      role="radio"
+      aria-checked={activeType === 'income'}
+      onclick={() => (activeType = 'income')}
+    >
+      <span class="seg-label">💰 Income</span>
+      <span class="seg-badge badge-income">{incomeCats.length}</span>
+    </button>
+  </div>
+</div>
+
+<!-- ═══ Category board ═══ -->
 <CategoryList
   categories={visibleCategories}
   totalCount={categories.length}
+  typeCounts={{ expense: expenseCats.length, income: incomeCats.length }}
+  activeType={activeType}
   compact={compactView}
-  onAdd={openAdd}
+  onAdd={(type) => openAdd(type)}
   onEdit={openEdit}
   onDelete={(cat) => deleteTarget = cat}
 />
@@ -242,6 +268,7 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
   open={showPanel}
   category={editingCategory ?? undefined}
   action={editingCategory ? '?/update' : '?/create'}
+  defaultType={addType}
   onClose={closePanel}
   onSuccess={closePanel}
 />
@@ -283,23 +310,37 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
     </form>
   </ModalDialog>
 {/if}
+
+<!-- ═══ Sticky right-side floating Add FAB (desktop) — lending/transactions pattern;
+     mobile keeps the SpeedDial (?add=1) path ═══ -->
+<button
+  type="button"
+  class="desktop-fab-add flip7-card accent-gold"
+  onclick={() => openAdd()}
+  aria-label="Add category"
+  title="Add category"
+>
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19"/>
+    <line x1="5" y1="12" x2="19" y2="12"/>
+  </svg>
+  <span class="fab-tooltip" role="tooltip">Add category</span>
+</button>
 </div>
 
 <style>
-  /* ─── Month bar ─── */
-  .month-bar {
-    display: flex;
-    align-items: center;
-    margin-bottom: var(--space-lg);
-  }
-
-  /* ─── Toolbar: search+filter pill (left) + view toggle (right) ─── */
+  /* ─── Toolbar: month picker + search+filter pill + view toggle ─── */
   .cats-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: var(--space-md);
     margin-bottom: var(--space-lg);
+  }
+
+  .cats-toolbar :global(.month-picker) {
+    flex-shrink: 0;
   }
 
   .cats-toolbar :global(.search-filter-pill) {
@@ -359,6 +400,7 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
   .summary-bar {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: var(--space-md);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
@@ -491,9 +533,180 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
     to { opacity: 1; transform: translateY(0); }
   }
 
+  /* ─── Mobile board switcher — Expense | Income segmented control ───
+     Pattern from CommittedMoneyWorkspace (Borrowed/Recurring switcher),
+     tinted with the app's expense/income colors and 44px touch targets. */
+  .board-switcher {
+    display: none;
+    margin-bottom: var(--space-lg);
+  }
+
+  .segmented-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    background: var(--color-surface-inset);
+    padding: 4px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-hairline);
+  }
+
+  .seg-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    border-radius: var(--radius-pill);
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-family: var(--font-display);
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: all 180ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .seg-btn:hover {
+    color: var(--color-ink);
+    background: var(--color-surface);
+  }
+
+  .seg-btn.active {
+    background: var(--color-surface);
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  }
+
+  .seg-expense.active {
+    color: var(--color-coral);
+  }
+
+  .seg-income.active {
+    color: var(--color-teal);
+  }
+
+  .seg-label {
+    white-space: nowrap;
+  }
+
+  .seg-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+  }
+
+  .seg-badge.badge-expense {
+    background: var(--color-coral-bg);
+    color: var(--color-coral);
+  }
+
+  .seg-badge.badge-income {
+    background: var(--color-teal-bg);
+    color: var(--color-teal);
+  }
+
+  /* ─── Sticky right-side floating Add FAB (desktop) ───
+     Same pattern as the lending/transactions desktop FAB; gold keeps the
+     Add Category primary-CTA identity the old header button had. */
+  .desktop-fab-add {
+    position: fixed;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: var(--z-sidebar, 90);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-pill);
+    background: var(--color-gold, #FFD23F);
+    color: var(--color-ink, #14302E);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 4px 20px rgba(255, 210, 63, 0.45), 0 2px 8px rgba(20, 48, 46, 0.12);
+    cursor: pointer;
+    outline: none;
+    transition: transform 200ms var(--ease), box-shadow 200ms var(--ease), background 200ms var(--ease);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .desktop-fab-add:hover {
+    background: #FFDC6B;
+    box-shadow: 0 8px 28px rgba(255, 210, 63, 0.6), 0 4px 12px rgba(20, 48, 46, 0.16);
+    transform: translateY(-50%) scale(1.08);
+  }
+
+  .desktop-fab-add:active {
+    transform: translateY(-50%) scale(0.95);
+    box-shadow: 0 2px 10px rgba(255, 210, 63, 0.35);
+  }
+
+  .desktop-fab-add:focus-visible {
+    outline: 3px solid var(--color-teal, #2BA8A2);
+    outline-offset: 3px;
+  }
+
+  .fab-tooltip {
+    position: absolute;
+    right: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%) translateX(6px);
+    background: var(--color-ink, #14302E);
+    color: var(--color-ink-inverse, #ffffff);
+    font-family: var(--font-body);
+    font-size: var(--font-size-xs, 0.75rem);
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: var(--radius-md, 8px);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 180ms var(--ease), transform 180ms var(--ease), visibility 180ms var(--ease);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  }
+
+  .desktop-fab-add:hover .fab-tooltip,
+  .desktop-fab-add:focus-visible .fab-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(-50%) translateX(0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .desktop-fab-add,
+    .fab-tooltip {
+      transition: none;
+    }
+    .desktop-fab-add:hover {
+      transform: translateY(-50%);
+    }
+  }
+
   @media (max-width: 768px) {
-    :global(.page-header .page-actions .btn-primary) {
+    .desktop-fab-add {
       display: none !important;
+    }
+
+    .board-switcher {
+      display: flex;
+    }
+
+    /* The segmented switcher replaces the type filter on mobile, so the
+       Filter trigger collapses the pill down to search-only. */
+    .cats-toolbar :global(.pill-filter),
+    .cats-toolbar :global(.search-divider) {
+      display: none;
     }
   }
 
@@ -530,6 +743,11 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
       flex-direction: column;
       align-items: stretch;
       gap: var(--space-sm);
+    }
+
+    /* Keep the month pill content-sized instead of stretching full width */
+    .cats-toolbar :global(.month-picker) {
+      align-self: center;
     }
 
     .cats-toolbar :global(.search-filter-pill) {
