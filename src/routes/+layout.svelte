@@ -244,6 +244,7 @@ import SearchModal from '$lib/client/components/SearchModal.svelte';
 	.main-content {
 		padding: var(--space-lg) var(--space-xl);
 		max-width: 1200px;
+		margin-inline: auto;   /* centre the constrained column in available space */
 		width: 100%;
 		transition: opacity 150ms ease;
 		scrollbar-gutter: stable;
@@ -326,6 +327,8 @@ import SearchModal from '$lib/client/components/SearchModal.svelte';
 
 		.main-content {
 			padding: var(--space-lg) var(--space-xl);
+			/* margin-inline: auto already set in base rule; repeated here for
+			   desktop-only padding override clarity */
 		}
 	}
 </style>

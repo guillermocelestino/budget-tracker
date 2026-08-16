@@ -633,6 +633,7 @@
 	.amount-input {
 		flex: 1;
 		border: none !important;
+		outline: none !important;  /* suppress browser native blue ring — wrapper shows :focus-within ring */
 		background: transparent !important;
 		padding: 0 !important;
 		font-family: var(--font-display);

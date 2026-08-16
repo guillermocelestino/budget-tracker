@@ -657,7 +657,8 @@
 		padding-right: 40px;
 	}
 
-	.pill-input:focus {
+	.pill-input:focus,
+	.pill-input:focus-within {
 		border-color: var(--color-gold, #FFD23F);
 		box-shadow: 0 0 0 3.5px rgba(255, 210, 63, 0.3);
 	}
@@ -685,6 +686,7 @@
 	.amount-input {
 		flex: 1;
 		border: none !important;
+		outline: none !important;  /* suppress browser native blue ring — wrapper shows :focus-within ring */
 		background: transparent !important;
 		padding: 0 !important;
 		font-family: var(--font-display);

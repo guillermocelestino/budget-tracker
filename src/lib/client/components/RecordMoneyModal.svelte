@@ -28,7 +28,7 @@
 	let date = $state(formatDateInput());
 	let sourceOfFunds = $state('');
 	let notes = $state('');
-	let showDetails = $state(true); // default open or expandable
+	let showDetails = $state(false); // collapsed by default; expands on "+ Add details" click
 	let submitting = $state(false);
 	let modalRef = $state<HTMLElement | null>(null);
 
@@ -52,7 +52,7 @@
 					date = formatDateInput();
 					sourceOfFunds = '';
 					notes = '';
-					showDetails = true;
+					showDetails = false;
 				}
 			});
 		}
@@ -559,7 +559,8 @@
 		padding-right: 40px;
 	}
 
-	.pill-input:focus {
+	.pill-input:focus,
+	.pill-input:focus-within {
 		border-color: var(--color-money-returning, #2BA8A2);
 		box-shadow: 0 0 0 3.5px rgba(43, 168, 162, 0.25);
 	}
@@ -582,6 +583,7 @@
 	.amount-input {
 		flex: 1;
 		border: none !important;
+		outline: none !important;  /* suppress browser native blue ring — wrapper shows :focus-within ring */
 		background: transparent !important;
 		padding: 0 !important;
 		font-family: var(--font-display);

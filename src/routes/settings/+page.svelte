@@ -98,7 +98,8 @@
 	}
 
 	.settings-layout {
-		max-width: 640px;
+		max-width: var(--container-compact); /* 720px — compact tier */
+		margin-inline: auto;
 	}
 
 	/* ─── Profile card ─── */

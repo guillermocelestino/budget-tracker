@@ -19,7 +19,8 @@
   let buttonEl = $state<HTMLButtonElement | null>(null);
   let menuEl = $state<HTMLDivElement | null>(null);
 
-  function toggle() {
+  function toggle(e: MouseEvent) {
+    e.stopPropagation();
     isOpen = !isOpen;
   }
 

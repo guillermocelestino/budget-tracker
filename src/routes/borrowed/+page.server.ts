@@ -1,11 +1,9 @@
 import { fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
+import { loadCommittedWorkspaceData } from '$lib/server/services/committedWorkspaceLoad';
 import { importLendingsForUser } from '$lib/server/services/lendingImport';
 import {
 	getLending,
-	listLendingsWithPayments,
-	getLendingStatusCounts,
-	getLendingTotals,
 	getPayment,
 	recordPayment,
 	updatePayment,
@@ -13,98 +11,13 @@ import {
 	deleteLending,
 	deleteLendings,
 	createLending,
-	updateLending,
+	updateLending
 } from '$lib/server/services/lendingPayments';
 import { getToday } from '$lib/shared/utils/format';
 
 export const load: PageServerLoad = async ({ url, locals }) => {
-	const userId = locals.user!.userId;
-
-	const rawPage = parseInt(url.searchParams.get('page') ?? '1', 10);
-	let page = Number.isFinite(rawPage) ? Math.max(1, rawPage) : 1;
-
-	const rawLimit = url.searchParams.get('limit') ?? url.searchParams.get('pageSize') ?? '20';
-	let limit: number | undefined = 20;
-	if (rawLimit === 'all' || rawLimit === 'All' || rawLimit === '0') {
-		limit = undefined;
-	} else {
-		const parsed = parseInt(rawLimit, 10);
-		if (Number.isFinite(parsed) && [20, 50, 100, 200, 500].includes(parsed)) {
-			limit = parsed;
-		} else {
-			limit = 20;
-		}
-	}
-
-	const status = url.searchParams.get('status');
-	const date_from = url.searchParams.get('date_from') ?? url.searchParams.get('from');
-	const date_to = url.searchParams.get('date_to') ?? url.searchParams.get('to');
-	const search = url.searchParams.get('search');
-
-	const totals = await getLendingTotals(userId, 'borrowed');
-
-	// Validate date range
-	if (date_from && date_to && date_from > date_to) {
-		return {
-			lendings: [],
-			activeLendings: [],
-			paidLendings: [],
-			total: 0,
-			page: 1,
-			totalPages: 1,
-			limit: limit ?? 0,
-			totals: {
-				totalLent: totals.total,
-				totalRecovered: totals.cashPaid,
-				writtenOff: totals.writtenOff,
-				outstanding: totals.outstanding,
-			},
-			counts: { all: 0, active: 0, paid: 0 },
-			dateError: 'From date cannot be after End date'
-		};
-	}
-
-	const filters = {
-		status: status && ['all', 'active', 'paid'].includes(status) ? (status as 'all' | 'active' | 'paid') : 'active' as const,
-		date_from: date_from || undefined,
-		date_to: date_to || undefined,
-		search: search || undefined
-	};
-
-	let result = await listLendingsWithPayments(userId, 'borrowed', filters, page, limit);
-
-	if (page > result.totalPages && result.totalPages > 0) {
-		page = result.totalPages;
-		result = await listLendingsWithPayments(userId, 'borrowed', filters, page, limit);
-	}
-
-	const counts = await getLendingStatusCounts(userId, 'borrowed', {
-		date_from: filters.date_from,
-		date_to: filters.date_to,
-		search: filters.search
-	});
-
-	const activeLendings = result.items.filter(l => l.derived_status === 'active');
-	const paidLendings = result.items.filter(l => l.derived_status === 'paid');
-
-	return {
-		lendings: result.items,
-		activeLendings,
-		paidLendings,
-		total: result.total,
-		page,
-		totalPages: result.totalPages,
-		limit: limit ?? 0,
-		totals: {
-			totalLent: totals.total,
-			totalRecovered: totals.cashPaid,
-			writtenOff: totals.writtenOff,
-			outstanding: totals.outstanding,
-		},
-		counts,
-		dateError: null
-	};
-}
+	return loadCommittedWorkspaceData({ url, locals, defaultView: 'borrowed' });
+};
 
 export const actions: Actions = {
 	create: async ({ request, locals }) => {
@@ -117,7 +30,7 @@ export const actions: Actions = {
 		const date_lent = data.get('date_lent') as string;
 		const due_date = data.get('due_date') as string;
 		const notes = (data.get('notes') as string)?.trim() || null;
-		const direction = data.get('direction') as string || 'borrowed';
+		const direction = (data.get('direction') as string) || 'borrowed';
 		const recordAsTransaction = data.get('record_as_transaction') === 'on';
 
 		if (!borrower_name) return fail(400, { error: 'Lender name is required' });
@@ -154,8 +67,6 @@ export const actions: Actions = {
 		if (!borrower_name) return fail(400, { error: 'Lender name is required' });
 		if (!date_lent) return fail(400, { error: 'Date borrowed is required' });
 
-		// updateLending owns the payment-lock rules: amount/date_lent are
-		// immutable once payments exist, and status is never client-settable.
 		try {
 			await updateLending(userId, id, {
 				borrowerName: borrower_name,
@@ -194,7 +105,6 @@ export const actions: Actions = {
 		const amount = parseFloat(amountStr);
 		const today = getToday();
 
-		// Validate payment date >= date_lent and <= today
 		const lending = await getLending(userId, lendingId);
 		if (!lending) return fail(404, { error: 'Borrowing record not found' });
 
@@ -212,7 +122,7 @@ export const actions: Actions = {
 				paymentDate,
 				notes,
 				paymentType: paymentType as 'payment' | 'write_off',
-				createTransaction: createTransaction && paymentType === 'payment',
+				createTransaction: createTransaction && paymentType === 'payment'
 			});
 			return { success: true };
 		} catch (e) {
@@ -239,7 +149,6 @@ export const actions: Actions = {
 		const today = getToday();
 
 		try {
-			// Validate payment date
 			const payment = await getPayment(userId, paymentId);
 			if (!payment) return fail(404, { error: 'Payment not found' });
 
@@ -281,7 +190,6 @@ export const actions: Actions = {
 		const id = parseInt(data.get('id') as string);
 		if (isNaN(id)) return fail(400, { error: 'Invalid ID' });
 
-		// Delete linked transactions and the lending atomically (cascades to payments).
 		await deleteLending(userId, id);
 		return { success: true };
 	},
@@ -318,5 +226,5 @@ export const actions: Actions = {
 		}
 
 		return importLendingsForUser(locals.user!.userId, file, configJson, 'borrowed');
-	},
+	}
 };

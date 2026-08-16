@@ -448,12 +448,6 @@
 			<p class="hero-subtitle">Every peso here already left — irreversible, consumed, accounted for.</p>
 		</div>
 		<div class="hero-actions">
-			<button class="btn-record-expense" onclick={openAddForm} aria-label="Record Expense">
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-					<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-				</svg>
-				Record Expense
-			</button>
 			<OverflowMenu
 				onImportCsv={() => (importWizardOpen = true)}
 				onExportCsv={() => handleExport('csv')}
@@ -689,12 +683,6 @@
 				<span class="context-subline">Every peso here already left.</span>
 			</div>
 			<div class="mobile-header-actions">
-				<button class="btn-record-expense mobile-cta" onclick={openAddForm} aria-label="Record Expense">
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-						<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-					</svg>
-					Record
-				</button>
 				<OverflowMenu
 					onImportCsv={() => (importWizardOpen = true)}
 					onExportCsv={() => handleExport('csv')}
@@ -1518,10 +1506,10 @@
 		width: 56px;
 		height: 56px;
 		border-radius: var(--radius-full, 9999px);
-		background: var(--color-gold, #FFD23F);
-		color: var(--color-on-gold, #14302E);
+		background: var(--color-money-gone, #EF6C4A);
+		color: var(--color-ink-inverse, #ffffff);
 		border: 1px solid rgba(255, 255, 255, 0.4);
-		box-shadow: 0 4px 20px rgba(255, 210, 63, 0.45), 0 2px 8px rgba(20, 48, 46, 0.12);
+		box-shadow: 0 4px 20px rgba(239, 108, 74, 0.45), 0 2px 8px rgba(20, 48, 46, 0.12);
 		cursor: pointer;
 		outline: none;
 		transition: transform 200ms var(--ease), box-shadow 200ms var(--ease), background 200ms var(--ease);
@@ -1529,14 +1517,14 @@
 	}
 
 	.desktop-fab-add:hover {
-		background: var(--color-gold-light, #FFE47A);
-		box-shadow: 0 8px 28px rgba(255, 210, 63, 0.60), 0 4px 12px rgba(20, 48, 46, 0.16);
+		background: #F0795A;
+		box-shadow: 0 8px 28px rgba(239, 108, 74, 0.60), 0 4px 12px rgba(20, 48, 46, 0.16);
 		transform: translateY(-50%) scale(1.08);
 	}
 
 	.desktop-fab-add:active {
 		transform: translateY(-50%) scale(0.95);
-		box-shadow: 0 2px 10px rgba(255, 210, 63, 0.35);
+		box-shadow: 0 2px 10px rgba(239, 108, 74, 0.35);
 	}
 
 	.desktop-fab-add:focus-visible {

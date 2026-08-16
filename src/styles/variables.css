@@ -118,6 +118,11 @@
   --sidebar-width: 256px;
   --sidebar-collapsed-width: 72px;
 
+  /* ─── Content container widths ─── */
+  --container-compact:   720px;   /* forms, settings, detail pages */
+  --container-workspace: 1200px;  /* tables, toolbars, list pages */
+  --container-wide:      1400px;  /* analytics, reports, dashboards */
+
   /* ─── Safe area ─── */
   --safe-top: 0px;
   --safe-bottom: 0px;
@@ -514,6 +519,24 @@
 
 [data-theme="dark"] .flip7-watermark {
   opacity: var(--watermark-opacity, 0.06);
+}
+
+/* ═══════════════════════════════════════════════════
+   PAGE CONTAINER TIERS (desktop content width system)
+   Centre-constrain desktop pages without touching mobile.
+   Usage:
+     <div class="page-container page-container--workspace">
+   ═══════════════════════════════════════════════════ */
+.page-container {
+  width: 100%;
+  margin-inline: auto;
+}
+
+/* Tiers only activate at the desktop breakpoint */
+@media (min-width: 769px) {
+  .page-container--workspace { max-width: var(--container-workspace); }
+  .page-container--compact   { max-width: var(--container-compact); }
+  .page-container--wide      { max-width: var(--container-wide); }
 }
 
 @media (prefers-reduced-motion: reduce) {

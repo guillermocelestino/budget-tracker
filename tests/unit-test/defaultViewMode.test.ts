@@ -19,12 +19,12 @@ describe('Default View Presentation for Transactions, Lending & Borrowed', () =>
 		expect(pageContent).toContain("let viewMode = $state<'card' | 'table'>('table');");
 	});
 
-	it('/borrowed route defaults to Table view (viewMode = "table")', () => {
-		const pageContent = fs.readFileSync(
-			path.resolve(process.cwd(), 'src/routes/borrowed/+page.svelte'),
+	it('CommittedMoneyWorkspace component defaults Borrowed view to Table view (viewMode="table")', () => {
+		const workspaceContent = fs.readFileSync(
+			path.resolve(process.cwd(), 'src/lib/client/components/CommittedMoneyWorkspace.svelte'),
 			'utf-8'
 		);
-		expect(pageContent).toContain("let viewMode = $state<'card' | 'table'>('table');");
+		expect(workspaceContent).toContain('viewMode="table"');
 	});
 
 	it('ViewToggle component defaults showFlatView prop to true', () => {

@@ -425,12 +425,6 @@
 			<p class="hero-subtitle">Money Away hasn't disappeared — it's just outside your possession right now.</p>
 		</div>
 		<div class="hero-actions">
-			<button class="btn-send-money-away" onclick={openAdd} aria-label="Send Money Away">
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-					<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-				</svg>
-				Send Money Away
-			</button>
 			<OverflowMenu
 				onImportCsv={() => (importWizardOpen = true)}
 				onExportCsv={handleExportCsv}
@@ -805,7 +799,104 @@
 	</ModalDialog>
 {/if}
 
+<!-- Sticky Right-Side Floating Action Button (Desktop) -->
+<button
+	type="button"
+	class="desktop-fab-add"
+	onclick={openAdd}
+	aria-label="Send money away"
+	title="Send money away"
+>
+	<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+		<line x1="12" y1="5" x2="12" y2="19"/>
+		<line x1="5" y1="12" x2="19" y2="12"/>
+	</svg>
+	<span class="fab-tooltip" role="tooltip">Send money away</span>
+</button>
+
 <style>
+	/* ─── Sticky Right-Side Floating Action Button (Desktop) ─── */
+	.desktop-fab-add {
+		position: fixed;
+		right: 16px;
+		top: 50%;
+		transform: translateY(-50%);
+		z-index: var(--z-sidebar, 90);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 56px;
+		height: 56px;
+		border-radius: var(--radius-full, 9999px);
+		background: var(--color-money-away, #5DADE2);
+		color: var(--color-ink-inverse, #ffffff);
+		border: 1px solid rgba(255, 255, 255, 0.4);
+		box-shadow: 0 4px 20px rgba(93, 173, 226, 0.45), 0 2px 8px rgba(20, 48, 46, 0.12);
+		cursor: pointer;
+		outline: none;
+		transition: transform 200ms var(--ease), box-shadow 200ms var(--ease), background 200ms var(--ease);
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.desktop-fab-add:hover {
+		background: #7FC0EB;
+		box-shadow: 0 8px 28px rgba(93, 173, 226, 0.60), 0 4px 12px rgba(20, 48, 46, 0.16);
+		transform: translateY(-50%) scale(1.08);
+	}
+
+	.desktop-fab-add:active {
+		transform: translateY(-50%) scale(0.95);
+		box-shadow: 0 2px 10px rgba(93, 173, 226, 0.35);
+	}
+
+	.desktop-fab-add:focus-visible {
+		outline: 3px solid var(--color-teal, #2BA8A2);
+		outline-offset: 3px;
+	}
+
+	.fab-tooltip {
+		position: absolute;
+		right: calc(100% + 12px);
+		top: 50%;
+		transform: translateY(-50%) translateX(6px);
+		background: var(--color-ink, #14302E);
+		color: var(--color-ink-inverse, #ffffff);
+		font-family: var(--font-body);
+		font-size: var(--font-size-xs, 0.75rem);
+		font-weight: 600;
+		padding: 6px 12px;
+		border-radius: var(--radius-md, 8px);
+		white-space: nowrap;
+		pointer-events: none;
+		opacity: 0;
+		visibility: hidden;
+		transition: opacity 180ms var(--ease), transform 180ms var(--ease), visibility 180ms var(--ease);
+		box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+	}
+
+	.desktop-fab-add:hover .fab-tooltip,
+	.desktop-fab-add:focus-visible .fab-tooltip {
+		opacity: 1;
+		visibility: visible;
+		transform: translateY(-50%) translateX(0);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.desktop-fab-add,
+		.fab-tooltip {
+			transition: none;
+		}
+		.desktop-fab-add:hover {
+			transform: translateY(-50%);
+		}
+	}
+
+	@media (max-width: 768px) {
+		.desktop-fab-add {
+			display: none !important;
+		}
+	}
+
 	/* ─── MONEY AWAY HERO & KPIS ─── */
 	.money-away-container {
 		display: flex;
