@@ -579,55 +579,56 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      COMMITTED MONEY UNIFIED WORKSPACE (DESKTOP UX)
      ═══════════════════════════════════════════════════════════════════════════ -->
-<div class="committed-workspace">
-	<!-- ─── Page Header ─── -->
-	<header class="workspace-header">
-		<div class="header-main">
-			<div class="title-group">
-				<h1 class="page-title">COMMITTED MONEY</h1>
-				<p class="page-subtitle">Money you've lent out or committed to future payments.</p>
+<div class="page-container page-container--workspace">
+	<div class="committed-workspace">
+		<!-- ─── Page Header ─── -->
+		<header class="workspace-header flip7-card accent-gold">
+			<div class="header-main">
+				<div class="title-group">
+					<h1 class="page-title">COMMITTED MONEY</h1>
+					<p class="page-subtitle">Money you've borrowed or committed to future payments.</p>
+				</div>
+				<div class="header-actions">
+					<OverflowMenu
+						onImportCsv={activeView === 'borrowed' ? () => (importWizardOpen = true) : undefined}
+						onExportCsv={handleExportCsv}
+						onExportPdf={activeView === 'borrowed' ? handleExportPdf : undefined}
+						onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
+					/>
+				</div>
 			</div>
-			<div class="header-actions">
-				<OverflowMenu
-					onImportCsv={activeView === 'borrowed' ? () => (importWizardOpen = true) : undefined}
-					onExportCsv={handleExportCsv}
-					onExportPdf={activeView === 'borrowed' ? handleExportPdf : undefined}
-					onSelect={() => { selectionMode = true; selectedIds = new Set(); }}
-				/>
-			</div>
-		</div>
 
-		<!-- ─── View Switcher Segmented Control ─── -->
-		<div class="switcher-wrapper">
-			<div class="segmented-control" role="radiogroup" aria-label="Select Committed Money View">
-				<button
-					type="button"
-					class="seg-btn"
-					class:active={activeView === 'borrowed'}
-					role="radio"
-					aria-checked={activeView === 'borrowed'}
-					onclick={() => switchView('borrowed')}
-				>
-					<span class="seg-label">🤝 BORROWED</span>
-					<span class="seg-badge">{borrowedActiveCount}</span>
-				</button>
-				<button
-					type="button"
-					class="seg-btn"
-					class:active={activeView === 'recurring'}
-					role="radio"
-					aria-checked={activeView === 'recurring'}
-					onclick={() => switchView('recurring')}
-				>
-					<span class="seg-label">🔁 RECURRING</span>
-					<span class="seg-badge">{recurringActiveCount}</span>
-				</button>
+			<!-- ─── View Switcher Segmented Control ─── -->
+			<div class="switcher-wrapper">
+				<div class="segmented-control" role="radiogroup" aria-label="Select Committed Money View">
+					<button
+						type="button"
+						class="seg-btn"
+						class:active={activeView === 'borrowed'}
+						role="radio"
+						aria-checked={activeView === 'borrowed'}
+						onclick={() => switchView('borrowed')}
+					>
+						<span class="seg-label">🤝 BORROWED</span>
+						<span class="seg-badge">{borrowedActiveCount}</span>
+					</button>
+					<button
+						type="button"
+						class="seg-btn"
+						class:active={activeView === 'recurring'}
+						role="radio"
+						aria-checked={activeView === 'recurring'}
+						onclick={() => switchView('recurring')}
+					>
+						<span class="seg-label">🔁 RECURRING</span>
+						<span class="seg-badge">{recurringActiveCount}</span>
+					</button>
+				</div>
 			</div>
-		</div>
-	</header>
+		</header>
 
-	<!-- ─── Table Card Container (Toolbar + Active Table + Pager) ─── -->
-	<div class="table-card-wrapper">
+		<!-- ─── Table Card Container (Toolbar + Active Table + Pager) ─── -->
+		<div class="table-card-wrapper flip7-card accent-teal">
 		{#if isSearching}
 			<div class="table-loading-bar" role="progressbar" aria-label="Loading data">
 				<div class="loading-bar-fill"></div>
@@ -851,6 +852,7 @@
 		</svg>
 		<span class="fab-tooltip" role="tooltip">{activeView === 'borrowed' ? 'Add borrowing' : 'Add commitment'}</span>
 	</button>
+</div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -1122,12 +1124,8 @@
      COMMITTED MONEY WORKSPACE STYLES (Flip7 Design System)
      ═══════════════════════════════════════════════════════════════════════════ */
 	.committed-workspace {
-		/* Use the shared workspace tier token (1200px) instead of a hardcoded value.
-		   .main-content in the root layout already centres at this width;
-		   the margin: 0 auto here handles the case where this component is
-		   used outside that standard layout context. */
-		max-width: var(--container-workspace);
-		margin: 0 auto;
+		/* Page width is now handled by .page-container--workspace wrapper.
+		   This component just provides internal spacing. */
 		padding: var(--space-xl) var(--space-md);
 	}
 
@@ -1136,11 +1134,13 @@
 		flex-direction: column;
 		gap: var(--space-lg);
 		margin-bottom: var(--space-xl);
+		padding: 18px 24px;
+		overflow: visible;
 	}
 
 	.header-main {
 		display: flex;
-		align-items: flex-start;
+		align-items: center;
 		justify-content: space-between;
 		gap: var(--space-md);
 	}
@@ -1231,6 +1231,15 @@
 		border-radius: var(--radius-xl, 16px);
 		overflow: hidden;
 		box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+	}
+
+	/* Remove border radius from inner tables to match lending page */
+	.table-card-wrapper :global(.iou-register),
+	.table-card-wrapper :global(.iou-container),
+	.table-card-wrapper :global(.recurring-table) {
+		border: none !important;
+		border-radius: 0 !important;
+		box-shadow: none !important;
 	}
 
 	.table-loading-bar {
@@ -1345,8 +1354,9 @@
 	/* Pagination Footer */
 	.table-pager {
 		display: flex;
+		flex-direction: column;
 		align-items: center;
-		justify-content: space-between;
+		gap: var(--space-sm);
 		padding: var(--space-md);
 		border-top: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
 		background: var(--color-surface-inset, #fafafa);
@@ -1427,12 +1437,36 @@
 		.table-pager {
 			flex-direction: column;
 			gap: var(--space-md);
-			align-items: flex-start;
+			align-items: center;
 		}
 
 		.pager-footer {
 			width: 100%;
 			justify-content: space-between;
 		}
+	}
+
+	/* ─── Dark Mode Overrides for Flip7 Cards ─── */
+	[data-theme="dark"] .workspace-header.flip7-card.accent-gold {
+		background: var(--color-surface);
+		border-color: var(--color-hairline);
+	}
+
+	[data-theme="dark"] .table-card-wrapper {
+		background: var(--color-surface);
+		border-color: var(--color-hairline);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	}
+
+	[data-theme="dark"] .desktop-fab-add.flip7-card.accent-gold {
+		background: var(--color-money-committed);
+		border-color: rgba(255, 255, 255, 0.4);
+		box-shadow: 0 4px 20px rgba(217, 119, 6, 0.45), 0 2px 8px rgba(0, 0, 0, 0.20);
+	}
+
+	[data-theme="dark"] .desktop-fab-add.flip7-card.accent-gold:hover {
+		background: #F59E0B;
+		box-shadow: 0 8px 28px rgba(217, 119, 6, 0.60), 0 4px 12px rgba(0, 0, 0, 0.25);
+		transform: translateY(-50%) scale(1.08);
 	}
 </style>

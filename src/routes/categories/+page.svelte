@@ -134,7 +134,8 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
 
 <PageBackground />
 
-<PageHeader title="Categories" flush borderless>
+<div class="page-container page-container--compact">
+	<PageHeader title="Categories" flush borderless>
   {#snippet action()}
     <Button variant="primary" onclick={openAdd}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -282,6 +283,7 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
     </form>
   </ModalDialog>
 {/if}
+</div>
 
 <style>
   /* ─── Month bar ─── */

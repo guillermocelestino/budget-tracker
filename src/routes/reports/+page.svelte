@@ -161,6 +161,8 @@
 
 <PageBackground />
 
+<div class="page-container page-container--wide">
+
 <!-- ═══ Timeframe Pill Control Bar ═══ -->
 <div class="timeframe-bar">
   <div class="timeframe-pill">
@@ -268,6 +270,7 @@
     </section>
   </div>
 {/if}
+</div>
 
 <style>
   :global(.page-header) {

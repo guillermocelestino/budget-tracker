@@ -412,10 +412,10 @@
 <PageBackground />
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     MONEY AWAY HERO & KPI SUMMARY STRIP
+     MONEY AWAY DESKTOP COMPOSITION — Flip7 Visual Language
      ═══════════════════════════════════════════════════════════════════════════ -->
-<div class="money-away-container">
-	<header class="money-away-hero">
+<div class="page-container page-container--workspace">
+	<header class="money-away-hero flip7-card accent-sky">
 		<div class="hero-left">
 			<div class="hero-badge sky">
 				<span class="wave-icon">🌊</span>
@@ -436,21 +436,19 @@
 
 	<!-- ═══ Money Away 3-Metric KPI Summary Strip ═══ -->
 	<div class="money-away-kpis">
-		<div class="kpi-card">
+		<div class="kpi-card flip7-card accent-sky">
 			<span class="kpi-label">Currently Away</span>
 			<span class="kpi-value sky">{formatCurrency(totals.outstanding)}</span>
 		</div>
-		<div class="kpi-card">
+		<div class="kpi-card flip7-card accent-teal">
 			<span class="kpi-label">Recovered</span>
 			<span class="kpi-value">{formatCurrency(totals.totalRecovered)}</span>
 		</div>
-		<div class="kpi-card">
+		<div class="kpi-card flip7-card accent-gold">
 			<span class="kpi-label">Total Ever Lent</span>
 			<span class="kpi-value">{formatCurrency(totals.totalLent)}</span>
 		</div>
 	</div>
-</div>
-
 <!-- ═══ Send Money Away Modal ═══ -->
 <SendMoneyAwayModal
 	open={showPanel}
@@ -478,7 +476,7 @@
 />
 
 <!-- ═══ Table Card Container (Integrates Toolbar as Table Header) ═══ -->
-<div class="table-card-wrapper">
+<div class="table-card-wrapper flip7-card accent-teal">
 	{#if isSearching}
 		<div class="table-loading-bar" role="progressbar" aria-label="Loading data">
 			<div class="loading-bar-fill"></div>
@@ -558,7 +556,7 @@
 
 	<!-- ═══ Invalid date range alert ═══ -->
 	{#if data.dateError}
-		<div class="date-error-banner" role="alert">
+		<div class="date-error-banner flip7-card accent-coral" role="alert">
 			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
 			<span>{data.dateError}</span>
 		</div>
@@ -566,7 +564,7 @@
 
 	<!-- ═══ Bulk selection action bar (Selection Mode only) ═══ -->
 	{#if selectionMode && pageIds.length > 0}
-		<div class="bulk-bar" role="toolbar" aria-label="Selected lendings">
+		<div class="bulk-bar flip7-card accent-gold" role="toolbar" aria-label="Selected lendings">
 			<div class="bulk-left">
 				<input
 					type="checkbox"
@@ -799,10 +797,10 @@
 	</ModalDialog>
 {/if}
 
-<!-- Sticky Right-Side Floating Action Button (Desktop) -->
+<!-- Sticky Right-Side Floating Action Button (Desktop) - matches SpeedDial style -->
 <button
 	type="button"
-	class="desktop-fab-add"
+	class="desktop-fab-add flip7-card accent-sky"
 	onclick={openAdd}
 	aria-label="Send money away"
 	title="Send money away"
@@ -813,6 +811,7 @@
 	</svg>
 	<span class="fab-tooltip" role="tooltip">Send money away</span>
 </button>
+</div>
 
 <style>
 	/* ─── Sticky Right-Side Floating Action Button (Desktop) ─── */
@@ -916,6 +915,8 @@
 		border: 1px solid var(--color-hairline);
 		border-radius: 24px;
 		box-shadow: var(--shadow-sm);
+		margin-bottom: var(--space-md, 12px);
+		overflow: visible;
 	}
 
 	.hero-left {

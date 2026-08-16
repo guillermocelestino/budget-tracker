@@ -243,11 +243,11 @@ import SearchModal from '$lib/client/components/SearchModal.svelte';
 
 	.main-content {
 		padding: var(--space-lg) var(--space-xl);
-		max-width: 1200px;
 		margin-inline: auto;   /* centre the constrained column in available space */
 		width: 100%;
 		transition: opacity 150ms ease;
 		scrollbar-gutter: stable;
+		max-width: var(--container-wide);
 	}
 
 	/* Drop scrollbar-gutter on mobile so it doesn't steal space */
@@ -256,6 +256,13 @@ import SearchModal from '$lib/client/components/SearchModal.svelte';
 			scrollbar-gutter: auto;
 			max-width: none;
 		}
+	}
+
+	/* Override for pages that apply .page-container--workspace directly */
+	.main-content .page-container {
+		margin: 0;
+		padding: 0;
+		max-width: none;
 	}
 
 	.main-content.no-sidebar {

@@ -593,7 +593,7 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
     {/if}
   {:else if showFlatView}
     <!-- Flat register view -->
-    <div class="flat-register" class:selecting={selectionMode}>
+    <div class="flat-register accent-teal" class:selecting={selectionMode}>
       <div class="flat-header" role="rowheader">
         {#if selectionMode}
           <!-- Empty spacer so the header tracks the row's checkbox column. The
@@ -643,7 +643,7 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
     </div>
   {:else}
     <!-- Grouped register view (default) -->
-    <div class="grouped-list" class:selecting={selectionMode}>
+    <div class="grouped-list accent-teal" class:selecting={selectionMode}>
       {#each groups as group (group.date)}
         {@render dateHeader(group)}
         {#each group.items as txn (txn.id)}
@@ -679,6 +679,46 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
     border: 1px solid var(--color-hairline);
     border-radius: var(--radius-xl);
     overflow: hidden;
+  }
+
+  /* Flip7 card integration for transaction containers */
+  [data-theme="dark"] .grouped-list,
+  [data-theme="dark"] .flat-register {
+    background: var(--color-surface);
+    border-color: var(--color-hairline);
+    box-shadow: var(--shadow-md);
+  }
+
+  [data-theme="dark"] .grouped-list,
+  [data-theme="dark"] .flat-register {
+    border-left: 3px solid var(--color-teal);
+  }
+
+  [data-theme="dark"] .grouped-list.accent-teal,
+  [data-theme="dark"] .flat-register.accent-teal {
+    border-left-color: var(--color-teal);
+  }
+
+  [data-theme="dark"] .grouped-list.accent-gold,
+  [data-theme="dark"] .flat-register.accent-gold {
+    border-left-color: var(--color-gold);
+  }
+
+  [data-theme="dark"] .grouped-list.accent-coral,
+  [data-theme="dark"] .flat-register.accent-coral {
+    border-left-color: var(--color-coral);
+  }
+
+  [data-theme="dark"] .grouped-list.accent-sky,
+  [data-theme="dark"] .flat-register.accent-sky {
+    border-left-color: var(--color-sky);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-theme="dark"] .grouped-list:hover,
+    [data-theme="dark"] .flat-register:hover {
+      transform: none;
+    }
   }
 
   /* ── Flat view column header (sticky, solid mint band) ── */

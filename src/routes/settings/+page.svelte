@@ -21,7 +21,8 @@
 
 <PageBackground />
 
-<div class="settings-layout">
+<div class="page-container page-container--compact">
+	<div class="settings-layout">
 	<!-- ═══ Profile Section ═══ -->
 	<SettingsSection label="Profile">
 		<div class="profile-card">
@@ -88,6 +89,7 @@
 			Sign Out
 		</a>
 	</SettingsSection>
+</div>
 </div>
 
 <style>

@@ -435,10 +435,11 @@
 <PageBackground />
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     MONEY GONE DESKTOP COMPOSITION
+     MONEY GONE DESKTOP COMPOSITION — Flip7 Visual Language
      ═══════════════════════════════════════════════════════════════════════════ -->
-<div class="desktop-transactions">
-	<header class="money-gone-hero">
+<div class="page-container page-container--workspace">
+	<div class="desktop-transactions">
+		<header class="money-gone-hero flip7-card accent-coral">
 		<div class="hero-left">
 			<div class="hero-badge">
 				<span class="fire-icon">🔥</span>
@@ -459,19 +460,19 @@
 
 	<!-- ═══ Money Gone 4-Metric KPI Summary Strip ═══ -->
 	<div class="money-gone-kpis">
-		<div class="kpi-card">
+		<div class="kpi-card flip7-card accent-coral">
 			<span class="kpi-label">Wrecked Today</span>
 			<span class="kpi-value coral">{formatCurrency(data.moneyGoneStats?.wreckedToday ?? 0)}</span>
 		</div>
-		<div class="kpi-card">
+		<div class="kpi-card flip7-card accent-teal">
 			<span class="kpi-label">Wrecked This Month</span>
 			<span class="kpi-value">{formatCurrency(data.moneyGoneStats?.wreckedThisMonth ?? 0)}</span>
 		</div>
-		<div class="kpi-card">
+		<div class="kpi-card flip7-card accent-gold">
 			<span class="kpi-label">Outflow Velocity</span>
 			<span class="kpi-value">{formatCurrency(data.moneyGoneStats?.outflowVelocity ?? 0)} <span class="kpi-unit">/ day</span></span>
 		</div>
-		<div class="kpi-card">
+		<div class="kpi-card flip7-card accent-sky">
 			<span class="kpi-label">Largest Outflow</span>
 			<span class="kpi-value">
 				{data.moneyGoneStats?.largestOutflow ? formatCurrency(data.moneyGoneStats.largestOutflow.amount) : '₱0'}
@@ -484,13 +485,13 @@
 		</div>
 	</div>
 
-	<div class="table-card-wrapper">
+	<div class="table-card-wrapper flip7-card accent-teal">
 		{#if isSearching}
 			<div class="table-loading-bar" role="progressbar" aria-label="Loading data">
 				<div class="loading-bar-fill"></div>
 			</div>
 		{/if}
-		<div class="txn-toolbar">
+		<div class="txn-toolbar flip7-toolbar">
 			<div class="toolbar-left">
 				<div class="toolbar-desktop">
 					<TransactionFilterToolbar
@@ -517,14 +518,14 @@
 		</div>
 
 		{#if data.dateError}
-			<div class="date-error-banner" role="alert">
+			<div class="date-error-banner flip7-card accent-coral" role="alert">
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
 				<span>{data.dateError}</span>
 			</div>
 		{/if}
 
 		{#if selectionMode && pageIds.length > 0}
-			<div class="bulk-bar" role="toolbar" aria-label="Selected transactions">
+			<div class="bulk-bar flip7-card accent-gold" role="toolbar" aria-label="Selected transactions">
 				<div class="bulk-left">
 					<input
 						type="checkbox"
@@ -652,10 +653,10 @@
 		{/if}
 	</div>
 
-	<!-- Sticky Right-Side Floating Action Button (Desktop) -->
+	<!-- Sticky Right-Side Floating Action Button (Desktop) - matches SpeedDial style -->
 	<button
 		type="button"
-		class="desktop-fab-add"
+		class="desktop-fab-add flip7-card accent-coral"
 		onclick={openAddForm}
 		aria-label="Add transaction"
 		title="Add transaction"
@@ -666,6 +667,7 @@
 		</svg>
 		<span class="fab-tooltip" role="tooltip">Add transaction</span>
 	</button>
+</div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -1012,6 +1014,7 @@
 		border-radius: 24px;
 		box-shadow: var(--shadow-sm);
 		margin-bottom: var(--space-md, 12px);
+		overflow: visible;
 	}
 
 	.hero-left {
@@ -1153,6 +1156,36 @@
 		border-radius: var(--radius-xl, 16px);
 		overflow: hidden;
 		box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+	}
+
+	/* Flip7 visual language integration */
+	.table-card-wrapper.flip7-card {
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-xl);
+		overflow: hidden;
+	}
+
+	[data-theme="dark"] .table-card-wrapper.flip7-card {
+		border-radius: var(--radius-2xl);
+		border-color: var(--color-hairline);
+	}
+
+	[data-theme="dark"] .table-card-wrapper.flip7-card::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		width: 4px;
+		background: var(--color-teal);
+		box-shadow: var(--glow-card);
+		border-radius: 0 2px 2px 0;
+	}
+
+	[data-theme="dark"] .table-card-wrapper.flip7-card:hover {
+		transform: translateY(-2px);
+		box-shadow: var(--glow-card), 0 8px 32px rgba(60, 196, 189, 0.22);
 	}
 
 	.table-loading-bar {
@@ -1591,6 +1624,7 @@
 			padding: var(--space-xs) 0 var(--space-sm);
 			border-bottom: 1px solid var(--color-hairline);
 			margin-bottom: var(--space-xs);
+			overflow: visible;
 		}
 
 		.mobile-header-main {

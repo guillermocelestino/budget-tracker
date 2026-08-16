@@ -294,12 +294,12 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 	.recurring-list { width: 100%; }
 
 	/* ── Table card ──
-	   Overflow visible so the per-button tooltips are never clipped; the mint
-	   header band and last row carry their own corner rounding instead. */
+	   Overflow visible so the per-button tooltips are never clipped.
+	   Border radius removed to match lending page table styling. */
 	.recurring-table {
 		background: var(--color-surface);
 		border: 1px solid var(--line);
-		border-radius: 22px;
+		border-radius: 0;
 		box-shadow: 0 8px 28px rgba(79, 157, 136, 0.12);
 		overflow: visible;
 	}
@@ -312,7 +312,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 		padding: 0 12px;
 		min-height: 42px;
 		background: var(--mint-tint);
-		border-radius: 22px 22px 0 0;
+		border-radius: 0;
 		font-family: var(--font-mono);
 		font-size: 12px;
 		font-weight: 600;
@@ -392,7 +392,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 
 	.recurring-row:last-child {
 		border-bottom: none;
-		border-radius: 0 0 22px 22px;
+		border-radius: 0;
 	}
 
 	/* Row activates first — subtle teal tint (matches Transactions .txn-row:hover),
