@@ -266,8 +266,18 @@
 	);
 	const pageIds = $derived(currentItems.map((item) => item.id));
 	const selectedOnPage = $derived(pageIds.filter((id: number) => selectedIds.has(id)).length);
-	const allSelected = $derived(pageIds.length > 0 && selectedOnPage === pageIds.length);
-	const selectedCount = $derived(selectedIds.size);
+const allSelected = $derived(pageIds.length > 0 && selectedOnPage === pageIds.length);
+const someSelected = $derived(selectedOnPage > 0 && !allSelected);
+const selectedCount = $derived(selectedIds.size);
+
+function setIndeterminate(node: HTMLInputElement, indeterminate: boolean) {
+	node.indeterminate = indeterminate;
+	return {
+		update(indeterminate: boolean) {
+			node.indeterminate = indeterminate;
+		}
+	};
+}
 
 	function toggleSelection(id: number) {
 		const next = new Set(selectedIds);
@@ -710,25 +720,25 @@ function handleEditRecurring(item: RecurringTransaction) {
 		</div>
 
 		<!-- ─── Selection Mode Bulk Bar ─── -->
-		{#if selectionMode}
-			<div class="bulk-bar">
+		{#if selectionMode && pageIds.length > 0}
+			<div
+				class="bulk-bar flip7-card accent-gold"
+				role="toolbar"
+				aria-label={activeView === 'borrowed' ? 'Selected borrowings' : 'Selected recurring transactions'}
+			>
 				<div class="bulk-left">
-					<label class="checkbox-wrapper">
-						<input type="checkbox" checked={allSelected} onclick={toggleAll} />
-						<span class="custom-checkbox"></span>
-					</label>
+					<input
+						type="checkbox"
+						checked={allSelected}
+						use:setIndeterminate={someSelected}
+						onchange={toggleAll}
+						aria-label="Select all items on this page"
+					/>
 					<span class="bulk-count">{selectedCount} selected</span>
 				</div>
 				<div class="bulk-actions">
-					{#if selectedCount > 0}
-						<button
-							class="btn-bulk-delete"
-							onclick={() => (deleteTarget = Array.from(selectedIds))}
-						>
-							Delete Selected ({selectedCount})
-						</button>
-					{/if}
-					<button class="btn-cancel-bulk" onclick={exitSelectionMode}>Cancel</button>
+					<Button variant="danger" size="sm" disabled={selectedCount === 0} onclick={() => (deleteTarget = Array.from(selectedIds))}>Delete Selected</Button>
+					<Button variant="ghost" size="sm" onclick={exitSelectionMode}>Cancel</Button>
 				</div>
 			</div>
 		{/if}
@@ -1279,45 +1289,85 @@ function handleEditRecurring(item: RecurringTransaction) {
 		color: var(--color-ink, #0f172a);
 	}
 
-	/* Bulk Bar */
+	/* ─── Bulk selection action bar (Selection Mode only) ─── */
 	.bulk-bar {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: var(--space-sm);
 		padding: var(--space-sm) var(--space-md);
-		background: var(--color-teal-bg, #f0fdf4);
-		border-bottom: 1px solid var(--color-hairline, #bbf7d0);
+		margin-top: var(--space-md);
+		margin-bottom: var(--space-md);
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-xl);
+		box-shadow: var(--shadow-sm);
+		animation: bulkIn 200ms var(--ease) both;
+	}
+
+	/* Flatten the bar into the table card — same treatment as the lending/transactions pages */
+	.table-card-wrapper .bulk-bar {
+		margin: 0;
+		padding: var(--space-sm) var(--space-lg);
+		border-top: none;
+		border-left: none;
+		border-right: none;
+		border-bottom: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
+		border-radius: 0;
+		box-shadow: none;
+		background: var(--color-surface, #ffffff);
+	}
+
+	[data-theme="dark"] .table-card-wrapper .bulk-bar {
+		background: var(--color-surface, #0f172a);
+		border-bottom-color: rgba(51, 65, 85, 0.7);
 	}
 
 	.bulk-left {
 		display: flex;
 		align-items: center;
 		gap: var(--space-sm);
+		min-height: 44px;
+	}
+
+	.bulk-left input[type='checkbox'] {
+		width: 18px;
+		height: 18px;
+		margin: 0;
+		accent-color: var(--color-teal);
+		cursor: pointer;
 	}
 
 	.bulk-count {
-		font-size: 13px;
-		font-weight: 700;
-		color: var(--color-teal-dark, #047857);
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
+		color: var(--color-teal);
+		letter-spacing: 0.02em;
 	}
 
-	.btn-bulk-delete {
-		background: var(--color-expense, #ef4444);
-		color: #ffffff;
-		border: none;
-		padding: 6px 14px;
-		border-radius: var(--radius-md, 6px);
-		font-size: 13px;
-		font-weight: 600;
-		cursor: pointer;
+	.bulk-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-xs);
+		flex-wrap: wrap;
 	}
 
-	.btn-cancel-bulk {
-		background: transparent;
-		border: none;
-		color: var(--color-text-muted, #64748b);
-		font-size: 13px;
-		cursor: pointer;
+	.bulk-bar :global(.btn) {
+		min-height: 44px;
+	}
+
+	@keyframes bulkIn {
+		from {
+			opacity: 0;
+			transform: translateY(-6px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
 	}
 
 	.table-content-area {
@@ -1405,6 +1455,19 @@ function handleEditRecurring(item: RecurringTransaction) {
 		.header-main {
 			flex-direction: column;
 			align-items: flex-start;
+		}
+
+		.bulk-bar {
+			align-items: stretch;
+			flex-direction: column;
+			gap: var(--space-sm);
+		}
+
+		.bulk-actions {
+			display: grid;
+			grid-template-columns: repeat(2, 1fr);
+			gap: var(--space-xs);
+			width: 100%;
 		}
 
 		.table-pager {
