@@ -16,8 +16,9 @@
 	import SlideOver from '$lib/client/components/SlideOver.svelte';
 	import RecordMoneyModal from '$lib/client/components/RecordMoneyModal.svelte';
 	import TransactionImpactFlash from '$lib/client/components/TransactionImpactFlash.svelte';
-	import RecurringForm from '$lib/client/components/RecurringForm.svelte';
+import MobileMoneyPunchOverlay, { type PunchType } from '$lib/client/components/dashboard/MobileMoneyPunchOverlay.svelte';
 	import ImportWizard from '$lib/client/components/ImportWizard.svelte';
+	import RecurringForm from '$lib/client/components/RecurringForm.svelte';
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
 	import { generateTransactionPdf } from '$lib/client/utils/pdf';
 	import { formatCurrency, formatDate } from '$lib/client/utils/format';
@@ -43,6 +44,7 @@
 	let isFormOpen = $state(false);
 	let editingTransaction = $state<Transaction | null>(null);
 	let impactData = $state<{ type: TransactionType; amount: number; categoryName: string } | null>(null);
+let punchData = $state<{ type: PunchType; amount: number } | null>(null);
 
 	function openAddForm() {
 		editingTransaction = null;
@@ -919,11 +921,19 @@
 	action={editingTransaction ? `?/update` : `?/create`}
 	onClose={closeForm}
 	onSuccess={(payload) => {
-		const isEdit = !!editingTransaction;
-		closeForm();
-		invalidateAll();
-		if (!isEdit && payload && payload.amount > 0) {
+		if (payload && payload.amount > 0) {
 			impactData = payload;
+			// Also trigger MobileMoneyPunchOverlay (full-screen particle animation)
+			const punchType: PunchType = payload.type === 'income' ? 'income' : 'spent';
+			punchData = { type: punchType, amount: payload.amount };
+			// Wait for Impact Flash animation to complete (2s, reduced: 1.2s) before closing & refreshing
+			setTimeout(() => {
+				closeForm();
+				invalidateAll();
+			}, 2100);
+		} else {
+			closeForm();
+			invalidateAll();
 		}
 	}}
 />
@@ -934,6 +944,14 @@
 		amount={impactData.amount}
 		categoryName={impactData.categoryName}
 		onComplete={() => (impactData = null)}
+	/>
+{/if}
+
+{#if punchData}
+	<MobileMoneyPunchOverlay
+		type={punchData.type}
+		amount={punchData.amount}
+		onComplete={() => (punchData = null)}
 	/>
 {/if}
 

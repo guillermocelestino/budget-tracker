@@ -15,7 +15,6 @@
 
 <MoneyCommittedModal
 	open={true}
-	initialMode="scheduled"
 	categories={data.categories ?? []}
 	onClose={() => goto('/recurring')}
 	onSuccess={() => goto('/recurring')}

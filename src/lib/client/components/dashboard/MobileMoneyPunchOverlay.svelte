@@ -2,7 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { formatCurrency } from '$lib/client/utils/format';
 
-	export type PunchType = 'spent' | 'lent' | 'repaid';
+	export type PunchType = 'spent' | 'income' | 'lent' | 'repaid';
 
 	let {
 		type = 'spent',
@@ -25,7 +25,18 @@
 					subtitle: 'money left your pocket',
 					accentColor: 'var(--color-coral, #ef4444)',
 					glowColor: 'rgba(239, 108, 74, 0.35)',
-					particleColor: 'rgba(239, 108, 74, 0.7)'
+					particleColor: 'rgba(239, 108, 74, 0.7)',
+					particleDirection: 'down' as const
+				};
+			case 'income':
+				return {
+					icon: '💰',
+					title: 'MONEY IN',
+					subtitle: 'money entered your pocket',
+					accentColor: 'var(--color-teal, #2BA8A2)',
+					glowColor: 'rgba(43, 168, 162, 0.35)',
+					particleColor: 'rgba(43, 168, 162, 0.7)',
+					particleDirection: 'up' as const
 				};
 			case 'lent':
 				return {
@@ -34,7 +45,8 @@
 					subtitle: 'money left your hands',
 					accentColor: 'var(--color-gold, #f59e0b)',
 					glowColor: 'rgba(255, 210, 63, 0.35)',
-					particleColor: 'rgba(255, 210, 63, 0.7)'
+					particleColor: 'rgba(255, 210, 63, 0.7)',
+					particleDirection: 'down' as const
 				};
 			case 'repaid':
 				return {
@@ -43,7 +55,8 @@
 					subtitle: 'an obligation left your pocket',
 					accentColor: '#f97316',
 					glowColor: 'rgba(249, 115, 22, 0.35)',
-					particleColor: 'rgba(249, 115, 22, 0.7)'
+					particleColor: 'rgba(249, 115, 22, 0.7)',
+					particleDirection: 'down' as const
 				};
 			default:
 				return {
@@ -52,7 +65,8 @@
 					subtitle: 'money left your pocket',
 					accentColor: 'var(--color-coral, #ef4444)',
 					glowColor: 'rgba(239, 108, 74, 0.35)',
-					particleColor: 'rgba(239, 108, 74, 0.7)'
+					particleColor: 'rgba(239, 108, 74, 0.7)',
+					particleDirection: 'down' as const
 				};
 		}
 	});
@@ -97,6 +111,7 @@
 		{#each particles as p (p.id)}
 			<div
 				class="leak-particle"
+				class:upward={config.particleDirection === 'up'}
 				style:left="{p.left}%"
 				style:width="{p.width}px"
 				style:height="{p.height}px"
@@ -166,6 +181,10 @@
 		animation: particleLeak var(--p-duration) cubic-bezier(0.25, 0.46, 0.45, 0.94) var(--p-delay) infinite;
 	}
 
+	.leak-particle.upward {
+		animation: particleLeakUp var(--p-duration) cubic-bezier(0.25, 0.46, 0.45, 0.94) var(--p-delay) infinite;
+	}
+
 	@keyframes particleLeak {
 		0% {
 			transform: translateY(-10vh);
@@ -176,6 +195,20 @@
 		}
 		100% {
 			transform: translateY(110vh);
+			opacity: 0;
+		}
+	}
+
+	@keyframes particleLeakUp {
+		0% {
+			transform: translateY(110vh);
+			opacity: 0;
+		}
+		15% {
+			opacity: var(--p-opacity, 0.8);
+		}
+		100% {
+			transform: translateY(-10vh);
 			opacity: 0;
 		}
 	}

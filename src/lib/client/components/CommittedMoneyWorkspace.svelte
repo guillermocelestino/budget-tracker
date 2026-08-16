@@ -13,8 +13,8 @@
 	import ActiveIouList from '$lib/client/components/ActiveIouList.svelte';
 	import RecurringList from '$lib/client/components/RecurringList.svelte';
 	import MoneyCommittedModal from '$lib/client/components/MoneyCommittedModal.svelte';
-	import LendingForm from '$lib/client/components/LendingForm.svelte';
-	import SlideOver from '$lib/client/components/SlideOver.svelte';
+	import BorrowedMoneyModal from '$lib/client/components/BorrowedMoneyModal.svelte';
+	import RecurringForm from '$lib/client/components/RecurringForm.svelte';
 	import RecordPaymentModal from '$lib/client/components/RecordPaymentModal.svelte';
 	import PaymentHistoryPanel from '$lib/client/components/PaymentHistoryPanel.svelte';
 	import EditPaymentModal from '$lib/client/components/EditPaymentModal.svelte';
@@ -369,53 +369,49 @@
 		return `Showing ${start}–${end} of ${total}`;
 	});
 
-	// ─── MODAL STATES & HANDLERS ───
-	// Borrowed Modals
-	let showLendingPanel = $state(false);
-	let editingLending = $state<Lending | null>(null);
-	let recordPaymentLending = $state<LendingWithPayments | null>(null);
-	let historyLending = $state<LendingWithPayments | null>(null);
-	let historyPayments = $state<LendingPayment[]>([]);
-	let historyOpen = $state(false);
-	let editPaymentLending = $state<LendingWithPayments | null>(null);
-	let editPayment = $state<LendingPayment | null>(null);
-	let deletePayment = $state<LendingPayment | null>(null);
-	let editingLendingHasPayments = $state(false);
-	let importWizardOpen = $state(false);
+// ─── MODAL STATES & HANDLERS ───
+// Borrowed Modals
+let showBorrowedModal = $state(false);
+let editingLending = $state<Lending | null>(null);
+let recordPaymentLending = $state<LendingWithPayments | null>(null);
+let historyLending = $state<LendingWithPayments | null>(null);
+let historyPayments = $state<LendingPayment[]>([]);
+let historyOpen = $state(false);
+let editPaymentLending = $state<LendingWithPayments | null>(null);
+let editPayment = $state<LendingPayment | null>(null);
+let deletePayment = $state<LendingPayment | null>(null);
+let importWizardOpen = $state(false);
 
-	// Recurring Modals
-	let showAddRecurringModal = $state(false);
-	let recurringModalMode = $state<'scheduled' | 'debt'>('scheduled');
+// Recurring Modals
+let showAddRecurringModal = $state(false);
+let editingRecurring = $state<RecurringTransaction | null>(null);
 
-	// Delete Modal (shared target)
-	let deleteTarget = $state<number | number[] | null>(null);
+// Delete Modal (shared target)
+let deleteTarget = $state<number | number[] | null>(null);
 
-	// Trigger + Add CTA based on active view
-	function handlePrimaryAdd() {
-		if (activeView === 'borrowed') {
-			editingLending = null;
-			editingLendingHasPayments = false;
-			showLendingPanel = true;
-		} else {
-			recurringModalMode = 'scheduled';
-			showAddRecurringModal = true;
-		}
+// Trigger + Add CTA based on active view
+function handlePrimaryAdd() {
+	if (activeView === 'borrowed') {
+		editingLending = null;
+		showBorrowedModal = true;
+	} else {
+		showAddRecurringModal = true;
 	}
+}
 
-	// Borrowed Actions
-	function handlePayBorrowed(id: number) {
-		const target = (data.lendings ?? []).find((l) => l.id === id);
-		if (target) recordPaymentLending = target;
-	}
+// Borrowed Actions
+function handlePayBorrowed(id: number) {
+	const target = (data.lendings ?? []).find((l) => l.id === id);
+	if (target) recordPaymentLending = target;
+}
 
-	function handleEditBorrowed(id: number) {
-		const target = (data.lendings ?? []).find((l) => l.id === id);
-		if (target) {
-			editingLending = target;
-			editingLendingHasPayments = (target.payments ?? []).length > 0;
-			showLendingPanel = true;
-		}
+function handleEditBorrowed(id: number) {
+	const target = (data.lendings ?? []).find((l) => l.id === id);
+	if (target) {
+		editingLending = target;
+		showBorrowedModal = true;
 	}
+}
 
 	function handleDeleteBorrowed(id: number) {
 		deleteTarget = id;
@@ -461,10 +457,10 @@
 		historyOpen = true;
 	}
 
-	// Recurring Actions
-	function handleEditRecurring(item: RecurringTransaction) {
-		goto(`/recurring/${item.id}`);
-	}
+// Recurring Actions
+function handleEditRecurring(item: RecurringTransaction) {
+	editingRecurring = item;
+}
 
 	function handleDeleteRecurring(id: number) {
 		deleteTarget = id;
@@ -598,7 +594,7 @@
 				</div>
 			</div>
 
-			<!-- ─── View Switcher Segmented Control ─── -->
+			<!-- ─── View Switcher Segmented Control + Domain-Specific Add CTA ─── -->
 			<div class="switcher-wrapper">
 				<div class="segmented-control" role="radiogroup" aria-label="Select Committed Money View">
 					<button
@@ -624,6 +620,14 @@
 						<span class="seg-badge">{recurringActiveCount}</span>
 					</button>
 				</div>
+				<button
+					type="button"
+					class="header-add-cta"
+					onclick={handlePrimaryAdd}
+					aria-label={activeView === 'borrowed' ? 'Add Borrowed' : 'Add Recurring'}
+				>
+					{activeView === 'borrowed' ? '+ Add Borrowed' : '+ Add Recurring'}
+				</button>
 			</div>
 		</header>
 
@@ -736,7 +740,7 @@
 					<EmptyState
 						title="No borrowed money records"
 						description="You don't have any money borrowed from lenders matching current filters."
-						actionLabel="+ Add Borrowing"
+						actionLabel="+ Add Borrowed"
 						onAction={handlePrimaryAdd}
 					/>
 				{:else}
@@ -759,7 +763,7 @@
 					<EmptyState
 						title="No recurring commitments"
 						description="You haven't scheduled any recurring financial commitments yet."
-						actionLabel="+ Add Commitment"
+						actionLabel="+ Add Recurring"
 						onAction={handlePrimaryAdd}
 					/>
 				{:else}
@@ -838,44 +842,23 @@
 		{/if}
 	</div>
 
-	<!-- Sticky Right-Side Floating Action Button (Desktop) -->
-	<button
-		type="button"
-		class="desktop-fab-add"
-		onclick={handlePrimaryAdd}
-		aria-label={activeView === 'borrowed' ? 'Add borrowing' : 'Add commitment'}
-		title={activeView === 'borrowed' ? 'Add borrowing' : 'Add commitment'}
-	>
-		<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-			<line x1="12" y1="5" x2="12" y2="19"/>
-			<line x1="5" y1="12" x2="19" y2="12"/>
-		</svg>
-		<span class="fab-tooltip" role="tooltip">{activeView === 'borrowed' ? 'Add borrowing' : 'Add commitment'}</span>
-	</button>
-</div>
+	</div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
      MODAL DIALOGS (REUSED INFRASTRUCTURE)
      ═══════════════════════════════════════════════════════════════════════════ -->
 
-<!-- Borrowed Form SlideOver -->
-<SlideOver
-	isOpen={showLendingPanel}
-	title={editingLending ? 'Edit Borrowing' : 'New Borrowing'}
-	onClose={() => (showLendingPanel = false)}
->
-	<LendingForm
-		lendingRecord={editingLending ?? undefined}
-		direction="borrowed"
-		hasPayments={editingLendingHasPayments}
-		onSuccess={() => {
-			showLendingPanel = false;
-			invalidateAll();
-		}}
-		onCancel={() => (showLendingPanel = false)}
-	/>
-</SlideOver>
+<!-- Borrowed Create/Edit Modal (dedicated domain modal) -->
+<BorrowedMoneyModal
+	open={showBorrowedModal}
+	lendingRecord={editingLending ?? undefined}
+	onClose={() => (showBorrowedModal = false)}
+	onSuccess={() => {
+		showBorrowedModal = false;
+		invalidateAll();
+	}}
+/>
 
 <!-- Record Payment Modal -->
 {#if recordPaymentLending}
@@ -951,10 +934,9 @@
 	/>
 {/if}
 
-<!-- Recurring Modal (Add Commitment / Add Debt) -->
+<!-- Recurring Create Modal (dedicated domain modal) -->
 <MoneyCommittedModal
 	open={showAddRecurringModal}
-	initialMode={recurringModalMode}
 	categories={data.categories ?? []}
 	onClose={() => (showAddRecurringModal = false)}
 	onSuccess={() => {
@@ -962,6 +944,28 @@
 		invalidateAll();
 	}}
 />
+
+<!-- Recurring Edit Modal (dedicated domain modal) -->
+{#if editingRecurring}
+	<ModalDialog
+		open={true}
+		title="Edit Recurring Transaction"
+		subtitle="Modify the recurring template"
+		size="wide"
+		onclose={() => (editingRecurring = null)}
+	>
+		<RecurringForm
+			categories={data.categories ?? []}
+			recurring={editingRecurring}
+			action={`/recurring/${editingRecurring.id}?/update`}
+			onSuccess={() => {
+				editingRecurring = null;
+				invalidateAll();
+			}}
+			onCancel={() => (editingRecurring = null)}
+		/>
+	</ModalDialog>
+{/if}
 
 <!-- Delete Modal (Shared) -->
 {#if deleteTarget !== null}
@@ -1037,88 +1041,54 @@
 	</ModalDialog>
 {/if}
 
-<style>
-	/* ─── Sticky Right-Side Floating Action Button (Desktop) ─── */
-	.desktop-fab-add {
-		position: fixed;
-		right: 16px;
-		top: 50%;
-		transform: translateY(-50%);
-		z-index: var(--z-sidebar, 90);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 56px;
-		height: 56px;
-		border-radius: var(--radius-full, 9999px);
-		background: var(--color-money-committed, #D97706);
-		color: var(--color-ink-inverse, #ffffff);
-		border: 1px solid rgba(255, 255, 255, 0.4);
-		box-shadow: 0 4px 20px rgba(217, 119, 6, 0.45), 0 2px 8px rgba(20, 48, 46, 0.12);
-		cursor: pointer;
-		outline: none;
-		transition: transform 200ms var(--ease), box-shadow 200ms var(--ease), background 200ms var(--ease);
-		-webkit-tap-highlight-color: transparent;
-	}
-
-	.desktop-fab-add:hover {
-		background: #F59E0B;
-		box-shadow: 0 8px 28px rgba(217, 119, 6, 0.60), 0 4px 12px rgba(20, 48, 46, 0.16);
-		transform: translateY(-50%) scale(1.08);
-	}
-
-	.desktop-fab-add:active {
-		transform: translateY(-50%) scale(0.95);
-		box-shadow: 0 2px 10px rgba(217, 119, 6, 0.35);
-	}
-
-	.desktop-fab-add:focus-visible {
-		outline: 3px solid var(--color-teal, #2BA8A2);
-		outline-offset: 3px;
-	}
-
-	.fab-tooltip {
-		position: absolute;
-		right: calc(100% + 12px);
-		top: 50%;
-		transform: translateY(-50%) translateX(6px);
-		background: var(--color-ink, #14302E);
-		color: var(--color-ink-inverse, #ffffff);
-		font-family: var(--font-body);
-		font-size: var(--font-size-xs, 0.75rem);
-		font-weight: 600;
-		padding: 6px 12px;
-		border-radius: var(--radius-md, 8px);
-		white-space: nowrap;
-		pointer-events: none;
-		opacity: 0;
-		visibility: hidden;
-		transition: opacity 180ms var(--ease), transform 180ms var(--ease), visibility 180ms var(--ease);
-		box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
-	}
-
-	.desktop-fab-add:hover .fab-tooltip,
-	.desktop-fab-add:focus-visible .fab-tooltip {
-		opacity: 1;
-		visibility: visible;
-		transform: translateY(-50%) translateX(0);
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.desktop-fab-add,
-		.fab-tooltip {
-			transition: none;
+	<style>
+		/* ─── Domain-Specific Add CTA (Header) ─── */
+		.header-add-cta {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			height: 40px;
+			padding: 0 20px;
+			border-radius: var(--radius-pill, 9999px);
+			background: var(--color-money-committed, #D97706);
+			color: var(--color-ink-inverse, #ffffff);
+			border: 1px solid rgba(255, 255, 255, 0.4);
+			font-family: var(--font-display);
+			font-size: 13px;
+			font-weight: 800;
+			letter-spacing: 0.04em;
+			cursor: pointer;
+			box-shadow: 0 4px 20px rgba(217, 119, 6, 0.45), 0 2px 8px rgba(20, 48, 46, 0.12);
+			transition: transform 200ms var(--ease), box-shadow 200ms var(--ease), background 200ms var(--ease);
+			-webkit-tap-highlight-color: transparent;
+			white-space: nowrap;
 		}
-		.desktop-fab-add:hover {
-			transform: translateY(-50%);
-		}
-	}
 
-	@media (max-width: 768px) {
-		.desktop-fab-add {
-			display: none !important;
+		.header-add-cta:hover {
+			background: #F59E0B;
+			box-shadow: 0 8px 28px rgba(217, 119, 6, 0.60), 0 4px 12px rgba(20, 48, 46, 0.16);
+			transform: translateY(-1px);
 		}
-	}
+
+		.header-add-cta:active {
+			transform: translateY(0) scale(0.97);
+			box-shadow: 0 2px 10px rgba(217, 119, 6, 0.35);
+		}
+
+		.header-add-cta:focus-visible {
+			outline: 3px solid var(--color-teal, #2BA8A2);
+			outline-offset: 3px;
+		}
+
+		@media (prefers-reduced-motion: reduce) {
+			.header-add-cta {
+				transition: none;
+			}
+			.header-add-cta:hover {
+				transform: none;
+			}
+		}
+
 
 	/* ═══════════════════════════════════════════════════════════════════════════
      COMMITTED MONEY WORKSPACE STYLES (Flip7 Design System)
@@ -1170,6 +1140,9 @@
 	.switcher-wrapper {
 		display: flex;
 		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-md);
+		flex-wrap: wrap;
 	}
 
 	.segmented-control {
@@ -1457,16 +1430,4 @@
 		border-color: var(--color-hairline);
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 	}
-
-	[data-theme="dark"] .desktop-fab-add.flip7-card.accent-gold {
-		background: var(--color-money-committed);
-		border-color: rgba(255, 255, 255, 0.4);
-		box-shadow: 0 4px 20px rgba(217, 119, 6, 0.45), 0 2px 8px rgba(0, 0, 0, 0.20);
-	}
-
-	[data-theme="dark"] .desktop-fab-add.flip7-card.accent-gold:hover {
-		background: #F59E0B;
-		box-shadow: 0 8px 28px rgba(217, 119, 6, 0.60), 0 4px 12px rgba(0, 0, 0, 0.25);
-		transform: translateY(-50%) scale(1.08);
-	}
-</style>
+	</style>

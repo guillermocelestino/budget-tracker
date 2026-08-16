@@ -149,12 +149,12 @@
 			submitting = false;
 			if (result.type === 'redirect' || result.type === 'success') {
 				showSuccess(transaction ? 'Transaction updated' : `${type === 'income' ? 'Income' : 'Expense'} recorded!`);
+				// Let parent handle closing (with delay for Impact Flash) - don't close here
 				onSuccess?.({
 					type,
 					amount: numericAmount,
 					categoryName: selectedCategory?.name ?? ''
 				});
-				close();
 			} else if (result.type === 'failure') {
 				const errMsg = result.data?.errors
 					? Object.values(result.data.errors).join(', ')

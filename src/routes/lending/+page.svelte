@@ -21,6 +21,7 @@
 	import LendingFilterToolbar from '$lib/client/components/LendingFilterToolbar.svelte';
 	import LendingFilters from '$lib/client/components/LendingFilters.svelte';
 	import ImportWizard from '$lib/client/components/ImportWizard.svelte';
+	import MobileMoneyPunchOverlay, { type PunchType } from '$lib/client/components/dashboard/MobileMoneyPunchOverlay.svelte';
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
 	import { downloadCsv, lendingsToCSV } from '$lib/client/utils/csv';
 	import { generateLendingPdf } from '$lib/client/utils/pdf';
@@ -46,6 +47,7 @@
 	let deletePayment = $state<LendingPayment | null>(null);
 	let filtersOpen = $state(false);
 	let importWizardOpen = $state(false);
+	let punchData = $state<{ type: PunchType; amount: number } | null>(null);
 
 	// Bulk selection (Selection Mode) — entered via the header overflow menu.
 	// Selection is always page-scoped; clearing happens on page/filter change.
@@ -332,6 +334,12 @@
 		editingLending = null;
 	}
 
+	function handleLendingSuccess(payload: { amount: number }) {
+		// Trigger MobileMoneyPunchOverlay (full-screen particle animation)
+		punchData = { type: 'lent', amount: payload.amount };
+		closePanel();
+	}
+
 	function handleExportCsv() {
 		const csv = lendingsToCSV(showLendings, 'lent');
 		downloadCsv(csv, `lending-${new Date().toISOString().split('T')[0]}.csv`);
@@ -453,7 +461,7 @@
 <SendMoneyAwayModal
 	open={showPanel}
 	onClose={closePanel}
-	onSuccess={closePanel}
+	onSuccess={handleLendingSuccess}
 	lendingRecord={editingLending ?? undefined}
 />
 
@@ -795,6 +803,15 @@
 			</div>
 		</form>
 	</ModalDialog>
+{/if}
+
+<!-- ═══ Money Punch Overlay (after create/edit) ═══ -->
+{#if punchData}
+	<MobileMoneyPunchOverlay
+		type={punchData.type}
+		amount={punchData.amount}
+		onComplete={() => (punchData = null)}
+	/>
 {/if}
 
 <!-- Sticky Right-Side Floating Action Button (Desktop) - matches SpeedDial style -->

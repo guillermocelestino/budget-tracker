@@ -1,7 +1,7 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import FiltersSheet from '$lib/client/components/FiltersSheet.svelte';
-  import type { Snippet } from 'svelte';
+  import { tick, type Snippet } from 'svelte';
 
   /**
    * SearchFilterPill — the unified `[ 🔍 Search | Filter ]` control used on
@@ -39,6 +39,7 @@
   let isMobile = $state(browser && window.matchMedia('(max-width: 768px)').matches);
   let popoverEl = $state<HTMLDivElement | null>(null);
   let filterBtnEl = $state<HTMLButtonElement | null>(null);
+  let popoverPositioned = $state(false);
 
   $effect(() => {
     if (!browser) return;
@@ -48,10 +49,55 @@
     return () => mq.removeEventListener('change', handler);
   });
 
+  // ─── Popover positioning (viewport-clamped, fixed) ────────────────
+  // The popover is position:fixed so it overlays cleanly and is never
+  // clipped by an overflow:hidden ancestor (e.g. the flip7 table cards
+  // that wrap this pill on the Committed Money page). It mounts
+  // `visibility: hidden`, is measured + clamped to the viewport, then
+  // revealed — no position flash. offsetWidth/offsetHeight are layout
+  // sizes, immune to the entrance animation's transform.
+  function positionPopover() {
+    if (!popoverEl || !filterBtnEl) return;
+
+    const btnRect = filterBtnEl.getBoundingClientRect();
+    const menuW = popoverEl.offsetWidth;
+    const menuH = popoverEl.offsetHeight;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // Right-aligned with the Filter trigger, 8px below (same anchor as before)
+    let left = btnRect.right - menuW;
+    let top = btnRect.bottom + 8;
+
+    // Horizontal clamp (never overflow the viewport gutter)
+    const maxLeft = viewportWidth - menuW - 8;
+    if (left > maxLeft) left = Math.max(8, maxLeft);
+    if (left < 8) left = 8;
+
+    // Vertical clamp (flip above the trigger if needed)
+    if (top + menuH > viewportHeight - 8) {
+      const flippedTop = btnRect.top - menuH - 8;
+      top = flippedTop >= 8 ? flippedTop : Math.max(8, viewportHeight - menuH - 8);
+    }
+
+    popoverEl.style.left = `${left}px`;
+    popoverEl.style.top = `${top}px`;
+    popoverPositioned = true;
+  }
+
   // Desktop popover: focus the first control on open; close on outside
-  // click or Escape (returning focus to the Filter button).
+  // click or Escape (returning focus to the Filter button). The popover
+  // is repositioned on resize and (captured) scroll while open so it
+  // stays anchored to the Filter button.
   $effect(() => {
     if (!open || isMobile) return;
+
+    popoverPositioned = false;
+    tick().then(positionPopover);
+
+    const onReposition = () => positionPopover();
+    window.addEventListener('resize', onReposition);
+    window.addEventListener('scroll', onReposition, true);
 
     const raf = requestAnimationFrame(() => {
       popoverEl?.querySelector<HTMLElement>('button, input, select')?.focus();
@@ -75,6 +121,8 @@
 
     return () => {
       cancelAnimationFrame(raf);
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
       document.removeEventListener('click', onClick);
       document.removeEventListener('keydown', onKey);
     };
@@ -129,7 +177,7 @@
       {/if}
     </button>
     {#if open && !isMobile}
-      <div class="filters-popover" id="filters-panel" role="dialog" aria-label="Filters" bind:this={popoverEl}>
+      <div class="filters-popover" class:positioned={popoverPositioned} id="filters-panel" role="dialog" aria-label="Filters" bind:this={popoverEl}>
         {@render panel('popover', closePopover)}
       </div>
     {/if}
@@ -199,11 +247,11 @@
     align-items: center;
   }
 
+  /* Fixed + viewport-clamped so the popover escapes overflow:hidden card
+     wrappers (flip7 table cards) and never spills off-screen. left/top are
+     set inline after measurement; it stays invisible until then. */
   .filters-popover {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    left: auto;
+    position: fixed;
     width: min(380px, calc(100vw - 32px));
     max-height: 70vh;
     overflow-y: auto;
@@ -214,6 +262,12 @@
     z-index: var(--z-modal, 1000);
     padding: var(--space-sm);
     animation: fade-in-up 350ms var(--ease) both;
+    visibility: hidden;
+  }
+
+  /* Revealed only once measured + clamped to the viewport (no position flash) */
+  .filters-popover.positioned {
+    visibility: visible;
   }
 
   /* Sticky Reset/Apply footer matches the cream popover surface */

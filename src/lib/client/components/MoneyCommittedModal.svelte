@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
 	import { tick } from 'svelte';
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
 	import { formatDateInput, formatWithCommas } from '$lib/shared/utils/format';
@@ -7,47 +6,32 @@
 
 	let {
 		open = false,
-		initialMode = 'scheduled',
 		categories = [],
 		onClose,
 		onSuccess
 	}: {
 		open?: boolean;
-		initialMode?: 'scheduled' | 'debt';
 		categories?: Category[];
 		onClose?: () => void;
 		onSuccess?: () => void;
 	} = $props();
 
-	let mode = $state<'scheduled' | 'debt'>('scheduled');
-
-	// Common / Scheduled state
+	// Scheduled (recurring) state
 	let rawAmount = $state('');
 	let description = $state('');
 	let frequency = $state<RecurringFrequency>('monthly');
 	let nextOutflow = $state(formatDateInput());
 	let category_id = $state<number | string>('');
 
-	// Debt / Borrowed state
-	let borrowerName = $state('');
-	let dueDate = $state('');
-	let interestRate = $state('');
-	let notes = $state('');
-
 	let submitting = $state(false);
 	let modalRef = $state<HTMLElement | null>(null);
 
 	$effect(() => {
 		if (open) {
-			mode = initialMode;
 			rawAmount = '';
 			description = '';
 			frequency = 'monthly';
 			nextOutflow = formatDateInput();
-			borrowerName = '';
-			dueDate = '';
-			interestRate = '';
-			notes = '';
 			if (categories.length > 0 && !category_id) {
 				const expenseCat = categories.find((c) => c.type === 'expense');
 				category_id = expenseCat ? expenseCat.id : categories[0].id;
@@ -63,10 +47,6 @@
 
 	const scheduledCtaLabel = $derived(
 		formattedAmount ? `Commit ₱${formattedAmount}` : 'Commit'
-	);
-
-	const debtCtaLabel = $derived(
-		formattedAmount ? `Confirm ₱${formattedAmount} Borrowed Money` : 'Confirm Borrowed Money'
 	);
 
 	function onAmountInput(e: Event) {
@@ -157,28 +137,10 @@
 		}
 	}
 
-	function handleDebtEnhance() {
-		if (submitting) return;
-		submitting = true;
-		return async ({ result, update }: { result: { type: string; data?: { error?: string } }; update: () => Promise<void> }) => {
-			submitting = false;
-			if (result.type === 'success') {
-				showSuccess('Borrowed debt recorded successfully!');
-				onSuccess?.();
-				close();
-			} else if (result.type === 'failure') {
-				showError(result.data?.error || 'Could not record debt.');
-			}
-			await update();
-		};
-	}
-
 	$effect(() => {
 		if (open) {
 			tick().then(() => {
-				const firstInput = modalRef?.querySelector<HTMLElement>(
-					mode === 'scheduled' ? 'input[name="what_description"]' : 'input[name="borrower_name"]'
-				);
+				const firstInput = modalRef?.querySelector<HTMLElement>('input[name="what_description"]');
 				firstInput?.focus();
 			});
 		}
@@ -194,13 +156,9 @@
 			<!-- Header -->
 			<div class="modal-header">
 				<div class="header-badge">MONEY COMMITTED</div>
-				<h2 class="header-title">
-					{mode === 'scheduled' ? 'Add a Commitment' : 'Add a Debt'}
-				</h2>
+				<h2 class="header-title">Add a Commitment</h2>
 				<p class="header-subtitle">
-					{mode === 'scheduled'
-						? "Rent, subscriptions, recurring bills — commit them so future you isn't surprised."
-						: "This isn't gone yet, but it's already spoken for."}
+					Rent, subscriptions, recurring bills — commit them so future you isn't surprised.
 				</p>
 				<button type="button" class="close-btn" onclick={close} aria-label="Close">
 					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -210,242 +168,127 @@
 				</button>
 			</div>
 
-			<!-- Top Mode Toggle Bar (Scheduled vs Debt) -->
-			<div class="mode-toggle-bar">
-				<button
-					type="button"
-					class="toggle-btn"
-					class:active={mode === 'scheduled'}
-					onclick={() => (mode = 'scheduled')}
-				>
-					Scheduled
-				</button>
-				<button
-					type="button"
-					class="toggle-btn"
-					class:active={mode === 'debt'}
-					onclick={() => (mode = 'debt')}
-				>
-					Debt
-				</button>
-			</div>
-
 			<!-- White Card Container -->
 			<div class="form-container">
-				{#if mode === 'scheduled'}
-					<!-- ═══ MODE 1: SCHEDULED COMMITMENT FORM ═══ -->
-					<form onsubmit={submitScheduled}>
-						<!-- Field 1: WHAT? -->
-						<div class="field-group">
-							<label class="field-label" for="what_description">WHAT?</label>
+				<!-- ═══ SCHEDULED COMMITMENT FORM ═══ -->
+				<form onsubmit={submitScheduled}>
+					<!-- Field 1: WHAT? -->
+					<div class="field-group">
+						<label class="field-label" for="what_description">WHAT?</label>
+						<input
+							id="what_description"
+							name="what_description"
+							type="text"
+							required
+							placeholder="e.g. Rent, Netflix, Credit Card"
+							bind:value={description}
+							class="pill-input text-input"
+						/>
+					</div>
+
+					<!-- Field 2: HOW MUCH? -->
+					<div class="field-group">
+						<label class="field-label" for="amount_scheduled">HOW MUCH?</label>
+						<div class="pill-input amount-input-wrap">
+							<span class="currency-prefix">₱</span>
 							<input
-								id="what_description"
-								name="what_description"
+								id="amount_scheduled"
+								name="amount_scheduled"
 								type="text"
+								inputmode="decimal"
 								required
-								placeholder="e.g. Rent, Netflix, Credit Card"
-								bind:value={description}
-								class="pill-input text-input"
+								placeholder="0.00"
+								value={formattedAmount}
+								oninput={onAmountInput}
+								onfocus={onAmountFocus}
+								onblur={onAmountBlur}
+								autocomplete="off"
+								class="amount-input"
 							/>
 						</div>
+					</div>
 
-						<!-- Field 2: HOW MUCH? -->
-						<div class="field-group">
-							<label class="field-label" for="amount_scheduled">HOW MUCH?</label>
-							<div class="pill-input amount-input-wrap">
-								<span class="currency-prefix">₱</span>
-								<input
-									id="amount_scheduled"
-									name="amount_scheduled"
-									type="text"
-									inputmode="decimal"
-									required
-									placeholder="0.00"
-									value={formattedAmount}
-									oninput={onAmountInput}
-									onfocus={onAmountFocus}
-									onblur={onAmountBlur}
-									autocomplete="off"
-									class="amount-input"
-								/>
-							</div>
+					<!-- Field 3: HOW OFTEN? -->
+					<div class="field-group">
+						<label class="field-label" for="frequency_group">HOW OFTEN?</label>
+						<div id="frequency_group" class="freq-pill-row">
+							<button
+								type="button"
+								class="freq-pill"
+								class:active={frequency === 'weekly'}
+								onclick={() => (frequency = 'weekly')}
+							>
+								Weekly
+							</button>
+							<button
+								type="button"
+								class="freq-pill"
+								class:active={frequency === 'daily'}
+								onclick={() => (frequency = 'daily')}
+							>
+								Daily
+							</button>
+							<button
+								type="button"
+								class="freq-pill"
+								class:active={frequency === 'monthly'}
+								onclick={() => (frequency = 'monthly')}
+							>
+								Monthly
+							</button>
+							<button
+								type="button"
+								class="freq-pill"
+								class:active={frequency === 'yearly'}
+								onclick={() => (frequency = 'yearly')}
+							>
+								Yearly
+							</button>
 						</div>
+					</div>
 
-						<!-- Field 3: HOW OFTEN? -->
+					<!-- Field 4: NEXT OUTFLOW -->
+					<div class="field-group">
+						<label class="field-label" for="next_outflow">NEXT OUTFLOW</label>
+						<input
+							id="next_outflow"
+							name="next_outflow"
+							type="date"
+							required
+							bind:value={nextOutflow}
+							class="pill-input date-input"
+						/>
+					</div>
+
+					<!-- Field 5: CATEGORY (Optional) -->
+					{#if categories.length > 0}
 						<div class="field-group">
-							<label class="field-label" for="frequency_group">HOW OFTEN?</label>
-							<div id="frequency_group" class="freq-pill-row">
-								<button
-									type="button"
-									class="freq-pill"
-									class:active={frequency === 'weekly'}
-									onclick={() => (frequency = 'weekly')}
-								>
-									Weekly
-								</button>
-								<button
-									type="button"
-									class="freq-pill"
-									class:active={frequency === 'daily'}
-									onclick={() => (frequency = 'daily')}
-								>
-									Daily
-								</button>
-								<button
-									type="button"
-									class="freq-pill"
-									class:active={frequency === 'monthly'}
-									onclick={() => (frequency = 'monthly')}
-								>
-									Monthly
-								</button>
-								<button
-									type="button"
-									class="freq-pill"
-									class:active={frequency === 'yearly'}
-									onclick={() => (frequency = 'yearly')}
-								>
-									Yearly
-								</button>
-							</div>
+							<label class="field-label" for="category_scheduled">CATEGORY</label>
+							<select
+								id="category_scheduled"
+								class="pill-input select-input"
+								bind:value={category_id}
+							>
+								{#each categories as cat (cat.id)}
+									<option value={cat.id}>{cat.icon} {cat.name}</option>
+								{/each}
+							</select>
 						</div>
+					{/if}
 
-						<!-- Field 4: NEXT OUTFLOW -->
-						<div class="field-group">
-							<label class="field-label" for="next_outflow">NEXT OUTFLOW</label>
-							<input
-								id="next_outflow"
-								name="next_outflow"
-								type="date"
-								required
-								bind:value={nextOutflow}
-								class="pill-input date-input"
-							/>
-						</div>
-
-						<!-- Field 5: CATEGORY (Optional) -->
-						{#if categories.length > 0}
-							<div class="field-group">
-								<label class="field-label" for="category_scheduled">CATEGORY</label>
-								<select
-									id="category_scheduled"
-									class="pill-input select-input"
-									bind:value={category_id}
-								>
-									{#each categories as cat (cat.id)}
-										<option value={cat.id}>{cat.icon} {cat.name}</option>
-									{/each}
-								</select>
-							</div>
+					<!-- Submit CTA Button -->
+					<button
+						type="submit"
+						class="cta-button"
+						disabled={submitting || !description.trim() || parseFloat(rawAmount) <= 0}
+					>
+						{#if submitting}
+							<span>Committing...</span>
+						{:else}
+							<span>{scheduledCtaLabel}</span>
 						{/if}
-
-						<!-- Submit CTA Button -->
-						<button
-							type="submit"
-							class="cta-button"
-							disabled={submitting || !description.trim() || parseFloat(rawAmount) <= 0}
-						>
-							{#if submitting}
-								<span>Committing...</span>
-							{:else}
-								<span>{scheduledCtaLabel}</span>
-							{/if}
-						</button>
-					</form>
-				{:else}
-					<!-- ═══ MODE 2: DEBT / BORROWED FORM ═══ -->
-					<form method="POST" action="/lending?/create" use:enhance={handleDebtEnhance}>
-						<input type="hidden" name="direction" value="borrowed" />
-						<input type="hidden" name="date_lent" value={formatDateInput()} />
-						<input type="hidden" name="amount" value={rawAmount} />
-
-						<!-- Field 1: WHO DID YOU BORROW FROM? -->
-						<div class="field-group">
-							<label class="field-label" for="borrower_name">WHO DID YOU BORROW FROM?</label>
-							<input
-								id="borrower_name"
-								name="borrower_name"
-								type="text"
-								required
-								placeholder="e.g. John"
-								bind:value={borrowerName}
-								class="pill-input text-input"
-							/>
-						</div>
-
-						<!-- Field 2: HOW MUCH? -->
-						<div class="field-group">
-							<label class="field-label" for="amount_debt">HOW MUCH?</label>
-							<div class="pill-input amount-input-wrap">
-								<span class="currency-prefix">₱</span>
-								<input
-									id="amount_debt"
-									name="amount_debt"
-									type="text"
-									inputmode="decimal"
-									required
-									placeholder="0.00"
-									value={formattedAmount}
-									oninput={onAmountInput}
-									onfocus={onAmountFocus}
-									onblur={onAmountBlur}
-									autocomplete="off"
-									class="amount-input"
-								/>
-							</div>
-						</div>
-
-						<!-- Field 3: WHEN IS IT DUE? -->
-						<div class="field-group">
-							<label class="field-label" for="due_date">WHEN IS IT DUE?</label>
-							<input
-								id="due_date"
-								name="due_date"
-								type="date"
-								bind:value={dueDate}
-								class="pill-input date-input"
-							/>
-						</div>
-
-						<!-- Optional Interest & Note Row -->
-						<div class="field-row">
-							<div class="field-group">
-								<input
-									id="interest_rate"
-									name="interest_rate"
-									type="number"
-									step="0.1"
-									placeholder="Interest (optional)"
-									bind:value={interestRate}
-									class="pill-input optional-input"
-								/>
-							</div>
-							<div class="field-group">
-								<input
-									id="notes"
-									name="notes"
-									type="text"
-									placeholder="Note (optional)"
-									bind:value={notes}
-									class="pill-input optional-input"
-								/>
-							</div>
-						</div>
-
-						<!-- Submit CTA Button -->
-						<button
-							type="submit"
-							class="cta-button"
-							disabled={submitting || !borrowerName.trim() || parseFloat(rawAmount) <= 0}
-						>
-							{#if submitting}
-								<span>Recording...</span>
-							{:else}
-								<span>{debtCtaLabel}</span>
-							{/if}
-						</button>
-					</form>
-				{/if}
+					</button>
+				</form>
 			</div>
 		</div>
 	</div>
@@ -554,42 +397,6 @@
 		background: rgba(239, 108, 74, 0.15);
 		color: var(--color-coral, #EF6C4A);
 		transform: rotate(90deg);
-	}
-
-	/* ─── Mode Toggle Bar (Scheduled vs Debt) ─── */
-	.mode-toggle-bar {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 12px;
-		margin-bottom: 18px;
-		flex-shrink: 0;
-	}
-
-	.toggle-btn {
-		height: 48px;
-		border-radius: 999px;
-		border: 1px solid var(--color-hairline, rgba(93, 173, 226, 0.3));
-		font-family: var(--font-display);
-		font-size: 15px;
-		font-weight: 800;
-		cursor: pointer;
-		background: #FFFDF5;
-		color: var(--color-text-muted, #5C7A78);
-		transition: all 200ms var(--bounce, ease);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	[data-theme="dark"] .toggle-btn {
-		background: rgba(255, 255, 255, 0.05);
-	}
-
-	.toggle-btn.active {
-		background: var(--color-gold, #FFD23F);
-		color: #14302E;
-		border-color: transparent;
-		box-shadow: 0 6px 18px rgba(255, 210, 63, 0.4);
 	}
 
 	/* ─── White Form Container ─── */

@@ -3,7 +3,7 @@
 	import { tick } from 'svelte';
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
 	import { formatWithCommas, getToday } from '$lib/shared/utils/format';
-	import type { Lending } from '$lib/types';
+	import type { Lending, LendingPayment } from '$lib/types';
 
 	let {
 		open = false,
@@ -13,48 +13,51 @@
 	}: {
 		open?: boolean;
 		onClose?: () => void;
-		onSuccess?: (payload: { amount: number }) => void;
-		lendingRecord?: Lending & { cash_paid?: number; written_off?: number };
+		onSuccess?: () => void;
+		lendingRecord?: Lending & { cash_paid?: number; written_off?: number; payments?: LendingPayment[] };
 	} = $props();
 
-	let borrowerName = $state('');
+	let lenderName = $state('');
 	let rawAmount = $state('');
 	let interestRate = $state('');
-	let dateLent = $state(getToday());
+	let dateBorrowed = $state(getToday());
 	let dueDate = $state('');
 	let notes = $state('');
 	let recordAsTransaction = $state(false);
+	let submitting = $state(false);
 	let modalRef = $state<HTMLElement | null>(null);
 
-	// Sync state if editing an existing lending record
+	// Sync state if editing an existing borrowing record
 	$effect(() => {
 		if (lendingRecord) {
-			borrowerName = lendingRecord.borrower_name;
+			lenderName = lendingRecord.borrower_name;
 			rawAmount = lendingRecord.amount.toString();
 			interestRate = lendingRecord.interest_rate ? lendingRecord.interest_rate.toString() : '';
-			dateLent = lendingRecord.date_lent;
+			dateBorrowed = lendingRecord.date_lent;
 			dueDate = lendingRecord.due_date ?? '';
 			notes = lendingRecord.notes ?? '';
 		} else if (open) {
 			// Reset on open if creating new
-			borrowerName = '';
+			lenderName = '';
 			rawAmount = '';
 			interestRate = '';
-			dateLent = getToday();
+			dateBorrowed = getToday();
 			dueDate = '';
 			notes = '';
 			recordAsTransaction = false;
 		}
 	});
 
-	// updateLending locks date_lent (and amount) once a lending has payments.
-	// The list rows carry the payment aggregates, so detect the lock from those.
-	const dateLocked = $derived(
+	// updateLending locks amount and date_lent once a borrowing has payments.
+	// The list rows carry the payment aggregates (and payments), so detect the
+	// lock from those — same rule as the lending flow.
+	const paymentLocked = $derived(
 		!!lendingRecord &&
-			((lendingRecord.cash_paid ?? 0) + (lendingRecord.written_off ?? 0)) > 0
+		(((lendingRecord.cash_paid ?? 0) + (lendingRecord.written_off ?? 0)) > 0 ||
+			(lendingRecord.payments ?? []).length > 0)
 	);
 
-	// Dynamic button title: "Send ₱1,111 Away"
+	// Dynamic button title: "Record ₱1,111 Borrowed"
 	const formattedAmount = $derived(
 		rawAmount && !isNaN(parseFloat(rawAmount)) && parseFloat(rawAmount) > 0
 			? formatWithCommas(rawAmount)
@@ -63,8 +66,8 @@
 
 	const submitButtonLabel = $derived(
 		lendingRecord
-			? (formattedAmount ? `Update ₱${formattedAmount} Lending` : 'Update Lending')
-			: (formattedAmount ? `Send ₱${formattedAmount} Away` : 'Send Money Away')
+			? (formattedAmount ? `Update ₱${formattedAmount} Borrowed` : 'Update Borrowed Money')
+			: (formattedAmount ? `Record ₱${formattedAmount} Borrowed` : 'Record Borrowed Money')
 	);
 
 	function onAmountInput(e: Event) {
@@ -96,7 +99,7 @@
 	}
 
 	function close() {
-		onClose?.();
+		if (!submitting) onClose?.();
 	}
 
 	function handleBackdrop(e: MouseEvent) {
@@ -110,10 +113,13 @@
 	}
 
 	function handleEnhance() {
+		if (submitting) return;
+		submitting = true;
 		return async ({ result, update }: { result: { type: string; data?: { error?: string } }; update: () => Promise<void> }) => {
+			submitting = false;
 			if (result.type === 'success') {
-				showSuccess(lendingRecord ? 'Lending updated successfully' : 'Money sent away successfully!');
-				onSuccess?.({ amount: parseFloat(rawAmount) || 0 });
+				showSuccess(lendingRecord ? 'Borrowing updated successfully' : 'Borrowed money recorded successfully!');
+				onSuccess?.();
 				close();
 			} else if (result.type === 'failure') {
 				showError(result.data?.error || 'An error occurred while saving.');
@@ -136,14 +142,14 @@
 
 {#if open}
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div class="modal-backdrop" onclick={handleBackdrop} role="dialog" aria-modal="true" aria-label="Send Money Away">
+	<div class="modal-backdrop" onclick={handleBackdrop} role="dialog" aria-modal="true" aria-label="Borrowed Money">
 		<div class="modal-card" bind:this={modalRef}>
 			<!-- Header -->
 			<div class="modal-header">
-				<div class="header-badge">MONEY AWAY</div>
-				<h2 class="header-title">{lendingRecord ? 'Edit Money Away' : 'Send Money Away'}</h2>
+				<div class="header-badge">MONEY COMMITTED</div>
+				<h2 class="header-title">{lendingRecord ? 'Edit Borrowed Money' : 'Add Borrowed Money'}</h2>
 				<p class="header-subtitle">
-					This money isn't gone. Track exactly who has it and when it should return.
+					You owe this back. Track who you borrowed from and when it's due.
 				</p>
 				<button type="button" class="close-btn" onclick={close} aria-label="Close">
 					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -155,25 +161,25 @@
 
 			<!-- White Card Container -->
 			<div class="form-container">
-				<form method="POST" action={lendingRecord ? '?/update' : '?/create'} use:enhance={handleEnhance}>
+				<form method="POST" action={lendingRecord ? '/borrowed?/update' : '/borrowed?/create'} use:enhance={handleEnhance}>
 					{#if lendingRecord}
 						<input type="hidden" name="id" value={lendingRecord.id} />
 					{/if}
-					<input type="hidden" name="direction" value="lent" />
+					<input type="hidden" name="direction" value="borrowed" />
 					<!-- Submit carrier: the visible date input below has no name (mirrors the
 					     amount field), so a disabled (payment-locked) input still posts. -->
-					<input type="hidden" name="date_lent" value={dateLent} />
+					<input type="hidden" name="date_lent" value={dateBorrowed} />
 
-					<!-- Field 1: Who Did You Lend To? -->
+					<!-- Field 1: Who Did You Borrow From? -->
 					<div class="field-group">
-						<label class="field-label" for="borrower_name">WHO DID YOU LEND TO?</label>
+						<label class="field-label" for="borrower_name">WHO DID YOU BORROW FROM?</label>
 						<input
 							id="borrower_name"
 							name="borrower_name"
 							type="text"
 							required
 							placeholder="Enter name"
-							bind:value={borrowerName}
+							bind:value={lenderName}
 							class="pill-input text-input"
 						/>
 					</div>
@@ -195,35 +201,36 @@
 								onblur={onAmountBlur}
 								autocomplete="off"
 								class="amount-input"
+								disabled={paymentLocked}
 							/>
 						</div>
 						<input type="hidden" name="amount" value={rawAmount} />
 					</div>
 
-					<!-- Field 3: Date Lent -->
+					<!-- Field 3: Date Borrowed -->
 					<div class="field-group">
-						<label class="field-label" for="date_lent">Date Lent</label>
+						<label class="field-label" for="date_lent">Date Borrowed</label>
 						<div class="date-input-wrap">
 							<input
 								id="date_lent"
 								type="date"
 								required
-								bind:value={dateLent}
-								disabled={dateLocked}
-								aria-describedby={dateLocked ? 'date_lent_lock_hint' : undefined}
+								bind:value={dateBorrowed}
+								disabled={paymentLocked}
+								aria-describedby={paymentLocked ? 'date_lent_lock_hint' : undefined}
 								class="pill-input date-input"
 							/>
 						</div>
-						{#if dateLocked}
+						{#if paymentLocked}
 							<p id="date_lent_lock_hint" class="field-hint">
-								Locked — a payment is already recorded for this lending
+								Locked — a payment is already recorded for this borrowing
 							</p>
 						{/if}
 					</div>
 
-					<!-- Field 4: When Should It Return? -->
+					<!-- Field 4: When Is It Due? -->
 					<div class="field-group">
-						<label class="field-label" for="due_date">WHEN SHOULD IT RETURN?</label>
+						<label class="field-label" for="due_date">WHEN IS IT DUE?</label>
 						<div class="date-input-wrap">
 							<input
 								id="due_date"
@@ -264,13 +271,17 @@
 					<div class="checkbox-field">
 						<label class="checkbox-label">
 							<input type="checkbox" name="record_as_transaction" bind:checked={recordAsTransaction} />
-							<span class="checkbox-text">Record repayment as income transaction when returned</span>
+							<span class="checkbox-text">Record repayment as expense transaction when paid</span>
 						</label>
 					</div>
 
 					<!-- Submit Button -->
-					<button type="submit" class="cta-button">
-						{submitButtonLabel}
+					<button type="submit" class="cta-button" disabled={submitting}>
+						{#if submitting}
+							<span>{lendingRecord ? 'Updating...' : 'Recording...'}</span>
+						{:else}
+							<span>{submitButtonLabel}</span>
+						{/if}
 					</button>
 				</form>
 			</div>
@@ -300,15 +311,18 @@
 		max-width: 480px;
 		width: 100%;
 		position: relative;
-		box-shadow: 0 20px 40px rgba(14, 42, 39, 0.15), 0 0 0 1px rgba(93, 173, 226, 0.2);
+		box-shadow: 0 20px 40px rgba(14, 42, 39, 0.15), 0 0 0 1px rgba(217, 119, 6, 0.2);
 		animation: modalPop 280ms var(--bounce, cubic-bezier(0.34, 1.56, 0.64, 1));
 		overflow: hidden;
 		padding: 28px 24px;
+		max-height: calc(100dvh - 40px);
+		display: flex;
+		flex-direction: column;
 	}
 
 	[data-theme="dark"] .modal-card {
 		background: #101715;
-		box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(111, 192, 240, 0.2);
+		box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(245, 158, 11, 0.2);
 	}
 
 	@keyframes modalPop {
@@ -326,6 +340,7 @@
 	.modal-header {
 		position: relative;
 		margin-bottom: 20px;
+		flex-shrink: 0;
 	}
 
 	.header-badge {
@@ -391,6 +406,8 @@
 		padding: 20px;
 		box-shadow: 0 4px 16px rgba(14, 42, 39, 0.04);
 		border: 1px solid var(--color-hairline, rgba(20, 48, 46, 0.08));
+		overflow-y: auto;
+		flex: 1;
 	}
 
 	[data-theme="dark"] .form-container {
@@ -419,7 +436,7 @@
 		width: 100%;
 		height: 48px;
 		border-radius: 14px;
-		border: 1px solid var(--color-hairline, rgba(93, 173, 226, 0.3));
+		border: 1px solid var(--color-hairline, rgba(217, 119, 6, 0.3));
 		background: var(--color-surface, #FFFFFF);
 		color: var(--color-ink, #14302E);
 		padding: 0 16px;
@@ -434,13 +451,13 @@
 	[data-theme="dark"] .pill-input {
 		background: #1A2421;
 		color: #EAF7F5;
-		border-color: rgba(111, 192, 240, 0.25);
+		border-color: rgba(245, 158, 11, 0.25);
 	}
 
 	.pill-input:focus,
 	.pill-input:focus-within {
-		border-color: var(--color-money-away, #5DADE2);
-		box-shadow: 0 0 0 3.5px rgba(93, 173, 226, 0.25);
+		border-color: var(--color-money-committed, #D97706);
+		box-shadow: 0 0 0 3.5px rgba(217, 119, 6, 0.25);
 	}
 
 	.text-input {
@@ -539,7 +556,7 @@
 	}
 
 	.checkbox-label input {
-		accent-color: var(--color-money-away, #5DADE2);
+		accent-color: var(--color-money-committed, #D97706);
 		width: 16px;
 		height: 16px;
 		cursor: pointer;
@@ -555,28 +572,35 @@
 		height: 50px;
 		border-radius: 999px;
 		border: none;
-		background: var(--color-money-away, #5DADE2);
+		background: var(--color-money-committed, #D97706);
 		color: #FFFFFF;
 		font-family: var(--font-display);
 		font-size: 16px;
 		font-weight: 800;
 		letter-spacing: -0.01em;
 		cursor: pointer;
-		box-shadow: 0 6px 20px rgba(93, 173, 226, 0.35);
+		box-shadow: 0 6px 20px rgba(217, 119, 6, 0.35);
 		transition: all 180ms var(--bounce, ease);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 	}
 
-	.cta-button:hover {
+	.cta-button:hover:not(:disabled) {
 		transform: translateY(-1px);
-		box-shadow: 0 8px 24px rgba(93, 173, 226, 0.5);
+		box-shadow: 0 8px 24px rgba(217, 119, 6, 0.5);
 		filter: brightness(1.05);
 	}
 
-	.cta-button:active {
+	.cta-button:active:not(:disabled) {
 		transform: translateY(0) scale(0.98);
+	}
+
+	.cta-button:disabled {
+		opacity: 0.55;
+		cursor: not-allowed;
+		transform: none;
+		box-shadow: none;
 	}
 
 	@media (max-width: 480px) {
