@@ -2,16 +2,14 @@
 	import { page } from '$app/stores';
 	import PageBackground from '$lib/client/components/PageBackground.svelte';
 	import CommandCenterKpiStrip from '$lib/client/components/CommandCenterKpiStrip.svelte';
-	import HeroBalanceWidget from '$lib/client/components/HeroBalanceWidget.svelte';
-	import MobileSummaryRail from '$lib/client/components/MobileSummaryRail.svelte';
 	import CashFlowChart from '$lib/client/components/CashFlowChart.svelte';
 	import CategoryBreakdownWidget from '$lib/client/components/CategoryBreakdownWidget.svelte';
 	import ForecastBanner from '$lib/client/components/ForecastBanner.svelte';
 	import FinancialPositionWidget from '$lib/client/components/FinancialPositionWidget.svelte';
 	import RecentActivityWidget from '$lib/client/components/RecentActivityWidget.svelte';
 	import UpcomingRecurringWidget from '$lib/client/components/UpcomingRecurringWidget.svelte';
+	import MobileDashboard from '$lib/client/components/dashboard/MobileDashboard.svelte';
 	import { formatDate, formatCurrency } from '$lib/client/utils/format';
-	import { getCurrentMonth, getMonthLabel } from '$lib/shared/utils/format';
 
 	let data = $derived($page.data as App.PageData);
 
@@ -48,26 +46,6 @@
 		return { ...rec, label };
 	}));
 
-	// ─── Context subline ───
-	const contextSubline = $derived.by(() => {
-		const monthLabel = getMonthLabel(getCurrentMonth());
-		const rate = Math.round(data.summary?.savingsRate ?? 0);
-		return `${monthLabel} · Savings rate ${rate}%`;
-	});
-
-	// ─── Greeting helper for mobile header ───
-	const greeting = $derived.by(() => {
-		const hour = new Date().getHours();
-		if (hour < 12) return 'Good morning';
-		if (hour < 17) return 'Good afternoon';
-		return 'Good evening';
-	});
-
-	function triggerSearch() {
-		if (typeof window !== 'undefined') {
-			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
-		}
-	}
 </script>
 
 <svelte:head>
@@ -173,116 +151,7 @@
      DEDICATED MOBILE COMPOSITION (viewports <= 768px)
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="mobile-dashboard">
-	<!-- 1. Mobile App Header -->
-	<header class="mobile-app-header">
-		<div class="mobile-header-main">
-			<div class="mobile-greeting-wrap">
-				<h1 class="mobile-greeting">{greeting}</h1>
-				<span class="context-subline">{contextSubline}</span>
-			</div>
-			<button class="mobile-search-btn" onclick={triggerSearch} aria-label="Search transactions">
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-					<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-				</svg>
-			</button>
-		</div>
-	</header>
-
-	<div class="mobile-shell">
-		<!-- 2. Hero Balance Card -->
-		<section class="mobile-section">
-			<HeroBalanceWidget
-				balance={data.summary?.balance ?? 0}
-				totalIncome={data.summary?.totalIncome ?? 0}
-				totalExpenses={data.summary?.totalExpenses ?? 0}
-				savingsRate={data.summary?.savingsRate ?? 0}
-				lendingSummary={data.lendingSummary}
-				incomeChange={data.incomeChange}
-				expenseChange={data.expenseChange}
-			/>
-		</section>
-
-		<!-- 3. Summary Metrics Rail -->
-		<section class="mobile-section">
-			<MobileSummaryRail
-				income={data.summary?.totalIncome ?? 0}
-				incomeChange={data.incomeChange}
-				incomeTrend={data.trendIncome ?? []}
-				incomeLabels={data.trendLabels ?? []}
-				expenses={data.summary?.totalExpenses ?? 0}
-				expenseChange={data.expenseChange}
-				expenseTrend={data.trendExpenses ?? []}
-				expenseLabels={data.trendLabels ?? []}
-				lentOutstanding={data.lendingSummary?.outstanding ?? 0}
-				recovered={data.lendingSummary?.totalRecovered ?? 0}
-				borrowedOutstanding={data.borrowedSummary?.outstanding ?? 0}
-				repaid={data.borrowedSummary?.totalRepaid ?? 0}
-			/>
-		</section>
-
-		<!-- 4. Financial Analysis Section -->
-		<section class="mobile-section">
-			<div class="mobile-section-header">
-				<h2 class="mobile-section-title">Financial Analysis</h2>
-			</div>
-			<div class="mobile-stack">
-				<div class="viz-main flip7-card">
-					<div class="card-header">
-						<h2 class="card-title">Cash Flow Trend</h2>
-						<span class="card-subtitle">Monthly Income vs. Expenses</span>
-					</div>
-					<div class="card-body">
-						<CashFlowChart
-							labels={data.trendLabels ?? []}
-							incomeData={data.trendIncome ?? []}
-							expenseData={data.trendExpenses ?? []}
-						/>
-					</div>
-				</div>
-
-				<div class="viz-side flip7-card">
-					<div class="card-header">
-						<h2 class="card-title">Spending by Category</h2>
-						<span class="card-subtitle">Top Expense Breakdown</span>
-					</div>
-					<div class="card-body">
-						<CategoryBreakdownWidget categories={categoryItems} />
-					</div>
-				</div>
-			</div>
-		</section>
-
-		<!-- 5. Insights & Financial Position Section -->
-		<section class="mobile-section">
-			<div class="mobile-section-header">
-				<h2 class="mobile-section-title">Insights & Position</h2>
-			</div>
-			<div class="mobile-stack">
-				<ForecastBanner
-					currentBalance={data.summary?.balance ?? 0}
-					totalIncome={data.summary?.totalIncome ?? 0}
-					{avgDailySpend}
-					{daysRemaining}
-				/>
-
-				<FinancialPositionWidget
-					netWorth={data.netWorth}
-					lendingSummary={data.lendingSummary}
-					borrowedSummary={data.borrowedSummary}
-				/>
-			</div>
-		</section>
-
-		<!-- 6. Recent Activity Feed -->
-		<section class="mobile-section">
-			<RecentActivityWidget transactions={data.recentTransactions ?? []} />
-		</section>
-
-		<!-- 7. Upcoming Recurring Bills -->
-		<section class="mobile-section">
-			<UpcomingRecurringWidget items={upcomingWithDays} />
-		</section>
-	</div>
+	<MobileDashboard {data} />
 </div>
 
 <style>
@@ -524,103 +393,7 @@
 		}
 
 		.mobile-dashboard {
-			display: flex;
-			flex-direction: column;
-			gap: var(--space-md);
-			padding-bottom: var(--space-2xl);
-		}
-
-		.mobile-app-header {
-			position: sticky;
-			top: 0;
-			z-index: 20;
-			background: var(--color-bg);
-			backdrop-filter: blur(12px);
-			-webkit-backdrop-filter: blur(12px);
-			padding: var(--space-sm) var(--space-md);
-			border-bottom: 1px solid var(--color-hairline);
-			margin-left: calc(-1 * var(--space-md));
-			margin-right: calc(-1 * var(--space-md));
-			margin-top: calc(-1 * var(--space-md));
-			margin-bottom: var(--space-xs);
-		}
-
-		.mobile-header-main {
-			display: flex;
-			align-items: center;
-			justify-content: space-between;
-			gap: var(--space-sm);
-		}
-
-		.mobile-greeting-wrap {
-			display: flex;
-			flex-direction: column;
-			gap: 2px;
-			min-width: 0;
-		}
-
-		.mobile-greeting {
-			font-family: var(--font-display);
-			font-size: var(--font-size-lg);
-			font-weight: var(--font-weight-extrabold);
-			color: var(--color-ink);
-			margin: 0;
-			letter-spacing: var(--letter-spacing-heading);
-			line-height: 1.2;
-		}
-
-		.mobile-search-btn {
-			width: 40px;
-			height: 40px;
-			border-radius: var(--radius-pill);
-			background: var(--color-surface);
-			border: 1px solid var(--color-hairline);
-			color: var(--color-text-muted);
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			cursor: pointer;
-			flex-shrink: 0;
-			box-shadow: var(--shadow-card);
-			transition: all var(--transition-fast);
-		}
-
-		.mobile-search-btn:active {
-			transform: scale(0.92);
-			color: var(--color-teal);
-			background: var(--color-teal-bg);
-		}
-
-		.mobile-shell {
-			display: flex;
-			flex-direction: column;
-			gap: var(--space-lg);
-		}
-
-		.mobile-section {
-			display: flex;
-			flex-direction: column;
-			gap: var(--space-xs);
-		}
-
-		.mobile-section-header {
-			padding: 0 4px;
-			margin-bottom: 2px;
-		}
-
-		.mobile-section-title {
-			font-family: var(--font-display);
-			font-size: 11px;
-			font-weight: 700;
-			text-transform: uppercase;
-			letter-spacing: 0.1em;
-			color: var(--color-text-muted);
-		}
-
-		.mobile-stack {
-			display: flex;
-			flex-direction: column;
-			gap: var(--space-md);
+			display: block;
 		}
 
 		.viz-main, .viz-side {

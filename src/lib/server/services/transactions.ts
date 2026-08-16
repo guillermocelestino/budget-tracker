@@ -982,3 +982,30 @@ export async function getLargestOutflow(
 		category_color: row.category_color ?? undefined
 	};
 }
+
+/** Get daily expense outflows grouped by date for a specific month (YYYY-MM). */
+export async function getDailyOutflows(
+	userId: number,
+	month: string
+): Promise<{ date: string; amount: number }[]> {
+	const db = await getDrizzle();
+	const dateExpr = sql<string>`TO_CHAR(${transactions.date}, 'YYYY-MM-DD')`;
+	const rows = await db
+		.select({
+			date: dateExpr,
+			amount: sql<string>`COALESCE(SUM(${transactions.amount}), 0)`
+		})
+		.from(transactions)
+		.where(and(
+			eq(transactions.user_id, userId),
+			eq(transactions.type, 'expense'),
+			sql`TO_CHAR(${transactions.date}, 'YYYY-MM') = ${month}`
+		))
+		.groupBy(dateExpr)
+		.orderBy(asc(dateExpr));
+
+	return rows.map((r) => ({
+		date: String(r.date),
+		amount: parseFloat(r.amount)
+	}));
+}

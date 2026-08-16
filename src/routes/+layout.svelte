@@ -15,6 +15,7 @@ import SearchModal from '$lib/client/components/SearchModal.svelte';
 
 	const isLoginPage = $derived($page.url.pathname === '/login');
 	const isPublicRoute = $derived($page.url.pathname === '/' && !$page.data.user);
+	const isDashboard = $derived($page.url.pathname === '/dashboard');
 	const showSidebar = $derived(!isLoginPage && !isPublicRoute);
 	const isNoSidebar = $derived(isLoginPage || isPublicRoute);
 
@@ -72,13 +73,13 @@ import SearchModal from '$lib/client/components/SearchModal.svelte';
 		{#if showSidebar}
 			<Sidebar onsearch={() => searchOpen = true} />
 		{/if}
-		<div class="main-area" class:no-sidebar={isNoSidebar}>
+		<div class="main-area" class:no-sidebar={isNoSidebar} class:no-bottom-nav={isDashboard}>
 			<main class="main-content" class:navigating={$navigating} class:no-sidebar={isNoSidebar}>
 				{@render children?.()}
 			</main>
 		</div>
 
-		{#if showSidebar}
+		{#if showSidebar && !isDashboard}
 			<BottomNav />
 		{/if}
 	</div>
@@ -286,6 +287,10 @@ import SearchModal from '$lib/client/components/SearchModal.svelte';
 
 		.main-area.no-sidebar {
 			padding-top: 0;
+			padding-bottom: 0;
+		}
+
+		.main-area.no-bottom-nav {
 			padding-bottom: 0;
 		}
 

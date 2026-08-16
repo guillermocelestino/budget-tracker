@@ -132,5 +132,5 @@ export function countUp(
 	return () => cancelAnimationFrame(rafId);
 }
 
-// Re-export formatWithCommas from shared (pure function)
-export { formatWithCommas } from '$lib/shared/utils/format';
+// Re-export shared pure format utilities
+export { formatWithCommas, getMonthLabel, parseDate, getCurrentMonth } from '$lib/shared/utils/format';
