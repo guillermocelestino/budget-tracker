@@ -206,31 +206,31 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
   // ─── State styling helpers (gold retired → amber; coral → rose) ───
   function stateAccentColor(state: State): string {
     switch (state) {
-      case 'overdue': return 'var(--rose)';
-      case 'due-this-week': return 'var(--color-amber)';
-      case 'later': return 'var(--teal)';
-      case 'paid': return 'var(--color-sky)';
-      default: return 'var(--teal)';
+      case 'overdue': return 'var(--color-coral, #EF6C4A)';
+      case 'due-this-week': return 'var(--color-amber, #F59E0B)';
+      case 'later': return direction === 'borrowed' ? 'var(--color-gold-dark, #D97706)' : 'var(--color-teal, #2BA8A2)';
+      case 'paid': return 'var(--color-sky, #5DADE2)';
+      default: return direction === 'borrowed' ? 'var(--color-gold-dark, #D97706)' : 'var(--color-teal, #2BA8A2)';
     }
   }
 
   function stateBgColor(state: State): string {
     switch (state) {
-      case 'overdue': return 'var(--rose-soft)';
-      case 'due-this-week': return 'var(--color-amber-bg)';
-      case 'later': return 'var(--mint-tint)';
+      case 'overdue': return 'rgba(239, 108, 74, 0.1)';
+      case 'due-this-week': return 'rgba(245, 158, 11, 0.1)';
+      case 'later': return direction === 'borrowed' ? 'rgba(255, 210, 63, 0.15)' : 'var(--color-teal-bg, rgba(43, 168, 162, 0.1))';
       case 'paid': return 'rgba(93, 173, 226, 0.08)';
-      default: return 'var(--mint-tint)';
+      default: return direction === 'borrowed' ? 'rgba(255, 210, 63, 0.15)' : 'var(--color-teal-bg, rgba(43, 168, 162, 0.1))';
     }
   }
 
   function stateTextColor(state: State): string {
     switch (state) {
-      case 'overdue': return 'var(--rose)';
-      case 'due-this-week': return 'var(--color-amber-dark)';
-      case 'later': return 'var(--teal)';
-      case 'paid': return 'var(--color-sky)';
-      default: return 'var(--teal)';
+      case 'overdue': return 'var(--color-coral, #EF6C4A)';
+      case 'due-this-week': return 'var(--color-amber-dark, #D97706)';
+      case 'later': return direction === 'borrowed' ? 'var(--color-gold-dark, #B5791F)' : 'var(--color-teal, #2BA8A2)';
+      case 'paid': return 'var(--color-sky, #5DADE2)';
+      default: return direction === 'borrowed' ? 'var(--color-gold-dark, #B5791F)' : 'var(--color-teal, #2BA8A2)';
     }
   }
 
@@ -248,15 +248,15 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
     if (iou.status === 'paid') return null;
     const days = daysUntilDue(iou.due_date);
     if (days === null) return null;
-    if (days < 0) return { text: `${-days}d overdue`, color: 'var(--rose)' };
-    if (days === 0) return { text: 'Due today', color: 'var(--color-amber)' };
-    if (days <= 7) return { text: `Due in ${days}d`, color: 'var(--color-amber)' };
-    return { text: `Due in ${days}d`, color: 'var(--teal)' };
+    if (days < 0) return { text: `${-days}d overdue`, color: 'var(--color-coral, #EF6C4A)' };
+    if (days === 0) return { text: 'Due today', color: 'var(--color-amber, #F59E0B)' };
+    if (days <= 7) return { text: `Due in ${days}d`, color: 'var(--color-amber, #F59E0B)' };
+    return { text: `Due in ${days}d`, color: direction === 'borrowed' ? 'var(--color-gold-dark, #B5791F)' : 'var(--color-teal, #2BA8A2)' };
   }
 
   // ─── Money direction (rule 2) — lent is money out (− rose), borrowed is in (+ teal) ───
   function moneyDirectionColor(): string {
-    return direction === 'borrowed' ? 'var(--teal)' : 'var(--rose)';
+    return direction === 'borrowed' ? 'var(--color-gold-dark, #B5791F)' : 'var(--color-coral, #EF6C4A)';
   }
 
   function formatDirectionalAmount(amount: number): string {
@@ -507,7 +507,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 
                 <!-- Progress bar -->
                 <div class="iou-progress">
-                  <span class="progress-caption">Collected</span>
+                  <span class="progress-caption">{direction === 'lent' ? 'Collected' : 'Paid'}</span>
                   <div class="progress-track">
                     <div
                       class="progress-fill"
@@ -660,6 +660,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
         {@const state = computeState(iou)}
         {@const cd = countdownLabel(iou)}
         {@const progressPct = iou.amount > 0 ? Math.min((iou.resolved_total / iou.amount) * 100, 100) : 0}
+        {@const pct = Math.round(progressPct)}
         {@const accent = stateAccentColor(state)}
         {@const bg = stateBgColor(state)}
         {@const fg = stateTextColor(state)}
@@ -739,9 +740,9 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
           <div class="row-progress" data-label="Progress">
             <span class="row-progress-group">
               <span class="row-progress-track">
-                <span class="row-progress-fill" style="width: {progressPct}%; background: {accent};"></span>
+                <span class="row-progress-fill" style="width: {pct}%; background: {accent};"></span>
               </span>
-              <span class="row-progress-label">{progressPct}%</span>
+              <span class="row-progress-label">{pct}%</span>
             </span>
           </div>
 
@@ -1222,7 +1223,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
   }
 
   .iou-btn-pay {
-    background: var(--teal);
+    background: var(--color-teal, #2BA8A2);
     color: var(--color-surface);
   }
 
@@ -1650,17 +1651,21 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
   }
 
   .row-progress-track {
-    width: 48px;
-    height: 4px;
-    background: var(--color-hairline);
-    border-radius: var(--radius-pill);
+    display: inline-block;
+    width: 56px;
+    height: 6px;
+    background: var(--color-surface-inset, rgba(20, 48, 46, 0.1));
+    border: 1px solid var(--color-hairline, rgba(20, 48, 46, 0.08));
+    border-radius: 999px;
     overflow: hidden;
+    flex-shrink: 0;
   }
 
   .row-progress-fill {
+    display: block;
     height: 100%;
-    border-radius: var(--radius-pill);
-    transition: width 400ms var(--ease);
+    border-radius: 999px;
+    transition: width 400ms var(--ease, ease);
   }
 
   .row-progress-label {

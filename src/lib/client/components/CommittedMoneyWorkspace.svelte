@@ -21,6 +21,7 @@
 	import DeletePaymentConfirmModal from '$lib/client/components/DeletePaymentConfirmModal.svelte';
 	import ImportWizard from '$lib/client/components/ImportWizard.svelte';
 	import LendingFilters from '$lib/client/components/LendingFilters.svelte';
+	import MobileMoneyPunchOverlay, { type PunchType } from '$lib/client/components/dashboard/MobileMoneyPunchOverlay.svelte';
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
 	import { downloadCsv, lendingsToCSV, transactionsToCSV } from '$lib/client/utils/csv';
 	import { generateBorrowedPdf } from '$lib/client/utils/pdf';
@@ -150,6 +151,7 @@
 	});
 
 	let filtersOpen = $state(false);
+	let punchData = $state<{ type: PunchType; amount: number } | null>(null);
 
 	// Sync filter modifications to URL
 	$effect(() => {
@@ -489,8 +491,19 @@ function handleEditRecurring(item: RecurringTransaction) {
 
 	async function handleRunNowRecurring(id: number) {
 		try {
-			const res = await fetch(`/api/recurring/${id}/run-now`, { method: 'POST' });
-			if (!res.ok) throw new Error('Failed to execute recurring schedule');
+			const res = await fetch(`/api/recurring/${id}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'runNow' })
+			});
+			if (!res.ok) {
+				const errData = await res.json().catch(() => ({}));
+				throw new Error(errData.error || 'Failed to execute recurring schedule');
+			}
+			const data = await res.json();
+			if (data.amount && data.amount > 0) {
+				punchData = { type: 'recurring', amount: data.amount };
+			}
 			showSuccess('Recurring transaction executed');
 			await invalidateAll();
 		} catch (e) {
@@ -864,7 +877,10 @@ function handleEditRecurring(item: RecurringTransaction) {
 	open={showBorrowedModal}
 	lendingRecord={editingLending ?? undefined}
 	onClose={() => (showBorrowedModal = false)}
-	onSuccess={() => {
+	onSuccess={(payload) => {
+		if (!editingLending && payload && payload.amount > 0) {
+			punchData = { type: 'borrowed', amount: payload.amount };
+		}
 		showBorrowedModal = false;
 		invalidateAll();
 	}}
@@ -876,34 +892,63 @@ function handleEditRecurring(item: RecurringTransaction) {
 		lending={recordPaymentLending}
 		direction="borrowed"
 		onclose={() => (recordPaymentLending = null)}
+		onSuccess={(payload) => {
+			if (payload && payload.amount > 0) {
+				punchData = { type: 'repaid', amount: payload.amount };
+			}
+		}}
+	/>
+{/if}
+
+{#if punchData}
+	<MobileMoneyPunchOverlay
+		type={punchData.type}
+		amount={punchData.amount}
+		onComplete={() => (punchData = null)}
 	/>
 {/if}
 
 <!-- Payment History Panel -->
 {#if historyOpen && historyLending}
-	<PaymentHistoryPanel
-		lending={historyLending}
-		payments={historyPayments}
-		direction="borrowed"
-		onRecordPayment={() => {
-			if (historyLending) {
-				recordPaymentLending = historyLending;
-			}
+	<ModalDialog
+		open={historyOpen}
+		title="Payment History"
+		subtitle={historyLending.borrower_name}
+		onclose={() => {
+			historyOpen = false;
+			historyLending = null;
+			historyPayments = [];
 		}}
-		onEditPayment={(paymentId) => {
-			if (historyLending) {
+	>
+		<PaymentHistoryPanel
+			lending={historyLending}
+			payments={historyPayments}
+			direction="borrowed"
+			onRecordPayment={() => {
+				if (historyLending) {
+					historyOpen = false;
+					recordPaymentLending = historyLending;
+				}
+			}}
+			onEditPayment={(paymentId) => {
+				if (historyLending) {
+					const p = historyPayments.find((x) => x.id === paymentId);
+					if (p) {
+						historyOpen = false;
+						editPayment = p;
+						editPaymentLending = historyLending;
+					}
+				}
+			}}
+			onDeletePayment={(paymentId) => {
 				const p = historyPayments.find((x) => x.id === paymentId);
 				if (p) {
-					editPayment = p;
-					editPaymentLending = historyLending;
+					historyOpen = false;
+					deletePayment = p;
 				}
-			}
-		}}
-		onDeletePayment={(paymentId) => {
-			const p = historyPayments.find((x) => x.id === paymentId);
-			if (p) deletePayment = p;
-		}}
-	/>
+			}}
+		/>
+	</ModalDialog>
 {/if}
 
 <!-- Edit Payment Modal -->
@@ -923,6 +968,7 @@ function handleEditRecurring(item: RecurringTransaction) {
 {#if deletePayment}
 	<DeletePaymentConfirmModal
 		payment={deletePayment}
+		direction="borrowed"
 		onclose={() => (deletePayment = null)}
 	/>
 {/if}
@@ -949,7 +995,10 @@ function handleEditRecurring(item: RecurringTransaction) {
 	open={showAddRecurringModal}
 	categories={data.categories ?? []}
 	onClose={() => (showAddRecurringModal = false)}
-	onSuccess={() => {
+	onSuccess={(payload) => {
+		if (payload && payload.amount > 0) {
+			punchData = { type: 'recurring', amount: payload.amount };
+		}
 		showAddRecurringModal = false;
 		invalidateAll();
 	}}
@@ -1061,7 +1110,7 @@ function handleEditRecurring(item: RecurringTransaction) {
 			padding: 0 20px;
 			border-radius: var(--radius-pill, 9999px);
 			background: var(--color-money-committed, #D97706);
-			color: var(--color-ink-inverse, #ffffff);
+			color: #000000;
 			border: 1px solid rgba(255, 255, 255, 0.4);
 			font-family: var(--font-display);
 			font-size: 13px;

@@ -11,13 +11,20 @@ import { formatWithCommas } from '$lib/shared/utils/format';
 		lending,
 		payment,
 		direction = 'lent',
+		action: customAction,
 		onclose,
 	}: {
 		lending: LendingWithPayments;
 		payment: LendingPayment;
 		direction?: 'lent' | 'borrowed';
+		action?: string;
 		onclose?: () => void;
 	} = $props();
+
+	const isBorrowed = $derived(direction === 'borrowed');
+	const formAction = $derived(
+		customAction ?? (isBorrowed ? '/borrowed?/updatePayment' : '/lending?/updatePayment')
+	);
 
 	let rawAmount = $state(payment.amount.toString());
 	let paymentDate = $state(payment.payment_date);
@@ -95,7 +102,7 @@ import { formatWithCommas } from '$lib/shared/utils/format';
 		</div>
 	</div>
 
-	<form method="POST" action="?/updatePayment" use:enhance={handleEnhance}>
+	<form method="POST" action={formAction} use:enhance={handleEnhance}>
 		<input type="hidden" name="payment_id" value={payment.id} />
 		<input type="hidden" name="amount" value={rawAmount} />
 

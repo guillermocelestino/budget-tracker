@@ -552,3 +552,20 @@
   ::view-transition-old(root),
   ::view-transition-new(root) { animation: none; }
 }
+
+/* ═══════════════════════════════════════════════════
+   APPLE TACTILE PRESS PHYSICS (WWDC 2018 Fluid Design)
+   Instant scale response on pointer-down with snappy spring feel.
+   ═══════════════════════════════════════════════════ */
+button:not(:disabled):active,
+.btn:not(:disabled):active,
+.btn-icon:not(:disabled):active,
+.filter-chip:active,
+.seg-btn:active,
+.toggle-btn:active,
+.icon-circle:active,
+.desktop-fab-add:active {
+  transform: scale(0.96);
+  transition: transform 100ms cubic-bezier(0.2, 0, 0, 1) !important;
+}
+

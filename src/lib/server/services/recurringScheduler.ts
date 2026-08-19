@@ -124,7 +124,7 @@ export async function processRecurringTransactions(userId: number): Promise<numb
  * Run a single recurring transaction now (manual trigger)
  * Does NOT change the schedule
  */
-export async function runRecurringNow(userId: number, recurringId: number): Promise<{ success: boolean; error?: string }> {
+export async function runRecurringNow(userId: number, recurringId: number): Promise<{ success: boolean; amount?: number; error?: string }> {
 	const db = await getDrizzle();
 	const [recurring] = await db
 		.select()
@@ -141,17 +141,18 @@ export async function runRecurringNow(userId: number, recurringId: number): Prom
 
 	// Use next_run as the date for the generated transaction
 	const transactionDate = recurring.next_run;
+	const amount = parseFloat(String(recurring.amount));
 
 	// Create the transaction
 	await createTransaction(userId, {
 		type: recurring.type as 'income' | 'expense',
-		amount: parseFloat(String(recurring.amount)),
+		amount,
 		description: recurring.description,
 		date: transactionDate,
 		category_id: recurring.category_id
 	});
 
-	return { success: true };
+	return { success: true, amount };
 }
 
 /**

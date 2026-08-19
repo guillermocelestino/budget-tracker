@@ -97,7 +97,7 @@ export async function POST({ request, params, locals }: { request: Request; para
 				headers: { 'Content-Type': 'application/json' }
 			});
 		}
-		return new Response(JSON.stringify({ success: true }), {
+		return new Response(JSON.stringify({ success: true, amount: result.amount }), {
 			headers: { 'Content-Type': 'application/json' }
 		});
 	}

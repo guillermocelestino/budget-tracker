@@ -8,13 +8,22 @@
 
 	let {
 		lending,
-		direction: _direction = 'lent',
+		direction = 'lent',
+		action: customAction,
 		onclose,
+		onSuccess,
 	}: {
 		lending: LendingWithPayments;
 		direction?: 'lent' | 'borrowed';
+		action?: string;
 		onclose?: () => void;
+		onSuccess?: (payload: { amount: number }) => void;
 	} = $props();
+
+	const isBorrowed = $derived(direction === 'borrowed');
+	const formAction = $derived(
+		customAction ?? (isBorrowed ? '/borrowed?/recordPayment' : '/lending?/recordPayment')
+	);
 
 	let rawAmount = $state('');
 	let paymentDate = $state(getToday());
@@ -23,6 +32,13 @@
 	let paymentType = $state<PaymentType>('payment');
 	let submitting = $state(false);
 	let modalRef = $state<HTMLElement | null>(null);
+
+	let dragY = $state(0);
+	let isDragging = $state(false);
+	let startY = 0;
+	let lastY = 0;
+	let lastTime = 0;
+	let velocityY = 0;
 
 	const inputAmount = $derived(rawAmount ? parseFloat(rawAmount) || 0 : 0);
 	const recoveryPct = $derived(
@@ -47,14 +63,22 @@
 			: ''
 	);
 
+	const headerBadge = $derived(isBorrowed ? 'MONEY COMMITTED' : 'MONEY AWAY');
+	const col2Label = $derived(isBorrowed ? 'PAID' : 'RECOVERED');
+	const formSectionLabel = $derived(isBorrowed ? 'RECORD PAYMENT' : 'RECORD RECOVERY');
+
 	const ctaLabel = $derived(
 		isWriteOff
 			? (formattedInputAmount ? `Record ₱${formattedInputAmount} Write-off` : 'Record Write-off')
-			: (formattedInputAmount ? `Record ₱${formattedInputAmount} Recovered` : 'Mark as Recovered')
+			: (formattedInputAmount
+					? `Record ₱${formattedInputAmount} ${isBorrowed ? 'Payment' : 'Recovered'}`
+					: (isBorrowed ? 'Mark as Paid' : 'Mark as Recovered'))
 	);
 
 	const dueSubtitle = $derived(
-		lending.due_date ? `Expected back ${formatDate(lending.due_date)}` : `Lent on ${formatDate(lending.date_lent)}`
+		lending.due_date
+			? (isBorrowed ? `Due ${formatDate(lending.due_date)}` : `Expected back ${formatDate(lending.due_date)}`)
+			: (isBorrowed ? `Borrowed on ${formatDate(lending.date_lent)}` : `Lent on ${formatDate(lending.date_lent)}`)
 	);
 
 	function onAmountInput(e: Event) {
@@ -86,6 +110,8 @@
 	}
 
 	function close() {
+		dragY = 0;
+		isDragging = false;
 		if (!submitting) onclose?.();
 	}
 
@@ -97,6 +123,56 @@
 		if (e.key === 'Escape') close();
 	}
 
+	function onPointerDown(e: PointerEvent) {
+		if (window.innerWidth > 640) return;
+		const target = e.target as HTMLElement;
+		if (target.closest('button, input, select, textarea, a')) return;
+
+		isDragging = true;
+		startY = e.clientY;
+		lastY = e.clientY;
+		lastTime = performance.now();
+		velocityY = 0;
+
+		if (modalRef) {
+			modalRef.setPointerCapture(e.pointerId);
+		}
+	}
+
+	function onPointerMove(e: PointerEvent) {
+		if (!isDragging) return;
+		const now = performance.now();
+		const dt = now - lastTime;
+		const dy = e.clientY - startY;
+
+		if (dy > 0) {
+			dragY = dy;
+			if (dt > 0) {
+				velocityY = (e.clientY - lastY) / dt;
+			}
+		} else {
+			dragY = dy * 0.2;
+		}
+
+		lastY = e.clientY;
+		lastTime = now;
+	}
+
+	function onPointerUp(e: PointerEvent) {
+		if (!isDragging) return;
+		isDragging = false;
+
+		if (modalRef && modalRef.hasPointerCapture(e.pointerId)) {
+			modalRef.releasePointerCapture(e.pointerId);
+		}
+
+		if (dragY > 100 || velocityY > 0.4) {
+			close();
+		} else {
+			dragY = 0;
+		}
+	}
+
 	function handleEnhance(opts: { cancel: () => void }) {
 		if (submitting) {
 			opts.cancel();
@@ -106,7 +182,12 @@
 		return async ({ result, update }: { result: { type: string; data?: { error?: string } }; update: () => Promise<void> }) => {
 			submitting = false;
 			if (result.type === 'success') {
-				showSuccess(isWriteOff ? 'Write-off recorded' : 'Recovery recorded successfully!');
+				showSuccess(
+					isWriteOff
+						? 'Write-off recorded'
+						: (isBorrowed ? 'Payment recorded successfully!' : 'Recovery recorded successfully!')
+				);
+				onSuccess?.({ amount: inputAmount });
 				onclose?.();
 			} else if (result.type === 'failure') {
 				showError(result.data?.error || 'An error occurred');
@@ -116,6 +197,8 @@
 	}
 
 	$effect(() => {
+		dragY = 0;
+		isDragging = false;
 		tick().then(() => {
 			const amountInput = modalRef?.querySelector<HTMLElement>('input[name="amount_input"]');
 			amountInput?.focus();
@@ -126,11 +209,25 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="modal-backdrop" onclick={handleBackdrop} role="dialog" aria-modal="true" aria-label="Record Recovery">
-	<div class="modal-card" bind:this={modalRef}>
+<div class="modal-backdrop" onclick={handleBackdrop} role="dialog" aria-modal="true" aria-label={isBorrowed ? 'Record Payment' : 'Record Recovery'}>
+	<div
+		class="modal-card"
+		class:dragging={isDragging}
+		bind:this={modalRef}
+		onpointerdown={onPointerDown}
+		onpointermove={onPointerMove}
+		onpointerup={onPointerUp}
+		onpointercancel={onPointerUp}
+		style={dragY > 0 ? `transform: translateY(${dragY}px)` : dragY < 0 ? `transform: translateY(${dragY}px)` : ''}
+	>
+		<!-- Mobile sheet drag handle -->
+		<div class="sheet-grab-bar" aria-hidden="true">
+			<div class="sheet-grab-handle"></div>
+		</div>
+
 		<!-- Header -->
 		<div class="modal-header">
-			<div class="header-badge">MONEY AWAY</div>
+			<div class="header-badge">{headerBadge}</div>
 			<h2 class="header-title">{lending.borrower_name}</h2>
 			<p class="header-subtitle">{dueSubtitle}</p>
 			<button type="button" class="close-btn" onclick={close} aria-label="Close">
@@ -143,18 +240,18 @@
 
 		<div class="modal-scroll-area">
 			<!-- CARD 1: Status & Remaining Card -->
-			<div class="status-card">
+			<div class="status-card" class:borrowed={isBorrowed}>
 				<div class="status-card-header">
 					<span class="status-card-label">REMAINING</span>
-					<span class="remaining-value">{formatCurrency(lending.remaining)}</span>
+					<span class="remaining-value" class:borrowed={isBorrowed}>{formatCurrency(lending.remaining)}</span>
 				</div>
 
 				<!-- Progress Bar -->
 				<div class="progress-container">
 					<div class="progress-track">
-						<div class="progress-fill" style="width: {recoveryPct}%;"></div>
+						<div class="progress-fill" class:borrowed={isBorrowed} style="width: {recoveryPct}%;"></div>
 					</div>
-					<div class="progress-text">{Math.round(recoveryPct)}% recovered</div>
+					<div class="progress-text">{Math.round(recoveryPct)}% {isBorrowed ? 'paid' : 'recovered'}</div>
 				</div>
 
 				<!-- 3-Column Metadata Row -->
@@ -164,7 +261,7 @@
 						<span class="meta-value">{formatCurrency(lending.amount)}</span>
 					</div>
 					<div class="meta-col">
-						<span class="meta-label">RECOVERED</span>
+						<span class="meta-label">{col2Label}</span>
 						<span class="meta-value">{formatCurrency(lending.cash_paid)}</span>
 					</div>
 					<div class="meta-col">
@@ -178,7 +275,7 @@
 
 			<!-- CARD 2: RECORD RECOVERY Form Card -->
 			<div class="form-card">
-				<form method="POST" action="?/recordPayment" use:enhance={handleEnhance}>
+				<form method="POST" action={formAction} use:enhance={handleEnhance}>
 					<input type="hidden" name="lending_id" value={lending.id} />
 					<input type="hidden" name="payment_type" value={paymentType} />
 					<input type="hidden" name="amount" value={rawAmount} />
@@ -189,7 +286,7 @@
 
 					<!-- Section Label & Optional Write-off toggle -->
 					<div class="form-card-head">
-						<span class="form-card-label">RECORD RECOVERY</span>
+						<span class="form-card-label">{formSectionLabel}</span>
 						<div class="mode-toggle">
 							<button
 								type="button"
@@ -247,7 +344,7 @@
 					</div>
 
 					<!-- Submit Button -->
-					<button type="submit" class="cta-button" disabled={!canSubmit || submitting}>
+					<button type="submit" class="cta-button" class:borrowed={isBorrowed} disabled={!canSubmit || submitting}>
 						{#if submitting}
 							<span class="spinner"></span>
 							<span>Saving...</span>
@@ -775,13 +872,65 @@
 		text-transform: uppercase;
 	}
 
-	@media (max-width: 480px) {
-		.modal-card {
-			padding: 20px 16px;
-			border-radius: 24px;
+	/* ─── Borrowed (Money Committed) Overrides ─── */
+	.status-card.borrowed {
+		border-left-color: var(--color-money-committed, #FFD23F);
+	}
+
+	[data-theme="dark"] .status-card.borrowed {
+		border-left-color: var(--color-money-committed, #FFD23F);
+	}
+
+	.remaining-value.borrowed {
+		color: var(--color-gold-dark, #B5791F);
+	}
+
+	[data-theme="dark"] .remaining-value.borrowed {
+		color: var(--color-gold, #FFD23F);
+	}
+
+	.progress-fill.borrowed {
+		background: var(--color-gold, #FFD23F);
+	}
+
+	.cta-button.borrowed {
+		background: var(--color-gold, #FFD23F);
+		color: #14302E;
+		box-shadow: 0 6px 20px rgba(255, 210, 63, 0.4);
+	}
+
+	.cta-button.borrowed:hover:not(:disabled) {
+		box-shadow: 0 8px 24px rgba(255, 210, 63, 0.55);
+	}
+
+	@media (max-width: 640px) {
+		.modal-backdrop {
+			padding: 0;
+			align-items: flex-end;
 		}
+
+		.sheet-grab-bar {
+			display: flex;
+		}
+
+		.modal-card {
+			max-width: 100vw;
+			border-radius: 28px 28px 0 0;
+			border-bottom: none;
+			border-left: none;
+			border-right: none;
+			max-height: 90dvh;
+			padding: 16px;
+			animation: sheet-spring-up 380ms cubic-bezier(0.16, 1, 0.3, 1);
+		}
+
 		.status-card, .form-card, .history-card {
 			padding: 16px;
+		}
+
+		@keyframes sheet-spring-up {
+			from { transform: translateY(100%); }
+			to { transform: translateY(0); }
 		}
 	}
 </style>

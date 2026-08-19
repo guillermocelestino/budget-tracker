@@ -3,6 +3,7 @@ import tseslint from 'typescript-eslint';
 import svelte from 'eslint-plugin-svelte';
 import svelteParser from 'svelte-eslint-parser';
 import globals from 'globals';
+import unusedImports from 'eslint-plugin-unused-imports';
 
 export default tseslint.config(
 	{
@@ -28,7 +29,11 @@ export default tseslint.config(
 	// fire-and-forget `goto()`, plain `<a download>` links); forcing them
 	// would mean broad refactors of working code — revisit separately.
 	{
+		plugins: {
+			'unused-imports': unusedImports,
+		},
 		rules: {
+			'unused-imports/no-unused-imports': 'error',
 			'@typescript-eslint/no-unused-vars': [
 				'error',
 				{

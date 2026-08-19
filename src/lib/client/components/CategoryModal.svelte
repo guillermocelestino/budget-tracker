@@ -94,7 +94,16 @@
 			: 'Organize the expenses that take money out of your pocket.'
 	);
 
+	let dragY = $state(0);
+	let isDragging = $state(false);
+	let startY = 0;
+	let lastY = 0;
+	let lastTime = 0;
+	let velocityY = 0;
+
 	function close() {
+		dragY = 0;
+		isDragging = false;
 		if (!submitting) onClose?.();
 	}
 
@@ -104,6 +113,56 @@
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') close();
+	}
+
+	function onPointerDown(e: PointerEvent) {
+		if (window.innerWidth > 640) return;
+		const target = e.target as HTMLElement;
+		if (target.closest('button, input, select, textarea, a')) return;
+
+		isDragging = true;
+		startY = e.clientY;
+		lastY = e.clientY;
+		lastTime = performance.now();
+		velocityY = 0;
+
+		if (modalRef) {
+			modalRef.setPointerCapture(e.pointerId);
+		}
+	}
+
+	function onPointerMove(e: PointerEvent) {
+		if (!isDragging) return;
+		const now = performance.now();
+		const dt = now - lastTime;
+		const dy = e.clientY - startY;
+
+		if (dy > 0) {
+			dragY = dy;
+			if (dt > 0) {
+				velocityY = (e.clientY - lastY) / dt;
+			}
+		} else {
+			dragY = dy * 0.2;
+		}
+
+		lastY = e.clientY;
+		lastTime = now;
+	}
+
+	function onPointerUp(e: PointerEvent) {
+		if (!isDragging) return;
+		isDragging = false;
+
+		if (modalRef && modalRef.hasPointerCapture(e.pointerId)) {
+			modalRef.releasePointerCapture(e.pointerId);
+		}
+
+		if (dragY > 100 || velocityY > 0.4) {
+			close();
+		} else {
+			dragY = 0;
+		}
 	}
 
 	function handleEnhance() {
@@ -124,6 +183,8 @@
 
 	$effect(() => {
 		if (open) {
+			dragY = 0;
+			isDragging = false;
 			tick().then(() => {
 				const nameEl = modalRef?.querySelector<HTMLElement>('input[name="name"]');
 				nameEl?.focus();
@@ -137,7 +198,21 @@
 {#if open}
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 	<div class="modal-backdrop" onclick={handleBackdrop} role="dialog" aria-modal="true" aria-label="Category Management">
-		<div class="modal-card" bind:this={modalRef}>
+		<div
+			class="modal-card"
+			class:dragging={isDragging}
+			bind:this={modalRef}
+			onpointerdown={onPointerDown}
+			onpointermove={onPointerMove}
+			onpointerup={onPointerUp}
+			onpointercancel={onPointerUp}
+			style={dragY > 0 ? `transform: translateY(${dragY}px)` : dragY < 0 ? `transform: translateY(${dragY}px)` : ''}
+		>
+			<!-- Mobile sheet drag handle -->
+			<div class="sheet-grab-bar" aria-hidden="true">
+				<div class="sheet-grab-handle"></div>
+			</div>
+
 			<!-- Header -->
 			<div class="modal-header">
 				<div class="header-badge">CATEGORIES</div>
@@ -255,14 +330,36 @@
 	.modal-backdrop {
 		position: fixed;
 		inset: 0;
-		background: rgba(14, 42, 39, 0.45);
-		backdrop-filter: blur(8px);
-		-webkit-backdrop-filter: blur(8px);
+		background: rgba(10, 20, 18, 0.45);
+		backdrop-filter: blur(20px) saturate(180%);
+		-webkit-backdrop-filter: blur(20px) saturate(180%);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		z-index: 1000;
 		padding: var(--space-md);
+	}
+
+	[data-theme="dark"] .modal-backdrop {
+		background: rgba(0, 0, 0, 0.65);
+	}
+
+	.sheet-grab-bar {
+		display: none;
+		justify-content: center;
+		padding: 10px 0 2px;
+		cursor: grab;
+	}
+
+	.sheet-grab-handle {
+		width: 36px;
+		height: 5px;
+		border-radius: 999px;
+		background: var(--color-hairline, rgba(20, 48, 46, 0.2));
+	}
+
+	[data-theme="dark"] .sheet-grab-handle {
+		background: rgba(255, 255, 255, 0.25);
 	}
 
 	/* ─── Modal Shell ─── */
@@ -272,8 +369,10 @@
 		max-width: 480px;
 		width: 100%;
 		position: relative;
-		box-shadow: 0 20px 40px rgba(14, 42, 39, 0.15), 0 0 0 1px rgba(43, 168, 162, 0.2);
-		animation: modalPop 280ms var(--bounce, cubic-bezier(0.34, 1.56, 0.64, 1));
+		box-shadow: 0 20px 48px rgba(14, 42, 39, 0.18), 0 0 0 1px rgba(43, 168, 162, 0.2);
+		animation: modalPop 320ms cubic-bezier(0.16, 1, 0.3, 1);
+		transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+		touch-action: none;
 		overflow: hidden;
 		padding: 28px 24px;
 		max-height: calc(100dvh - 40px);
@@ -281,9 +380,13 @@
 		flex-direction: column;
 	}
 
+	.modal-card.dragging {
+		transition: none !important;
+	}
+
 	[data-theme="dark"] .modal-card {
 		background: #101715;
-		box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(60, 196, 189, 0.25);
+		box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(60, 196, 189, 0.25);
 	}
 
 	@keyframes modalPop {
@@ -538,13 +641,34 @@
 		box-shadow: none;
 	}
 
-	@media (max-width: 480px) {
-		.modal-card {
-			padding: 20px 16px;
-			border-radius: 24px;
+	@media (max-width: 640px) {
+		.modal-backdrop {
+			padding: 0;
+			align-items: flex-end;
 		}
+
+		.sheet-grab-bar {
+			display: flex;
+		}
+
+		.modal-card {
+			max-width: 100vw;
+			border-radius: 28px 28px 0 0;
+			border-bottom: none;
+			border-left: none;
+			border-right: none;
+			max-height: 90dvh;
+			padding: 16px;
+			animation: sheet-spring-up 380ms cubic-bezier(0.16, 1, 0.3, 1);
+		}
+
 		.form-container {
 			padding: 16px;
+		}
+
+		@keyframes sheet-spring-up {
+			from { transform: translateY(100%); }
+			to { transform: translateY(0); }
 		}
 	}
 </style>

@@ -1,6 +1,5 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
   import { enhance } from '$app/forms';
   import PageHeader from '$lib/client/components/PageHeader.svelte';
   import CategoryList from '$lib/client/components/CategoryList.svelte';

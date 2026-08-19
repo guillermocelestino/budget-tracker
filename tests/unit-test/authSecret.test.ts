@@ -1,19 +1,25 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Setup: mock SvelteKit environment modules before any imports
+let mockDev = false;
+let mockBuilding = false;
+let mockEnv: Record<string, string | undefined> = {};
+
 vi.mock('$app/environment', () => ({
-	get dev() { return false; },
-	get building() { return false; }
+	get dev() { return mockDev; },
+	get building() { return mockBuilding; }
 }));
 
 vi.mock('$env/dynamic/private', () => ({
-	get env() { return {}; }
+	get env() { return mockEnv; }
 }));
 
 describe('AUTH_SECRET validation', () => {
 
 	beforeEach(() => {
 		vi.resetModules();
+		mockDev = false;
+		mockBuilding = false;
+		mockEnv = {};
 	});
 
 	afterEach(() => {
@@ -21,15 +27,8 @@ describe('AUTH_SECRET validation', () => {
 	});
 
 	it('warns but allows empty AUTH_SECRET in development', async () => {
-		// Re-mock for dev mode
-		vi.doMock('$app/environment', () => ({
-			get dev() { return true; },
-			get building() { return false; }
-		}));
-
-		vi.doMock('$env/dynamic/private', () => ({
-			get env() { return {}; }
-		}));
+		mockDev = true;
+		mockEnv = {};
 
 		const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -42,14 +41,8 @@ describe('AUTH_SECRET validation', () => {
 	});
 
 	it('warns but allows short AUTH_SECRET in development', async () => {
-		vi.doMock('$app/environment', () => ({
-			get dev() { return true; },
-			get building() { return false; }
-		}));
-
-		vi.doMock('$env/dynamic/private', () => ({
-			get env() { return { AUTH_SECRET: 'short' }; }
-		}));
+		mockDev = true;
+		mockEnv = { AUTH_SECRET: 'short' };
 
 		const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -62,20 +55,13 @@ describe('AUTH_SECRET validation', () => {
 	});
 
 	it('allows valid AUTH_SECRET (32+ chars) in development without warning', async () => {
-		vi.doMock('$app/environment', () => ({
-			get dev() { return true; },
-			get building() { return false; }
-		}));
-
-		vi.doMock('$env/dynamic/private', () => ({
-			get env() { return { AUTH_SECRET: 'a'.repeat(32) }; }
-		}));
+		mockDev = true;
+		mockEnv = { AUTH_SECRET: 'a'.repeat(32) };
 
 		const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
 		await import('../../src/auth.ts');
 
-		// No auth-related warnings expected
 		const authWarnings = consoleWarnSpy.mock.calls.filter(call =>
 			call[0]?.toString().includes('AUTH_SECRET')
 		);
@@ -84,57 +70,31 @@ describe('AUTH_SECRET validation', () => {
 	});
 
 	it('throws on missing AUTH_SECRET in production', async () => {
-		vi.doMock('$app/environment', () => ({
-			get dev() { return false; },
-			get building() { return false; }
-		}));
-
-		vi.doMock('$env/dynamic/private', () => ({
-			get env() { return {}; }
-		}));
+		mockDev = false;
+		mockEnv = {};
 
 		await expect(import('../../src/auth.ts')).rejects.toThrow('AUTH_SECRET is required in production');
 	});
 
 	it('throws on short AUTH_SECRET in production', async () => {
-		vi.doMock('$app/environment', () => ({
-			get dev() { return false; },
-			get building() { return false; }
-		}));
-
-		vi.doMock('$env/dynamic/private', () => ({
-			get env() { return { AUTH_SECRET: 'short' }; }
-		}));
+		mockDev = false;
+		mockEnv = { AUTH_SECRET: 'short' };
 
 		await expect(import('../../src/auth.ts')).rejects.toThrow('AUTH_SECRET must be at least 32 characters in production');
 	});
 
 	it('allows valid AUTH_SECRET (32+ chars) in production', async () => {
-		vi.doMock('$app/environment', () => ({
-			get dev() { return false; },
-			get building() { return false; }
-		}));
-
-		vi.doMock('$env/dynamic/private', () => ({
-			get env() { return { AUTH_SECRET: 'a'.repeat(32) }; }
-		}));
+		mockDev = false;
+		mockEnv = { AUTH_SECRET: 'a'.repeat(32) };
 
 		await expect(import('../../src/auth.ts')).resolves.toBeDefined();
 	});
 
 	it('skips validation entirely while building (SvelteKit build analysis)', async () => {
-		vi.doMock('$app/environment', () => ({
-			get dev() { return false; },
-			get building() { return true; }
-		}));
+		mockDev = false;
+		mockBuilding = true;
+		mockEnv = {};
 
-		vi.doMock('$env/dynamic/private', () => ({
-			get env() { return {}; }
-		}));
-
-		// Production mode + no AUTH_SECRET, but `building` is true (vite build /
-		// postbuild analysis): the module must load without throwing. The runtime
-		// check below only applies once `building` is false at real server runtime.
 		await expect(import('../../src/auth.ts')).resolves.toBeDefined();
 	});
 });

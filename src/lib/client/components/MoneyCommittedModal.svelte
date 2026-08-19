@@ -13,7 +13,7 @@
 		open?: boolean;
 		categories?: Category[];
 		onClose?: () => void;
-		onSuccess?: () => void;
+		onSuccess?: (payload: { amount: number }) => void;
 	} = $props();
 
 	// Scheduled (recurring) state
@@ -125,7 +125,7 @@
 			const data = await res.json();
 			if (res.ok && data.success) {
 				showSuccess('Commitment added successfully!');
-				onSuccess?.();
+				onSuccess?.({ amount: numAmt });
 				close();
 			} else {
 				showError(data.error || 'Failed to add commitment');

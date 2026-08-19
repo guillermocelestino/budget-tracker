@@ -2,7 +2,13 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { formatCurrency } from '$lib/client/utils/format';
 
-	export type PunchType = 'spent' | 'income' | 'lent' | 'repaid';
+	export type PunchType =
+		| 'spent'
+		| 'income'
+		| 'lent'
+		| 'borrowed'
+		| 'repaid'
+		| 'recurring';
 
 	let {
 		type = 'spent',
@@ -48,6 +54,16 @@
 					particleColor: 'rgba(255, 210, 63, 0.7)',
 					particleDirection: 'down' as const
 				};
+			case 'borrowed':
+				return {
+					icon: '📥',
+					title: 'MONEY COMMITTED',
+					subtitle: 'money entered your pocket with an obligation',
+					accentColor: '#8b5cf6',
+					glowColor: 'rgba(139, 92, 246, 0.35)',
+					particleColor: 'rgba(139, 92, 246, 0.7)',
+					particleDirection: 'up' as const
+				};
 			case 'repaid':
 				return {
 					icon: '🧾',
@@ -56,6 +72,16 @@
 					accentColor: '#f97316',
 					glowColor: 'rgba(249, 115, 22, 0.35)',
 					particleColor: 'rgba(249, 115, 22, 0.7)',
+					particleDirection: 'down' as const
+				};
+			case 'recurring':
+				return {
+					icon: '🔄',
+					title: 'MONEY COMMITTED',
+					subtitle: 'a recurring payment left your pocket',
+					accentColor: '#0ea5e9',
+					glowColor: 'rgba(14, 165, 233, 0.35)',
+					particleColor: 'rgba(14, 165, 233, 0.7)',
 					particleDirection: 'down' as const
 				};
 			default:

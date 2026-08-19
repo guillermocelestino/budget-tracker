@@ -13,7 +13,7 @@
 	}: {
 		open?: boolean;
 		onClose?: () => void;
-		onSuccess?: () => void;
+		onSuccess?: (payload: { amount: number }) => void;
 		lendingRecord?: Lending & { cash_paid?: number; written_off?: number; payments?: LendingPayment[] };
 	} = $props();
 
@@ -119,7 +119,7 @@
 			submitting = false;
 			if (result.type === 'success') {
 				showSuccess(lendingRecord ? 'Borrowing updated successfully' : 'Borrowed money recorded successfully!');
-				onSuccess?.();
+				onSuccess?.({ amount: parseFloat(rawAmount) || 0 });
 				close();
 			} else if (result.type === 'failure') {
 				showError(result.data?.error || 'An error occurred while saving.');
@@ -573,7 +573,7 @@
 		border-radius: 999px;
 		border: none;
 		background: var(--color-money-committed, #D97706);
-		color: #FFFFFF;
+		color: #000000;
 		font-family: var(--font-display);
 		font-size: 16px;
 		font-weight: 800;

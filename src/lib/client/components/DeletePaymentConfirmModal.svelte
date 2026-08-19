@@ -8,11 +8,20 @@
 
 	let {
 		payment,
+		direction = 'lent',
+		action: customAction,
 		onclose,
 	}: {
 		payment: LendingPayment;
+		direction?: 'lent' | 'borrowed';
+		action?: string;
 		onclose?: () => void;
 	} = $props();
+
+	const isBorrowed = $derived(direction === 'borrowed');
+	const formAction = $derived(
+		customAction ?? (isBorrowed ? '/borrowed?/deletePayment' : '/lending?/deletePayment')
+	);
 
 	const hasTransaction = $derived(payment.transaction_id !== null);
 
@@ -78,7 +87,7 @@
 		</div>
 	{/if}
 
-	<form method="POST" action="?/deletePayment" use:enhance={handleEnhance}>
+	<form method="POST" action={formAction} use:enhance={handleEnhance}>
 		<input type="hidden" name="payment_id" value={payment.id} />
 		<div class="modal-actions">
 			<Button variant="danger" type="submit">Delete</Button>

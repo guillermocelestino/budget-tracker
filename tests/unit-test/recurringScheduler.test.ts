@@ -271,7 +271,7 @@ describe('recurringScheduler — Drizzle / Postgres path (recorded fake client)'
 
 		const result = await runNow(42, 1);
 
-		expect(result).toEqual({ success: true });
+		expect(result).toEqual({ success: true, amount: 100 });
 		expect(calls.inserts).toHaveLength(1);
 		expect(calls.inserts[0]!.date).toBe('2026-08-15');
 		expect(calls.updates).toHaveLength(0); // schedule unchanged

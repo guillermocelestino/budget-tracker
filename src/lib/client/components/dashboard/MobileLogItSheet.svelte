@@ -3,6 +3,7 @@
 	import { getToday, formatWithCommas } from '$lib/shared/utils/format';
 	import { showSuccess } from '$lib/client/stores/toast.svelte';
 	import type { Category, LendingWithPayments } from '$lib/types';
+	import type { PunchType } from './MobileMoneyPunchOverlay.svelte';
 
 	type LogType = 'spent' | 'lent' | 'repaid' | null;
 
@@ -17,7 +18,7 @@
 		categories?: Category[];
 		activeBorrowed?: LendingWithPayments[];
 		onclose?: () => void;
-		onsuccess?: (info: { type: 'spent' | 'lent' | 'repaid'; amount: number }) => void;
+		onsuccess?: (info: { type: PunchType; amount: number }) => void;
 	} = $props();
 
 	let selectedType = $state<LogType>(null);
