@@ -1268,6 +1268,12 @@ function handleEditRecurring(item: RecurringTransaction) {
 		gap: var(--space-md);
 	}
 
+	/* The shared FilterFooter is a direct grid child; without full-row span it
+	   would be confined to one ~160px column next to the selects. */
+	.recurring-filter-panel :global(.filter-footer) {
+		grid-column: 1 / -1;
+	}
+
 	.filter-group {
 		display: flex;
 		flex-direction: column;

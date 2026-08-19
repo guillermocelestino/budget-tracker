@@ -8,20 +8,14 @@
   import CategoryModal from '$lib/client/components/CategoryModal.svelte';
   import ModalDialog from '$lib/client/components/ModalDialog.svelte';
   import PageBackground from '$lib/client/components/PageBackground.svelte';
-  import MonthPicker from '$lib/client/components/MonthPicker.svelte';
   import SearchFilterPill from '$lib/client/components/SearchFilterPill.svelte';
   import ViewToggle from '$lib/client/components/ViewToggle.svelte';
   import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
   import { formatCurrency } from '$lib/client/utils/format';
-import { getCurrentMonth } from '$lib/shared/utils/format';
 
   let data = $derived($page.data as App.PageData);
 
-  // ─── Month selector ───
-  let selectedMonth = $state(data.selectedMonth ?? getCurrentMonth());
-
   // Open the Add Category panel when arriving via the global FAB (?add=1).
-  // Declared before the month-sync effect so the param is stripped first.
   $effect(() => {
     const params = new URLSearchParams($page.url.searchParams);
     if (params.get('add') === '1') {
@@ -31,19 +25,6 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
       openAdd();
     }
   });
-
-  $effect(() => {
-    const params = new URLSearchParams($page.url.searchParams);
-    const current = params.get('month') || getCurrentMonth();
-    if (selectedMonth !== current) {
-      params.set('month', selectedMonth);
-      goto(`/categories?${params.toString()}`, { keepFocus: true, noScroll: true });
-    }
-  });
-
-  function handleMonthChange(month: string) {
-    selectedMonth = month;
-  }
 
   const categories = $derived(data.categories ?? []);
   const spendingMap = $derived(data.spending ?? ({} as Record<number, number>));
@@ -189,9 +170,8 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
   </div>
 {/if}
 
-<!-- ═══ Toolbar: month picker + search/filter pill + view mode ═══ -->
+<!-- ═══ Toolbar: search/filter pill + view mode ═══ -->
 <div class="cats-toolbar">
-  <MonthPicker {selectedMonth} onChange={handleMonthChange} />
   <SearchFilterPill
     bind:value={searchInput}
     bind:open={filtersOpen}
@@ -329,7 +309,7 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
 </div>
 
 <style>
-  /* ─── Toolbar: month picker + search+filter pill + view toggle ─── */
+  /* ─── Toolbar: search+filter pill + view toggle ─── */
   .cats-toolbar {
     display: flex;
     align-items: center;
@@ -337,10 +317,6 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
     flex-wrap: wrap;
     gap: var(--space-md);
     margin-bottom: var(--space-lg);
-  }
-
-  .cats-toolbar :global(.month-picker) {
-    flex-shrink: 0;
   }
 
   .cats-toolbar :global(.search-filter-pill) {
@@ -745,10 +721,7 @@ import { getCurrentMonth } from '$lib/shared/utils/format';
       gap: var(--space-sm);
     }
 
-    /* Keep the month pill content-sized instead of stretching full width */
-    .cats-toolbar :global(.month-picker) {
-      align-self: center;
-    }
+
 
     .cats-toolbar :global(.search-filter-pill) {
       max-width: none;
