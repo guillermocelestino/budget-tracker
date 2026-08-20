@@ -61,6 +61,9 @@ declare global {
 				outflowVelocity: number;
 				daysElapsed: number;
 				largestOutflow: { amount: number; description?: string; category_name?: string } | null;
+				wreckedYesterday?: number;
+				wreckedSamePointPrevMonth?: number;
+				prevMonthVelocity?: number;
 			};
 			moneyCommittedStats?: {
 				totalCommitted: number;

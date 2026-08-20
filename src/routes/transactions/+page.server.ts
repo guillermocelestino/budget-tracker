@@ -8,7 +8,8 @@ import {
 	deleteTransactions,
 	getWreckedToday,
 	getOutflowVelocity,
-	getLargestOutflow
+	getLargestOutflow,
+	getWreckedPeriod
 } from '$lib/server/services/transactions';
 import { importTransactionsForUser } from '$lib/server/services/transactionImport';
 import { getCurrentMonth } from '$lib/shared/utils/format';
@@ -40,14 +41,50 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 	const categories = await getCategories(userId);
 
 	// Current month for Money Gone metrics
+	const now = new Date();
 	const currentMonthStr = getCurrentMonth();
 
-	// Fetch Money Gone KPI metrics
-	const [wreckedToday, velocityData, largestOutflow] = await Promise.all([
+	// Calculate yesterday's date (YYYY-MM-DD)
+	const yesterdayDate = new Date(now);
+	yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+	const yesterdayStr = `${yesterdayDate.getFullYear()}-${String(yesterdayDate.getMonth() + 1).padStart(2, '0')}-${String(yesterdayDate.getDate()).padStart(2, '0')}`;
+
+	// Calculate previous month YYYY-MM and cutoff date (same day of month)
+	const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+	const prevMonthStr = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
+	const daysInPrevMonth = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1, 0).getDate();
+	const dayOfMonth = now.getDate();
+	const maxDay = Math.min(dayOfMonth, daysInPrevMonth);
+	const prevMonthCutoffDate = `${prevMonthStr}-${String(maxDay).padStart(2, '0')}`;
+	const prevMonthStartDate = `${prevMonthStr}-01`;
+
+	// Fetch Money Gone KPI metrics & prev-period data for trend deltas
+	const [
+		wreckedToday,
+		velocityData,
+		largestOutflow,
+		wreckedYesterday,
+		wreckedSamePointPrevMonth,
+		prevMonthVelocityData
+	] = await Promise.all([
 		getWreckedToday(userId),
 		getOutflowVelocity(userId, currentMonthStr),
-		getLargestOutflow(userId, currentMonthStr)
+		getLargestOutflow(userId, currentMonthStr),
+		getWreckedToday(userId, yesterdayStr),
+		getWreckedPeriod(userId, prevMonthStartDate, prevMonthCutoffDate),
+		getOutflowVelocity(userId, prevMonthStr)
 	]);
+
+	const moneyGoneStats = {
+		wreckedToday,
+		wreckedThisMonth: velocityData.totalExpenses,
+		outflowVelocity: velocityData.velocity,
+		daysElapsed: velocityData.daysElapsed,
+		largestOutflow,
+		wreckedYesterday,
+		wreckedSamePointPrevMonth,
+		prevMonthVelocity: prevMonthVelocityData.velocity
+	};
 
 	// Validate date range
 	if (date_from && date_to && date_from > date_to) {
@@ -60,13 +97,7 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 			limit: limit ?? 0,
 			categories,
 			dateError: 'From date cannot be after End date',
-			moneyGoneStats: {
-				wreckedToday,
-				wreckedThisMonth: velocityData.totalExpenses,
-				outflowVelocity: velocityData.velocity,
-				daysElapsed: velocityData.daysElapsed,
-				largestOutflow
-			}
+			moneyGoneStats
 		};
 	}
 
@@ -99,13 +130,7 @@ export async function load({ url, locals }: { url: URL; locals: App.Locals }) {
 		limit: limit ?? 0,
 		categories,
 		dateError: null,
-		moneyGoneStats: {
-			wreckedToday,
-			wreckedThisMonth: velocityData.totalExpenses,
-			outflowVelocity: velocityData.velocity,
-			daysElapsed: velocityData.daysElapsed,
-			largestOutflow
-		}
+		moneyGoneStats
 	};
 }
 

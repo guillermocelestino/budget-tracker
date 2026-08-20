@@ -83,14 +83,16 @@
 	.money-hero-card {
 		background: var(--color-surface);
 		border: 1px solid var(--color-hairline);
-		border-radius: var(--radius-2xl, 24px);
+		border-radius: var(--radius-2xl, 20px);
 		padding: 20px;
-		box-shadow: var(--shadow-card);
+		box-shadow: var(--shadow-sm);
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
+		justify-content: space-between;
+		gap: 10px;
 		position: relative;
 		overflow: hidden;
+		height: 100%;
 	}
 
 	.hero-header {

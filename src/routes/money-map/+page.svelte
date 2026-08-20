@@ -2,7 +2,6 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getMonthLabel } from '$lib/shared/utils/format';
-	import PageHeader from '$lib/client/components/PageHeader.svelte';
 	import PageBackground from '$lib/client/components/PageBackground.svelte';
 	import MoneyMap, { type MoneyMapData } from '$lib/client/components/money-map/MoneyMap.svelte';
 	import MoneyMapLegend from '$lib/client/components/money-map/MoneyMapLegend.svelte';
@@ -27,28 +26,27 @@
 
 <PageBackground />
 
-<div class="money-map-page fade-in-up">
-	<PageHeader title="WHERE IS MY MONEY GOING?">
-		{#snippet badge()}
-			<div class="header-badge teal">
+<div class="page-container page-container--workspace">
+	<!-- ═══════════════════════════════════════════════════════════════════════════
+       MONEY MAP HERO HEADER (Flip7 Golden Template Alignment)
+       ═══════════════════════════════════════════════════════════════════════════ -->
+	<header class="money-map-hero flip7-card accent-teal">
+		<div class="hero-left">
+			<div class="hero-badge">
 				<span class="badge-icon">🗺</span>
 				<span class="badge-text">MONEY MAP</span>
 			</div>
-		{/snippet}
-		{#snippet subtitle()}
-			<p class="header-desc">
-				Trace where your money came from, where it went, and what is still in motion.
-			</p>
-		{/snippet}
-
-		{#snippet action()}
+			<h1 class="hero-title">WHERE IS MY MONEY GOING?</h1>
+			<p class="hero-subtitle">Trace where your money came from, where it went, and what is still in motion.</p>
+		</div>
+		<div class="hero-actions">
 			<div class="month-selector-pill">
 				<button class="month-nav-btn" onclick={() => changeMonth(-1)} aria-label="Previous month">‹</button>
 				<span class="month-display-label">{getMonthLabel(selectedMonth)}</span>
 				<button class="month-nav-btn" onclick={() => changeMonth(1)} aria-label="Next month">›</button>
 			</div>
-		{/snippet}
-	</PageHeader>
+		</div>
+	</header>
 
 	<!-- Main Interactive Money Map Canvas -->
 	<section class="map-section" aria-label="Interactive Financial Ecosystem Map">
@@ -62,62 +60,103 @@
 </div>
 
 <style>
-	.money-map-page {
+	/* ─── MONEY MAP HERO HEADER (Flip7 Golden Template Alignment) ─── */
+	.money-map-hero {
+		position: relative;
 		display: flex;
-		flex-direction: column;
-		gap: var(--space-lg);
-		padding-bottom: var(--space-2xl);
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-lg, 16px);
+		padding: 18px 24px;
+		background: var(--color-surface);
+		border: 1px solid var(--color-hairline);
+		border-radius: 24px;
+		box-shadow: var(--shadow-sm);
+		margin-bottom: var(--space-md, 12px);
+		overflow: visible;
 	}
 
-	.header-badge.teal {
+	.hero-left {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.hero-badge {
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
 		padding: 3px 10px;
-		background: var(--color-teal-bg, rgba(30, 140, 134, 0.12));
+		background: var(--color-teal-bg, rgba(43, 168, 162, 0.12));
 		border-radius: var(--radius-pill, 999px);
 		width: fit-content;
-		margin-bottom: 4px;
+		margin-bottom: 2px;
 	}
 
-	.header-badge.teal .badge-text {
+	.badge-icon {
+		font-size: 12px;
+		line-height: 1;
+	}
+
+	.badge-text {
 		font-family: var(--font-display);
 		font-size: 11px;
 		font-weight: 800;
-		color: var(--color-true-position, #1E8C86);
+		color: var(--color-true-position, var(--color-teal-dark, #1E8C86));
 		letter-spacing: 0.12em;
 	}
 
-	.header-desc {
-		font-size: var(--font-size-sm);
-		color: var(--color-text-muted);
+	.hero-title {
+		font-family: var(--font-display);
+		font-size: clamp(20px, 2.4vw, 26px);
+		font-weight: 800;
+		color: var(--color-ink);
+		margin: 0;
+		letter-spacing: -0.02em;
+		line-height: 1.15;
 	}
 
+	.hero-subtitle {
+		font-size: var(--font-size-sm, 14px);
+		color: var(--color-text-muted);
+		margin: 2px 0 0 0;
+	}
+
+	.hero-actions {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-shrink: 0;
+	}
+
+	/* ─── Month Selector Control ─── */
 	.month-selector-pill {
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		padding: 4px 8px;
+		padding: 4px 10px;
+		min-height: 44px;
 		background: var(--color-surface);
 		border: 1px solid var(--color-hairline);
-		border-radius: var(--radius-pill);
+		border-radius: var(--radius-pill, 999px);
 		box-shadow: var(--shadow-sm);
 	}
 
 	.month-nav-btn {
 		background: none;
 		border: none;
-		color: var(--color-text);
-		font-size: 16px;
+		color: var(--color-ink);
+		font-size: 18px;
 		font-weight: var(--font-weight-bold);
 		cursor: pointer;
-		width: 24px;
-		height: 24px;
+		width: 28px;
+		height: 28px;
 		border-radius: 50%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: background 150ms ease;
+		transition: background 150ms ease, color 150ms ease;
+		-webkit-tap-highlight-color: transparent;
 	}
 
 	.month-nav-btn:hover {
@@ -126,18 +165,38 @@
 	}
 
 	.month-display-label {
-		font-size: var(--font-size-xs);
-		font-weight: var(--font-weight-bold);
-		color: var(--color-text);
-		padding: 0 6px;
+		font-family: var(--font-display);
+		font-size: 13px;
+		font-weight: 700;
+		color: var(--color-ink);
+		padding: 0 8px;
 		white-space: nowrap;
 	}
 
 	.map-section {
 		width: 100%;
+		margin-top: var(--space-md);
 	}
 
 	.legend-section {
 		margin-top: var(--space-xs);
+	}
+
+	@media (max-width: 640px) {
+		.money-map-hero {
+			flex-direction: column;
+			align-items: flex-start;
+			gap: var(--space-md);
+			padding: 16px 20px;
+		}
+
+		.hero-actions {
+			width: 100%;
+		}
+
+		.month-selector-pill {
+			width: 100%;
+			justify-content: space-between;
+		}
 	}
 </style>

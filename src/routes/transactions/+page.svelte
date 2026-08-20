@@ -428,6 +428,42 @@ let punchData = $state<{ type: PunchType; amount: number } | null>(null);
 			lastFilterKey = key;
 		});
 	});
+
+	function computeTrendDelta(current: number, prev: number | undefined | null) {
+		// TODO: Render neutral '–' when prev-period comparison data is unavailable
+		if (prev === undefined || prev === null) {
+			return { text: '–', isIncrease: false, isDecrease: false };
+		}
+		if (prev === 0) {
+			if (current === 0) return { text: '–', isIncrease: false, isDecrease: false };
+			return { text: `↑ ₱${Math.round(current).toLocaleString()}`, isIncrease: true, isDecrease: false };
+		}
+		const diff = current - prev;
+		if (Math.abs(diff) < 0.01) {
+			return { text: '–', isIncrease: false, isDecrease: false };
+		}
+		const pct = Math.round((diff / prev) * 100);
+		if (pct === 0) return { text: '–', isIncrease: false, isDecrease: false };
+		if (pct > 0) {
+			return { text: `↑ ${pct}%`, isIncrease: true, isDecrease: false };
+		}
+		return { text: `↓ ${Math.abs(pct)}%`, isIncrease: false, isDecrease: true };
+	}
+
+	const deltaToday = $derived(computeTrendDelta(
+		data.moneyGoneStats?.wreckedToday ?? 0,
+		data.moneyGoneStats?.wreckedYesterday
+	));
+
+	const deltaMonth = $derived(computeTrendDelta(
+		data.moneyGoneStats?.wreckedThisMonth ?? 0,
+		data.moneyGoneStats?.wreckedSamePointPrevMonth
+	));
+
+	const deltaVelocity = $derived(computeTrendDelta(
+		data.moneyGoneStats?.outflowVelocity ?? 0,
+		data.moneyGoneStats?.prevMonthVelocity
+	));
 </script>
 
 <svelte:head>
@@ -448,7 +484,7 @@ let punchData = $state<{ type: PunchType; amount: number } | null>(null);
 				<span class="badge-text">MONEY GONE</span>
 			</div>
 			<h1 class="hero-title">WHERE IS MY MONEY GOING?</h1>
-			<p class="hero-subtitle">Every peso here already left — irreversible, consumed, accounted for.</p>
+			<p class="hero-subtitle">Every peso here already left — irreversible, consumed, accounted for. Seriously, where?</p>
 		</div>
 		<div class="hero-actions">
 			<OverflowMenu
@@ -463,19 +499,66 @@ let punchData = $state<{ type: PunchType; amount: number } | null>(null);
 	<!-- ═══ Money Gone 4-Metric KPI Summary Strip ═══ -->
 	<div class="money-gone-kpis">
 		<div class="kpi-card flip7-card accent-coral">
-			<span class="kpi-label">Wrecked Today</span>
-			<span class="kpi-value coral">{formatCurrency(data.moneyGoneStats?.wreckedToday ?? 0)}</span>
+			<div class="kpi-card-header">
+				<span class="kpi-icon-chip coral" aria-hidden="true">
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+						<line x1="12" y1="5" x2="12" y2="19"/>
+						<polyline points="19 12 12 19 5 12"/>
+					</svg>
+				</span>
+				<span class="kpi-label">Wrecked Today</span>
+			</div>
+			<div class="kpi-value-row">
+				<span class="kpi-value coral">{formatCurrency(data.moneyGoneStats?.wreckedToday ?? 0)}</span>
+				<span class="kpi-delta" class:spending-up={deltaToday.isIncrease} class:spending-down={deltaToday.isDecrease}>
+					{deltaToday.text}
+				</span>
+			</div>
 		</div>
 		<div class="kpi-card flip7-card accent-teal">
-			<span class="kpi-label">Wrecked This Month</span>
-			<span class="kpi-value">{formatCurrency(data.moneyGoneStats?.wreckedThisMonth ?? 0)}</span>
+			<div class="kpi-card-header">
+				<span class="kpi-icon-chip teal" aria-hidden="true">
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M12 2c0 5-4 7-4 11 0 3.31 2.69 6 6 6s6-2.69 6-6c0-4-4-6-4-11z"/>
+						<path d="M12 13c-1.1 0-2 .9-2 2 0 1.66 1.34 3 3 3s3-1.34 3-3c0-1.1-.9-2-2-2z"/>
+					</svg>
+				</span>
+				<span class="kpi-label">Wrecked This Month</span>
+			</div>
+			<div class="kpi-value-row">
+				<span class="kpi-value">{formatCurrency(data.moneyGoneStats?.wreckedThisMonth ?? 0)}</span>
+				<span class="kpi-delta" class:spending-up={deltaMonth.isIncrease} class:spending-down={deltaMonth.isDecrease}>
+					{deltaMonth.text}
+				</span>
+			</div>
 		</div>
 		<div class="kpi-card flip7-card accent-gold">
-			<span class="kpi-label">Outflow Velocity</span>
-			<span class="kpi-value">{formatCurrency(data.moneyGoneStats?.outflowVelocity ?? 0)} <span class="kpi-unit">/ day</span></span>
+			<div class="kpi-card-header">
+				<span class="kpi-icon-chip gold" aria-hidden="true">
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M12 14l3-3"/>
+						<path d="M3.34 19a10 10 0 1 1 17.32 0"/>
+					</svg>
+				</span>
+				<span class="kpi-label">Outflow Velocity</span>
+			</div>
+			<div class="kpi-value-row">
+				<span class="kpi-value">{formatCurrency(data.moneyGoneStats?.outflowVelocity ?? 0)} <span class="kpi-unit">/ day</span></span>
+				<span class="kpi-delta" class:spending-up={deltaVelocity.isIncrease} class:spending-down={deltaVelocity.isDecrease}>
+					{deltaVelocity.text}
+				</span>
+			</div>
 		</div>
 		<div class="kpi-card flip7-card accent-sky">
-			<span class="kpi-label">Largest Outflow</span>
+			<div class="kpi-card-header">
+				<span class="kpi-icon-chip sky" aria-hidden="true">
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+						<line x1="7" y1="7" x2="7.01" y2="7"/>
+					</svg>
+				</span>
+				<span class="kpi-label">Largest Outflow</span>
+			</div>
 			<span class="kpi-value">
 				{data.moneyGoneStats?.largestOutflow ? formatCurrency(data.moneyGoneStats.largestOutflow.amount) : '₱0'}
 			</span>
@@ -684,7 +767,7 @@ let punchData = $state<{ type: PunchType; amount: number } | null>(null);
 					<span class="badge-text">MONEY GONE</span>
 				</div>
 				<h1 class="mobile-page-title">WHERE IS MY MONEY GOING?</h1>
-				<span class="context-subline">Every peso here already left.</span>
+				<span class="context-subline">Every peso here already left — irreversible, consumed, accounted for. Seriously, where?</span>
 			</div>
 			<div class="mobile-header-actions">
 				<OverflowMenu
@@ -701,19 +784,66 @@ let punchData = $state<{ type: PunchType; amount: number } | null>(null);
 		<section class="mobile-section">
 			<div class="money-gone-kpis mobile-kpis">
 				<div class="kpi-card">
-					<span class="kpi-label">Wrecked Today</span>
-					<span class="kpi-value coral">{formatCurrency(data.moneyGoneStats?.wreckedToday ?? 0)}</span>
+					<div class="kpi-card-header">
+						<span class="kpi-icon-chip coral" aria-hidden="true">
+							<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+								<line x1="12" y1="5" x2="12" y2="19"/>
+								<polyline points="19 12 12 19 5 12"/>
+							</svg>
+						</span>
+						<span class="kpi-label">Wrecked Today</span>
+					</div>
+					<div class="kpi-value-row">
+						<span class="kpi-value coral">{formatCurrency(data.moneyGoneStats?.wreckedToday ?? 0)}</span>
+						<span class="kpi-delta" class:spending-up={deltaToday.isIncrease} class:spending-down={deltaToday.isDecrease}>
+							{deltaToday.text}
+						</span>
+					</div>
 				</div>
 				<div class="kpi-card">
-					<span class="kpi-label">Wrecked Month</span>
-					<span class="kpi-value">{formatCurrency(data.moneyGoneStats?.wreckedThisMonth ?? 0)}</span>
+					<div class="kpi-card-header">
+						<span class="kpi-icon-chip teal" aria-hidden="true">
+							<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M12 2c0 5-4 7-4 11 0 3.31 2.69 6 6 6s6-2.69 6-6c0-4-4-6-4-11z"/>
+								<path d="M12 13c-1.1 0-2 .9-2 2 0 1.66 1.34 3 3 3s3-1.34 3-3c0-1.1-.9-2-2-2z"/>
+							</svg>
+						</span>
+						<span class="kpi-label">Wrecked Month</span>
+					</div>
+					<div class="kpi-value-row">
+						<span class="kpi-value">{formatCurrency(data.moneyGoneStats?.wreckedThisMonth ?? 0)}</span>
+						<span class="kpi-delta" class:spending-up={deltaMonth.isIncrease} class:spending-down={deltaMonth.isDecrease}>
+							{deltaMonth.text}
+						</span>
+					</div>
 				</div>
 				<div class="kpi-card">
-					<span class="kpi-label">Velocity</span>
-					<span class="kpi-value">{formatCurrency(data.moneyGoneStats?.outflowVelocity ?? 0)} <span class="kpi-unit">/day</span></span>
+					<div class="kpi-card-header">
+						<span class="kpi-icon-chip gold" aria-hidden="true">
+							<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M12 14l3-3"/>
+								<path d="M3.34 19a10 10 0 1 1 17.32 0"/>
+							</svg>
+						</span>
+						<span class="kpi-label">Velocity</span>
+					</div>
+					<div class="kpi-value-row">
+						<span class="kpi-value">{formatCurrency(data.moneyGoneStats?.outflowVelocity ?? 0)} <span class="kpi-unit">/day</span></span>
+						<span class="kpi-delta" class:spending-up={deltaVelocity.isIncrease} class:spending-down={deltaVelocity.isDecrease}>
+							{deltaVelocity.text}
+						</span>
+					</div>
 				</div>
 				<div class="kpi-card">
-					<span class="kpi-label">Largest</span>
+					<div class="kpi-card-header">
+						<span class="kpi-icon-chip sky" aria-hidden="true">
+							<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+								<line x1="7" y1="7" x2="7.01" y2="7"/>
+							</svg>
+						</span>
+						<span class="kpi-label">Largest</span>
+					</div>
 					<span class="kpi-value">
 						{data.moneyGoneStats?.largestOutflow ? formatCurrency(data.moneyGoneStats.largestOutflow.amount) : '₱0'}
 					</span>
@@ -1130,13 +1260,70 @@ let punchData = $state<{ type: PunchType; amount: number } | null>(null);
 		box-shadow: var(--shadow-sm);
 	}
 
+	.kpi-card-header {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-bottom: 4px;
+	}
+
+	.kpi-icon-chip {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.kpi-icon-chip.coral {
+		background: var(--color-coral-bg, rgba(239, 108, 74, 0.15));
+		color: var(--color-coral, #EF6C4A);
+	}
+
+	.kpi-icon-chip.teal {
+		background: var(--color-teal-bg, rgba(20, 184, 166, 0.15));
+		color: var(--color-teal, #14B8A6);
+	}
+
+	.kpi-icon-chip.gold {
+		background: var(--color-gold-bg, rgba(234, 179, 8, 0.15));
+		color: var(--color-gold, #EAB308);
+	}
+
+	.kpi-icon-chip.sky {
+		background: var(--color-sky-bg, rgba(56, 189, 248, 0.15));
+		color: var(--color-sky, #38BDF8);
+	}
+
 	.kpi-label {
 		font-size: 11px;
 		font-weight: 700;
 		color: var(--color-text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
-		margin-bottom: 4px;
+	}
+
+	.kpi-value-row {
+		display: flex;
+		align-items: baseline;
+		gap: 6px;
+		flex-wrap: wrap;
+	}
+
+	.kpi-delta {
+		font-size: 11px;
+		font-weight: 600;
+		color: var(--color-text-muted);
+	}
+
+	.kpi-delta.spending-up {
+		color: var(--color-coral, #EF6C4A);
+	}
+
+	.kpi-delta.spending-down {
+		color: var(--color-positive, #27AE60);
 	}
 
 	.kpi-value {

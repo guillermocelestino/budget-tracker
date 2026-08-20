@@ -1009,3 +1009,20 @@ export async function getDailyOutflows(
 		amount: parseFloat(r.amount)
 	}));
 }
+
+/** Get total expense amount for a date range [fromDate, toDate] (inclusive). */
+export async function getWreckedPeriod(userId: number, fromDate: string, toDate: string): Promise<number> {
+	const db = await getDrizzle();
+	const [row] = await db
+		.select({
+			total: sql<string>`COALESCE(SUM(${transactions.amount}), 0)`
+		})
+		.from(transactions)
+		.where(and(
+			eq(transactions.user_id, userId),
+			eq(transactions.type, 'expense'),
+			gte(transactions.date, fromDate),
+			lte(transactions.date, toDate)
+		));
+	return parseFloat(row?.total ?? '0');
+}

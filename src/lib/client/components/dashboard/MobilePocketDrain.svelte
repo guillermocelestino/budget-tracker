@@ -33,25 +33,28 @@
 	.pocket-drain-section {
 		display: flex;
 		flex-direction: column;
+		height: 100%;
 	}
 
 	.pocket-drain-hero-card {
 		background: var(--color-surface);
 		border: 1px solid var(--color-hairline);
 		border-radius: var(--radius-2xl, 20px);
-		padding: 16px 20px;
+		padding: 20px;
 		display: flex;
 		flex-direction: column;
-		align-items: center;
+		align-items: stretch;
+		justify-content: space-between;
 		gap: 12px;
 		box-shadow: var(--shadow-sm);
+		height: 100%;
 	}
 
 	.card-title {
 		font-family: var(--font-display);
-		font-size: 13px;
-		font-weight: 900;
-		letter-spacing: 0.08em;
+		font-size: 12px;
+		font-weight: 800;
+		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--color-ink);
 		margin: 0;

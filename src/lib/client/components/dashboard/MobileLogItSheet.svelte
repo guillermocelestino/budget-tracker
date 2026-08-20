@@ -1,18 +1,18 @@
 <script lang="ts">
-	import { invalidate } from '$app/navigation';
-	import { getToday, formatWithCommas } from '$lib/shared/utils/format';
-	import { showSuccess } from '$lib/client/stores/toast.svelte';
-	import type { Category, LendingWithPayments } from '$lib/types';
-	import type { PunchType } from './MobileMoneyPunchOverlay.svelte';
+	import { invalidate } from "$app/navigation";
+	import { getToday, formatWithCommas } from "$lib/shared/utils/format";
+	import { showSuccess } from "$lib/client/stores/toast.svelte";
+	import type { Category, LendingWithPayments } from "$lib/types";
+	import type { PunchType } from "./MobileMoneyPunchOverlay.svelte";
 
-	type LogType = 'spent' | 'lent' | 'repaid' | null;
+	type LogType = "spent" | "lent" | "repaid" | null;
 
 	let {
 		isOpen = false,
 		categories = [],
 		activeBorrowed = [],
 		onclose,
-		onsuccess
+		onsuccess,
 	}: {
 		isOpen?: boolean;
 		categories?: Category[];
@@ -26,22 +26,22 @@
 	let errorMessage = $state<string | null>(null);
 
 	// Spent form fields
-	let spentAmount = $state('');
+	let spentAmount = $state("");
 	let spentCategoryId = $state<number | null>(null);
-	let spentDescription = $state('');
+	let spentDescription = $state("");
 	let spentDate = $state(getToday());
 
 	// Lent form fields
-	let lentAmount = $state('');
-	let lentBorrowerName = $state('');
+	let lentAmount = $state("");
+	let lentBorrowerName = $state("");
 	let lentDate = $state(getToday());
-	let lentNotes = $state('');
+	let lentNotes = $state("");
 
 	// Repaid form fields
 	let repaidLendingId = $state<number | null>(null);
-	let repaidAmount = $state('');
+	let repaidAmount = $state("");
 	let repaidDate = $state(getToday());
-	let repaidNotes = $state('');
+	let repaidNotes = $state("");
 
 	// Auto-select first category if available
 	$effect(() => {
@@ -59,16 +59,16 @@
 
 	// Body scroll locking
 	$effect(() => {
-		if (typeof document !== 'undefined') {
+		if (typeof document !== "undefined") {
 			if (isOpen) {
-				document.body.style.overflow = 'hidden';
+				document.body.style.overflow = "hidden";
 			} else {
-				document.body.style.overflow = '';
+				document.body.style.overflow = "";
 			}
 		}
 		return () => {
-			if (typeof document !== 'undefined') {
-				document.body.style.overflow = '';
+			if (typeof document !== "undefined") {
+				document.body.style.overflow = "";
 			}
 		};
 	});
@@ -77,16 +77,16 @@
 		selectedType = null;
 		submitting = false;
 		errorMessage = null;
-		spentAmount = '';
-		spentDescription = '';
+		spentAmount = "";
+		spentDescription = "";
 		spentDate = getToday();
-		lentAmount = '';
-		lentBorrowerName = '';
+		lentAmount = "";
+		lentBorrowerName = "";
 		lentDate = getToday();
-		lentNotes = '';
-		repaidAmount = '';
+		lentNotes = "";
+		repaidAmount = "";
 		repaidDate = getToday();
-		repaidNotes = '';
+		repaidNotes = "";
 	}
 
 	function forceCloseSheet() {
@@ -107,21 +107,21 @@
 
 	function onAmountInput(e: Event, setter: (val: string) => void) {
 		const input = e.target as HTMLInputElement;
-		let raw = input.value.replace(/[^0-9.]/g, '');
+		let raw = input.value.replace(/[^0-9.]/g, "");
 		const dots = raw.match(/\./g);
-		if (dots && dots.length > 1) raw = raw.slice(0, raw.lastIndexOf('.'));
+		if (dots && dots.length > 1) raw = raw.slice(0, raw.lastIndexOf("."));
 		setter(raw);
-		input.value = raw ? formatWithCommas(raw) : '';
+		input.value = raw ? formatWithCommas(raw) : "";
 	}
 
 	async function submitSpent() {
 		const amount = parseFloat(spentAmount);
 		if (isNaN(amount) || amount <= 0) {
-			errorMessage = 'Please enter a valid amount';
+			errorMessage = "Please enter a valid amount";
 			return;
 		}
 		if (!spentCategoryId) {
-			errorMessage = 'Please select a category';
+			errorMessage = "Please select a category";
 			return;
 		}
 
@@ -129,25 +129,28 @@
 		errorMessage = null;
 
 		try {
-			const res = await fetch('/api/transactions', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+			const res = await fetch("/api/transactions", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					type: 'expense',
+					type: "expense",
 					amount,
-					description: spentDescription.trim() || categories.find(c => c.id === spentCategoryId)?.name || 'Expense',
+					description:
+						spentDescription.trim() ||
+						categories.find((c) => c.id === spentCategoryId)?.name ||
+						"Expense",
 					date: spentDate,
-					category_id: spentCategoryId
-				})
+					category_id: spentCategoryId,
+				}),
 			});
 
 			const data = await res.json();
-			if (!res.ok) throw new Error(data.error || 'Failed to log expense');
+			if (!res.ok) throw new Error(data.error || "Failed to log expense");
 
-			showSuccess('Expense logged successfully!');
-			onsuccess?.({ type: 'spent', amount });
+			showSuccess("Expense logged successfully!");
+			onsuccess?.({ type: "spent", amount });
 			forceCloseSheet();
-			invalidate('app:dashboard');
+			invalidate("app:dashboard");
 		} catch (err: unknown) {
 			errorMessage = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -158,11 +161,11 @@
 	async function submitLent() {
 		const amount = parseFloat(lentAmount);
 		if (isNaN(amount) || amount <= 0) {
-			errorMessage = 'Please enter a valid amount';
+			errorMessage = "Please enter a valid amount";
 			return;
 		}
 		if (!lentBorrowerName.trim()) {
-			errorMessage = 'Please enter the borrower name';
+			errorMessage = "Please enter the borrower name";
 			return;
 		}
 
@@ -170,25 +173,25 @@
 		errorMessage = null;
 
 		try {
-			const res = await fetch('/api/lendings', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+			const res = await fetch("/api/lendings", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					borrower_name: lentBorrowerName.trim(),
 					amount,
 					date_lent: lentDate,
 					notes: lentNotes.trim() || null,
-					direction: 'lent'
-				})
+					direction: "lent",
+				}),
 			});
 
 			const data = await res.json();
-			if (!res.ok) throw new Error(data.error || 'Failed to log lent money');
+			if (!res.ok) throw new Error(data.error || "Failed to log lent money");
 
-			showSuccess('Lent money logged successfully!');
-			onsuccess?.({ type: 'lent', amount });
+			showSuccess("Lent money logged successfully!");
+			onsuccess?.({ type: "lent", amount });
 			forceCloseSheet();
-			invalidate('app:dashboard');
+			invalidate("app:dashboard");
 		} catch (err: unknown) {
 			errorMessage = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -199,11 +202,11 @@
 	async function submitRepaid() {
 		const amount = parseFloat(repaidAmount);
 		if (isNaN(amount) || amount <= 0) {
-			errorMessage = 'Please enter a valid amount';
+			errorMessage = "Please enter a valid amount";
 			return;
 		}
 		if (!repaidLendingId) {
-			errorMessage = 'Please select a debt obligation to repay';
+			errorMessage = "Please select a debt obligation to repay";
 			return;
 		}
 
@@ -212,24 +215,24 @@
 
 		try {
 			const res = await fetch(`/api/lendings/${repaidLendingId}/payments`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					amount,
 					payment_date: repaidDate,
 					notes: repaidNotes.trim() || null,
-					payment_type: 'payment',
-					create_transaction: true
-				})
+					payment_type: "payment",
+					create_transaction: true,
+				}),
 			});
 
 			const data = await res.json();
-			if (!res.ok) throw new Error(data.error || 'Failed to log repayment');
+			if (!res.ok) throw new Error(data.error || "Failed to log repayment");
 
-			showSuccess('Repayment logged successfully!');
-			onsuccess?.({ type: 'repaid', amount });
+			showSuccess("Repayment logged successfully!");
+			onsuccess?.({ type: "repaid", amount });
 			forceCloseSheet();
-			invalidate('app:dashboard');
+			invalidate("app:dashboard");
 		} catch (err: unknown) {
 			errorMessage = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -247,14 +250,25 @@
 			<!-- Header -->
 			<div class="sheet-header">
 				{#if selectedType}
-					<button type="button" class="back-btn" onclick={() => selectType(null)} disabled={submitting}>
+					<button
+						type="button"
+						class="back-btn"
+						onclick={() => selectType(null)}
+						disabled={submitting}
+					>
 						‹ change
 					</button>
 				{:else}
-					<span class="sheet-subtitle">LOG IT</span>
+					<span class="sheet-subtitle">WRECKRD IT</span>
 				{/if}
 
-				<button type="button" class="close-btn" onclick={closeSheet} disabled={submitting} aria-label="Close">
+				<button
+					type="button"
+					class="close-btn"
+					onclick={closeSheet}
+					disabled={submitting}
+					aria-label="Close"
+				>
 					✕
 				</button>
 			</div>
@@ -271,7 +285,11 @@
 					<p class="step-desc">Choose a type to log in one tap.</p>
 
 					<div class="type-cards">
-						<button type="button" class="type-card spent-type" onclick={() => selectType('spent')}>
+						<button
+							type="button"
+							class="type-card spent-type"
+							onclick={() => selectType("spent")}
+						>
 							<div class="type-icon-wrap">💸</div>
 							<div class="type-info">
 								<span class="type-name">Spent</span>
@@ -280,16 +298,26 @@
 							<span class="arrow-indicator">›</span>
 						</button>
 
-						<button type="button" class="type-card lent-type" onclick={() => selectType('lent')}>
+						<button
+							type="button"
+							class="type-card lent-type"
+							onclick={() => selectType("lent")}
+						>
 							<div class="type-icon-wrap">🤝</div>
 							<div class="type-info">
 								<span class="type-name">Lent</span>
-								<span class="type-sub">Money that left your hands — but you expect it back.</span>
+								<span class="type-sub"
+									>Money that left your hands — but you expect it back.</span
+								>
 							</div>
 							<span class="arrow-indicator">›</span>
 						</button>
 
-						<button type="button" class="type-card repaid-type" onclick={() => selectType('repaid')}>
+						<button
+							type="button"
+							class="type-card repaid-type"
+							onclick={() => selectType("repaid")}
+						>
 							<div class="type-icon-wrap">🧾</div>
 							<div class="type-info">
 								<span class="type-name">Repaid</span>
@@ -302,8 +330,14 @@
 			{/if}
 
 			<!-- STEP 2: Spent Form -->
-			{#if selectedType === 'spent'}
-				<form class="form-step" onsubmit={(e) => { e.preventDefault(); submitSpent(); }}>
+			{#if selectedType === "spent"}
+				<form
+					class="form-step"
+					onsubmit={(e) => {
+						e.preventDefault();
+						submitSpent();
+					}}
+				>
 					<h2 class="form-title">Log Expense</h2>
 
 					<!-- Amount Input -->
@@ -316,7 +350,7 @@
 								type="text"
 								inputmode="decimal"
 								placeholder="0.00"
-								value={spentAmount ? formatWithCommas(spentAmount) : ''}
+								value={spentAmount ? formatWithCommas(spentAmount) : ""}
 								oninput={(e) => onAmountInput(e, (v) => (spentAmount = v))}
 								required
 								autocomplete="off"
@@ -328,7 +362,11 @@
 					<!-- Category Selector -->
 					<div class="input-group">
 						<label for="spent_cat" class="input-label">CATEGORY</label>
-						<select id="spent_cat" bind:value={spentCategoryId} class="select-input">
+						<select
+							id="spent_cat"
+							bind:value={spentCategoryId}
+							class="select-input"
+						>
 							{#each categories as cat (cat.id)}
 								<option value={cat.id}>{cat.icon} {cat.name}</option>
 							{/each}
@@ -337,7 +375,9 @@
 
 					<!-- Description Input -->
 					<div class="input-group">
-						<label for="spent_desc" class="input-label">DESCRIPTION (OPTIONAL)</label>
+						<label for="spent_desc" class="input-label"
+							>DESCRIPTION (OPTIONAL)</label
+						>
 						<input
 							id="spent_desc"
 							type="text"
@@ -350,18 +390,33 @@
 					<!-- Date Input -->
 					<div class="input-group">
 						<label for="spent_date" class="input-label">DATE</label>
-						<input id="spent_date" type="date" bind:value={spentDate} class="text-input" />
+						<input
+							id="spent_date"
+							type="date"
+							bind:value={spentDate}
+							class="text-input"
+						/>
 					</div>
 
-					<button type="submit" class="submit-btn spent-submit-btn" disabled={submitting}>
-						{submitting ? 'Logging...' : 'Log Spent'}
+					<button
+						type="submit"
+						class="submit-btn spent-submit-btn"
+						disabled={submitting}
+					>
+						{submitting ? "Logging..." : "Wreckrd Spent"}
 					</button>
 				</form>
 			{/if}
 
 			<!-- STEP 2: Lent Form -->
-			{#if selectedType === 'lent'}
-				<form class="form-step" onsubmit={(e) => { e.preventDefault(); submitLent(); }}>
+			{#if selectedType === "lent"}
+				<form
+					class="form-step"
+					onsubmit={(e) => {
+						e.preventDefault();
+						submitLent();
+					}}
+				>
 					<h2 class="form-title">Log Lent Money</h2>
 
 					<!-- Amount Input -->
@@ -374,7 +429,7 @@
 								type="text"
 								inputmode="decimal"
 								placeholder="0.00"
-								value={lentAmount ? formatWithCommas(lentAmount) : ''}
+								value={lentAmount ? formatWithCommas(lentAmount) : ""}
 								oninput={(e) => onAmountInput(e, (v) => (lentAmount = v))}
 								required
 								autocomplete="off"
@@ -385,7 +440,9 @@
 
 					<!-- Borrower Name Input -->
 					<div class="input-group">
-						<label for="lent_borrower" class="input-label">PERSON / BORROWER</label>
+						<label for="lent_borrower" class="input-label"
+							>PERSON / BORROWER</label
+						>
 						<input
 							id="lent_borrower"
 							type="text"
@@ -399,7 +456,12 @@
 					<!-- Date Lent -->
 					<div class="input-group">
 						<label for="lent_date" class="input-label">DATE LENT</label>
-						<input id="lent_date" type="date" bind:value={lentDate} class="text-input" />
+						<input
+							id="lent_date"
+							type="date"
+							bind:value={lentDate}
+							class="text-input"
+						/>
 					</div>
 
 					<!-- Notes -->
@@ -414,15 +476,25 @@
 						/>
 					</div>
 
-					<button type="submit" class="submit-btn lent-submit-btn" disabled={submitting}>
-						{submitting ? 'Logging...' : 'Log Lent'}
+					<button
+						type="submit"
+						class="submit-btn lent-submit-btn"
+						disabled={submitting}
+					>
+						{submitting ? "Logging..." : "Wreckrd Lent"}
 					</button>
 				</form>
 			{/if}
 
 			<!-- STEP 2: Repaid Form -->
-			{#if selectedType === 'repaid'}
-				<form class="form-step" onsubmit={(e) => { e.preventDefault(); submitRepaid(); }}>
+			{#if selectedType === "repaid"}
+				<form
+					class="form-step"
+					onsubmit={(e) => {
+						e.preventDefault();
+						submitRepaid();
+					}}
+				>
 					<h2 class="form-title">Log Debt Repayment</h2>
 
 					{#if activeBorrowed.length === 0}
@@ -432,11 +504,18 @@
 					{:else}
 						<!-- Select Active Borrowed -->
 						<div class="input-group">
-							<label for="repaid_lending" class="input-label">DEBT OBLIGATION</label>
-							<select id="repaid_lending" bind:value={repaidLendingId} class="select-input">
+							<label for="repaid_lending" class="input-label"
+								>DEBT OBLIGATION</label
+							>
+							<select
+								id="repaid_lending"
+								bind:value={repaidLendingId}
+								class="select-input"
+							>
 								{#each activeBorrowed as b (b.id)}
 									<option value={b.id}>
-										{b.borrower_name} — ₱{formatWithCommas(String(b.remaining))} remaining
+										{b.borrower_name} — ₱{formatWithCommas(String(b.remaining))}
+										remaining
 									</option>
 								{/each}
 							</select>
@@ -444,7 +523,9 @@
 
 						<!-- Amount Input -->
 						<div class="input-group">
-							<label for="repaid_amount" class="input-label">REPAYMENT AMOUNT</label>
+							<label for="repaid_amount" class="input-label"
+								>REPAYMENT AMOUNT</label
+							>
 							<div class="amount-input-box">
 								<span class="currency-sym">₱</span>
 								<input
@@ -452,7 +533,7 @@
 									type="text"
 									inputmode="decimal"
 									placeholder="0.00"
-									value={repaidAmount ? formatWithCommas(repaidAmount) : ''}
+									value={repaidAmount ? formatWithCommas(repaidAmount) : ""}
 									oninput={(e) => onAmountInput(e, (v) => (repaidAmount = v))}
 									required
 									autocomplete="off"
@@ -464,12 +545,19 @@
 						<!-- Date -->
 						<div class="input-group">
 							<label for="repaid_date" class="input-label">PAYMENT DATE</label>
-							<input id="repaid_date" type="date" bind:value={repaidDate} class="text-input" />
+							<input
+								id="repaid_date"
+								type="date"
+								bind:value={repaidDate}
+								class="text-input"
+							/>
 						</div>
 
 						<!-- Notes -->
 						<div class="input-group">
-							<label for="repaid_notes" class="input-label">NOTES (OPTIONAL)</label>
+							<label for="repaid_notes" class="input-label"
+								>NOTES (OPTIONAL)</label
+							>
 							<input
 								id="repaid_notes"
 								type="text"
@@ -479,8 +567,12 @@
 							/>
 						</div>
 
-						<button type="submit" class="submit-btn repaid-submit-btn" disabled={submitting}>
-							{submitting ? 'Logging...' : 'Log Repayment'}
+						<button
+							type="submit"
+							class="submit-btn repaid-submit-btn"
+							disabled={submitting}
+						>
+							{submitting ? "Logging..." : "Wreckrd Repayment"}
 						</button>
 					{/if}
 				</form>
@@ -565,7 +657,7 @@
 
 	.error-banner {
 		background: rgba(239, 108, 74, 0.12);
-		color: var(--color-money-gone, #EF6C4A);
+		color: var(--color-money-gone, #ef6c4a);
 		padding: 10px 14px;
 		border-radius: var(--radius-md);
 		font-size: 12px;
@@ -616,9 +708,15 @@
 		transform: scale(0.98);
 	}
 
-	.spent-type { border-left: 4px solid var(--color-money-gone, #EF6C4A); }
-	.lent-type { border-left: 4px solid var(--color-money-away, #5DADE2); }
-	.repaid-type { border-left: 4px solid var(--color-gold, #FFD23F); }
+	.spent-type {
+		border-left: 4px solid var(--color-money-gone, #ef6c4a);
+	}
+	.lent-type {
+		border-left: 4px solid var(--color-money-away, #5dade2);
+	}
+	.repaid-type {
+		border-left: 4px solid var(--color-gold, #ffd23f);
+	}
 
 	.type-icon-wrap {
 		font-size: 24px;
@@ -715,7 +813,8 @@
 		outline: none;
 	}
 
-	.select-input, .text-input {
+	.select-input,
+	.text-input {
 		width: 100%;
 		height: 46px;
 		border-radius: var(--radius-lg, 12px);
@@ -746,7 +845,10 @@
 		font-weight: 800;
 		cursor: pointer;
 		margin-top: 6px;
-		transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+		transition:
+			transform 140ms ease,
+			box-shadow 140ms ease,
+			opacity 140ms ease;
 	}
 
 	.submit-btn:active {
@@ -760,30 +862,38 @@
 	}
 
 	.spent-submit-btn {
-		background: var(--color-money-gone, #EF6C4A);
+		background: var(--color-money-gone, #ef6c4a);
 		color: #ffffff;
 		box-shadow: 0 4px 16px rgba(239, 108, 74, 0.4);
 	}
 
 	.lent-submit-btn {
-		background: var(--color-money-away, #5DADE2);
+		background: var(--color-money-away, #5dade2);
 		color: #ffffff;
 		box-shadow: 0 4px 16px rgba(93, 173, 226, 0.4);
 	}
 
 	.repaid-submit-btn {
-		background: var(--color-gold, #FFD23F);
-		color: var(--color-on-gold, #14302E);
+		background: var(--color-gold, #ffd23f);
+		color: var(--color-on-gold, #14302e);
 		box-shadow: var(--glow-gold, 0 4px 16px rgba(255, 210, 63, 0.4));
 	}
 
 	@keyframes fadeIn {
-		from { opacity: 0; }
-		to { opacity: 1; }
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
 	}
 
 	@keyframes slideUp {
-		from { transform: translateY(100%); }
-		to { transform: translateY(0); }
+		from {
+			transform: translateY(100%);
+		}
+		to {
+			transform: translateY(0);
+		}
 	}
 </style>

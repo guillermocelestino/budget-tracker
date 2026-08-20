@@ -73,11 +73,13 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: var(--space-md, 12px);
+    align-items: stretch;
   }
 
   .modality-card {
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
     padding: 16px 18px;
     background: var(--color-surface);
     border: 1px solid var(--color-hairline);
@@ -85,6 +87,7 @@
     text-decoration: none;
     box-shadow: var(--shadow-sm);
     transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+    height: 100%;
   }
 
   .modality-card:hover {
@@ -94,14 +97,15 @@
 
   .modality-card.coral:hover { border-color: var(--color-money-gone, #EF6C4A); }
   .modality-card.sky:hover { border-color: var(--color-money-away, #5DADE2); }
-  .modality-card.gold:hover { border-color: var(--color-money-committed, #D97706); }
+  .modality-card.gold:hover { border-color: #B45309; }
   .modality-card.teal:hover { border-color: var(--color-true-position, #1E8C86); }
 
   .card-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
+    width: 100%;
   }
 
   .modality-badge {
@@ -110,6 +114,7 @@
     gap: 6px;
     padding: 3px 10px;
     border-radius: var(--radius-pill, 999px);
+    height: 24px;
   }
 
   .modality-badge .label {
@@ -117,35 +122,66 @@
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.1em;
+    line-height: 1;
   }
 
   .modality-badge.coral { background: rgba(239, 108, 74, 0.12); color: var(--color-money-gone, #EF6C4A); }
   .modality-badge.sky { background: rgba(93, 173, 226, 0.12); color: var(--color-money-away, #5DADE2); }
-  .modality-badge.gold { background: rgba(255, 210, 63, 0.15); color: var(--color-money-committed, #D97706); }
+  .modality-badge.gold { background: #FEF3C7; color: #92400E; font-weight: 700; }
   .modality-badge.teal { background: rgba(30, 140, 134, 0.12); color: var(--color-true-position, #1E8C86); }
 
   .arrow-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-family: var(--font-display);
     font-size: 14px;
     font-weight: 800;
-    color: var(--color-text-muted);
+    color: #475569;
+    line-height: 1;
+    height: 24px;
   }
 
   .card-val {
     font-family: var(--font-display);
-    font-size: 22px;
+    font-size: clamp(20px, 1.8vw, 24px);
     font-weight: 900;
-    line-height: 1.1;
-    margin-bottom: 4px;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .card-val.coral { color: var(--color-money-gone, #EF6C4A); }
   .card-val.sky { color: var(--color-money-away, #5DADE2); }
-  .card-val.gold { color: var(--color-money-committed, #D97706); }
+  .card-val.gold { color: #B45309; }
   .card-val.teal { color: var(--color-true-position, #1E8C86); }
 
   .card-sub {
     font-size: 11px;
+    font-weight: 500;
+    line-height: 1.3;
+    color: #475569;
+  }
+
+  /* ─── DARK MODE GUARDS ─── */
+  :global([data-theme="dark"]) .modality-card.gold:hover {
+    border-color: #F59E0B;
+  }
+
+  :global([data-theme="dark"]) .modality-badge.gold {
+    background: rgba(251, 191, 36, 0.15);
+    color: #FBBF24;
+  }
+
+  :global([data-theme="dark"]) .card-val.gold {
+    color: #F59E0B;
+  }
+
+  :global([data-theme="dark"]) .arrow-link,
+  :global([data-theme="dark"]) .card-sub {
     color: var(--color-text-muted);
   }
 

@@ -47,6 +47,13 @@
 		if (lower.includes('health') || lower.includes('med') || lower.includes('doctor') || lower.includes('fit') || lower.includes('gym')) return '💊';
 		return '💸';
 	}
+	function getCategoryColor(cat: CategoryItem, index: number): string {
+		const isPurple = cat.category_color && /#?(6366f1|8b5cf6|a855f7|9333ea|7c3aed|6b21a8|581c87|800080|purple|indigo)/i.test(cat.category_color);
+		if (!cat.category_color || isPurple) {
+			return index % 2 === 0 ? 'var(--color-teal, #2BA8A2)' : 'var(--color-money-gone, #EF6C4A)';
+		}
+		return cat.category_color;
+	}
 </script>
 
 <div class="where-it-went-card">
@@ -59,9 +66,9 @@
 
 	{#if sortedCategories.length > 0}
 		<div class="category-list">
-			{#each sortedCategories as cat (cat.category_id)}
+			{#each sortedCategories as cat, i (cat.category_id)}
 				{@const pct = Math.min(100, Math.round((cat.total / maxCategoryTotal) * 100))}
-				{@const color = cat.category_color || 'var(--color-money-gone, #EF6C4A)'}
+				{@const color = getCategoryColor(cat, i)}
 				<div class="category-row">
 					<div class="category-info-row">
 						<div class="category-label-group">
@@ -76,7 +83,6 @@
 							class="bar-fill"
 							style:width="{pct}%"
 							style:background={color}
-							style:box-shadow="0 0 8px {color}44"
 						></div>
 					</div>
 				</div>

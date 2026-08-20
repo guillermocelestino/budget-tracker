@@ -9,7 +9,7 @@
 	import MobilePocketDrain from '$lib/client/components/dashboard/MobilePocketDrain.svelte';
 	import MobileWhereItWent from '$lib/client/components/dashboard/MobileWhereItWent.svelte';
 	import MobileDailyDrain from '$lib/client/components/dashboard/MobileDailyDrain.svelte';
-	import { formatDate, formatCurrency } from '$lib/client/utils/format';
+	import { formatDate } from '$lib/client/utils/format';
 	import type { CategoryItem } from '$lib/client/components/dashboard/MobileWhereItWent.svelte';
 	import type { DailyOutflowItem } from '$lib/client/components/dashboard/MobileDailyDrain.svelte';
 
@@ -59,16 +59,11 @@
 				<span class="badge-text">MONEY OUT COMMAND CENTER</span>
 			</div>
 			<h1 class="hero-title">WHERE IS MY MONEY RIGHT NOW — AND WHAT'S ABOUT TO HAPPEN TO IT?</h1>
-			<p class="hero-equation">Available Cash + Money Away − Money Committed = True Position</p>
-		</div>
-		<div class="hero-center">
-			<span class="hero-val-label">TRUE POSITION</span>
-			<span class="hero-val-amount teal">{formatCurrency(data.netWorth?.net ?? 0)}</span>
 		</div>
 		<div class="hero-actions">
-			<a href="/transactions" class="btn-command coral">+ Record Expense</a>
-			<a href="/lending" class="btn-command sky">+ Send Money Away</a>
-			<a href="/recurring" class="btn-command gold">+ Add Commitment</a>
+			<a href="/transactions" class="btn-command primary">+ Record Expense</a>
+			<a href="/lending" class="btn-command secondary">+ Send Money Away</a>
+			<a href="/recurring" class="btn-command secondary">+ Add Commitment</a>
 		</div>
 	</header>
 
@@ -81,6 +76,7 @@
 				moneyCommitted={data.commandCenter?.moneyCommitted}
 				truePosition={data.commandCenter?.truePosition}
 			/>
+			<p class="kpi-formula-caption">Available Cash + Money Away − Money Committed = True Position</p>
 		</section>
 
 		<!-- LAYER 2: MONEY OUT HERO CARDS (Money Hero + Pocket Drain) -->
@@ -154,7 +150,7 @@
 	.hero-left {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: 6px;
 		flex: 1;
 	}
 
@@ -179,85 +175,79 @@
 
 	.hero-title {
 		font-family: var(--font-display);
-		font-size: clamp(18px, 2.2vw, 24px);
+		font-size: clamp(16px, 2vw, 22px);
 		font-weight: 800;
 		color: var(--color-ink);
 		margin: 0;
 		letter-spacing: -0.02em;
-		line-height: 1.2;
-	}
-
-	.hero-equation {
-		font-family: var(--font-mono, monospace);
-		font-size: 12px;
-		color: var(--color-true-position, #1E8C86);
-		font-weight: 600;
-		margin: 6px 0 0 0;
-		opacity: 0.9;
-	}
-
-	.hero-center {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-end;
-		justify-content: center;
-		padding: 0 16px;
-		border-left: 1px solid var(--color-hairline);
-		border-right: 1px solid var(--color-hairline);
-	}
-
-	.hero-val-label {
-		font-size: 10px;
-		font-weight: 800;
-		color: var(--color-text-muted);
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-	}
-
-	.hero-val-amount.teal {
-		font-family: var(--font-display);
-		font-size: clamp(24px, 2.8vw, 32px);
-		font-weight: 900;
-		color: var(--color-true-position, #1E8C86);
-		line-height: 1.1;
+		line-height: 1.25;
 	}
 
 	.hero-actions {
 		display: flex;
-		flex-direction: column;
-		gap: 6px;
+		align-items: center;
+		gap: 8px;
 		flex-shrink: 0;
+		background: var(--color-surface-inset, rgba(0, 0, 0, 0.03));
+		padding: 5px;
+		border-radius: var(--radius-pill, 999px);
+		border: 1px solid var(--color-hairline);
 	}
 
 	.btn-command {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		padding: 6px 14px;
+		padding: 8px 16px;
 		border-radius: var(--radius-pill, 999px);
 		font-family: var(--font-display);
 		font-size: 12px;
 		font-weight: 700;
 		text-decoration: none;
-		transition: transform 140ms ease, opacity 140ms ease;
+		white-space: nowrap;
+		transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 	}
 
-	.btn-command:hover { transform: translateY(-1px); }
-	.btn-command.coral { background: rgba(239, 108, 74, 0.12); color: var(--color-money-gone, #EF6C4A); }
-	.btn-command.sky { background: rgba(93, 173, 226, 0.12); color: var(--color-money-away, #5DADE2); }
-	.btn-command.gold { background: rgba(255, 210, 63, 0.15); color: var(--color-money-committed, #D97706); }
+	.btn-command.primary {
+		background: var(--color-money-gone, #EF6C4A);
+		color: #FFFFFF;
+		border: 1px solid var(--color-money-gone, #EF6C4A);
+		box-shadow: 0 2px 6px rgba(239, 108, 74, 0.25);
+	}
+
+	.btn-command.primary:hover {
+		transform: translateY(-2px);
+		background: #E55B37;
+		box-shadow: 0 4px 12px rgba(239, 108, 74, 0.35);
+	}
+
+	.btn-command.secondary {
+		background: transparent;
+		color: var(--color-ink);
+		border: 1px solid var(--color-hairline);
+	}
+
+	.btn-command.secondary:hover {
+		transform: translateY(-1px);
+		background: var(--color-surface);
+		border-color: var(--color-text-muted);
+		color: var(--color-ink);
+	}
+
+	.kpi-formula-caption {
+		font-family: var(--font-mono, monospace);
+		font-size: 11px;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		letter-spacing: 0.04em;
+		text-align: center;
+		margin: 12px 0 0 0;
+		opacity: 0.85;
+	}
 
 	:global(.page-header) {
 		position: relative;
 		z-index: 30;
-	}
-
-	.context-subline {
-		font-family: var(--font-mono);
-		font-variant-numeric: tabular-nums;
-		font-size: var(--font-size-xs);
-		letter-spacing: 0.02em;
-		color: var(--color-text-muted);
 	}
 
 	/* ─── Desktop vs. Mobile Composition Scoping ─── */

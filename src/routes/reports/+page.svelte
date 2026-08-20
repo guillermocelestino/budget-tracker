@@ -1,7 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { getMonthLabel } from '$lib/shared/utils/format';
-  import PageHeader from '$lib/client/components/PageHeader.svelte';
   import PageBackground from '$lib/client/components/PageBackground.svelte';
   import ReportsKpiGrid from '$lib/client/components/ReportsKpiGrid.svelte';
   import ReportsCategoryGrid from '$lib/client/components/ReportsCategoryGrid.svelte';
@@ -122,46 +121,50 @@
 </script>
 
 <svelte:head>
-  <title>Analysis — Finance Tracker</title>
+  <title>Analysis — WRECKRD</title>
 </svelte:head>
-
-<PageHeader title="WHY IS MY MONEY MOVING THIS WAY?" flush borderless>
-  {#snippet subtitle()}
-    <div class="analysis-badge-row">
-      <span class="analysis-badge">📊 ANALYSIS</span>
-      <span class="context-subline">Patterns, trends, and financial behavior hiding behind your numbers.</span>
-    </div>
-  {/snippet}
-  {#snippet action()}
-    {#if hasExportableData}
-      <a
-        href="/api/reports/export?start={exportStart}&end={exportEnd}"
-        class="btn-export"
-        download
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" x2="12" y1="15" y2="3"/>
-        </svg>
-        Export CSV
-      </a>
-    {:else}
-      <span class="btn-export btn-export-disabled" title="Nothing to export yet">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" x2="12" y1="15" y2="3"/>
-        </svg>
-        Export CSV
-      </span>
-    {/if}
-  {/snippet}
-</PageHeader>
 
 <PageBackground />
 
 <div class="page-container page-container--workspace">
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       REPORTS / ANALYSIS HERO HEADER (Flip7 Golden Template Alignment)
+       ═══════════════════════════════════════════════════════════════════════════ -->
+  <header class="reports-hero flip7-card accent-teal">
+    <div class="hero-left">
+      <div class="hero-badge">
+        <span class="badge-icon">📊</span>
+        <span class="badge-text">ANALYSIS</span>
+      </div>
+      <h1 class="hero-title">WHY IS MY MONEY MOVING THIS WAY?</h1>
+      <p class="hero-subtitle">Patterns, trends, and financial behavior hiding behind your numbers.</p>
+    </div>
+    <div class="hero-actions">
+      {#if hasExportableData}
+        <a
+          href="/api/reports/export?start={exportStart}&end={exportEnd}"
+          class="btn-export"
+          download
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" x2="12" y1="15" y2="3"/>
+          </svg>
+          Export CSV
+        </a>
+      {:else}
+        <span class="btn-export btn-export-disabled" title="Nothing to export yet">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" x2="12" y1="15" y2="3"/>
+          </svg>
+          Export CSV
+        </span>
+      {/if}
+    </div>
+  </header>
 
 <!-- ═══ Timeframe Pill Control Bar ═══ -->
 <div class="timeframe-bar">
@@ -273,39 +276,73 @@
 </div>
 
 <style>
-  :global(.page-header) {
+  /* ─── REPORTS HERO HEADER (Flip7 Golden Template Alignment) ─── */
+  .reports-hero {
     position: relative;
-    z-index: 30;
-  }
-
-  .analysis-badge-row {
     display: flex;
     align-items: center;
-    gap: var(--space-xs);
-    flex-wrap: wrap;
-    margin-top: 2px;
+    justify-content: space-between;
+    gap: var(--space-lg, 16px);
+    padding: 18px 24px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline);
+    border-radius: 24px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: var(--space-md, 12px);
+    overflow: visible;
   }
 
-  .analysis-badge {
+  .hero-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .hero-badge {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    border-radius: var(--radius-pill);
-    background: var(--color-teal-bg);
-    color: var(--color-true-position, var(--color-teal-dark));
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
+    gap: 6px;
+    padding: 3px 10px;
+    background: var(--color-teal-bg, rgba(43, 168, 162, 0.12));
+    border-radius: var(--radius-pill, 999px);
+    width: fit-content;
+    margin-bottom: 2px;
   }
 
-  .context-subline {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    font-size: var(--font-size-xs);
-    letter-spacing: 0.02em;
+  .badge-icon {
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .badge-text {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--color-true-position, var(--color-teal-dark, #1E8C86));
+    letter-spacing: 0.12em;
+  }
+
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(20px, 2.4vw, 26px);
+    font-weight: 800;
+    color: var(--color-ink);
+    margin: 0;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+
+  .hero-subtitle {
+    font-size: var(--font-size-sm, 14px);
     color: var(--color-text-muted);
+    margin: 2px 0 0 0;
+  }
+
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
   }
 
   .section-label {
@@ -321,22 +358,33 @@
   .btn-export {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
-    border-radius: var(--radius-pill);
-    background: var(--color-teal-bg);
-    color: var(--color-teal);
-    font-size: var(--font-size-xs);
+    gap: 8px;
+    padding: 10px 20px;
+    min-height: 44px;
+    background: var(--color-teal, #2BA8A2);
+    color: var(--color-ink-inverse, #ffffff);
+    border: none;
+    border-radius: var(--radius-pill, 999px);
+    font-family: var(--font-display);
+    font-size: 14px;
     font-weight: 700;
     text-decoration: none;
-    transition: all 180ms var(--ease);
-    border: 1px solid rgba(43, 168, 162, 0.2);
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(43, 168, 162, 0.35);
+    transition: transform 140ms ease, background 140ms ease, box-shadow 140ms ease;
+    -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
   }
 
   .btn-export:hover {
-    background: var(--color-teal);
-    color: #fff;
-    box-shadow: var(--glow-card);
+    background: var(--color-teal-dark, #1E8C86);
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(43, 168, 162, 0.45);
+  }
+
+  .btn-export:active {
+    transform: scale(0.97);
   }
 
   .btn-export-disabled {
@@ -344,7 +392,15 @@
     cursor: not-allowed;
     background: var(--color-surface-inset);
     color: var(--color-text-muted);
-    border-color: var(--color-hairline);
+    border: 1px solid var(--color-hairline);
+    box-shadow: none;
+  }
+
+  .btn-export-disabled:hover {
+    transform: none;
+    background: var(--color-surface-inset);
+    color: var(--color-text-muted);
+    box-shadow: none;
   }
 
   /* ─── Timeframe Control Bar ─── */
@@ -450,9 +506,23 @@
     padding: var(--space-2xl) 0;
   }
 
-  /* ════════════════════════════════════════
-     RESPONSIVE
-     ════════════════════════════════════════ */
+  @media (max-width: 640px) {
+    .reports-hero {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-md);
+      padding: 16px 20px;
+    }
+
+    .hero-actions {
+      width: 100%;
+    }
+
+    .btn-export {
+      width: 100%;
+      justify-content: center;
+    }
+  }
 
   @media (max-width: 768px) {
     .timeframe-pill {

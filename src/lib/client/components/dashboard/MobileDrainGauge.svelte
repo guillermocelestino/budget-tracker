@@ -90,12 +90,6 @@
 		};
 	});
 
-	const comparisonText = $derived.by(() => {
-		if (prevDailyRate === null) return '';
-		if (dailyRate > prevDailyRate) return `— up from ${formatCurrency(prevDailyRate)}.`;
-		if (dailyRate < prevDailyRate) return `— down from ${formatCurrency(prevDailyRate)}.`;
-		return '— same as last month.';
-	});
 </script>
 
 <div class="drain-gauge-card">
@@ -118,11 +112,19 @@
 		</div>
 	</div>
 
-	<!-- Diagnostic Subtext -->
-	<div class="rate-diagnostic-text">
-		<strong>{severity.label} ~{formatCurrency(dailyRate)}/day</strong>
-		{#if comparisonText}
-			<span class="comparison-subtext"> {comparisonText}</span>
+	<!-- Diagnostic Subtext & Baseline Comparison Chip -->
+	<div class="rate-diagnostic-wrap">
+		<div class="main-rate-pill" style:background={severity.bg} style:color={severity.color}>
+			<span class="pill-title">{severity.label} ~{formatCurrency(dailyRate)}/day</span>
+		</div>
+		{#if prevDailyRate !== null}
+			<div class="baseline-chip">
+				<span class="chip-dot" style:background={severity.color}></span>
+				<span class="chip-label">
+					{dailyRate > prevDailyRate ? 'Up from' : (dailyRate < prevDailyRate ? 'Down from' : 'Same as')}
+					<strong>{formatCurrency(prevDailyRate)}/day</strong> last month
+				</span>
+			</div>
 		{/if}
 	</div>
 </div>
@@ -132,15 +134,17 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 14px;
-		padding: 4px 0 8px 0;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 4px 0;
 		width: 100%;
+		height: 100%;
 	}
 
 	.donut-ring {
 		position: relative;
-		width: 140px;
-		height: 140px;
+		width: 130px;
+		height: 130px;
 		border-radius: 50%;
 		background: conic-gradient(
 			var(--gauge-color) 0deg var(--gauge-angle),
@@ -151,11 +155,12 @@
 		align-items: center;
 		justify-content: center;
 		transition: background 300ms ease;
+		flex-shrink: 0;
 	}
 
 	.ring-center {
-		width: 110px;
-		height: 110px;
+		width: 100px;
+		height: 100px;
 		border-radius: 50%;
 		background: var(--color-surface);
 		display: flex;
@@ -164,31 +169,65 @@
 		justify-content: center;
 		box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.08);
 		padding: 6px;
-		gap: 4px;
+		gap: 2px;
 	}
 
 	.emoji-icon {
-		font-size: 28px;
+		font-size: 26px;
 		line-height: 1;
 	}
 
 	.status-label {
 		font-family: var(--font-display);
-		font-size: 13px;
+		font-size: 12px;
 		font-weight: 800;
 		letter-spacing: 0.03em;
 	}
 
-	.rate-diagnostic-text {
-		text-align: center;
-		font-size: 13px;
-		line-height: 1.4;
-		color: var(--color-ink);
+	.rate-diagnostic-wrap {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
 	}
 
-	.comparison-subtext {
+	.main-rate-pill {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 6px 14px;
+		border-radius: var(--radius-pill, 999px);
+		font-family: var(--font-display);
+		font-size: 13px;
+		font-weight: 800;
+		letter-spacing: -0.01em;
+		text-align: center;
+	}
+
+	.baseline-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 4px 10px;
+		background: var(--color-surface-inset, rgba(0, 0, 0, 0.04));
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-pill, 999px);
+		font-size: 11px;
 		color: var(--color-text-muted);
-		font-weight: 500;
+	}
+
+	.chip-dot {
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.chip-label strong {
+		color: var(--color-ink);
+		font-family: var(--font-mono);
+		font-weight: 700;
 	}
 
 	@media (prefers-reduced-motion: reduce) {

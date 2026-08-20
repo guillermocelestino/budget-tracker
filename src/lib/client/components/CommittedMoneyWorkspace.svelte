@@ -124,8 +124,53 @@
 		category: $page.url.searchParams.get('category') || $page.url.searchParams.get('category_id') || ''
 	});
 
+	let stagedRecurringFilters = $state({
+		type: $page.url.searchParams.get('type') || '',
+		frequency: $page.url.searchParams.get('frequency') || '',
+		status: $page.url.searchParams.get('status') || '',
+		category: $page.url.searchParams.get('category') || $page.url.searchParams.get('category_id') || ''
+	});
+
 	let filtersOpen = $state(false);
 	let punchData = $state<{ type: PunchType; amount: number } | null>(null);
+
+	// Synchronize staged filters when popover opens
+	$effect(() => {
+		if (filtersOpen) {
+			untrack(() => {
+				stagedRecurringFilters = { ...recurringFilters };
+			});
+		}
+	});
+
+	const canApplyRecurring = $derived(
+		stagedRecurringFilters.type !== recurringFilters.type ||
+		stagedRecurringFilters.frequency !== recurringFilters.frequency ||
+		stagedRecurringFilters.status !== recurringFilters.status ||
+		stagedRecurringFilters.category !== recurringFilters.category
+	);
+
+	const canClearRecurring = $derived(
+		recurringFilters.type !== '' ||
+		recurringFilters.frequency !== '' ||
+		recurringFilters.status !== '' ||
+		recurringFilters.category !== '' ||
+		stagedRecurringFilters.type !== '' ||
+		stagedRecurringFilters.frequency !== '' ||
+		stagedRecurringFilters.status !== '' ||
+		stagedRecurringFilters.category !== ''
+	);
+
+	function handleApplyRecurring(closePanel?: () => void) {
+		recurringFilters = { ...stagedRecurringFilters };
+		closePanel?.();
+	}
+
+	function handleClearRecurring(closePanel?: () => void) {
+		stagedRecurringFilters = { type: '', frequency: '', status: '', category: '' };
+		recurringFilters = { type: '', frequency: '', status: '', category: '' };
+		closePanel?.();
+	}
 
 	// Sync filter modifications to URL
 	$effect(() => {
@@ -675,7 +720,7 @@ function handleEditRecurring(item: RecurringTransaction) {
 						<div class="filter-panel recurring-filter-panel">
 							<div class="filter-group">
 								<label for="rec-status-filter" class="filter-label">Status</label>
-								<select id="rec-status-filter" class="filter-select" bind:value={recurringFilters.status}>
+								<select id="rec-status-filter" class="filter-select" bind:value={stagedRecurringFilters.status}>
 									<option value="">All Statuses</option>
 									<option value="active">Active</option>
 									<option value="paused">Paused</option>
@@ -683,7 +728,7 @@ function handleEditRecurring(item: RecurringTransaction) {
 							</div>
 							<div class="filter-group">
 								<label for="rec-type-filter" class="filter-label">Type</label>
-								<select id="rec-type-filter" class="filter-select" bind:value={recurringFilters.type}>
+								<select id="rec-type-filter" class="filter-select" bind:value={stagedRecurringFilters.type}>
 									<option value="">All Types</option>
 									<option value="expense">Expense</option>
 									<option value="income">Income</option>
@@ -691,7 +736,7 @@ function handleEditRecurring(item: RecurringTransaction) {
 							</div>
 							<div class="filter-group">
 								<label for="rec-freq-filter" class="filter-label">Frequency</label>
-								<select id="rec-freq-filter" class="filter-select" bind:value={recurringFilters.frequency}>
+								<select id="rec-freq-filter" class="filter-select" bind:value={stagedRecurringFilters.frequency}>
 									<option value="">All Frequencies</option>
 									<option value="daily">Daily</option>
 									<option value="weekly">Weekly</option>
@@ -702,7 +747,7 @@ function handleEditRecurring(item: RecurringTransaction) {
 							{#if data.categories && data.categories.length > 0}
 								<div class="filter-group">
 									<label for="rec-cat-filter" class="filter-label">Category</label>
-									<select id="rec-cat-filter" class="filter-select" bind:value={recurringFilters.category}>
+									<select id="rec-cat-filter" class="filter-select" bind:value={stagedRecurringFilters.category}>
 										<option value="">All Categories</option>
 										{#each data.categories as cat (cat.id)}
 											<option value={String(cat.id)}>{cat.name}</option>
@@ -711,7 +756,11 @@ function handleEditRecurring(item: RecurringTransaction) {
 								</div>
 							{/if}
 							<FilterFooter
-								onApply={() => closePanel()}
+								canApply={canApplyRecurring}
+								canClear={canClearRecurring}
+								onApply={() => handleApplyRecurring(closePanel)}
+								onClear={() => handleClearRecurring(closePanel)}
+								mode={_mode}
 							/>
 						</div>
 					{/if}
