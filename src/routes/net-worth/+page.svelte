@@ -151,7 +151,8 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      TRUE POSITION HERO & BREAKDOWN
      ═══════════════════════════════════════════════════════════════════════════ -->
-<div class="true-position-container">
+<div class="page-container page-container--workspace">
+  <div class="true-position-container">
   <header class="true-position-hero">
     <div class="hero-left">
       <div class="hero-badge teal">
@@ -843,3 +844,5 @@
     .drill-btn:hover { transform: none; }
   }
 </style>
+
+</div>

@@ -1267,8 +1267,7 @@ function handleEditRecurring(item: RecurringTransaction) {
 
 	/* Remove border radius from inner tables to match lending page */
 	.table-card-wrapper :global(.iou-register),
-	.table-card-wrapper :global(.iou-container),
-	.table-card-wrapper :global(.recurring-table) {
+	.table-card-wrapper :global(.iou-container) {
 		border: none !important;
 		border-radius: 0 !important;
 		box-shadow: none !important;

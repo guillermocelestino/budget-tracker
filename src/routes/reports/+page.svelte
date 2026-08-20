@@ -161,7 +161,7 @@
 
 <PageBackground />
 
-<div class="page-container page-container--wide">
+<div class="page-container page-container--workspace">
 
 <!-- ═══ Timeframe Pill Control Bar ═══ -->
 <div class="timeframe-bar">

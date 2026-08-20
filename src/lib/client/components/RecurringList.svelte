@@ -294,20 +294,18 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 	.recurring-list { width: 100%; }
 
 	/* ── Table card ──
-	   Overflow visible so the per-button tooltips are never clipped.
-	   Border radius removed to match lending page table styling. */
+	   Match TransactionList flat-register styling for consistent visual density. */
 	.recurring-table {
 		background: var(--color-surface);
-		border: 1px solid var(--line);
-		border-radius: 0;
-		box-shadow: 0 8px 28px rgba(79, 157, 136, 0.12);
-		overflow: visible;
+		border: 1px solid var(--color-hairline);
+		border-radius: var(--radius-xl);
+		overflow: hidden;
 	}
 
 	/* ── Column header — solid mint band, no hard border ── */
 	.recurring-header {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) 120px 170px 130px 232px 48px;
+		grid-template-columns: minmax(0, 1fr) 100px 140px 110px 204px 44px;
 		align-items: center;
 		padding: 0 12px;
 		min-height: 42px;
@@ -333,7 +331,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 	/* ── Row — shared grid with the header (fixes column alignment) ── */
 	.recurring-row {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) 120px 170px 130px 232px 48px;
+		grid-template-columns: minmax(0, 1fr) 100px 140px 110px 204px 44px;
 		align-items: center;
 		min-height: 76px;
 		padding: 12px;
@@ -348,7 +346,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 	/* When selection mode is active, prepend a 44px checkbox column to the grid */
 	.recurring-row.has-selection,
 	.recurring-header.has-selection {
-		grid-template-columns: 44px minmax(0, 1fr) 120px 170px 130px 232px 48px;
+		grid-template-columns: 44px minmax(0, 1fr) 100px 140px 110px 204px 44px;
 	}
 
 	.rh-check {
@@ -597,22 +595,22 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 	@media (max-width: 1099px) {
 		.recurring-row,
 		.recurring-header {
-			grid-template-columns: minmax(0, 1fr) 120px 170px 130px 148px 48px;
+			grid-template-columns: minmax(0, 1fr) 100px 140px 110px 148px 44px;
 		}
 		.recurring-row.has-selection,
 		.recurring-header.has-selection {
-			grid-template-columns: 44px minmax(0, 1fr) 120px 170px 130px 148px 48px;
+			grid-template-columns: 44px minmax(0, 1fr) 100px 140px 110px 148px 44px;
 		}
 	}
 
 	@media (max-width: 899px) {
 		.recurring-row,
 		.recurring-header {
-			grid-template-columns: minmax(0, 1fr) 120px 170px 130px 100px 48px;
+			grid-template-columns: minmax(0, 1fr) 100px 140px 110px 100px 44px;
 		}
 		.recurring-row.has-selection,
 		.recurring-header.has-selection {
-			grid-template-columns: 44px minmax(0, 1fr) 120px 170px 130px 100px 48px;
+			grid-template-columns: 44px minmax(0, 1fr) 100px 140px 110px 100px 44px;
 		}
 	}
 
@@ -622,11 +620,11 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 		.recurring-header .rh-actions { display: none; }
 		.recurring-row,
 		.recurring-header {
-			grid-template-columns: minmax(0, 1fr) 120px 170px 130px 48px;
+			grid-template-columns: minmax(0, 1fr) 100px 140px 110px 44px;
 		}
 		.recurring-row.has-selection,
 		.recurring-header.has-selection {
-			grid-template-columns: 44px minmax(0, 1fr) 120px 170px 130px 48px;
+			grid-template-columns: 44px minmax(0, 1fr) 100px 140px 110px 44px;
 		}
 	}
 

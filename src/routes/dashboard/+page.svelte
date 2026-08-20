@@ -2,34 +2,27 @@
 	import { page } from '$app/stores';
 	import PageBackground from '$lib/client/components/PageBackground.svelte';
 	import CommandCenterKpiStrip from '$lib/client/components/CommandCenterKpiStrip.svelte';
-	import CashFlowChart from '$lib/client/components/CashFlowChart.svelte';
-	import CategoryBreakdownWidget from '$lib/client/components/CategoryBreakdownWidget.svelte';
-	import ForecastBanner from '$lib/client/components/ForecastBanner.svelte';
-	import FinancialPositionWidget from '$lib/client/components/FinancialPositionWidget.svelte';
 	import RecentActivityWidget from '$lib/client/components/RecentActivityWidget.svelte';
 	import UpcomingRecurringWidget from '$lib/client/components/UpcomingRecurringWidget.svelte';
 	import MobileDashboard from '$lib/client/components/dashboard/MobileDashboard.svelte';
+	import MobileMoneyHero from '$lib/client/components/dashboard/MobileMoneyHero.svelte';
+	import MobilePocketDrain from '$lib/client/components/dashboard/MobilePocketDrain.svelte';
+	import MobileWhereItWent from '$lib/client/components/dashboard/MobileWhereItWent.svelte';
+	import MobileDailyDrain from '$lib/client/components/dashboard/MobileDailyDrain.svelte';
 	import { formatDate, formatCurrency } from '$lib/client/utils/format';
+	import type { CategoryItem } from '$lib/client/components/dashboard/MobileWhereItWent.svelte';
+	import type { DailyOutflowItem } from '$lib/client/components/dashboard/MobileDailyDrain.svelte';
 
 	let data = $derived($page.data as App.PageData);
 
-	// ─── Forecast computation ───
-	const now = new Date();
-	const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-	const daysElapsed = now.getDate();
-	const daysRemaining = daysInMonth - daysElapsed;
-	const avgDailySpend = $derived(daysElapsed > 0
-		? (data.summary?.totalExpenses ?? 0) / daysElapsed
-		: 0);
-
-	// ─── Category items ───
-	const categoryItems = $derived(
-		(data.categoryLabels ?? []).map((name, i) => ({
-			name,
-			total: (data.categoryData ?? [])[i] || 0,
-			color: (data.categoryColors ?? [])[i] || '#2BA8A2',
-		}))
-	);
+	// ─── Data for Money Out components ───
+	const totalExpenses = $derived(data.summary?.totalExpenses ?? 0);
+	const totalLent = $derived(data.commandCenter?.moneyAway?.totalLent ?? data.lendingSummary?.totalLent ?? 0);
+	const totalRepaid = $derived(data.borrowedSummary?.totalRepaid ?? 0);
+	const wreckedToday = $derived(data.commandCenter?.moneyGone?.wreckedToday ?? 0);
+	const expenseChange = $derived(data.expenseChange ?? 0);
+	const categoryExpenses = $derived((data.categoryExpenses ?? []) as CategoryItem[]);
+	const dailyOutflows = $derived((data.dailyOutflows ?? []) as DailyOutflowItem[]);
 
 	// ─── Upcoming recurring items ───
 	const upcomingRecurring = $derived(data.upcomingRecurring ?? []);
@@ -57,7 +50,7 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      DESKTOP COMPOSITION (viewports > 768px)
      ═══════════════════════════════════════════════════════════════════════════ -->
-<div class="desktop-dashboard">
+<div class="desktop-dashboard page-container page-container--workspace">
 	<!-- ═══ COMMAND CENTER HERO BANNER ═══ -->
 	<header class="command-hero">
 		<div class="hero-left">
@@ -90,49 +83,37 @@
 			/>
 		</section>
 
-		<!-- LAYER 2: PRIMARY FINANCIAL ANALYSIS (Cash Flow 2/3 + Categories 1/3) -->
+		<!-- LAYER 2: MONEY OUT HERO CARDS (Money Hero + Pocket Drain) -->
 		<section class="dashboard-section">
-			<div class="viz-grid">
-				<div class="viz-main flip7-card">
-					<div class="card-header">
-						<h2 class="card-title">Cash Flow Trend</h2>
-						<span class="card-subtitle">Monthly Income vs. Expenses</span>
-					</div>
-					<div class="card-body">
-						<CashFlowChart
-							labels={data.trendLabels ?? []}
-							incomeData={data.trendIncome ?? []}
-							expenseData={data.trendExpenses ?? []}
-						/>
-					</div>
-				</div>
-
-				<div class="viz-side flip7-card">
-					<div class="card-header">
-						<h2 class="card-title">Spending by Category</h2>
-						<span class="card-subtitle">Top Expense Breakdown</span>
-					</div>
-					<div class="card-body">
-						<CategoryBreakdownWidget categories={categoryItems} />
-					</div>
-				</div>
+			<div class="money-out-grid">
+				<MobileMoneyHero
+					monthStr={data.currentMonthStr}
+					{totalExpenses}
+					{totalLent}
+					{totalRepaid}
+					{wreckedToday}
+					{expenseChange}
+				/>
+				<MobilePocketDrain
+					{totalExpenses}
+					{totalLent}
+					{totalRepaid}
+					monthStr={data.currentMonthStr}
+					{expenseChange}
+				/>
 			</div>
 		</section>
 
-		<!-- LAYER 3: SECONDARY INSIGHTS (Forecast 1/2 + Financial Position 1/2) -->
+		<!-- LAYER 3: WHERE IT WENT & DAILY DRAIN -->
 		<section class="dashboard-section">
-			<div class="insights-grid">
-				<ForecastBanner
-					currentBalance={data.summary?.balance ?? 0}
-					totalIncome={data.summary?.totalIncome ?? 0}
-					{avgDailySpend}
-					{daysRemaining}
+			<div class="breakdown-grid">
+				<MobileWhereItWent
+					{categoryExpenses}
+					monthStr={data.currentMonthStr}
 				/>
-
-				<FinancialPositionWidget
-					netWorth={data.netWorth}
-					lendingSummary={data.lendingSummary}
-					borrowedSummary={data.borrowedSummary}
+				<MobileDailyDrain
+					{dailyOutflows}
+					monthStr={data.currentMonthStr}
 				/>
 			</div>
 		</section>
@@ -310,51 +291,16 @@
 		to { opacity: 1; transform: translateY(0); }
 	}
 
-	/* ─── Layer 2: Visual Grid (2/3 Cash Flow + 1/3 Category Breakdown) ─── */
-	.viz-grid {
+	/* ─── Layer 2: Money Out Grid (1/2 Money Hero + 1/2 Pocket Drain) ─── */
+	.money-out-grid {
 		display: grid;
-		grid-template-columns: 2fr 1fr;
+		grid-template-columns: 1fr 1fr;
 		gap: var(--space-md);
 		align-items: stretch;
 	}
 
-	.viz-main, .viz-side {
-		display: flex;
-		flex-direction: column;
-		padding: var(--space-lg);
-		background: var(--color-surface);
-		border: 1px solid var(--color-hairline);
-		border-radius: var(--radius-xl);
-		box-shadow: var(--shadow-card);
-	}
-
-	.card-header {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		margin-bottom: var(--space-md);
-	}
-
-	.card-title {
-		font-size: var(--font-size-base);
-		font-weight: 600;
-		color: var(--color-ink);
-		margin: 0;
-	}
-
-	.card-subtitle {
-		font-size: var(--font-size-xs);
-		color: var(--color-text-muted);
-	}
-
-	.card-body {
-		flex: 1;
-		min-height: 0;
-		width: 100%;
-	}
-
-	/* ─── Layer 3: Secondary Insights Grid (1/2 Forecast + 1/2 Financial Position) ─── */
-	.insights-grid {
+	/* ─── Layer 3: Breakdown Grid (1/2 Where It Went + 1/2 Daily Drain) ─── */
+	.breakdown-grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: var(--space-md);
@@ -374,11 +320,11 @@
 	   ════════════════════════════════════════ */
 
 	@media (max-width: 1024px) {
-		.viz-grid {
+		.money-out-grid {
 			grid-template-columns: 1fr;
 		}
 
-		.insights-grid {
+		.breakdown-grid {
 			grid-template-columns: 1fr;
 		}
 
@@ -394,14 +340,6 @@
 
 		.mobile-dashboard {
 			display: block;
-		}
-
-		.viz-main, .viz-side {
-			padding: var(--space-md);
-		}
-
-		.card-title {
-			font-size: var(--font-size-sm);
 		}
 	}
 
