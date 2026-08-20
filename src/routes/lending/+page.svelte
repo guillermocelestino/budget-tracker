@@ -1027,6 +1027,7 @@
 		border: 1px solid var(--color-hairline);
 		border-radius: 18px;
 		box-shadow: var(--shadow-sm);
+		min-height: 96px;
 	}
 
 	.kpi-label {
