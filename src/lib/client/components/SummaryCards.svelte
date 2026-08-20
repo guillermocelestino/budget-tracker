@@ -169,31 +169,6 @@
     border-left-color: var(--color-sky);
   }
 
-  /* ── Dark signature: the Flip7 ::before accent replaces the light border-left ── */
-  [data-theme="dark"] .card {
-    border-left-width: 0;
-  }
-
-  [data-theme="dark"] .card.accent-teal.flip7-card::before {
-    background: var(--color-teal);
-    box-shadow: var(--glow-card);
-  }
-
-  [data-theme="dark"] .card.accent-coral.flip7-card::before {
-    background: var(--color-coral);
-    box-shadow: var(--glow-coral);
-  }
-
-  [data-theme="dark"] .card.accent-sky.flip7-card::before {
-    background: var(--color-sky);
-    box-shadow: var(--glow-sky);
-  }
-
-  [data-theme="dark"] .card.hero.flip7-card::before {
-    background: var(--color-gold);
-    box-shadow: var(--glow-gold);
-  }
-
   /* —— Icon ring — small muted ring, not large filled block —— */
   .card-icon-ring {
     width: 38px;

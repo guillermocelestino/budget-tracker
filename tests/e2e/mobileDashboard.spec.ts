@@ -25,8 +25,8 @@ test.describe('Mobile Money Out Dashboard', () => {
 
 		// 1. Check Branding Header
 		await expect(page.locator('.branding-title')).toBeVisible({ timeout: 10000 });
-		await expect(page.locator('.branding-title')).toHaveText('MONEY OUT');
-		await expect(page.getByText('track what leaves your pocket')).toBeVisible();
+		await expect(page.locator('.branding-title')).toHaveText('WRECKRD');
+		await expect(page.getByText('Track. Wreck. Repeat.')).toBeVisible();
 
 		// 2. Check Month Selector & Hero Card
 		await expect(page.locator('.this-month-pill')).toBeVisible();

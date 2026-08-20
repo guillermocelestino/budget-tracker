@@ -42,7 +42,7 @@
 </script>
 
 <svelte:head>
-	<title>Money Out Command Center — GET WRECK</title>
+	<title>Money Out Command Center — WRECKRD</title>
 </svelte:head>
 
 <PageBackground />

@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { formatDateInput, formatWithCommas } from '$lib/shared/utils/format';
 import { handleAmountInput, handleAmountFocus, handleAmountBlur } from '$lib/client/utils/format';
-	import { showSuccess, type ToastAction } from '$lib/client/stores/toast.svelte';
+	import { showSuccess, showError, type ToastAction } from '$lib/client/stores/toast.svelte';
 	import type { Category, RecurringTransaction, TransactionType, RecurringFrequency, RecurringFormInitial } from '$lib/types';
 	import { generatePreview } from '$lib/shared/utils/recurring';
 
@@ -190,10 +190,19 @@ import { handleAmountInput, handleAmountFocus, handleAmountBlur } from '$lib/cli
 		successToast?.message ?? (recurring ? 'Recurring transaction updated successfully' : 'Recurring transaction added successfully');
 
 	function handleEnhance() {
-		return async ({ result, update }: { result: { type: string }; update: () => Promise<void> }) => {
-			if (result.type === 'redirect') {
+		return async ({ result, update }: { result: { type: string; data?: Record<string, unknown> }; update: () => Promise<void> }) => {
+			if (result.type === 'redirect' || result.type === 'success') {
 				showSuccess(successMessage(), undefined, successToast?.action);
 				onSuccess?.();
+			} else if (result.type === 'failure') {
+				const resData = result.data;
+				const errorMsg =
+					typeof resData?.error === 'string'
+						? resData.error
+						: resData?.errors && typeof resData.errors === 'object'
+						? Object.values(resData.errors as Record<string, string>).filter(Boolean).join(', ')
+						: 'Failed to save recurring transaction';
+				showError(errorMsg);
 			}
 			await update();
 		};

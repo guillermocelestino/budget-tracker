@@ -414,7 +414,7 @@
 </script>
 
 <svelte:head>
-	<title>Money Away — GET WRECK</title>
+	<title>Money Away — WRECKRD</title>
 </svelte:head>
 
 <PageBackground />

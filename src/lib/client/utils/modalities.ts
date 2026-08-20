@@ -1,5 +1,5 @@
 /**
- * GET WRECK — Product Taxonomy & Navigation Config
+ * WRECKRD — Product Taxonomy & Navigation Config
  * Shared navigation metadata mapping core product modalities to routes.
  */
 
@@ -40,7 +40,7 @@ export const MONEY_OUT_NAV: NavItemConfig[] = [
 		modality: 'away'
 	},
 	{
-		href: '/recurring',
+		href: '/committed',
 		label: 'Money Committed',
 		mobileLabel: 'Committed',
 		icon: 'money-committed',

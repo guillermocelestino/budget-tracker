@@ -20,7 +20,7 @@
 </script>
 
 <svelte:head>
-	<title>Money Committed — GET WRECK</title>
+	<title>Money Committed — WRECKRD</title>
 </svelte:head>
 
 <PageBackground />

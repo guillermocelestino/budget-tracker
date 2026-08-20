@@ -14,7 +14,6 @@
 	import RecurringList from '$lib/client/components/RecurringList.svelte';
 	import MoneyCommittedModal from '$lib/client/components/MoneyCommittedModal.svelte';
 	import BorrowedMoneyModal from '$lib/client/components/BorrowedMoneyModal.svelte';
-	import RecurringForm from '$lib/client/components/RecurringForm.svelte';
 	import RecordPaymentModal from '$lib/client/components/RecordPaymentModal.svelte';
 	import PaymentHistoryPanel from '$lib/client/components/PaymentHistoryPanel.svelte';
 	import EditPaymentModal from '$lib/client/components/EditPaymentModal.svelte';
@@ -56,48 +55,23 @@
 
 	let {
 		data,
-		initialView = 'borrowed'
+		initialView: _initialView = 'borrowed',
+		children
 	}: {
 		data: WorkspacePageData;
 		initialView?: 'borrowed' | 'recurring';
+		children?: import('svelte').Snippet;
 	} = $props();
 
 	// ─── ACTIVE VIEW ───
-	const urlView = $derived($page.url.searchParams.get('view'));
 	const activeView = $derived<'borrowed' | 'recurring'>(
-		urlView === 'recurring' ? 'recurring' : urlView === 'borrowed' ? 'borrowed' : initialView
+		$page.url.pathname.includes('/borrowed') ? 'borrowed' : 'recurring'
 	);
 
 	const borrowedActiveCount = $derived(
 		data.borrowedCounts?.active ?? data.counts?.active ?? data.moneyCommittedStats?.borrowedActiveCount ?? 0
 	);
 	const recurringActiveCount = $derived(data.activeCount ?? 0);
-
-	function switchView(targetView: 'borrowed' | 'recurring') {
-		if (targetView === activeView) return;
-		const params = new URLSearchParams($page.url.searchParams);
-		params.set('view', targetView);
-		params.set('page', '1');
-
-		if (targetView === 'borrowed') {
-			params.delete('type');
-			params.delete('frequency');
-			params.delete('category');
-			params.delete('category_id');
-		} else {
-			params.delete('from');
-			params.delete('to');
-			params.delete('date_from');
-			params.delete('date_to');
-			params.delete('date');
-		}
-
-		selectionMode = false;
-		selectedIds = new Set();
-
-		const canonicalPath = $page.url.pathname.startsWith('/borrowed') ? '/borrowed' : '/recurring';
-		goto(`${canonicalPath}?${params.toString()}`, { keepFocus: true, noScroll: true });
-	}
 
 	// ─── SEARCH & FILTER STATE ───
 	let searchInput = $state($page.url.searchParams.get('search') || '');
@@ -156,7 +130,7 @@
 	// Sync filter modifications to URL
 	$effect(() => {
 		const params = new URLSearchParams($page.url.searchParams);
-		params.set('view', activeView);
+		params.delete('view');
 
 		if (searchTerm) {
 			params.set('search', searchTerm);
@@ -210,8 +184,8 @@
 		const currentQs = new URLSearchParams($page.url.searchParams).toString();
 
 		if (newQs !== currentQs) {
-			const canonicalPath = $page.url.pathname.startsWith('/borrowed') ? '/borrowed' : '/recurring';
-			goto(`${canonicalPath}?${newQs}`, { keepFocus: true, noScroll: true });
+			const canonicalPath = $page.url.pathname;
+			goto(newQs ? `${canonicalPath}?${newQs}` : canonicalPath, { keepFocus: true, noScroll: true });
 		}
 	});
 
@@ -317,8 +291,9 @@ function setIndeterminate(node: HTMLInputElement, indeterminate: boolean) {
 	async function goToPage(p: number) {
 		const y = window.scrollY;
 		const params = new URLSearchParams($page.url.searchParams);
+		params.delete('view');
 		params.set('page', String(p));
-		const canonicalPath = $page.url.pathname.startsWith('/borrowed') ? '/borrowed' : '/recurring';
+		const canonicalPath = $page.url.pathname;
 		try {
 			await goto(`${canonicalPath}?${params.toString()}`, { keepFocus: true, noScroll: true });
 		} catch {
@@ -333,6 +308,7 @@ function setIndeterminate(node: HTMLInputElement, indeterminate: boolean) {
 
 	function handleLimitChange(newLimitStr: string) {
 		const params = new URLSearchParams($page.url.searchParams);
+		params.delete('view');
 		params.set('page', '1');
 		if (newLimitStr === 'all') {
 			params.set('limit', 'all');
@@ -342,7 +318,7 @@ function setIndeterminate(node: HTMLInputElement, indeterminate: boolean) {
 			params.delete('limit');
 			params.delete('pageSize');
 		}
-		const canonicalPath = $page.url.pathname.startsWith('/borrowed') ? '/borrowed' : '/recurring';
+		const canonicalPath = $page.url.pathname;
 		goto(`${canonicalPath}?${params.toString()}`, { keepFocus: true, noScroll: true });
 	}
 
@@ -480,8 +456,15 @@ function handleEditRecurring(item: RecurringTransaction) {
 
 	async function handleDuplicateRecurring(id: number) {
 		try {
-			const res = await fetch(`/api/recurring/${id}/duplicate`, { method: 'POST' });
-			if (!res.ok) throw new Error('Failed to duplicate recurring schedule');
+			const res = await fetch(`/api/recurring/${id}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'duplicate' })
+			});
+			if (!res.ok) {
+				const errData = await res.json().catch(() => ({}));
+				throw new Error(errData.error || 'Failed to duplicate recurring schedule');
+			}
 			showSuccess('Recurring schedule duplicated');
 			await invalidateAll();
 		} catch (e) {
@@ -513,12 +496,15 @@ function handleEditRecurring(item: RecurringTransaction) {
 
 	async function handlePauseRecurring(id: number) {
 		try {
-			const res = await fetch(`/api/recurring/${id}/toggle`, {
-				method: 'PATCH',
+			const res = await fetch(`/api/recurring/${id}`, {
+				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ active: false })
+				body: JSON.stringify({ action: 'pause' })
 			});
-			if (!res.ok) throw new Error('Failed to pause recurring schedule');
+			if (!res.ok) {
+				const errData = await res.json().catch(() => ({}));
+				throw new Error(errData.error || 'Failed to pause recurring schedule');
+			}
 			showSuccess('Recurring schedule paused');
 			await invalidateAll();
 		} catch (e) {
@@ -528,12 +514,15 @@ function handleEditRecurring(item: RecurringTransaction) {
 
 	async function handleResumeRecurring(id: number) {
 		try {
-			const res = await fetch(`/api/recurring/${id}/toggle`, {
-				method: 'PATCH',
+			const res = await fetch(`/api/recurring/${id}`, {
+				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ active: true })
+				body: JSON.stringify({ action: 'resume' })
 			});
-			if (!res.ok) throw new Error('Failed to resume recurring schedule');
+			if (!res.ok) {
+				const errData = await res.json().catch(() => ({}));
+				throw new Error(errData.error || 'Failed to resume recurring schedule');
+			}
 			showSuccess('Recurring schedule activated');
 			await invalidateAll();
 		} catch (e) {
@@ -590,7 +579,7 @@ function handleEditRecurring(item: RecurringTransaction) {
 </script>
 
 <svelte:head>
-	<title>Committed Money — GET WRECK</title>
+	<title>Committed Money — WRECKRD</title>
 </svelte:head>
 
 <PageBackground />
@@ -620,28 +609,26 @@ function handleEditRecurring(item: RecurringTransaction) {
 			<!-- ─── View Switcher Segmented Control + Domain-Specific Add CTA ─── -->
 			<div class="switcher-wrapper">
 				<div class="segmented-control" role="radiogroup" aria-label="Select Committed Money View">
-					<button
-						type="button"
+					<a
+						href="/committed/borrowed"
 						class="seg-btn"
 						class:active={activeView === 'borrowed'}
 						role="radio"
 						aria-checked={activeView === 'borrowed'}
-						onclick={() => switchView('borrowed')}
 					>
 						<span class="seg-label">🤝 BORROWED</span>
 						<span class="seg-badge">{borrowedActiveCount}</span>
-					</button>
-					<button
-						type="button"
+					</a>
+					<a
+						href="/committed/recurring"
 						class="seg-btn"
 						class:active={activeView === 'recurring'}
 						role="radio"
 						aria-checked={activeView === 'recurring'}
-						onclick={() => switchView('recurring')}
 					>
 						<span class="seg-label">🔁 RECURRING</span>
 						<span class="seg-badge">{recurringActiveCount}</span>
-					</button>
+					</a>
 				</div>
 				<button
 					type="button"
@@ -865,6 +852,7 @@ function handleEditRecurring(item: RecurringTransaction) {
 		{/if}
 	</div>
 
+		{@render children?.()}
 	</div>
 </div>
 
@@ -1004,27 +992,17 @@ function handleEditRecurring(item: RecurringTransaction) {
 	}}
 />
 
-<!-- Recurring Edit Modal (dedicated domain modal) -->
-{#if editingRecurring}
-	<ModalDialog
-		open={true}
-		title="Edit Recurring Transaction"
-		subtitle="Modify the recurring template"
-		size="wide"
-		onclose={() => (editingRecurring = null)}
-	>
-		<RecurringForm
-			categories={data.categories ?? []}
-			recurring={editingRecurring}
-			action={`/recurring/${editingRecurring.id}?/update`}
-			onSuccess={() => {
-				editingRecurring = null;
-				invalidateAll();
-			}}
-			onCancel={() => (editingRecurring = null)}
-		/>
-	</ModalDialog>
-{/if}
+<!-- Recurring Edit Modal (Domain modal matching Create modal styling) -->
+<MoneyCommittedModal
+	open={!!editingRecurring}
+	categories={data.categories ?? []}
+	recurring={editingRecurring}
+	onClose={() => (editingRecurring = null)}
+	onSuccess={() => {
+		editingRecurring = null;
+		invalidateAll();
+	}}
+/>
 
 <!-- Delete Modal (Shared) -->
 {#if deleteTarget !== null}
@@ -1054,7 +1032,7 @@ function handleEditRecurring(item: RecurringTransaction) {
 		{#if isBulk}
 			<form
 				method="POST"
-				action={activeView === 'borrowed' ? '/borrowed?/deleteBulk' : '/recurring?/deleteBulk'}
+				action={activeView === 'borrowed' ? '/committed/borrowed?/deleteBulk' : '/committed/recurring?/deleteBulk'}
 				use:enhance={() => {
 					return async ({ result }) => {
 						if (result.type === 'success') {
@@ -1077,7 +1055,7 @@ function handleEditRecurring(item: RecurringTransaction) {
 		{:else}
 			<form
 				method="POST"
-				action={activeView === 'borrowed' ? '/borrowed?/delete' : '/api/recurring/delete'}
+				action={activeView === 'borrowed' ? '/committed/borrowed?/delete' : '/committed/recurring?/delete'}
 				use:enhance={() => {
 					return async ({ result }) => {
 						if (result.type === 'success' || result.type === 'redirect') {
@@ -1153,16 +1131,14 @@ function handleEditRecurring(item: RecurringTransaction) {
      COMMITTED MONEY WORKSPACE STYLES (Flip7 Design System)
      ═══════════════════════════════════════════════════════════════════════════ */
 	.committed-workspace {
-		/* Page width is now handled by .page-container--workspace wrapper.
-		   This component just provides internal spacing. */
-		padding: var(--space-xl) var(--space-md);
+		padding: 0;
 	}
 
 	.workspace-header {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-lg);
-		margin-bottom: var(--space-xl);
+		margin-bottom: var(--space-md);
 		padding: 18px 24px;
 		overflow: visible;
 	}
@@ -1267,7 +1243,8 @@ function handleEditRecurring(item: RecurringTransaction) {
 
 	/* Remove border radius from inner tables to match lending page */
 	.table-card-wrapper :global(.iou-register),
-	.table-card-wrapper :global(.iou-container) {
+	.table-card-wrapper :global(.iou-container),
+	.table-card-wrapper :global(.recurring-table) {
 		border: none !important;
 		border-radius: 0 !important;
 		box-shadow: none !important;
@@ -1299,7 +1276,7 @@ function handleEditRecurring(item: RecurringTransaction) {
 	.table-toolbar {
 		padding: var(--space-md);
 		border-bottom: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
-		background: var(--color-surface-inset, #fafafa);
+		background: var(--color-surface, #ffffff);
 		position: relative;
 	}
 
@@ -1433,16 +1410,18 @@ function handleEditRecurring(item: RecurringTransaction) {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		justify-content: center;
 		gap: var(--space-sm);
 		padding: var(--space-md);
 		border-top: 1px solid var(--color-hairline, rgba(226, 232, 240, 0.85));
-		background: var(--color-surface-inset, #fafafa);
+		background: var(--color-surface, #ffffff);
 		font-size: 13px;
 	}
 
 	.pager-nav {
 		display: flex;
 		align-items: center;
+		justify-content: center;
 		gap: 4px;
 	}
 
@@ -1476,7 +1455,9 @@ function handleEditRecurring(item: RecurringTransaction) {
 	.pager-footer {
 		display: flex;
 		align-items: center;
+		justify-content: center;
 		gap: var(--space-lg);
+		flex-wrap: wrap;
 	}
 
 	.pager-count {

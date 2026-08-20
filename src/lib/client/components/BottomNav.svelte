@@ -74,9 +74,9 @@
 
   <!-- Committed -->
   <a
-    href="/recurring"
+    href="/committed"
     class="bn-item bn-committed"
-    class:active={isActive('/recurring')}
+    class:active={isActive('/committed')}
     aria-label="Money Committed"
   >
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

@@ -1,20 +1,22 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { getCurrentMonth, getMonthLabel } from '$lib/shared/utils/format';
-	import MobileMoneyHero from './MobileMoneyHero.svelte';
-	import MobilePocketDrain from './MobilePocketDrain.svelte';
-	import MobileWhereItWent from './MobileWhereItWent.svelte';
-	import MobileDailyDrain from './MobileDailyDrain.svelte';
-	import MobileStillOutThere from './MobileStillOutThere.svelte';
-	import MobileMoneyMovements from './MobileMoneyMovements.svelte';
-	import MobileLogItSheet from './MobileLogItSheet.svelte';
-	import MobileMoneyPunchOverlay, { type PunchType } from './MobileMoneyPunchOverlay.svelte';
-	import type { Category, LendingWithPayments, Transaction } from '$lib/types';
-	import type { CategoryItem } from './MobileWhereItWent.svelte';
-	import type { DailyOutflowItem } from './MobileDailyDrain.svelte';
+	import { goto } from "$app/navigation";
+	import { getCurrentMonth, getMonthLabel } from "$lib/shared/utils/format";
+	import MobileMoneyHero from "./MobileMoneyHero.svelte";
+	import MobilePocketDrain from "./MobilePocketDrain.svelte";
+	import MobileWhereItWent from "./MobileWhereItWent.svelte";
+	import MobileDailyDrain from "./MobileDailyDrain.svelte";
+	import MobileStillOutThere from "./MobileStillOutThere.svelte";
+	import MobileMoneyMovements from "./MobileMoneyMovements.svelte";
+	import MobileLogItSheet from "./MobileLogItSheet.svelte";
+	import MobileMoneyPunchOverlay, {
+		type PunchType,
+	} from "./MobileMoneyPunchOverlay.svelte";
+	import type { Category, LendingWithPayments, Transaction } from "$lib/types";
+	import type { CategoryItem } from "./MobileWhereItWent.svelte";
+	import type { DailyOutflowItem } from "./MobileDailyDrain.svelte";
 
 	let {
-		data
+		data,
 	}: {
 		data: App.PageData;
 	} = $props();
@@ -29,14 +31,14 @@
 	const displayMonthLabel = $derived(getMonthLabel(activeMonthStr));
 
 	function changeMonth(delta: number) {
-		const [y, m] = activeMonthStr.split('-').map(Number);
+		const [y, m] = activeMonthStr.split("-").map(Number);
 		const date = new Date(y, m - 1 + delta, 1);
 		const newY = date.getFullYear();
-		const newM = String(date.getMonth() + 1).padStart(2, '0');
+		const newM = String(date.getMonth() + 1).padStart(2, "0");
 		const targetStr = `${newY}-${newM}`;
 
 		if (targetStr === calendarMonthStr) {
-			goto('/dashboard');
+			goto("/dashboard");
 		} else {
 			goto(`/dashboard?month=${targetStr}`);
 		}
@@ -48,34 +50,62 @@
 	}
 
 	const totalExpenses = $derived(data.summary?.totalExpenses ?? 0);
-	const totalLent = $derived(data.commandCenter?.moneyAway?.totalLent ?? data.lendingSummary?.totalLent ?? 0);
+	const totalLent = $derived(
+		data.commandCenter?.moneyAway?.totalLent ??
+			data.lendingSummary?.totalLent ??
+			0,
+	);
 	const totalRepaid = $derived(data.borrowedSummary?.totalRepaid ?? 0);
-	const outstandingLent = $derived(data.commandCenter?.moneyAway?.outstanding ?? data.lendingSummary?.outstanding ?? 0);
-	const wreckedToday = $derived(data.commandCenter?.moneyGone?.wreckedToday ?? 0);
+	const outstandingLent = $derived(
+		data.commandCenter?.moneyAway?.outstanding ??
+			data.lendingSummary?.outstanding ??
+			0,
+	);
+	const wreckedToday = $derived(
+		data.commandCenter?.moneyGone?.wreckedToday ?? 0,
+	);
 	const expenseChange = $derived(data.expenseChange ?? 0);
-	const recentTransactions = $derived((data.recentTransactions ?? []) as Transaction[]);
+	const recentTransactions = $derived(
+		(data.recentTransactions ?? []) as Transaction[],
+	);
 	const categories = $derived((data.categories ?? []) as Category[]);
-	const activeBorrowed = $derived((data.activeBorrowed ?? []) as LendingWithPayments[]);
+	const activeBorrowed = $derived(
+		(data.activeBorrowed ?? []) as LendingWithPayments[],
+	);
 	const activeLent = $derived((data.activeLent ?? []) as LendingWithPayments[]);
-	const categoryExpenses = $derived((data.categoryExpenses ?? []) as CategoryItem[]);
-	const dailyOutflows = $derived((data.dailyOutflows ?? []) as DailyOutflowItem[]);
+	const categoryExpenses = $derived(
+		(data.categoryExpenses ?? []) as CategoryItem[],
+	);
+	const dailyOutflows = $derived(
+		(data.dailyOutflows ?? []) as DailyOutflowItem[],
+	);
 </script>
 
 <div class="mobile-money-out-dashboard">
 	<!-- 1. Money Out Branding Header -->
 	<header class="branding-header">
-		<h1 class="branding-title">MONEY OUT</h1>
-		<p class="branding-subtitle">track what leaves your pocket</p>
+		<h1 class="branding-title">WRECKRD</h1>
+		<p class="branding-subtitle">Track. Wreck. Repeat.</p>
 	</header>
 
 	<!-- 2. Month Selector -->
 	<div class="month-selector-card">
 		<div class="month-nav-row">
-			<button type="button" class="month-nav-btn" onclick={() => changeMonth(-1)} aria-label="Previous month">
+			<button
+				type="button"
+				class="month-nav-btn"
+				onclick={() => changeMonth(-1)}
+				aria-label="Previous month"
+			>
 				‹
 			</button>
 			<span class="month-current-label">{displayMonthLabel}</span>
-			<button type="button" class="month-nav-btn" onclick={() => changeMonth(1)} aria-label="Next month">
+			<button
+				type="button"
+				class="month-nav-btn"
+				onclick={() => changeMonth(1)}
+				aria-label="Next month"
+			>
 				›
 			</button>
 		</div>
@@ -104,16 +134,10 @@
 	/>
 
 	<!-- 6. Where It Went Breakdown -->
-	<MobileWhereItWent
-		{categoryExpenses}
-		monthStr={activeMonthStr}
-	/>
+	<MobileWhereItWent {categoryExpenses} monthStr={activeMonthStr} />
 
 	<!-- 7. Daily Drain Chart -->
-	<MobileDailyDrain
-		{dailyOutflows}
-		monthStr={activeMonthStr}
-	/>
+	<MobileDailyDrain {dailyOutflows} monthStr={activeMonthStr} />
 
 	<!-- 8. Still Out There Card (Point-in-Time Outstanding Lent Money & Active Loans) -->
 	<MobileStillOutThere outstanding={outstandingLent} loans={activeLent} />
@@ -130,7 +154,7 @@
 			aria-label="Log something"
 		>
 			<span class="plus-sign">＋</span>
-			<span class="btn-text">Log it</span>
+			<span class="btn-text">Wreckrd It</span>
 		</button>
 	</div>
 
@@ -260,14 +284,20 @@
 		padding: 14px 22px;
 		border-radius: var(--radius-pill, 999px);
 		border: none;
-		background: linear-gradient(135deg, var(--color-gold, #FFD23F) 0%, var(--color-gold-dark, #D97706) 100%);
-		color: var(--color-on-gold, #14302E);
+		background: linear-gradient(
+			135deg,
+			var(--color-gold, #ffd23f) 0%,
+			var(--color-gold-dark, #d97706) 100%
+		);
+		color: var(--color-on-gold, #14302e);
 		box-shadow: var(--glow-gold, 0 6px 20px rgba(255, 210, 63, 0.5));
 		cursor: pointer;
 		font-family: var(--font-display);
 		font-size: 16px;
 		font-weight: 800;
-		transition: transform 140ms ease, box-shadow 140ms ease;
+		transition:
+			transform 140ms ease,
+			box-shadow 140ms ease;
 	}
 
 	.log-it-floating-btn:hover {

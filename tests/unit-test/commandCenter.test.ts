@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-describe('GET WRECK Command Center Data Contract', () => {
-	it('defines the 4 GET WRECK modalities shape', () => {
+describe('WRECKRD Command Center Data Contract', () => {
+	it('defines the 4 WRECKRD modalities shape', () => {
 		const commandCenter = {
 			moneyGone: {
 				totalExpenses: 42300,

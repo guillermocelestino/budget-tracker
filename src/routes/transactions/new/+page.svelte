@@ -29,7 +29,7 @@
 </script>
 
 <svelte:head>
-	<title>Record Money — GET WRECK</title>
+	<title>Record Money — WRECKRD</title>
 </svelte:head>
 
 <PageBackground />

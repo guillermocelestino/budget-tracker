@@ -431,7 +431,7 @@ let punchData = $state<{ type: PunchType; amount: number } | null>(null);
 </script>
 
 <svelte:head>
-	<title>Money Gone — GET WRECK</title>
+	<title>Money Gone — WRECKRD</title>
 </svelte:head>
 
 <PageBackground />
@@ -1187,18 +1187,6 @@ let punchData = $state<{ type: PunchType; amount: number } | null>(null);
 	[data-theme="dark"] .table-card-wrapper.flip7-card {
 		border-radius: var(--radius-2xl);
 		border-color: var(--color-hairline);
-	}
-
-	[data-theme="dark"] .table-card-wrapper.flip7-card::before {
-		content: '';
-		position: absolute;
-		left: 0;
-		top: 0;
-		bottom: 0;
-		width: 4px;
-		background: var(--color-teal);
-		box-shadow: var(--glow-card);
-		border-radius: 0 2px 2px 0;
 	}
 
 	[data-theme="dark"] .table-card-wrapper.flip7-card:hover {

@@ -1,5 +1,6 @@
-import { fail, redirect } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
+import { loadCommittedWorkspaceData } from '$lib/server/services/committedWorkspaceLoad';
 import { importLendingsForUser } from '$lib/server/services/lendingImport';
 import {
 	getLending,
@@ -14,11 +15,8 @@ import {
 } from '$lib/server/services/lendingPayments';
 import { getToday } from '$lib/shared/utils/format';
 
-export const load: PageServerLoad = async ({ url }) => {
-	const params = new URLSearchParams(url.searchParams);
-	params.delete('view');
-	const queryString = params.toString() ? `?${params.toString()}` : '';
-	throw redirect(307, `/committed/borrowed${queryString}`);
+export const load: PageServerLoad = async ({ url, locals }) => {
+	return loadCommittedWorkspaceData({ url, locals, defaultView: 'borrowed' });
 };
 
 export const actions: Actions = {

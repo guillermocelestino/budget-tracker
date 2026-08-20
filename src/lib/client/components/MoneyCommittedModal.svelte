@@ -2,16 +2,19 @@
 	import { tick } from 'svelte';
 	import { showSuccess, showError } from '$lib/client/stores/toast.svelte';
 	import { formatDateInput, formatWithCommas } from '$lib/shared/utils/format';
-	import type { Category, RecurringFrequency } from '$lib/types';
+	import { generatePreview } from '$lib/shared/utils/recurring';
+	import type { Category, RecurringFrequency, RecurringTransaction } from '$lib/types';
 
 	let {
 		open = false,
 		categories = [],
+		recurring = null,
 		onClose,
 		onSuccess
 	}: {
 		open?: boolean;
 		categories?: Category[];
+		recurring?: RecurringTransaction | null;
 		onClose?: () => void;
 		onSuccess?: (payload: { amount: number }) => void;
 	} = $props();
@@ -28,13 +31,21 @@
 
 	$effect(() => {
 		if (open) {
-			rawAmount = '';
-			description = '';
-			frequency = 'monthly';
-			nextOutflow = formatDateInput();
-			if (categories.length > 0 && !category_id) {
-				const expenseCat = categories.find((c) => c.type === 'expense');
-				category_id = expenseCat ? expenseCat.id : categories[0].id;
+			if (recurring) {
+				rawAmount = String(recurring.amount);
+				description = recurring.description;
+				frequency = recurring.frequency ?? 'monthly';
+				nextOutflow = recurring.start_date ?? formatDateInput();
+				category_id = recurring.category_id ?? '';
+			} else {
+				rawAmount = '';
+				description = '';
+				frequency = 'monthly';
+				nextOutflow = formatDateInput();
+				if (categories.length > 0 && !category_id) {
+					const expenseCat = categories.find((c) => c.type === 'expense');
+					category_id = expenseCat ? expenseCat.id : categories[0].id;
+				}
 			}
 		}
 	});
@@ -46,7 +57,13 @@
 	);
 
 	const scheduledCtaLabel = $derived(
-		formattedAmount ? `Commit ₱${formattedAmount}` : 'Commit'
+		recurring
+			? (formattedAmount ? `Update Commitment (₱${formattedAmount})` : 'Update Commitment')
+			: (formattedAmount ? `Commit ₱${formattedAmount}` : 'Commit')
+	);
+
+	const previewDates = $derived(
+		generatePreview(frequency, 1, null, null, null, nextOutflow, 5)
 	);
 
 	function onAmountInput(e: Event) {
@@ -89,7 +106,7 @@
 		if (e.key === 'Escape') close();
 	}
 
-	// Submit handler for Scheduled mode (posts to /api/recurring via JSON fetch)
+	// Submit handler for Scheduled mode (posts/puts to /api/recurring via JSON fetch)
 	async function submitScheduled(e: SubmitEvent) {
 		e.preventDefault();
 		if (submitting) return;
@@ -107,28 +124,32 @@
 
 		submitting = true;
 		try {
-			const res = await fetch('/api/recurring', {
-				method: 'POST',
+			const url = recurring ? `/api/recurring/${recurring.id}` : '/api/recurring';
+			const method = recurring ? 'PUT' : 'POST';
+
+			const res = await fetch(url, {
+				method,
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					type: 'expense',
+					type: recurring?.type || 'expense',
 					amount: numAmt,
 					description: description.trim(),
 					category_id: category_id ? Number(category_id) : (categories[0]?.id ?? 1),
 					frequency,
-					interval: 1,
+					interval: recurring?.interval ?? 1,
 					start_date: nextOutflow,
-					active: true
+					end_date: recurring?.end_date ?? null,
+					active: recurring?.active ?? true
 				})
 			});
 
 			const data = await res.json();
-			if (res.ok && data.success) {
-				showSuccess('Commitment added successfully!');
+			if (res.ok && (data.success || !data.error)) {
+				showSuccess(recurring ? 'Commitment updated successfully!' : 'Commitment added successfully!');
 				onSuccess?.({ amount: numAmt });
 				close();
 			} else {
-				showError(data.error || 'Failed to add commitment');
+				showError(data.error || (recurring ? 'Failed to update commitment' : 'Failed to add commitment'));
 			}
 		} catch (err: unknown) {
 			showError(err instanceof Error ? err.message : 'Network error occurred');
@@ -156,9 +177,9 @@
 			<!-- Header -->
 			<div class="modal-header">
 				<div class="header-badge">MONEY COMMITTED</div>
-				<h2 class="header-title">Add a Commitment</h2>
+				<h2 class="header-title">{recurring ? 'Edit Commitment' : 'Add a Commitment'}</h2>
 				<p class="header-subtitle">
-					Rent, subscriptions, recurring bills — commit them so future you isn't surprised.
+					{recurring ? 'Modify details for your recurring committed outflow.' : "Rent, subscriptions, recurring bills — commit them so future you isn't surprised."}
 				</p>
 				<button type="button" class="close-btn" onclick={close} aria-label="Close">
 					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -260,6 +281,20 @@
 						/>
 					</div>
 
+					<!-- Field 4.5: NEXT RUNS PREVIEW -->
+					{#if previewDates.length > 0}
+						<div class="field-group preview-group">
+							<label class="field-label">NEXT RUNS PREVIEW</label>
+							<div class="preview-pills">
+								{#each previewDates as date (date)}
+									<span class="preview-pill">
+										{new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+									</span>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
 					<!-- Field 5: CATEGORY (Optional) -->
 					{#if categories.length > 0}
 						<div class="field-group">
@@ -283,7 +318,7 @@
 						disabled={submitting || !description.trim() || parseFloat(rawAmount) <= 0}
 					>
 						{#if submitting}
-							<span>Committing...</span>
+							<span>{recurring ? 'Updating...' : 'Committing...'}</span>
 						{:else}
 							<span>{scheduledCtaLabel}</span>
 						{/if}
@@ -543,6 +578,34 @@
 
 	.date-input {
 		cursor: pointer;
+	}
+
+	/* ─── Next Runs Preview ─── */
+	.preview-group {
+		margin-bottom: 16px;
+	}
+
+	.preview-pills {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.preview-pill {
+		display: inline-flex;
+		align-items: center;
+		padding: 6px 12px;
+		background: rgba(43, 168, 162, 0.12);
+		color: var(--color-teal, #2BA8A2);
+		border-radius: 999px;
+		font-family: var(--font-display);
+		font-size: 12px;
+		font-weight: 700;
+	}
+
+	[data-theme="dark"] .preview-pill {
+		background: rgba(43, 168, 162, 0.22);
+		color: #5EEAD4;
 	}
 
 	/* ─── Field Row (Optional Interest & Note) ─── */

@@ -21,7 +21,7 @@
 </script>
 
 <svelte:head>
-	<title>Money Map — GET WRECK</title>
+	<title>Money Map — WRECKRD</title>
 	<meta name="description" content="Trace where your money came from, where it went, and what is still in motion in an interactive financial flow network." />
 </svelte:head>
 

@@ -143,7 +143,7 @@
 </script>
 
 <svelte:head>
-  <title>True Position — GET WRECK</title>
+  <title>True Position — WRECKRD</title>
 </svelte:head>
 
 <PageBackground />

@@ -121,8 +121,8 @@
     <a href="/dashboard" class="logo-link">
       {#if !isCollapsed}
         <div class="brand-text">
-          <h2>GET WRECK</h2>
-          <span class="brand-tagline">MONEY OUT OS</span>
+          <h2>WRECKRD</h2>
+          <span class="brand-tagline">Track. Wreck. Repeat.</span>
         </div>
       {:else}
         <div class="brand-text collapsed-brand">
@@ -450,7 +450,7 @@
     color: var(--color-ink-inverse) !important;
   }
 
-  /* GET WRECK Modality Active Colors */
+  /* WRECKRD Modality Active Colors */
   .nav-item.modality-gone.active {
     background: var(--color-money-gone);
     color: var(--color-ink-inverse) !important;
