@@ -86,21 +86,6 @@
     <span class="bn-label">Committed</span>
   </a>
 
-  <!-- Position -->
-  <a
-    href="/net-worth"
-    class="bn-item bn-position"
-    class:active={isActive('/net-worth')}
-    aria-label="True Position"
-  >
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <circle cx="12" cy="12" r="6"/>
-      <circle cx="12" cy="12" r="2"/>
-    </svg>
-    <span class="bn-label">Position</span>
-  </a>
-
   <!-- More (opens popup) -->
   <button
     bind:this={moreBtnEl}
@@ -142,7 +127,7 @@
       </svg>
       Money Map
     </a>
-    <a href="/reports" class="more-item" role="menuitem" class:active={isActive('/reports')} onclick={() => (moreOpen = false)}>
+    <a href="/analysis" class="more-item" role="menuitem" class:active={isActive('/analysis')} onclick={() => (moreOpen = false)}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>
       </svg>
@@ -181,20 +166,34 @@
   .bottom-nav {
     display: none;
     position: fixed;
-    bottom: var(--safe-bottom, 0px);
-    left: 12px;
-    right: 12px;
-    height: 64px;
-    margin-bottom: 8px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-hairline);
-    box-shadow: var(--shadow-card);
-    border-radius: var(--radius-pill);
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: none;
+    transform: none;
+    margin: 0;
+    min-height: 64px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.05);
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
     z-index: var(--z-sidebar);
     flex-direction: row;
-    align-items: stretch;
+    align-items: center;
     justify-content: space-around;
-    padding: 0 4px;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  [data-theme="dark"] .bottom-nav {
+    background: rgba(15, 23, 42, 0.95);
+    border-top-color: var(--color-hairline);
   }
 
   @media (max-width: 768px) {
@@ -213,7 +212,7 @@
     gap: 2px;
     flex: 1;
     min-width: 0;
-    padding: 4px 2px;
+    padding: 8px 8px;
     color: var(--color-text-muted);
     text-decoration: none;
     cursor: pointer;
@@ -264,15 +263,6 @@
   .bn-item.bn-committed.active svg,
   .bn-item.bn-committed.active .bn-label {
     color: var(--color-money-committed);
-  }
-
-  .bn-item.bn-position.active {
-    color: var(--color-true-position);
-    background: var(--color-teal-bg);
-  }
-  .bn-item.bn-position.active svg,
-  .bn-item.bn-position.active .bn-label {
-    color: var(--color-true-position);
   }
 
   /* Dark: the active item reads as a glowing pill */
@@ -336,7 +326,8 @@
     justify-content: center;
     flex: 0 0 auto;
     position: relative;
-    top: -16px;
+    top: 0;
+    margin-top: -24px;
     width: 56px;
   }
 

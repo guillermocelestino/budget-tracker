@@ -59,7 +59,7 @@ export const MONEY_OUT_NAV: NavItemConfig[] = [
 
 export const EXPLORE_NAV: NavItemConfig[] = [
 	{ href: '/money-map', label: 'Money Map', icon: 'money-map', emoji: '🗺' },
-	{ href: '/reports', label: 'Analysis', icon: 'reports', emoji: '📊' },
+	{ href: '/analysis', label: 'Analysis', icon: 'reports', emoji: '📊' },
 	{ href: '/categories', label: 'Categories', icon: 'categories', emoji: '🏷' },
 	{ href: '/settings', label: 'Settings', icon: 'settings', emoji: '⚙' }
 ];

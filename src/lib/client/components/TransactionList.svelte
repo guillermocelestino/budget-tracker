@@ -377,6 +377,9 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
   {@const hue = getCategoryHue(txn.category_name, txn.category_color)}
   {@const tint = getCategoryTint(txn.category_name, hue, themeState.isDark)}
   {@const fg = getCategoryText(txn.category_name, hue, themeState.isDark)}
+  {@const descText = cleanDescription(txn.description)}
+  {@const catName = txn.category_name || 'Uncategorized'}
+  {@const isSameCat = descText.toLowerCase().trim() === catName.toLowerCase().trim()}
 
   <div
     class="txn-row"
@@ -413,7 +416,7 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
           checked={selectedIds.has(txn.id)}
           onchange={() => onToggleSelection?.(txn.id)}
           onclick={(e) => e.stopPropagation()}
-          aria-label="Select {cleanDescription(txn.description)}"
+          aria-label="Select {descText}"
         />
       </div>
     {/if}
@@ -429,11 +432,13 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
         {#if isRefund(txn)}
           <span class="refund-chip">↩ Refund</span>
         {/if}
-        {cleanDescription(txn.description)}
+        {descText}
       </span>
-      <span class="cat-pill" style="background: {tint}; color: {fg}">
-        {txn.category_name || 'Uncategorized'}
-      </span>
+      {#if !isSameCat}
+        <span class="cat-pill" style="background: {tint}; color: {fg}">
+          {catName}
+        </span>
+      {/if}
       {#if txn.source_of_funds}
         <span class="txn-source">from {txn.source_of_funds}</span>
       {/if}
@@ -1158,6 +1163,8 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
     min-width: 0;
     display: flex;
     align-items: center;
+    justify-content: flex-start;
+    text-align: left;
     gap: 8px;
   }
 
@@ -1574,7 +1581,7 @@ import { formatDateShort, dateToString, getToday } from '$lib/shared/utils/forma
 
     .cat-circle { width: 32px; height: 32px; font-size: 12px; flex-shrink: 0; }
 
-    .txn-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .txn-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; }
     .txn-desc { font-size: var(--font-size-sm); font-weight: 700; color: var(--color-ink); }
     .cat-pill { display: inline-flex; width: fit-content; font-size: 10px; padding: 1px 6px; }
 

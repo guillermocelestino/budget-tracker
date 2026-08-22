@@ -343,14 +343,14 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 		-webkit-tap-highlight-color: transparent;
 	}
 
-	/* When selection mode is active, prepend a 44px checkbox column to the grid */
+	/* When selection mode is active, prepend a 28px checkbox column to the grid */
 	.recurring-row.has-selection,
 	.recurring-header.has-selection {
-		grid-template-columns: 44px minmax(0, 1fr) 100px 140px 110px 204px 44px;
+		grid-template-columns: 28px minmax(0, 1fr) 100px 140px 110px 204px 44px;
 	}
 
 	.rh-check {
-		width: 44px;
+		width: 28px;
 		height: 100%;
 		flex-shrink: 0;
 	}
@@ -359,8 +359,8 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 	.rr-check-cell {
 		display: flex;
 		align-items: center;
-		justify-content: center;
-		width: 44px;
+		justify-content: flex-start;
+		width: 28px;
 		height: 100%;
 		flex-shrink: 0;
 	}

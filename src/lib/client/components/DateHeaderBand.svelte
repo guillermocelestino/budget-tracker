@@ -83,12 +83,35 @@
 		color: var(--rose);
 	}
 
-	/* Mobile (≤480px): inset rounded band to match the card-ized list */
-	@media (max-width: 480px) {
+	/* Mobile (<= 640px): simplified transparent date group header */
+	@media (max-width: 640px) {
 		.date-header {
-			border-radius: var(--radius-md);
-			margin: 0 var(--space-sm);
-			padding: var(--space-xs) var(--space-md);
+			background: transparent !important;
+			border: none !important;
+			border-radius: 0 !important;
+			margin: 0 !important;
+			padding: 6px 4px 4px !important;
+			box-shadow: none !important;
+		}
+
+		.date-label {
+			font-size: 12px !important;
+			font-weight: 700 !important;
+			color: var(--color-text-muted, #64748b) !important;
+			text-transform: uppercase !important;
+			letter-spacing: 0.5px !important;
+		}
+
+		.date-dot,
+		.date-count {
+			display: none !important;
+		}
+
+		.day-subtotal {
+			font-size: 12px !important;
+			font-weight: 600 !important;
+			color: var(--color-text-muted, #64748b) !important;
+			margin-left: auto !important;
 		}
 	}
 </style>

@@ -611,7 +611,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
         class:show-projected={showProjectedInterest}
         role="rowheader"
         style={selectionMode
-          ? 'grid-template-columns: 44px 28px minmax(0, 1fr) 96px 108px 116px 110px 300px 48px;'
+          ? 'grid-template-columns: 28px 28px minmax(0, 1fr) 96px 108px 116px 110px 300px 48px;'
           : showProjectedInterest
             ? 'grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 110px 300px 48px;'
             : ''}
@@ -673,7 +673,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
           class:show-projected={showProjectedInterest}
           data-hover-row
           style="--row-accent: {accent};{selectionMode
-            ? ' grid-template-columns: 44px 28px minmax(0, 1fr) 96px 108px 116px 110px 300px 48px;'
+            ? ' grid-template-columns: 28px 28px minmax(0, 1fr) 96px 108px 116px 110px 300px 48px;'
             : showProjectedInterest
               ? ' grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 110px 300px 48px;'
               : ' grid-template-columns: 28px minmax(0, 1fr) 96px 108px 116px 300px 48px;'}"
@@ -1378,7 +1378,7 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
 
   /* ── Selection check column header ── */
   .rh-check {
-    width: 44px;
+    width: 28px;
     height: 28px;
     flex-shrink: 0;
   }
@@ -1387,14 +1387,15 @@ import { dateToString, getToday } from '$lib/shared/utils/format';
   .row-check-cell {
     display: flex;
     align-items: center;
-    justify-content: center;
-    width: 44px;
+    justify-content: flex-start;
+    width: 28px;
     flex-shrink: 0;
   }
 
   .row-checkbox {
     width: 18px;
     height: 18px;
+    margin: 0;
     accent-color: var(--color-teal);
     cursor: pointer;
     flex-shrink: 0;

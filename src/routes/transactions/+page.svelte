@@ -1804,7 +1804,7 @@ let punchData = $state<{ type: PunchType; amount: number } | null>(null);
 			display: flex;
 			flex-direction: column;
 			gap: var(--space-md);
-			padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 24px);
+			padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
 		}
 
 		.mobile-app-header {
@@ -1814,7 +1814,7 @@ let punchData = $state<{ type: PunchType; amount: number } | null>(null);
 			background: var(--color-bg);
 			backdrop-filter: blur(12px);
 			-webkit-backdrop-filter: blur(12px);
-			padding: var(--space-xs) 0 var(--space-sm);
+			padding: var(--space-xs) 0;
 			border-bottom: 1px solid var(--color-hairline);
 			margin-bottom: var(--space-xs);
 			overflow: visible;
@@ -1834,20 +1834,76 @@ let punchData = $state<{ type: PunchType; amount: number } | null>(null);
 			min-width: 0;
 		}
 
+		.context-subline {
+			font-size: var(--font-size-xs, 12px);
+			color: var(--color-text-muted);
+		}
+
+		@media (max-width: 640px) {
+			.context-subline {
+				display: none !important;
+			}
+		}
+
 		.mobile-page-title {
 			font-family: var(--font-display);
-			font-size: var(--font-size-lg);
+			font-size: clamp(16px, 4.2vw, 20px);
 			font-weight: var(--font-weight-extrabold);
 			color: var(--color-ink);
 			margin: 0;
 			letter-spacing: var(--letter-spacing-heading);
-			line-height: 1.2;
+			line-height: 1.15;
 		}
 
 		.mobile-header-actions {
 			display: flex;
 			align-items: center;
 			gap: var(--space-xs);
+			flex-shrink: 0;
+		}
+
+		.mobile-kpis {
+			display: grid;
+			grid-template-columns: repeat(2, 1fr);
+			gap: var(--space-xs, 8px);
+			margin-bottom: 0;
+		}
+
+		.mobile-kpis .kpi-card {
+			padding: 10px 12px;
+			border-radius: var(--radius-lg, 14px);
+			min-width: 0;
+			background: var(--color-surface);
+			border: 1px solid var(--color-hairline);
+			box-shadow: var(--shadow-sm);
+		}
+
+		.mobile-kpis .kpi-card-header {
+			gap: 6px;
+			margin-bottom: 2px;
+		}
+
+		.mobile-kpis .kpi-icon-chip {
+			width: 20px;
+			height: 20px;
+		}
+
+		.mobile-kpis .kpi-label {
+			font-size: 10px;
+			letter-spacing: 0.05em;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.mobile-kpis .kpi-value {
+			font-size: clamp(14px, 3.8vw, 17px);
+			font-weight: 800;
+			font-variant-numeric: tabular-nums;
+		}
+
+		.mobile-kpis .kpi-delta {
+			font-size: 10px;
 		}
 
 		.mobile-shell {

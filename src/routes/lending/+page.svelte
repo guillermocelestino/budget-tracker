@@ -1165,7 +1165,7 @@
 		justify-content: space-between;
 		flex-wrap: wrap;
 		gap: var(--space-sm);
-		padding: var(--space-sm) var(--space-md);
+		padding: var(--space-sm) var(--space-lg);
 		margin-top: var(--space-md);
 		margin-bottom: var(--space-md);
 		background: var(--color-surface);
